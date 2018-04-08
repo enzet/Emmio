@@ -50,3 +50,50 @@ def show(words, status=None, color=None, is_center=False):
         s += int((height - len(words)) / 2 - 1) * '\n'
     sys.stdout.write(s)
 
+
+ENTER = 13
+ESCAPE = 27
+BACKSPACE = 127
+
+
+def get_word(right_word):
+    word = ""
+
+    result = 'wrong'
+
+    while True:
+        char = get_char()
+        
+        if ord(char) == BACKSPACE:
+            word = word[:-1]
+        elif ord(char) == ESCAPE:
+            break
+        elif ord(char) == ENTER:
+            break
+        else:
+            word += char
+        
+        # print(char, "<", ord(char), ">")
+        sys.stdout.write("                    ")
+        sys.stdout.write("\r")
+        if word == right_word:
+            sys.stdout.write("\033[32m")
+        sys.stdout.write(word)
+        if word == right_word:
+            sys.stdout.write("\033[0m")
+        sys.stdout.flush()
+
+        if word == right_word:
+            result = 'right'
+            break
+        if word == "\\skip":
+            result = 'skip'
+            break
+        if word == "\\quit":
+            result = 'quit'
+            break
+
+    return result   
+
+if __name__ == "__main__":
+    get_word("test")

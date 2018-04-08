@@ -322,12 +322,10 @@ class Teacher:
 
             ui.show(question, status, 31 if is_new_card else None)
 
-            user_try = None
+            result = 'wrong'
 
             if 'check' in scheme and scheme['check'] == 'type':
-                user_try = input('> ')
-                if user_try == '\\quit':
-                    break
+                result = ui.get_word(answer)
             else:
                 a = ui.get_char()
                 while a in 's':
@@ -360,21 +358,17 @@ class Teacher:
                 ui.show(after_question + '\n' + answer, status)
 
             if 'check' in scheme and scheme['check'] == 'type':
-                if user_try == '\\quit':
+                if result == 'quit':
                     break
-                elif user_try == '\\skip':
+                elif result == 'skip':
                     self.process_user_response(True, next_question, now,
                         scheme_id)
-                else:
-                    response = (user_try == answer)
-                    self.process_user_response(response, next_question, now,
+                elif result == 'right':
+                    self.process_user_response(True, next_question, now,
                         scheme_id)
-                    if response:
-                        print('!!! RIGHT !!!')
-                    else:
-                        print('!!! WRONG !!!')
-                        print('Right answer is: ' + answer)
-                    a = ui.get_char()
+                elif result == 'wrong':
+                    self.process_user_response(False, next_question, now,
+                        scheme_id)
             else:
                 a = ui.get_char()
                 while not (a in 'qynjkfd,.'):
