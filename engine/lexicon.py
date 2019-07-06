@@ -470,6 +470,9 @@ class Lexicon:
         while answer not in ["y", "Enter", "n", "-", "q"]:
             answer = ui.get_char()
 
+        if answer == "Enter":
+            answer = "y"
+
         if answer == "q":
             self.write_fast()
             return False
