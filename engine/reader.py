@@ -3,7 +3,7 @@
 import json
 import yaml
 
-from util import error
+from engine.util import error
 
 
 def read_priority(file_name):
@@ -66,8 +66,6 @@ def read_dict(file_name, format='dict'):
     :return parsed dictionary as Python dict structure.
     """
     dictionary = {}
-
-    # 'ÀàÂâÆæÄäÇçÉéÈèÊêËëÎîÏïÔôŒœÖöÙùÛûÜüŸÿ'
 
     if format == 'dict':
         key, value = '', ''

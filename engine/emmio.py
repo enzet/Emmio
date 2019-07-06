@@ -7,6 +7,7 @@ Author: Sergey Vartanov (me@enzet.ru).
 import random
 import subprocess
 import sys
+import yaml
 from datetime import datetime
 
 import analysis
@@ -15,7 +16,23 @@ import reader
 import ui
 
 
+class Emmio:
+    def __init__(self, config_file_name: str):
+        config = yaml.load(open(config_file_name, "r"))
+        self.teachers = {}
+        self.config = config
+        for learning_id in config['learnings']:
+            teacher = Teacher(learning_id, config, {})
+            self.teachers[learning_id] = teacher
+
+    def get_teacher(self, teacher_id: str):
+        return self.teachers[teacher_id]
+
+
 class Teacher:
+    """
+    Teacher.
+    """
     def __init__(self, learning_id: str, config: dict, options: dict) -> None:
         """
         :param learning_id: learning process identifier.
@@ -300,7 +317,7 @@ class Teacher:
             if next_question is None:
                 break
 
-            status = self.get_full_status(statistics)
+            status = self.get_status(statistics)
 
             question, answer = None, None
 

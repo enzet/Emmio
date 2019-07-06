@@ -92,7 +92,7 @@ def get_content(address, parameters, cache_file_name, kind, name=None,
     """
     if exceptions and address in exceptions:
         return None
-    if os.path.isfile(cache_file_name):
+    if cache_file_name and os.path.isfile(cache_file_name):
         cache_file = open(cache_file_name)
         if kind == 'json':
             try:
@@ -108,16 +108,18 @@ def get_content(address, parameters, cache_file_name, kind, name=None,
             if kind == 'json':
                 try:
                     obj = json.load(connection)
-                    cached = open(cache_file_name, 'w+')
-                    cached.write(json.dumps(obj))
+                    if cache_file_name:
+                        cached = open(cache_file_name, 'w+')
+                        cached.write(json.dumps(obj))
                     return obj
                 except ValueError:
                     util.error('cannot get ' + address + ' ' + str(parameters))
                     return None
             if kind == 'html':
                 content = connection.read()
-                cached = open(cache_file_name, 'w+')
-                cached.write(content)
+                if cache_file_name:
+                    cached = open(cache_file_name, 'w+')
+                    cached.write(content)
                 return content
         except Exception as e:
             util.error('during getting JSON from ' + address +
