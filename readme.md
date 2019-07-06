@@ -1,3 +1,5 @@
+<img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo.png" />
+
 # Emmio #
 
 Emmio is a tool box for learning. In contains:
