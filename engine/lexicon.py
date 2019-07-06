@@ -467,7 +467,7 @@ class Lexicon:
 
         print("Do you know at least one meaning of this word?")
         answer = ui.get_char()
-        while answer not in ["y", "Enter", "n", "q"]:
+        while answer not in ["y", "Enter", "n", "-", "q"]:
             answer = ui.get_char()
 
         if answer == "q":
@@ -526,10 +526,10 @@ class Lexicon:
             precision = self.count_unknowns() / 100
             rate_string = "%.2f" % rate(average) if rate(average) else "unknown"
             if precision < 1:
-                print("Precision: %.0f %%" % (precision * 100))
+                print("Precision: %.2f" % (precision * 100))
                 print("Rate so far is: %s" % rate_string)
             else:
-                print("Precision: %.0f %%" % (precision * 100))
+                print("Precision: %.2f" % (precision * 100))
                 print("Rate is: %s" % rate_string)
 
             if not response:

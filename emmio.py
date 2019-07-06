@@ -101,11 +101,11 @@ def lexicon(args):
             arguments.dictionary_file_format)
 
     print("""
-    <Y> or <Enter>  you know at least one meaning of the word
-    <N>             you don't know any of meanings of the word
+    <y> or <Enter>  you know at least one meaning of the word
+    <n>             you don't know any of meanings of the word
     <->             the word doesn't exist or is a proper name
 
-    <Q>             exit lexicon test
+    <q>             exit lexicon test
 """)
 
     user_lexicon.check(frequency_list, stop_at, dictionary,
