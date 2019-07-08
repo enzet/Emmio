@@ -1,7 +1,5 @@
 <img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo.png" />
 
-# Emmio #
-
 Emmio is a tool box for learning. In contains:
 
   * [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
@@ -63,10 +61,11 @@ There are a lot of projects with frequency lists.
 
 ### FrequencyWords (Opensubtitles) ###
 
-[Hermit Dave](https://github.com/hermitdave)'s project
-[FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains a
-lot of full and stripped frequency lists base on
-[Opensubtitles](https://www.opensubtitles.org) project.
+There is [Hermit Dave](https://github.com/hermitdave)'s project
+[FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
+full and stripped frequency lists base on
+[Opensubtitles](https://www.opensubtitles.org) project. You can get frequency
+list using this command:
 
 ```bash
 $ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/${LANGUAGE_CODE}/${LANGUAGE_CODE}_full.txt \
@@ -75,9 +74,9 @@ $ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/conten
 
 ### Wiktionary ###
 
-[Wiktionary frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists)
-
-## Dictionary ##
+Wiktionary project contains
+[frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
+different languages.
 
 ## Example ##
 

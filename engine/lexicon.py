@@ -467,11 +467,17 @@ class Lexicon:
 
         print("Do you know at least one meaning of this word?")
         answer = ui.get_char()
-        while answer not in ["y", "Enter", "n", "-", "q"]:
+        while answer not in ["y", "Y", "Enter", "n", "N", "-", "q", "Q"]:
             answer = ui.get_char()
 
-        if answer == "Enter":
+        if answer in ["y", "Y", "Enter"]:
             answer = "y"
+
+        if answer in ["n", "N"]:
+            answer = "n"
+
+        if answer in ["q", "Q"]:
+            answer = "q"
 
         if answer == "q":
             self.write_fast()

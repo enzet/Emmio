@@ -114,7 +114,10 @@ def lexicon(args):
 
 if __name__ == "__main__":
     command = sys.argv[1]
-    set_log(VerboseLogger)
+
     if command == "lexicon":
         print("\nEmmio. Lexicon.\n")
+        set_log(VerboseLogger)
         lexicon(sys.argv[2:])
+    else:
+        print("Unknown command: " + command + ".")
