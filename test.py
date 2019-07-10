@@ -1,6 +1,5 @@
 from engine.dictionary import Dictionary
-from engine.lexicon import Lexicon, \
-    RESPONSE_KNOW, RESPONSE_DO_NOT_KNOW, RESPONSE_NOT_A_WORD
+from engine.lexicon import Lexicon, LexiconResponse
 
 
 class Test:
@@ -53,9 +52,9 @@ class LexiconTest(Test):
         self.assert_(lexicon.has("книга"))
         self.assert_(lexicon.has("письмо"))
         self.assert_(lexicon.has("Иван"))
-        self.assert_(lexicon.get("книга") == RESPONSE_KNOW)
-        self.assert_(lexicon.get("письмо") == RESPONSE_DO_NOT_KNOW)
-        self.assert_(lexicon.get("Иван") == RESPONSE_NOT_A_WORD)
+        self.assert_(lexicon.get("книга") == LexiconResponse.KNOW)
+        self.assert_(lexicon.get("письмо") == LexiconResponse.DO_NOT_KNOW)
+        self.assert_(lexicon.get("Иван") == LexiconResponse.NOT_A_WORD)
         return self.passed
 
 

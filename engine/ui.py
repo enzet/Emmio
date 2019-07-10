@@ -4,11 +4,10 @@ Emmio console user interface.
 Author: Sergey Vartanov (me@enzet.ru).
 """
 
+import os
 import sys
 import termios
 import tty
-
-import engine.console
 
 
 def get_char():
@@ -32,7 +31,7 @@ def show(words, status=None, color=None, is_center=False):
     Show text in the center of the screen.
     """
     words = words.split('\n')
-    (width, height) = engine.console.getTerminalSize()
+    (width, height) = get_terminal_size()
     s = ''
     if status:
         s += status
@@ -75,7 +74,6 @@ def get_word(right_word):
         else:
             word += char
         
-        # print(char, "<", ord(char), ">")
         sys.stdout.write("                    ")
         sys.stdout.write("\r")
         if word == right_word:
@@ -99,15 +97,20 @@ def get_word(right_word):
 
 
 class Logger:
+    """
+    Log messages writer.
+    """
     BOXES = [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def write(self, message: str):
+    def write(self, message: str) -> None:
         print(message)
 
-    def progress_bar(self, number, total, length: int=20, step: int=1000):
+    def progress_bar(self, number: int, total: int, length: int=20,
+            step: int=1000) -> None:
+
         if number == -1:
             print('%3s' % '100' + ' % ' + (length * '█') + '▏')
         elif number % step == 0:
@@ -122,41 +125,84 @@ class Logger:
 
 
 class VerboseLogger(Logger):
-    def __init__(self):
+    """
+    Log that writes all messages.
+    """
+    def __init__(self) -> None:
         super().__init__()
 
-    def write(self, message: str):
+    def write(self, message: str) -> None:
         super().write(message)
 
-    def progress_bar(self, number, total, length: int=20, step: int=1000):
+    def progress_bar(self, number: int, total: int, length: int=20,
+            step: int=1000) -> None:
         super().progress_bar(number, total, length, step)
 
 
 class SilentLogger(Logger):
+    """
+    Log that does nothing.
+    """
     def __init__(self):
         super().__init__()
 
-    def write(self, message: str):
+    def write(self, message: str) -> None:
         pass
 
-    def progress_bar(self, number, total, length: int=20, step: int=1000):
+    def progress_bar(self, number: int, total: int, length: int=20,
+            step: int=1000) -> None:
         pass
 
 
 log = SilentLogger()
 
 
-def write(message: str):
+def write(message: str) -> None:
+    """
+    Write message.
+    """
     log.write(message)
 
 
-def progress_bar(number, total, length: int=20, step: int=1000):
+def progress_bar(number, total, length: int=20, step: int=1000) -> None:
     log.progress_bar(number, total, length, step)
 
 
 def set_log(class_):
     global log
     log = class_()
+
+
+def get_terminal_size() -> (int, int):
+    """
+    Get size of the terminal in symbols and lines.
+
+    :return: height (lines), width (symbols)
+    """
+    env = os.environ
+
+    def ioctl_GWINSZ(fd):
+        try:
+            import fcntl, termios, struct, os
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
+        except:
+            return
+        return cr
+
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+
+    if not cr:
+        cr = (env.get('LINES', 25), env.get('COLUMNS', 80))
+
+    return int(cr[1]), int(cr[0])
 
 
 if __name__ == "__main__":

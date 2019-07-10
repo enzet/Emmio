@@ -4,44 +4,75 @@ import re
 import yaml
 
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from enum import Enum
+from typing import Dict, Any, Optional, Callable
 
 from engine.frequency_list import FrequencyList
 from engine.language import symbols
 from engine import ui
 
 
-RESPONSE_KNOW = "know"
-RESPONSE_DO_NOT_KNOW = "dont"
-RESPONSE_KNOW_OR_NOT_A_WORD = "know_or_not_a_word"
-RESPONSE_DO_NOT_BUT_PROPER_NOUN_TOO = "dont_but_proper_noun_too"
-RESPONSE_NOT_A_WORD = "not_a_word"
+class LexiconResponse(Enum):
+    KNOW = "know"
+    DO_NOT_KNOW = "dont"
+    KNOW_OR_NOT_A_WORD = "know_or_not_a_word"
+    DO_NOT_BUT_PROPER_NOUN_TOO = "dont_but_proper_noun_too"
+    NOT_A_WORD = "not_a_word"
+
+    def get_message(self) -> str:
+        if self == self.KNOW:
+            return "know"
+        if self == self.DO_NOT_KNOW:
+            return "don't know"
+        if self == self.KNOW_OR_NOT_A_WORD:
+            return "know or not a word"
+        if self == self.DO_NOT_BUT_PROPER_NOUN_TOO:
+            return "don't know but proper noun too"
+        if self == self.NOT_A_WORD:
+            return "not a word"
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 
 class WordKnowledge:
-    def __init__(self, knowing: str, to_skip: bool):
+    def __init__(self, knowing: LexiconResponse, to_skip: bool):
         self.knowing = knowing
         self.to_skip = to_skip
 
     def to_structure(self) -> Dict[str, Any]:
-        structure = {"knowing": self.knowing}
+        """
+        Serialize to structure.
+        """
+        structure = {"knowing": str(self.knowing)}
         if self.to_skip:
             structure["to_skip"] = self.to_skip
         return structure
 
 
 class LogRecord:
-    def __init__(self, word, date, response):
+    """
+    Record of user's answer.
+    """
+    def __init__(self, word: str, date: datetime, response: LexiconResponse):
+        """
+        :param word:
+        :param date:
+        :param response:
+        """
         self.word = word
         self.date = date
         self.response = response
 
 
-def first_day_of_month(point):
+def first_day_of_month(point: datetime) -> datetime:
     return datetime(year=point.year, month=point.month, day=1)
 
 
-def plus_month(point):
+def plus_month(point: datetime) -> datetime:
     new_year = point.year
     new_month = point.month + 1
     if new_month > 12:
@@ -50,7 +81,7 @@ def plus_month(point):
     return datetime(year=new_year, month=new_month, day=1)
 
 
-def first_day_of_week(point):
+def first_day_of_week(point: datetime) -> datetime:
     day = point.date() - timedelta(days=point.weekday())
     return datetime.combine(day, datetime.min.time())
 
@@ -91,7 +122,8 @@ class Lexicon:
                 to_skip = False
                 if "to_skip" in record:
                     to_skip = record["to_skip"]
-                self.words[word] = WordKnowledge(record["knowing"], to_skip)
+                self.words[word] = \
+                    WordKnowledge(LexiconResponse(record["knowing"]), to_skip)
 
         for key in data:
             if key.startswith("log"):
@@ -137,7 +169,8 @@ class Lexicon:
                     knowing = line[k + 9:line.find(",", k)]
                     to_skip = line[t + 9:line.find("}", t)] == "True"
 
-                self.words[word] = WordKnowledge(knowing, to_skip)
+                self.words[word] = \
+                    WordKnowledge(LexiconResponse(knowing), to_skip)
 
         ui.progress_bar(-1, 0)
 
@@ -145,10 +178,10 @@ class Lexicon:
 
     def fill(self):
         for date_string, word, response in self.logs["log"]:
-            if response in [RESPONSE_KNOW, RESPONSE_DO_NOT_KNOW]:
+            if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
                 date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
                 self.dates.append(date)
-                self.responses.append(1 if response == RESPONSE_KNOW else 0)
+                self.responses.append(1 if response == LexiconResponse.KNOW else 0)
 
                 if not self.start:
                     self.start = date
@@ -158,8 +191,6 @@ class Lexicon:
         """
         Write lexicon to a file using YAML dumping. Should be slower than
         `write_fast` but more accurate.
-
-        :param file_name: output YAML file name.
         """
         words_structure = {}
         for word in self.words:
@@ -174,8 +205,6 @@ class Lexicon:
         """
         Write lexicon to a file using simple printing. Should be faster than
         `write` but less accurate.
-
-        :param file_name: output YAML file name.
         """
         # ui.write("Writing lexicon to " + self.file_name + "...")
 
@@ -189,7 +218,7 @@ class Lexicon:
             for word in sorted(self.words):
                 element = self.words[word]
                 output.write("  '" + word + "': {knowing: " +
-                    element.knowing)
+                    str(element.knowing))
                 if element.to_skip:
                     output.write(", to_skip: " + str(element.to_skip))
                 output.write("}\n")
@@ -199,15 +228,15 @@ class Lexicon:
         Check if user knows the word.
         """
         return self.words[word].knowing in \
-               [RESPONSE_KNOW, RESPONSE_DO_NOT_BUT_PROPER_NOUN_TOO]
+            [LexiconResponse.KNOW, LexiconResponse.DO_NOT_BUT_PROPER_NOUN_TOO]
 
     def do_not_know(self, word: str) -> bool:
         """
         Check if user doesn't know the word.
         """
-        return self.words[word].knowing == RESPONSE_DO_NOT_KNOW
+        return self.words[word].knowing == LexiconResponse.DO_NOT_KNOW
 
-    def register(self, word: str, response: str,
+    def register(self, word: str, response: LexiconResponse,
             to_skip: bool, date: datetime=None, log_name="log") -> None:
         """
         Register user's response.
@@ -221,7 +250,8 @@ class Lexicon:
         if not date:
             date = datetime.now()
 
-        if response == RESPONSE_KNOW_OR_NOT_A_WORD and word in self.words:
+        if response == LexiconResponse.KNOW_OR_NOT_A_WORD and \
+                word in self.words:
             return
 
         self.words[word] = WordKnowledge(response, to_skip)
@@ -231,9 +261,9 @@ class Lexicon:
         self.logs[log_name].append(
             [date.strftime("%Y.%m.%d %H:%M:%S"), word, response])
 
-        if response in [RESPONSE_KNOW, RESPONSE_DO_NOT_KNOW]:
+        if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
             self.dates.append(date)
-            self.responses.append(1 if response == RESPONSE_KNOW else 0)
+            self.responses.append(1 if response == LexiconResponse.KNOW else 0)
 
             if not self.start or date < self.start:
                 self.start = date
@@ -243,9 +273,9 @@ class Lexicon:
     def get_statistics(self) -> (float, float):
         count = [0, 0]
         for date, word, response in self.logs["log"]:
-            if response == RESPONSE_KNOW:
+            if response == LexiconResponse.KNOW:
                 count[0] += 1
-            elif response == RESPONSE_DO_NOT_KNOW:
+            elif response == LexiconResponse.DO_NOT_KNOW:
                 count[1] += 1
 
         count_ratio = 0
@@ -257,20 +287,20 @@ class Lexicon:
     def has(self, word: str) -> bool:
         return word in self.words
 
-    def get(self, word: str) -> str:
+    def get(self, word: str) -> LexiconResponse:
         return self.words[word].knowing
 
     def get_log_size(self) -> int:
         result = 0
         for date, word, response in self.logs["log"]:
-            if response in [RESPONSE_KNOW, RESPONSE_DO_NOT_KNOW]:
+            if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
 
     def count_unknowns(self) -> int:
         result = 0
         for date, word, response in self.logs["log"]:
-            if response in [RESPONSE_DO_NOT_KNOW]:
+            if response in [LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
 
@@ -319,8 +349,8 @@ class Lexicon:
     def get_preferred_interval(self):
         return int(100 / self.get_average())
 
-    def construct(self, output_file_name: str, precision: int, first, next_) -> \
-            None:
+    def construct(self, output_file_name: str, precision: int,
+            first: Callable, next_: Callable) -> None:
         """
         Construct data file with month-by-month statistics.
 
@@ -332,13 +362,6 @@ class Lexicon:
             space-separated values.
         """
         output = open(output_file_name, "w+")
-
-        average = self.get_average()
-        preferred_interval = self.get_preferred_interval()
-
-        print(self.language + ":")
-        # print("Average:", average)
-        # print("Preferred interval:", preferred_interval)
 
         points = {}
         point = first(self.start)
@@ -356,7 +379,7 @@ class Lexicon:
 
             try:
                 percent = sample_length / \
-                    (100 / (1 - responses / sample_length)) * 100
+                    (precision / (1 - responses / sample_length)) * 100
             except Exception:
                 percent = 0
 
@@ -437,7 +460,7 @@ class Lexicon:
         for word in sorted(self.words.keys(),
                 key=lambda x: -self.words[x].occurrences):
             word_knowledge = self.words[word]
-            if word_knowledge.knowing == RESPONSE_DO_NOT_KNOW:
+            if word_knowledge.knowing == LexiconResponse.DO_NOT_KNOW:
                 result.append([word, word_knowledge])
 
         return result
@@ -458,7 +481,7 @@ class Lexicon:
                 print("\033[31mCapitalized not in Wiktionary.\033[0m")
 
         if self.has(word):
-            print("WAS " + self.get(word))
+            print("Last response was: " + self.get(word).get_message() + ".")
 
         if dictionary:
             if dictionary.has(word):
@@ -467,19 +490,26 @@ class Lexicon:
 
         print("Do you know at least one meaning of this word?")
         answer = ui.get_char()
-        while answer not in ["y", "Y", "Enter", "n", "N", "-", "q", "Q"]:
+        while answer not in ["y", "Y", "Enter", "n", "N", "b", "B", "s", "S",
+                "-", "q", "Q"]:
             answer = ui.get_char()
 
-        if answer in ["y", "Y", "Enter"]:
+            answer = ui.get_char()
+
+        if answer in ["y", "Enter"]:
+            print("Know.")
             answer = "y"
-
-        if answer in ["n", "N"]:
+        elif answer in ["n", "N"]:
+            print("Don't know.")
             answer = "n"
-
-        if answer in ["q", "Q"]:
-            answer = "q"
-
-        if answer == "q":
+        elif answer in ["b", "B"]:
+            print("Don't know, but it is a proper name too.")
+            answer = "nb"
+        elif answer in ["s", "S"]:
+            print("Know and skip this word in the future.")
+            answer = "ys"
+        elif answer in ["q", "Q"]:
+            print("Quit.")
             self.write_fast()
             return False
 
@@ -550,11 +580,11 @@ class Lexicon:
     def do_skip(self, picked_word, skip_known, skip_unknown, log_name):
         if self.has(picked_word) and \
                 (self.words[picked_word].to_skip or
-                 self.get(picked_word) == RESPONSE_NOT_A_WORD or
+                 self.get(picked_word) == LexiconResponse.NOT_A_WORD or
                  (skip_known and
-                  self.get(picked_word) == RESPONSE_KNOW) or
+                  self.get(picked_word) == LexiconResponse.KNOW) or
                  (skip_unknown and
-                  self.get(picked_word) == RESPONSE_DO_NOT_KNOW)):
+                  self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
 
             print("[skip] " + picked_word)
             response = self.get(picked_word)
@@ -575,7 +605,7 @@ class Lexicon:
 
         if foreign:
             print("[forg] " + picked_word)
-            self.register(picked_word, RESPONSE_NOT_A_WORD, True,
+            self.register(picked_word, LexiconResponse.NOT_A_WORD, True,
                 log_name=log_name)
             return True
 
@@ -613,26 +643,23 @@ def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
     """
     to_skip = False
     if not answer or answer.lower() == "y":
-        response = RESPONSE_KNOW
+        response = LexiconResponse.KNOW
         to_skip = skip_known
     elif answer.lower() == "ys":
-        response = RESPONSE_KNOW
+        response = LexiconResponse.KNOW
         to_skip = True
     elif answer.lower() == "n":
-        response = RESPONSE_DO_NOT_KNOW
+        response = LexiconResponse.DO_NOT_KNOW
         to_skip = skip_unknown
     elif answer.lower() == "ns":
-        response = RESPONSE_DO_NOT_KNOW
+        response = LexiconResponse.DO_NOT_KNOW
         to_skip = True
     elif answer.lower() == "nb":
-        response = RESPONSE_DO_NOT_BUT_PROPER_NOUN_TOO
+        response = LexiconResponse.DO_NOT_BUT_PROPER_NOUN_TOO
         to_skip = skip_unknown
     elif answer.lower() == "-":
-        response = RESPONSE_NOT_A_WORD
+        response = LexiconResponse.NOT_A_WORD
     else:
-        response = RESPONSE_DO_NOT_KNOW
+        response = LexiconResponse.DO_NOT_KNOW
 
     return to_skip, response
-
-
-
