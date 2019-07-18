@@ -69,33 +69,33 @@ def read_dict(file_name, format='dict'):
 
     if format == 'dict':
         key, value = '', ''
-        lines = open(file_name).readlines()
+        with open(file_name) as file:
+            lines = file.readlines()
+            if file_name == 'mueller7.dict':
+                for line in lines:
+                    line = line[:-1]
+                    if len(line) > 0 and \
+                            ('a' <= line[0] <= 'z' or 'A' <= line[0] <= 'Z'):
+                        if key:
+                            dictionary[key] = value
+                        key = line
+                        value = ''
+                    else:
+                        value += line + '\n'
 
-        if file_name == 'mueller7.dict':
-            for line in lines:
-                line = line[:-1]
-                if len(line) > 0 and \
-                        ('a' <= line[0] <= 'z' or 'A' <= line[0] <= 'Z'):
-                    if key:
-                        dictionary[key] = value
-                    key = line
-                    value = ''
-                else:
-                    value += line + '\n'
+            else:
+                for line in lines:
+                    line = line[:-1]
+                    if len(line) > 0 and line[0] not in ' \t':
+                        if key:
+                            dictionary[key] = value
+                        key = line
+                        value = ''
+                    else:
+                        value += line + '\n'
 
-        else:
-            for line in lines:
-                line = line[:-1]
-                if len(line) > 0 and line[0] not in ' \t':
-                    if key:
-                        dictionary[key] = value
-                    key = line
-                    value = ''
-                else:
-                    value += line + '\n'
-
-        if key:
-            dictionary[key] = value
+            if key:
+                dictionary[key] = value
     elif format == 'yaml':
         structure = yaml.load(open(file_name).read())
         if isinstance(structure, list):

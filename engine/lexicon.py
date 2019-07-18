@@ -1,6 +1,7 @@
 import math
 import os
 import re
+import unittest
 import yaml
 
 from datetime import datetime, timedelta
@@ -112,22 +113,23 @@ class Lexicon:
     def read(self) -> None:
         ui.write("Reading lexicon from " + self.file_name + "...")
 
-        data = yaml.load(open(self.file_name, "r"))
+        with open(self.file_name, "r") as input_file:
+            data = yaml.load(input_file)
 
-        for word in data["words"]:
-            record = data["words"][word]
-            if isinstance(record, list):
-                self.words[word] = WordKnowledge(record[1], False)
-            elif isinstance(record, dict):
-                to_skip = False
-                if "to_skip" in record:
-                    to_skip = record["to_skip"]
-                self.words[word] = \
-                    WordKnowledge(LexiconResponse(record["knowing"]), to_skip)
+            for word in data["words"]:
+                record = data["words"][word]
+                if isinstance(record, list):
+                    self.words[word] = WordKnowledge(record[1], False)
+                elif isinstance(record, dict):
+                    to_skip = False
+                    if "to_skip" in record:
+                        to_skip = record["to_skip"]
+                    self.words[word] = \
+                        WordKnowledge(LexiconResponse(record["knowing"]), to_skip)
 
-        for key in data:
-            if key.startswith("log"):
-                self.logs[key] = data[key]
+            for key in data:
+                if key.startswith("log"):
+                    self.logs[key] = data[key]
 
         self.fill()
 
@@ -137,40 +139,41 @@ class Lexicon:
         mode = None
         log_name = None
 
-        lines = open(self.file_name).readlines()
-        lines_number = len(lines)
+        with open(self.file_name) as input_file:
+            lines = input_file.readlines()
+            lines_number = len(lines)
 
-        for index, line in enumerate(lines):
-            ui.progress_bar(index, lines_number)
-            if line.startswith("log"):
-                mode = "expect_log"
-                log_name = line[:-2]
-                self.logs[log_name] = []
-                continue
-            if line.startswith("words:"):
-                mode = "expect_words"
-                continue
+            for index, line in enumerate(lines):
+                ui.progress_bar(index, lines_number)
+                if line.startswith("log"):
+                    mode = "expect_log"
+                    log_name = line[:-2]
+                    self.logs[log_name] = []
+                    continue
+                if line.startswith("words:"):
+                    mode = "expect_words"
+                    continue
 
-            if mode in ["expect_log", "expect_log_ex"]:
-                date_string = line[4:23]
-                word = line[27:line.find("'", 28)]
-                response = line[line.find("'", 28) + 3:-2]
-                if mode == "expect_log":
-                    self.logs[log_name].append([date_string, word, response])
-            elif mode == "expect_words":
-                k = line.find("knowing: ")
-                t = line.find("to_skip: ")
-                word = line[3:line.find("'", 3)]
-                to_skip = False
+                if mode in ["expect_log", "expect_log_ex"]:
+                    date_string = line[4:23]
+                    word = line[27:line.find("'", 28)]
+                    response = line[line.find("'", 28) + 3:-2]
+                    if mode == "expect_log":
+                        self.logs[log_name].append([date_string, word, response])
+                elif mode == "expect_words":
+                    k = line.find("knowing: ")
+                    t = line.find("to_skip: ")
+                    word = line[3:line.find("'", 3)]
+                    to_skip = False
 
-                if t == -1:
-                    knowing = line[k + 9:line.find("}", k)]
-                else:
-                    knowing = line[k + 9:line.find(",", k)]
-                    to_skip = line[t + 9:line.find("}", t)] == "True"
+                    if t == -1:
+                        knowing = line[k + 9:line.find("}", k)]
+                    else:
+                        knowing = line[k + 9:line.find(",", k)]
+                        to_skip = line[t + 9:line.find("}", t)] == "True"
 
-                self.words[word] = \
-                    WordKnowledge(LexiconResponse(knowing), to_skip)
+                    self.words[word] = \
+                        WordKnowledge(LexiconResponse(knowing), to_skip)
 
         ui.progress_bar(-1, 0)
 
@@ -663,3 +666,23 @@ def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
         response = LexiconResponse.DO_NOT_KNOW
 
     return to_skip, response
+
+
+class LexiconTest(unittest.TestCase):
+    def lexicon_test(self, language: str, lexicon_file_name: str, fast: bool):
+        lexicon = Lexicon(language, lexicon_file_name)
+        if fast:
+            lexicon.read_fast()
+        else:
+            lexicon.read()
+        self.assertTrue(lexicon.has("книга"))
+        self.assertTrue(lexicon.has("письмо"))
+        self.assertTrue(lexicon.has("Иван"))
+        self.assertEqual(lexicon.get("книга"), LexiconResponse.KNOW)
+        self.assertEqual(lexicon.get("письмо"), LexiconResponse.DO_NOT_KNOW)
+        self.assertEqual(lexicon.get("Иван"), LexiconResponse.NOT_A_WORD)
+
+    def test_lexicon(self):
+        self.lexicon_test("ru", "test/lexicon.yml", True),
+        self.lexicon_test("ru", "test/lexicon.yml", False),
+
