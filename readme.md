@@ -6,11 +6,18 @@ Emmio is a tool box for learning. It contains:
     flashcard learning system.
   * _Lexicon_: vocabulary test.
 
-Status: [![Build Status](https://travis-ci.org/enzet/Emmio.svg?branch=master)](https://travis-ci.org/enzet/Emmio)
+[![Build Status](https://travis-ci.org/enzet/Emmio.svg?branch=master)](https://travis-ci.org/enzet/Emmio)
 
 ## Requirements ##
 
-  * Python 3.
+  * Python 3,
+  * PyYAML (at least 4.2b1).
+
+## Installation ##
+
+```
+pip install -r requirements.txt
+```
 
 ## Lexicon ##
 
