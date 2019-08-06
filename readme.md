@@ -24,12 +24,13 @@ pip install -r requirements.txt
 The algorithm will randomly (based on frequency) offer you words of the target
 language. For each word you have to decide 
 
-  1. either you know at least one meaning of this word (press `y` or `Enter`),
-  2. or you don't know any meaning of this word (press `n`), 
+  1. either you know at least one meaning of this word (press <kbd>y</kbd> or 
+     <kbd>Enter</kbd>),
+  2. or you don't know any meaning of this word (press <kbd>n</kbd>), 
   3. or the word is often used as a proper name or doesn't exist at all (press
-     `-`).
+     <kbd>-</kbd>).
 
-To finish press `q`.
+To finish press <kbd>q</kbd>.
  
 After that algorithm will provide you a non-negative number called _rate_, that
 somehow describes your vocabulary. 0 means you know not a single word of the
