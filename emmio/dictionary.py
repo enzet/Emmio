@@ -1,6 +1,13 @@
+"""
+Emmio.
+
+Dictionary.
+
+Author: Sergey Vartanov (me@enzet.ru).
+"""
 import unittest
 
-from engine import reader
+from emmio import reader
 
 
 class Dictionary:

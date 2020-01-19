@@ -8,10 +8,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Any, Optional, Callable
 
-from engine.frequency_list import FrequencyList
-from engine.language import symbols
-from engine import ui
-from engine.dictionary import Dictionary
+from emmio import ui
+from emmio.dictionary import Dictionary
+from emmio.frequency_list import FrequencyList
+from emmio.language import symbols
 
 
 class LexiconResponse(Enum):

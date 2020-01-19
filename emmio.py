@@ -5,11 +5,11 @@ import sys
 
 from datetime import timedelta
 
-from engine.lexicon import Lexicon, first_day_of_week, first_day_of_month, \
+from emmio.lexicon import Lexicon, first_day_of_week, first_day_of_month, \
     plus_month
-from engine.frequency_list import FrequencyList
-from engine.dictionary import Dictionary
-from engine.ui import set_log, VerboseLogger
+from emmio.frequency_list import FrequencyList
+from emmio.dictionary import Dictionary
+from emmio.ui import set_log, VerboseLogger
 
 
 def lexicon(args):

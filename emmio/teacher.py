@@ -3,15 +3,14 @@ Emmio user interface.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
-
 import argparse
 import sys
 import yaml
 
 from http.server import HTTPServer
 
-import emmio
-import server
+from emmio import emmio
+from emmio import server
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-l', dest='learning_id')

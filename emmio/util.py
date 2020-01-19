@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*- from __future__ import unicode_literals
 
 """
-Utility functions for The Metro Project.
+Emmio.
+
+Utility functions.
 
 Author: Sergey Vartanov.
 """

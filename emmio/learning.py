@@ -1,6 +1,6 @@
 import yaml
 
-import reader
+from emmio import reader
 
 
 class UserInfo:

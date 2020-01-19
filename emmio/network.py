@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from . import util
+from emmio import util
 
 
 def get_data(address: str, parameters: Dict[str, str], is_secure: bool=False, name: str=None) -> bytes:

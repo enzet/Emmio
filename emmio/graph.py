@@ -1,5 +1,8 @@
-import sys, yaml
+import sys
+import yaml
+
 from datetime import datetime
+
 
 def known(t, s, b):
     if not (t['plan'] in [1000000000, 2000000000]):

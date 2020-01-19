@@ -3,7 +3,7 @@
 import json
 import yaml
 
-from engine.util import error
+from emmio.util import error
 
 
 def read_priority(file_name):

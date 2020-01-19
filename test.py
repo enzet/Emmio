@@ -1,5 +1,5 @@
-from engine.dictionary import Dictionary
-from engine.lexicon import Lexicon, LexiconResponse
+from emmio.dictionary import Dictionary
+from emmio.lexicon import Lexicon, LexiconResponse
 
 
 class DictionaryTest:

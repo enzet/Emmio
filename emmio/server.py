@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*- from __future__ import unicode_literals
 
 import urllib
+import html
+import os
+import shutil
+import subprocess
+import hashlib
+
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-import emmio
-import graph
-import hashlib
-import html
-import network
-import os
-import shutil
-import subprocess
-import sys
+from emmio import emmio
+from emmio import graph
+from emmio import network
 
 PORT_NUMBER = 8080
 

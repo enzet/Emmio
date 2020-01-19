@@ -3,16 +3,16 @@ Emmio. Simple flashcard learner based on modified Leitner system.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
-
 import random
 import subprocess
 import sys
 import yaml
+
 from datetime import datetime
 
-import graph
-import reader
-import ui
+from emmio import graph
+from emmio import reader
+from emmio import ui
 
 
 class Emmio:

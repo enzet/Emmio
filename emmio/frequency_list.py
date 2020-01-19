@@ -1,6 +1,6 @@
 import random
 
-from engine import ui
+from emmio import ui
 
 
 class WordOccurrences:
