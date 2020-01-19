@@ -6,124 +6,83 @@ Author: Sergey Vartanov (me@enzet.ru)
 
 import json
 import os
+import urllib
+import urllib3
 import time
 
-import urllib3
+from datetime import datetime, timedelta
+from typing import Dict, List
 
-import util
+from . import util
 
 
-def get_network_connection(address, parameters, is_secure=False, name=None):
+def get_data(address: str, parameters: Dict[str, str], is_secure: bool=False, name: str=None) -> bytes:
     """
     Construct Internet page URL and get its descriptor.
 
     :param address: first part of URL without "http://"
     :param parameters: URL parameters
+    :param is_secure: https or http
+    :param name: name to display in logs
     :return: connection descriptor
     """
-    url = 'http' + ('s' if is_secure else '') + '://' + address
+    url = "http" + ("s" if is_secure else "") + "://" + address
     if len(parameters) > 0:
-        url += '?' + parameters.keys()[0] + '=' + parameters.values()[0]
-        for parameter in parameters.keys()[1:]:
-            url += '&' + parameter + '=' + parameters[parameter]
+        url += "?" + urllib.parse.urlencode(parameters)
     if not name:
         name = url
-    util.network('getting ' + name)
-    print("===========================================")
-    http = urllib3.PoolManager()
-    url = url.replace(' ', '_')
-    try:
-        result = http.request('GET', url)
-    except UnicodeDecodeError:
-        url = url.encode('utf-8')
-        result = http.request('GET', url)
-    except UnicodeEncodeError:
-        url = str(url.encode('utf-8'))
-        result = http.request('GET', url)
+    util.network("getting " + name)
+    pool_manager = urllib3.PoolManager()
+    url = url.replace(" ", "_")
+    urllib3.disable_warnings()
+    result = pool_manager.request("GET", url)
+    pool_manager.clear()
     time.sleep(2)
-    return result
+    return result.data
 
 
-def get_file_name(address, parameters, cache_file_name, name=None,
-        is_secure=False, exceptions=None):
-    """
-    Get file name.
-
-    :param address: first part of URL without "http://" or "https://"
-    :param parameters: URL parameters
-    :param cache_file_name: name of cache file
-    :param is_secure: use "https" instead of "http"
-    :return: content if exist
-    """
-    if exceptions and address in exceptions:
-        return None
-    if os.path.isfile(cache_file_name):
-        return cache_file_name
-    else:
-        #try:
-            connection = get_network_connection(address, parameters,
-                is_secure=is_secure, name=name)
-            print('connected')
-            cached = open(cache_file_name, 'wb+')
-            print('opened')
-            cached.write(connection.data)
-            print('written')
-            return cache_file_name
-        #except Exception as e:
-        #    util.error('during getting JSON from ' + address +
-        #        ' with parameters ' + str(parameters))
-        #    print(e)
-        #    if exceptions:
-        #        exceptions.append(address)
-        #    return None
-
-
-def get_content(address, parameters, cache_file_name, kind, name=None,
-        is_secure=False, exceptions=None):
+def get_content(address, parameters, cache_file_name, kind, is_secure, name=None, exceptions=None, update_cache=False):
     """
     Read content from URL or from cached file.
 
-    :param address: first part of URL without "http://" or "https://"
+    :param address: first part of URL without "http://"
     :param parameters: URL parameters
     :param cache_file_name: name of cache file
     :param kind: type of content: "html" or "json"
-    :param is_secure: use "https" instead of "http"
     :return: content if exist
     """
     if exceptions and address in exceptions:
         return None
-    if cache_file_name and os.path.isfile(cache_file_name):
-        cache_file = open(cache_file_name)
-        if kind == 'json':
-            try:
-                return json.load(cache_file)
-            except ValueError:
-                return None
-        if kind == 'html':
-            return cache_file.read()
+    if os.path.isfile(cache_file_name) and \
+            datetime(1, 1, 1).fromtimestamp(os.stat(cache_file_name).st_mtime) > \
+                datetime.now() - timedelta(days=90) and \
+            not update_cache:
+        with open(cache_file_name) as cache_file:
+            if kind == "json":
+                try:
+                    return json.load(cache_file)
+                except ValueError:
+                    return None
+            if kind == "html":
+                return cache_file.read()
     else:
         try:
-            connection = get_network_connection(address, parameters,
-                is_secure=is_secure, name=name)
-            if kind == 'json':
+            data = get_data(address, parameters, is_secure=is_secure, name=name)
+            if kind == "json":
                 try:
-                    obj = json.load(connection)
-                    if cache_file_name:
-                        cached = open(cache_file_name, 'w+')
-                        cached.write(json.dumps(obj))
+                    obj = json.loads(data.decode("utf-8"))
+                    with open(cache_file_name, "w+") as cached:
+                        cached.write(json.dumps(obj, indent=4))
                     return obj
                 except ValueError:
-                    util.error('cannot get ' + address + ' ' + str(parameters))
+                    util.error("cannot get " + address + " " + str(parameters))
                     return None
-            if kind == 'html':
-                content = connection.read()
-                if cache_file_name:
-                    cached = open(cache_file_name, 'w+')
-                    cached.write(content)
-                return content
+            if kind == "html":
+                with open(cache_file_name, "w+") as cached:
+                    cached.write(data)
+                return data
         except Exception as e:
-            util.error('during getting JSON from ' + address +
-                ' with parameters ' + str(parameters))
+            util.error("during getting JSON from " + address + " with parameters " + str(parameters))
             print(e)
             if exceptions:
                 exceptions.append(address)

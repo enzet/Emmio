@@ -18,6 +18,9 @@ class FrequencyList:
         self.occurrences = 0
         self.sorted_keys = None
 
+    def __len__(self):
+        return len(self.data)
+
     def read(self, file_name: str, file_format: str):
         if file_format == "yaml":
             self.read_yaml(file_name)
@@ -71,8 +74,10 @@ class FrequencyList:
 
         self.sort()
 
-    def __len__(self):
-        return len(self.data)
+    def write_list(self, file_name: str) -> None:
+        with open(file_name, 'w+') as output:
+            for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
+                output.write(word + ' ' + str(self.data[word]) + '\n')
 
     def add(self, word):
         if word in self.data:

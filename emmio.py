@@ -5,7 +5,8 @@ import sys
 
 from datetime import timedelta
 
-from engine.lexicon import Lexicon, first_day_of_week
+from engine.lexicon import Lexicon, first_day_of_week, first_day_of_month, \
+    plus_month
 from engine.frequency_list import FrequencyList
 from engine.dictionary import Dictionary
 from engine.ui import set_log, VerboseLogger
@@ -17,25 +18,54 @@ def lexicon(args):
     # Arguments.
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lexicon", dest="lexicon_file_name", metavar="<name>",
+
+    parser.add_argument("--lexicon",
+        dest="lexicon_file_name",
+        metavar="<name>",
         help="user lexicon file name")
-    parser.add_argument("--language", dest="language")
-    parser.add_argument("--output-directory", dest="output_directory")
-    parser.add_argument("--log", dest="log", default="frequency")
-    parser.add_argument("--skip-known", dest="skip_known", action="store_true",
+
+    parser.add_argument("--language",
+        dest="language")
+
+    parser.add_argument("--output-directory",
+        dest="output_directory")
+
+    parser.add_argument("--log",
+        dest="log",
+        default="frequency")
+
+    parser.add_argument("--skip-known",
+        dest="skip_known",
+        action="store_true",
         help="skip all words marked in that session as known in the future")
-    parser.add_argument("--skip-unknown", dest="skip_unknown",
+
+    parser.add_argument("--skip-unknown",
+        dest="skip_unknown",
         action="store_true",
         help="skip all words marked in that session as unknown in the future")
 
-    parser.add_argument("--command", dest="command", default="check")
+    parser.add_argument("--command",
+        dest="command",
+        default="check")
 
-    parser.add_argument("-f", "--frequency", dest="frequency_file_name")
-    parser.add_argument("-ff", dest="frequency_file_format")
-    parser.add_argument("-d", "--dictionary", dest="dictionary_file_name")
-    parser.add_argument("-df", dest="dictionary_file_format")
+    parser.add_argument("-f", "--frequency",
+        dest="frequency_file_name")
 
-    parser.add_argument("--stop-at", dest="stop_at")
+    parser.add_argument("-ff",
+        dest="frequency_file_format")
+
+    parser.add_argument("-d", "--dictionary",
+        dest="dictionary_file_name")
+
+    parser.add_argument("-df",
+        dest="dictionary_file_format")
+
+    parser.add_argument("--stop-at",
+        dest="stop_at")
+
+    parser.add_argument("--update-dictionary",
+        dest="update_dictionary",
+        action="store_true")
 
     arguments = parser.parse_args(args)
 
@@ -44,21 +74,33 @@ def lexicon(args):
         return
 
     if arguments.command == "compute":
+        current_percent = {}
         for file_name in os.listdir("lexicon"):
-            language = file_name[6:8]
-            user_lexicon = Lexicon(language,
-                                   os.path.join("lexicon", file_name))
+            if not file_name.endswith(".yml"):
+                continue
+            language = file_name[-6:-4]
+            user_lexicon = Lexicon(language, os.path.join("lexicon", file_name))
             user_lexicon.read_fast()
 
-            # first = first_day_of_month,
+            # first = first_day_of_month
             # next_ = plus_month
             first = first_day_of_week
             next_ = lambda x: x + timedelta(days=7)
             # first = lambda x: datetime.combine(x, datetime.min.time())
             # next_ = lambda x: x + timedelta(days=1)
 
-            user_lexicon.construct(os.path.join(arguments.output_directory,
+            print(language)
+            r = user_lexicon.construct(os.path.join(arguments.output_directory,
                 "lexicon_" + language + "_time.dat"), 100, first, next_)
+            current_percent[language] = r["current_percent"]
+
+            user_lexicon.construct_precise(
+                os.path.join(arguments.output_directory,
+                "lexicon_" + language + "_time_precise.dat"))
+
+        for language in \
+                sorted(current_percent, key=lambda x: current_percent[x]):
+            print("%s %5.2f %%" % (language, current_percent[language]))
         return
 
     if not arguments.frequency_file_format:
@@ -101,15 +143,20 @@ def lexicon(args):
             arguments.dictionary_file_format)
 
     print("""
-    <y> or <Enter>  you know at least one meaning of the word
-    <n>             you don't know any of meanings of the word
+    <y> or <Enter>  I know at least one meaning of the word
+    <n>             I don't know any of meanings of the word
+    <s>             I know at least one meanings of the word and I'm sure I
+                    will not forget it, skip this word in the future
+    <b>             I don't know any of meanings of the word, but it is a proper
+                    name too
     <->             the word doesn't exist or is a proper name
 
-    <q>             exit lexicon test
+    <q>             exit
 """)
 
     user_lexicon.check(frequency_list, stop_at, dictionary,
-        arguments.log, arguments.skip_known, arguments.skip_unknown)
+        arguments.log, arguments.skip_known, arguments.skip_unknown,
+        arguments.update_dictionary, None)
 
 
 if __name__ == "__main__":

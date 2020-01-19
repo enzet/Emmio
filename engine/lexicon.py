@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Callable
 from engine.frequency_list import FrequencyList
 from engine.language import symbols
 from engine import ui
+from engine.dictionary import Dictionary
 
 
 class LexiconResponse(Enum):
@@ -124,8 +125,8 @@ class Lexicon:
                     to_skip = False
                     if "to_skip" in record:
                         to_skip = record["to_skip"]
-                    self.words[word] = \
-                        WordKnowledge(LexiconResponse(record["knowing"]), to_skip)
+                    self.words[word] = WordKnowledge(
+                        LexiconResponse(record["knowing"]), to_skip)
 
             for key in data:
                 if key.startswith("log"):
@@ -134,7 +135,7 @@ class Lexicon:
         self.fill()
 
     def read_fast(self) -> None:
-        ui.write("Reading lexicon...")
+        ui.write("Reading lexicon from " + self.file_name + "...")
 
         mode = None
         log_name = None
@@ -156,10 +157,12 @@ class Lexicon:
 
                 if mode in ["expect_log", "expect_log_ex"]:
                     date_string = line[4:23]
+                    date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
                     word = line[27:line.find("'", 28)]
                     response = line[line.find("'", 28) + 3:-2]
                     if mode == "expect_log":
-                        self.logs[log_name].append([date_string, word, response])
+                        self.logs[log_name]\
+                            .append([date, word, response])
                 elif mode == "expect_words":
                     k = line.find("knowing: ")
                     t = line.find("to_skip: ")
@@ -180,11 +183,12 @@ class Lexicon:
         self.fill()
 
     def fill(self):
-        for date_string, word, response in self.logs["log"]:
-            if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
-                date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
+        for date, word, response in self.logs["log"]:
+            if response in [LexiconResponse.KNOW.value,
+                    LexiconResponse.DO_NOT_KNOW.value]:
                 self.dates.append(date)
-                self.responses.append(1 if response == LexiconResponse.KNOW else 0)
+                self.responses.append(
+                    1 if response == LexiconResponse.KNOW.value else 0)
 
                 if not self.start:
                     self.start = date
@@ -215,8 +219,9 @@ class Lexicon:
             for key in sorted(self.logs):
                 output.write(key + ":\n")
                 for date, word, response in self.logs[key]:
-                    output.write("- ['" + date + "', '" + word + "', " +
-                        response + "]\n")
+                    date_string = date.strftime("%Y.%m.%d %H:%M:%S")
+                    output.write("- ['" + date_string + "', '" + word + "', " +
+                        str(response) + "]\n")
             output.write("words:\n")
             for word in sorted(self.words):
                 element = self.words[word]
@@ -261,8 +266,7 @@ class Lexicon:
 
         if log_name not in self.logs:
             self.logs[log_name] = []
-        self.logs[log_name].append(
-            [date.strftime("%Y.%m.%d %H:%M:%S"), word, response])
+        self.logs[log_name].append([date, word, response])
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
             self.dates.append(date)
@@ -353,7 +357,7 @@ class Lexicon:
         return int(100 / self.get_average())
 
     def construct(self, output_file_name: str, precision: int,
-            first: Callable, next_: Callable) -> None:
+            first: Callable, next_: Callable) -> dict:
         """
         Construct data file with month-by-month statistics.
 
@@ -407,30 +411,57 @@ class Lexicon:
                     color = "0m  " if (last == current_rate) else \
                         ("32m ▲" if (last < current_rate) else "31m ▼")
                     last = current_rate
-                    print("%s  %3d %%  \033[%s %7.4f\033[0m" %
-                        (m.strftime("%Y.%m.%d"), percent,
-                            color, current_rate))
+                    # print("%s  %3d %%  \033[%s %7.4f\033[0m" %
+                    #     (m.strftime("%Y.%m.%d"), percent,
+                    #         color, current_rate))
                     output.write("    %s %f\n" %
                         (m.strftime("%Y.%m.%d"), current_rate))
                     break
                 elif auxiliary_index == 0:
-                    print("%s  %3d %%" %
-                          (m.strftime("%Y.%m.%d"), percent))
+                    # print("%s  %3d %%" %
+                    #       (m.strftime("%Y.%m.%d"), percent))
+                    pass
                 auxiliary_index -= 1
 
         if preferred > length:
             print("Need " + str(int(preferred - length)) + " more.")
+            print("Need " + str(100 - (length - data)) + " more wrong answers.")
 
         output.close()
 
-    def get_last_rate(self) -> (float, float):
-        """
-        Get rate for the last month.
-        """
-        now = datetime.now()
-        point = datetime(year=now.year, month=now.month, day=1)
-        next_point = plus_month(point)
-        return self.get_rate(point, next_point)
+        return {"current_percent": percent}
+
+    def construct_precise(self, output_file_name: str):
+        output = open(output_file_name, "w+")
+        left = 0
+        right = 0
+        knowns = 0
+        unknowns = 0
+        while right < len(self.dates) - 1:
+            date = self.dates[right]
+            if knowns + unknowns:
+                current_rate = unknowns / float(knowns + unknowns)
+            else:
+                current_rate = 0
+            if unknowns >= 100:
+                output.write("    %s %f\n" %
+                    (date.strftime("%Y.%m.%d"), rate(current_rate)))
+
+                response = self.responses[left]
+                if response == 1:
+                    knowns -= 1
+                if response == 0:
+                    unknowns -= 1
+                left += 1
+
+            right += 1
+            response = self.responses[right]
+            if response == 1:
+                knowns += 1
+            if response == 0:
+                unknowns += 1
+
+        output.close()
 
     def get_rate(self, point_1: datetime, point_2: datetime) -> \
             (Optional[float], float):
@@ -469,8 +500,11 @@ class Lexicon:
         return result
 
     def ask(self, word: str, wiktionary_word_list, dictionary,
-            skip_known: bool, skip_unknown: bool, log_name: str):
-
+            skip_known: bool, skip_unknown: bool, log_name: str) \
+            -> (bool, LexiconResponse):
+        """
+        Ask user if the word is known.
+        """
         print("\n    " + word + "\n")
 
         if wiktionary_word_list:
@@ -486,17 +520,19 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        if dictionary:
-            if dictionary.has(word):
-                input("Try to remember. ")
-                print(dictionary.get(word))
+        answer = None
 
-        print("Do you know at least one meaning of this word?")
+        if dictionary and dictionary.has(word):
+            answer = dictionary.get(word)
+
+        if answer:
+            input("[Show answer] ")
+            print(answer)
+
+        print("Do you know at least one meaning of this word? [Y/n/b/s/q]> ")
         answer = ui.get_char()
         while answer not in ["y", "Y", "Enter", "n", "N", "b", "B", "s", "S",
                 "-", "q", "Q"]:
-            answer = ui.get_char()
-
             answer = ui.get_char()
 
         if answer in ["y", "Enter"]:
@@ -514,21 +550,39 @@ class Lexicon:
         elif answer in ["q", "Q"]:
             print("Quit.")
             self.write_fast()
-            return False
+            return False, False
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
         self.register(word, response, to_skip, log_name=log_name)
 
-        return response
+        return to_skip, response
 
-    def check(self, frequency_list: FrequencyList, stop_at,
-            dictionary, log_type, skip_known, skip_unknown):
+    def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
+            dictionary: Dictionary, log_type: str, skip_known: bool,
+            skip_unknown: bool, update_dictionary: bool,
+            stop_at_wrong: Optional[int]) -> None:
+        """
+        Check current user vocabulary.
 
+        :param frequency_list: list of the words with frequency to check
+        :param stop_at: stop after a number of actions
+        :param dictionary: offer a translation from the dictionary
+        :param translator: translator to use
+        :param log_type: the method of picking words
+        :param skip_known: skip this word in the future if it is known
+        :param skip_unknown: skip this word in the future if it is unknown
+        :param update_dictionary: ask a translation if there is no such in
+            dictionary
+        :param stop_at_wrong: stop after a number of unknown words
+        """
+
+        # Actions during current session:
         actions = 0
+        wrong_answers = 0
 
         wiktionary_word_list = None
 
-        if os.path.isfile("dictionary"):
+        if os.path.isdir("dictionary"):
             for dictionary_file_name in os.listdir("dictionary"):
                 matcher = re.match(self.language +
                     "wiktionary-\d*-all-titles-.*", dictionary_file_name)
@@ -557,11 +611,24 @@ class Lexicon:
             if self.do_skip(picked_word, skip_known, skip_unknown, log_name):
                 continue
 
-            response = self.ask(picked_word, wiktionary_word_list,
+            to_skip, response = self.ask(picked_word, wiktionary_word_list,
                 dictionary, skip_known, skip_unknown,
                 log_name=log_name)
             actions += 1
+            if response == LexiconResponse.DO_NOT_KNOW:
+                wrong_answers += 1
             self.write_fast()
+
+            if update_dictionary and not to_skip and \
+                    response != LexiconResponse.NOT_A_WORD and \
+                    dictionary and not dictionary.has(picked_word):
+                translation = input("translation > ")  # type: str
+                if translation:
+                    dictionary.add(picked_word, translation)
+                    if " -> " in translation:
+                        origin, origin_translation = translation.split(" -> ")
+                        if not dictionary.has(origin):
+                            dictionary.add(origin, origin_translation)
 
             average = self.get_average()
 
@@ -573,12 +640,19 @@ class Lexicon:
             else:
                 print("Precision: %.2f" % (precision * 100))
                 print("Rate is: %s" % rate_string)
+            print("Words: %d" % len(self.words))
 
             if not response:
                 break
 
             if stop_at and actions >= stop_at:
                 break
+
+            if stop_at_wrong and wrong_answers >= stop_at_wrong:
+                break
+
+        if update_dictionary:
+            dictionary.write()
 
     def do_skip(self, picked_word, skip_known, skip_unknown, log_name):
         if self.has(picked_word) and \
@@ -623,18 +697,32 @@ class Lexicon:
         print("Words:             %4d" % len(self.words))
         # print("All words:         %4d" % len(frequency.words))
         print("Size:              %4d" % self.get_log_size())
-        rate, percent = self.get_last_rate()
-        if rate is not None:
-            print("Rate:              %9.4f" % rate)
-        if percent is not None:
-            print("Last month:        %9.4f %%" % (percent * 100))
 
     def __len__(self):
         return len(self.words)
 
 
+class UserLexicon:
+    def __init__(self, user_name: str, input_directory: str) -> None:
+        self.user_name = user_name
+        self.input_directory = input_directory
+
+        self.lexicons = {}
+
+        for file_name in os.listdir(input_directory):
+            if not file_name.endswith(".yml"):
+                continue
+            current_user_name = file_name[:-7]
+            if user_name == current_user_name:
+                language = file_name[-6:-4]
+                lexicon =\
+                    Lexicon(language, os.path.join(input_directory, file_name))
+                lexicon.read_fast()
+                self.lexicons[language] = lexicon
+
+
 def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
-        -> (bool, str):
+        -> (bool, LexiconResponse):
     """
     Process user response.
 

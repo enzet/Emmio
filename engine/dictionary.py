@@ -7,12 +7,18 @@ class Dictionary:
     """
     Dictionary.
     """
-    def __init__(self, file_name: str=None, format: str=None):
+    def __init__(self, file_name: str=None, file_format: str=None):
+        """
+        :param file_name: input dictionary file name
+        :param file_format: file format: `dict` or `yaml`
+        """
         if file_name:
             self.file_name = file_name
-            self.dictionary = reader.read_dict(file_name, format)
+            self.file_format = file_format
+            self.dictionary = reader.read_dict(file_name, file_format)
         else:
             self.file_name = None
+            self.file_format = "dict"
             self.dictionary = {}
 
     def join(self, file_name: str, format: str):
@@ -29,9 +35,14 @@ class Dictionary:
 
     def write(self):
         with open(self.file_name, 'w+') as output:
-            for word in sorted(self.dictionary):
-                output.write(word + '\n')
-                output.write("    " + self.dictionary[word] + "\n")
+            if self.file_format == "dict":
+                for word in sorted(self.dictionary):
+                    output.write(word + '\n')
+                    output.write("    " + self.dictionary[word] + "\n")
+            else:
+                for word in sorted(self.dictionary):
+                    output.write('"' + word + '": ')
+                    output.write('"' + self.dictionary[word] + '"\n')
 
     def has(self, word: str):
         return word in self.dictionary

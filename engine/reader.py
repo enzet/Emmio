@@ -114,8 +114,7 @@ def read_dict(file_name, format='dict'):
         elif isinstance(structure, dict):
             for question in structure:
                 answer = structure[question]
-                if isinstance(answer, dict):
-                    dictionary[question] = answer
+                dictionary[question] = answer
     else:
         error('unknown dictionary format: ' + format)
     return dictionary
