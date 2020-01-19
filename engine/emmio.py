@@ -10,7 +10,6 @@ import sys
 import yaml
 from datetime import datetime
 
-import analysis
 import graph
 import reader
 import ui
