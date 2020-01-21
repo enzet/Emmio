@@ -38,13 +38,13 @@ class LexiconTest:
         assert(lexicon.get("Иван") == LexiconResponse.NOT_A_WORD)
 
 
-def test_dict():
+def test_dict() -> None:
     DictionaryTest("test/simple.dict", "dict").test_run()
 
 
-def test_lexicon_1():
+def test_lexicon_1() -> None:
     LexiconTest("ru", "test/lexicon.yml", True).test_run()
 
 
-def test_lexicon_2():
+def test_lexicon_2() -> None:
     LexiconTest("ru", "test/lexicon.yml", False).test_run()

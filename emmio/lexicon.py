@@ -244,8 +244,8 @@ class Lexicon:
         """
         return self.words[word].knowing == LexiconResponse.DO_NOT_KNOW
 
-    def register(self, word: str, response: LexiconResponse,
-            to_skip: bool, date: datetime=None, log_name="log") -> None:
+    def register(self, word: str, response: LexiconResponse, to_skip: bool,
+            date: Optional[datetime] = None, log_name: str = "log") -> None:
         """
         Register user's response.
 
@@ -326,8 +326,8 @@ class Lexicon:
 
         return min_index, max_index
 
-    def get_average(self, index_1: int=None, index_2: int=None) -> \
-            Optional[float]:
+    def get_average(self, index_1: Optional[int] = None,
+            index_2: Optional[int] = None) -> Optional[float]:
         """
         Get average ratio.
 
@@ -431,7 +431,7 @@ class Lexicon:
 
         return {"current_percent": percent}
 
-    def construct_precise(self, output_file_name: str):
+    def construct_precise(self, output_file_name: str) -> None:
         output = open(output_file_name, "w+")
         left = 0
         right = 0
@@ -464,7 +464,7 @@ class Lexicon:
         output.close()
 
     def get_rate(self, point_1: datetime, point_2: datetime) -> \
-            (Optional[float], float):
+            (Optional[float], Optional[float]):
         """
         Get rate for selected time interval.
 

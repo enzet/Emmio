@@ -5,8 +5,6 @@ Dictionary.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
-import unittest
-
 from emmio import reader
 
 
@@ -14,7 +12,7 @@ class Dictionary:
     """
     Dictionary.
     """
-    def __init__(self, file_name: str=None, file_format: str=None):
+    def __init__(self, file_name: str = None, file_format: str = None) -> None:
         """
         :param file_name: input dictionary file name
         :param file_format: file format: `dict` or `yaml`
@@ -28,19 +26,19 @@ class Dictionary:
             self.file_format = "dict"
             self.dictionary = {}
 
-    def join(self, file_name: str, format: str):
-        new_dictionary = reader.read_dict(file_name, format)
-        for key in new_dictionary:
+    def join(self, file_name: str, format_: str) -> None:
+        new_dictionary = reader.read_dict(file_name, format_)
+        for key in new_dictionary:  # type: str
             if key not in self.dictionary:
                 self.dictionary[key] = new_dictionary[key]
 
-    def add(self, word: str, definition: str):
+    def add(self, word: str, definition: str) -> None:
         self.dictionary[word] = definition
 
-    def set_file_name(self, file_name: str):
+    def set_file_name(self, file_name: str) -> None:
         self.file_name = file_name
 
-    def write(self):
+    def write(self) -> None:
         with open(self.file_name, 'w+') as output:
             if self.file_format == "dict":
                 for word in sorted(self.dictionary):
@@ -51,21 +49,8 @@ class Dictionary:
                     output.write('"' + word + '": ')
                     output.write('"' + self.dictionary[word] + '"\n')
 
-    def has(self, word: str):
+    def has(self, word: str) -> bool:
         return word in self.dictionary
 
-    def get(self, word: str):
+    def get(self, word: str) -> str:
         return self.dictionary[word]
-
-
-class DictionaryTest(unittest.TestCase):
-    def dictionary_test(self, file_name, format_):
-        dictionary = Dictionary(file_name, format_)
-        self.assertTrue(dictionary.has("книга"))
-        self.assertTrue(dictionary.has("письмо"))
-        self.assertFalse(dictionary.has("other"))
-        self.assertEqual(dictionary.get("книга"), "    book\n")
-        self.assertEqual(dictionary.get("письмо"), "    letter\n")
-
-    def test_dictionary(self):
-        self.dictionary_test("test/simple.dict", "dict"),

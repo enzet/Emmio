@@ -10,21 +10,22 @@ import yaml
 
 from datetime import datetime
 
+from emmio import analysis
 from emmio import graph
 from emmio import reader
 from emmio import ui
 
 
 class Emmio:
-    def __init__(self, config_file_name: str):
+    def __init__(self, config_file_name: str) -> None:
         config = yaml.load(open(config_file_name, "r"))
         self.teachers = {}
         self.config = config
-        for learning_id in config['learnings']:
+        for learning_id in config['learnings']:  # type: str
             teacher = Teacher(learning_id, config, {})
             self.teachers[learning_id] = teacher
 
-    def get_teacher(self, teacher_id: str):
+    def get_teacher(self, teacher_id: str) -> "Teacher":
         return self.teachers[teacher_id]
 
 
