@@ -2,7 +2,6 @@ import json
 import math
 import os
 import re
-import unittest
 import yaml
 
 from datetime import datetime, timedelta
@@ -121,6 +120,16 @@ class Lexicon:
                 for date_string, word, response in data[key]:
                     date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
                     self.logs[key].append([date, word, response])
+
+    def read(self, is_fast: bool = True):
+        if self.file_name.endswith(".json"):
+            self.read_json()
+        elif self.file_name.endswith(".yml") or \
+                self.file_name.endswith(".yaml"):
+            if is_fast:
+                self.read_yaml_fast()
+            else:
+                self.read_yaml()
 
     def read_json(self) -> None:
         ui.write("Reading lexicon from " + self.file_name + "...")
@@ -773,23 +782,3 @@ def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
         response = LexiconResponse.DO_NOT_KNOW
 
     return to_skip, response
-
-
-class LexiconTest(unittest.TestCase):
-    def lexicon_test(self, language: str, lexicon_file_name: str, fast: bool):
-        lexicon = Lexicon(language, lexicon_file_name)
-        if fast:
-            lexicon.read_fast()
-        else:
-            lexicon.read()
-        self.assertTrue(lexicon.has("книга"))
-        self.assertTrue(lexicon.has("письмо"))
-        self.assertTrue(lexicon.has("Иван"))
-        self.assertEqual(lexicon.get("книга"), LexiconResponse.KNOW)
-        self.assertEqual(lexicon.get("письмо"), LexiconResponse.DO_NOT_KNOW)
-        self.assertEqual(lexicon.get("Иван"), LexiconResponse.NOT_A_WORD)
-
-    def test_lexicon(self):
-        self.lexicon_test("ru", "test/lexicon.yml", True),
-        self.lexicon_test("ru", "test/lexicon.yml", False),
-

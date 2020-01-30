@@ -25,10 +25,7 @@ class LexiconTest:
 
     def test_run(self) -> None:
         lexicon = Lexicon(self.language, self.lexicon_file_name)
-        if self.fast:
-            lexicon.read_fast()
-        else:
-            lexicon.read()
+        lexicon.read(self.fast)
 
         assert(lexicon.has("книга"))
         assert(lexicon.has("письмо"))
