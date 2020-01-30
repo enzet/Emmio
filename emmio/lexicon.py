@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -6,7 +7,7 @@ import yaml
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 
 from emmio import ui
 from emmio.dictionary import Dictionary
@@ -41,9 +42,9 @@ class LexiconResponse(Enum):
 
 
 class WordKnowledge:
-    def __init__(self, knowing: LexiconResponse, to_skip: bool):
-        self.knowing = knowing
-        self.to_skip = to_skip
+    def __init__(self, knowing: LexiconResponse, to_skip: Optional[bool]):
+        self.knowing = knowing  # type: LexiconResponse
+        self.to_skip = to_skip  # type: Optional[bool]
 
     def to_structure(self) -> Dict[str, Any]:
         """
@@ -54,20 +55,29 @@ class WordKnowledge:
             structure["to_skip"] = self.to_skip
         return structure
 
+    def to_json(self) -> str:
+        string = '{"knowing": "' + str(self.knowing) + '"'
+        if self.to_skip is not None:
+            string += ', "to_skip": ' + ("true" if self.to_skip else "false")
+        return string + "}"
+
 
 class LogRecord:
     """
     Record of user's answer.
     """
-    def __init__(self, word: str, date: datetime, response: LexiconResponse):
+    def __init__(self, word: str, date: datetime, response: LexiconResponse,
+            is_reused: bool):
         """
-        :param word:
-        :param date:
-        :param response:
+        :param word: the word under question.
+        :param date: time of the answer.
+        :param response: the result.
+        :param is_reused: if the previous answer was used.
         """
         self.word = word
         self.date = date
         self.response = response
+        self.is_reused = is_reused
 
 
 def first_day_of_month(point: datetime) -> datetime:
@@ -103,38 +113,46 @@ class Lexicon:
         self.language = language
         self.file_name = file_name
 
-        self.words = {}
-        self.logs = {}
+        self.words = {}  # type: Dict[str, WordKnowledge]
+        self.logs = {}  # type: Dict[str, List[datetime, str, str]]
 
         self.dates = []
         self.responses = []
         self.start = None
         self.finish = None
 
-    def read(self) -> None:
+    def rd(self, data):
+        for word in data["words"]:
+            record = data["words"][word]
+            if isinstance(record, list):
+                self.words[word] = WordKnowledge(record[1], False)
+            elif isinstance(record, dict):
+                to_skip = False
+                if "to_skip" in record:
+                    to_skip = record["to_skip"]
+                self.words[word] = WordKnowledge(
+                    LexiconResponse(record["knowing"]), to_skip)
+
+        for key in data:
+            if key.startswith("log"):
+                self.logs[key] = []
+                for date_string, word, response in data[key]:
+                    date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
+                    self.logs[key].append([date, word, response])
+
+    def read_json(self) -> None:
         ui.write("Reading lexicon from " + self.file_name + "...")
-
         with open(self.file_name, "r") as input_file:
-            data = yaml.load(input_file)
-
-            for word in data["words"]:
-                record = data["words"][word]
-                if isinstance(record, list):
-                    self.words[word] = WordKnowledge(record[1], False)
-                elif isinstance(record, dict):
-                    to_skip = False
-                    if "to_skip" in record:
-                        to_skip = record["to_skip"]
-                    self.words[word] = WordKnowledge(
-                        LexiconResponse(record["knowing"]), to_skip)
-
-            for key in data:
-                if key.startswith("log"):
-                    self.logs[key] = data[key]
-
+            self.rd(json.load(input_file))
         self.fill()
 
-    def read_fast(self) -> None:
+    def read_yaml(self) -> None:
+        ui.write("Reading lexicon from " + self.file_name + "...")
+        with open(self.file_name, "r") as input_file:
+            self.rd(yaml.load(input_file))
+        self.fill()
+
+    def read_yaml_fast(self) -> None:
         ui.write("Reading lexicon from " + self.file_name + "...")
 
         mode = None
@@ -161,8 +179,7 @@ class Lexicon:
                     word = line[27:line.find("'", 28)]
                     response = line[line.find("'", 28) + 3:-2]
                     if mode == "expect_log":
-                        self.logs[log_name]\
-                            .append([date, word, response])
+                        self.logs[log_name].append([date, word, response])
                 elif mode == "expect_words":
                     k = line.find("knowing: ")
                     t = line.find("to_skip: ")
@@ -194,21 +211,41 @@ class Lexicon:
                     self.start = date
                 self.finish = date
 
-    def write(self) -> None:
+    def write_json_fast(self) -> None:
         """
-        Write lexicon to a file using YAML dumping. Should be slower than
-        `write_fast` but more accurate.
+        Write lexicon to a JSON file using string writing. Should be faster than
+        `write_json` but less accurate.
         """
         words_structure = {}
         for word in self.words:
             words_structure[word] = self.words[word].to_structure()
 
-        data = {"words": words_structure}
-        for key in sorted(self.logs):
-            data[key] = self.logs[key]
-        yaml.safe_dump(data, open(self.file_name, "w"), allow_unicode=True)
+        with open(self.file_name, "w+") as output:
+            output.write("{\n")
 
-    def write_fast(self) -> None:
+            for key in sorted(self.logs):
+                log = self.logs[key]
+                output.write('    "' + key + '": [\n')
+                log_length = len(log)
+                for index, record in enumerate(log):
+                    date, word, response = record
+                    output.write('        ["' +
+                        date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + word +
+                        '", "' + str(response) + '"]')
+                    output.write("\n" if index == log_length - 1 else ",\n")
+                output.write("    ],\n")
+
+            output.write('    "words": {\n')
+            words_length = len(self.words)
+            for index, word in enumerate(self.words):
+                output.write('        "' + word + '": ' +
+                    self.words[word].to_json())
+                output.write("\n" if index == words_length - 1 else ",\n")
+            output.write("    }\n")
+
+            output.write("}\n")
+
+    def write_yaml_fast(self) -> None:
         """
         Write lexicon to a file using simple printing. Should be faster than
         `write` but less accurate.
@@ -549,7 +586,7 @@ class Lexicon:
             answer = "ys"
         elif answer in ["q", "Q"]:
             print("Quit.")
-            self.write_fast()
+            self.write_json()
             return False, False
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
@@ -567,7 +604,6 @@ class Lexicon:
         :param frequency_list: list of the words with frequency to check
         :param stop_at: stop after a number of actions
         :param dictionary: offer a translation from the dictionary
-        :param translator: translator to use
         :param log_type: the method of picking words
         :param skip_known: skip this word in the future if it is known
         :param skip_unknown: skip this word in the future if it is unknown
@@ -617,7 +653,7 @@ class Lexicon:
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
                 wrong_answers += 1
-            self.write_fast()
+            self.write_json()
 
             if update_dictionary and not to_skip and \
                     response != LexiconResponse.NOT_A_WORD and \
@@ -710,14 +746,15 @@ class UserLexicon:
         self.lexicons = {}
 
         for file_name in os.listdir(input_directory):
-            if not file_name.endswith(".yml"):
+            if not file_name.endswith(".json"):
                 continue
-            current_user_name = file_name[:-7]
+            l = 4
+            current_user_name = file_name[:-4-l]
             if user_name == current_user_name:
-                language = file_name[-6:-4]
+                language = file_name[-3-l:-1-l]
                 lexicon =\
                     Lexicon(language, os.path.join(input_directory, file_name))
-                lexicon.read_fast()
+                lexicon.read_json()
                 self.lexicons[language] = lexicon
 
 
