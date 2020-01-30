@@ -17,31 +17,31 @@ class DictionaryTest:
 
 
 class LexiconTest:
-    def __init__(self, language: str, lexicon_file_name: str, fast: bool) \
-            -> None:
+    def __init__(self, language: str, lexicon_file_name: str) -> None:
         self.language = language
         self.lexicon_file_name = lexicon_file_name
-        self.fast = fast
+        self.lexicon = Lexicon(self.language, self.lexicon_file_name)
 
-    def test_run(self) -> None:
-        lexicon = Lexicon(self.language, self.lexicon_file_name)
-        lexicon.read(self.fast)
+        self.lexicon.read()
+        self.check()
 
-        assert(lexicon.has("книга"))
-        assert(lexicon.has("письмо"))
-        assert(lexicon.has("Иван"))
-        assert(lexicon.get("книга") == LexiconResponse.KNOW)
-        assert(lexicon.get("письмо") == LexiconResponse.DO_NOT_KNOW)
-        assert(lexicon.get("Иван") == LexiconResponse.NOT_A_WORD)
+        self.lexicon.write()
+        self.lexicon.read()
+        self.check()
+
+    def check(self):
+        assert(self.lexicon.has("книга"))
+        assert(self.lexicon.has("письмо"))
+        assert(self.lexicon.has("Иван"))
+
+        assert(self.lexicon.get("книга") == LexiconResponse.KNOW)
+        assert(self.lexicon.get("письмо") == LexiconResponse.DO_NOT_KNOW)
+        assert(self.lexicon.get("Иван") == LexiconResponse.NOT_A_WORD)
 
 
 def test_dict() -> None:
     DictionaryTest("test/simple.dict", "dict").test_run()
 
 
-def test_lexicon_1() -> None:
-    LexiconTest("ru", "test/lexicon.yml", True).test_run()
-
-
-def test_lexicon_2() -> None:
-    LexiconTest("ru", "test/lexicon.yml", False).test_run()
+def test_lexicon() -> None:
+    LexiconTest("ru", "test/lexicon.json")
