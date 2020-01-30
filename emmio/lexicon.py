@@ -80,24 +80,6 @@ class LogRecord:
         self.is_reused = is_reused
 
 
-def first_day_of_month(point: datetime) -> datetime:
-    return datetime(year=point.year, month=point.month, day=1)
-
-
-def plus_month(point: datetime) -> datetime:
-    new_year = point.year
-    new_month = point.month + 1
-    if new_month > 12:
-        new_month = 1
-        new_year = point.year + 1
-    return datetime(year=new_year, month=new_month, day=1)
-
-
-def first_day_of_week(point: datetime) -> datetime:
-    day = point.date() - timedelta(days=point.weekday())
-    return datetime.combine(day, datetime.min.time())
-
-
 def rate(ratio: float) -> Optional[float]:
     if not ratio:
         return None

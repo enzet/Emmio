@@ -5,8 +5,8 @@ import sys
 
 from datetime import timedelta
 
-from emmio.lexicon import Lexicon, first_day_of_week, first_day_of_month, \
-    plus_month
+from emmio.lexicon import Lexicon
+from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency_list import FrequencyList
 from emmio.dictionary import Dictionary
 from emmio.ui import set_log, VerboseLogger
