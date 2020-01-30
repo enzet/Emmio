@@ -27,6 +27,9 @@ def lexicon(args):
     parser.add_argument("--language",
         dest="language")
 
+    parser.add_argument("--input-directory",
+        dest="input_directory")
+
     parser.add_argument("--output-directory",
         dest="output_directory")
 
@@ -75,12 +78,11 @@ def lexicon(args):
 
     if arguments.command == "compute":
         current_percent = {}
-        for file_name in os.listdir("lexicon"):
-            if not file_name.endswith(".yml"):
-                continue
-            language = file_name[-6:-4]
-            user_lexicon = Lexicon(language, os.path.join("lexicon", file_name))
-            user_lexicon.read_fast()
+        for file_name in os.listdir(arguments.input_directory):
+            language = file_name[-7:-5]
+            user_lexicon = Lexicon(language,
+                os.path.join(arguments.input_directory, file_name))
+            user_lexicon.read()
 
             # first = first_day_of_month
             # next_ = plus_month
