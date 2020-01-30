@@ -2,7 +2,6 @@ import json
 import math
 import os
 import re
-import yaml
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -54,7 +53,7 @@ class WordKnowledge:
             structure["to_skip"] = self.to_skip
         return structure
 
-    def to_json(self) -> str:
+    def to_json_str(self) -> str:
         string = '{"knowing": "' + str(self.knowing) + '"'
         if self.to_skip is not None:
             string += ', "to_skip": ' + ("true" if self.to_skip else "false")
@@ -65,18 +64,26 @@ class LogRecord:
     """
     Record of user's answer.
     """
-    def __init__(self, word: str, date: datetime, response: LexiconResponse,
-            is_reused: bool):
+    def __init__(self, date: datetime, word: str, response: LexiconResponse,
+            is_reused: Optional[bool] = None) -> None:
         """
-        :param word: the word under question.
         :param date: time of the answer.
+        :param word: the word under question.
         :param response: the result.
-        :param is_reused: if the previous answer was used.
+        :param is_reused: if the previous answer was used, None if it is
+            unknown.
         """
-        self.word = word
-        self.date = date
-        self.response = response
-        self.is_reused = is_reused
+        self.date = date  # type: datetime
+        self.word = word  # type: str
+        self.response = response  # type: LexiconResponse
+        self.is_reused = is_reused  # type: Optional[bool]
+
+    def to_structure(self) -> (datetime, str, str):
+        return self.date, self.word, str(self.response)
+
+    def to_json_str(self) -> str:
+        return '["' + self.date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + \
+            self.word + '", "' + str(self.response) + '"]'
 
 
 def rate(ratio: float) -> Optional[float]:
@@ -91,16 +98,18 @@ class Lexicon:
     """
     def __init__(self, language: str, file_name: str) -> None:
 
-        self.language = language
-        self.file_name = file_name
+        self.language = language  # type: str
+        self.file_name = file_name  # type: str
 
         self.words = {}  # type: Dict[str, WordKnowledge]
-        self.logs = {}  # type: Dict[str, List[datetime, str, str]]
+        self.logs = {}  # type: Dict[str, List[LogRecord]]
 
-        self.dates = []
-        self.responses = []
-        self.start = None
-        self.finish = None
+        # Temporary data.
+
+        self.dates = []  # type: List[datetime]
+        self.responses = []  # type: List[int]
+        self.start = None  # type: Optional[datetime]
+        self.finish = None  # type: Optional[datetime]
 
     def rd(self, data):
         for word in data["words"]:
@@ -114,102 +123,32 @@ class Lexicon:
                 self.words[word] = WordKnowledge(
                     LexiconResponse(record["knowing"]), to_skip)
 
-        for key in data:
+        for key in data:  # type: str
             if key.startswith("log"):
-                self.logs[key] = []
+                self.logs[key] = []  # type: List[LogRecord]
                 for date_string, word, response in data[key]:
                     date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
-                    self.logs[key].append([date, word, response])
+                    self.logs[key].append(LogRecord(date, word, response))
 
-    def read(self, is_fast: bool = True):
-        if self.file_name.endswith(".json"):
-            self.read_json()
-        elif self.file_name.endswith(".yml") or \
-                self.file_name.endswith(".yaml"):
-            if is_fast:
-                self.read_yaml_fast()
-            else:
-                self.read_yaml()
-
-    def read_json(self) -> None:
+    def read(self):
         ui.write("Reading lexicon from " + self.file_name + "...")
         with open(self.file_name, "r") as input_file:
             self.rd(json.load(input_file))
         self.fill()
 
-    def read_yaml(self) -> None:
-        ui.write("Reading lexicon from " + self.file_name + "...")
-        with open(self.file_name, "r") as input_file:
-            self.rd(yaml.load(input_file))
-        self.fill()
-
-    def read_yaml_fast(self) -> None:
-        ui.write("Reading lexicon from " + self.file_name + "...")
-
-        mode = None
-        log_name = None
-
-        with open(self.file_name) as input_file:
-            lines = input_file.readlines()
-            lines_number = len(lines)
-
-            for index, line in enumerate(lines):
-                ui.progress_bar(index, lines_number)
-                if line.startswith("log"):
-                    mode = "expect_log"
-                    log_name = line[:-2]
-                    self.logs[log_name] = []
-                    continue
-                if line.startswith("words:"):
-                    mode = "expect_words"
-                    continue
-
-                if mode in ["expect_log", "expect_log_ex"]:
-                    date_string = line[4:23]
-                    date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
-                    word = line[27:line.find("'", 28)]
-                    response = line[line.find("'", 28) + 3:-2]
-                    if mode == "expect_log":
-                        self.logs[log_name].append([date, word, response])
-                elif mode == "expect_words":
-                    k = line.find("knowing: ")
-                    t = line.find("to_skip: ")
-                    word = line[3:line.find("'", 3)]
-                    to_skip = False
-
-                    if t == -1:
-                        knowing = line[k + 9:line.find("}", k)]
-                    else:
-                        knowing = line[k + 9:line.find(",", k)]
-                        to_skip = line[t + 9:line.find("}", t)] == "True"
-
-                    self.words[word] = \
-                        WordKnowledge(LexiconResponse(knowing), to_skip)
-
-        ui.progress_bar(-1, 0)
-
-        self.fill()
-
     def fill(self):
-        for date, word, response in self.logs["log"]:
-            if response in [LexiconResponse.KNOW.value,
+        for record in self.logs["log"]:  # type: LogRecord
+            if record.response in [LexiconResponse.KNOW.value,
                     LexiconResponse.DO_NOT_KNOW.value]:
-                self.dates.append(date)
+                self.dates.append(record.date)
                 self.responses.append(
-                    1 if response == LexiconResponse.KNOW.value else 0)
+                    1 if record.response == LexiconResponse.KNOW.value else 0)
 
-                if not self.start:
-                    self.start = date
-                self.finish = date
+                if self.start is None:
+                    self.start = record.date
+                self.finish = record.date
 
     def write(self) -> None:
-        if self.file_name.endswith(".json"):
-            self.write_json_fast()
-        elif self.file_name.endswith(".yml") or \
-                self.file_name.endswith(".yaml"):
-            self.write_yaml_fast()
-
-    def write_json_fast(self) -> None:
         """
         Write lexicon to a JSON file using string writing. Should be faster than
         `write_json` but less accurate.
@@ -221,50 +160,24 @@ class Lexicon:
         with open(self.file_name, "w+") as output:
             output.write("{\n")
 
-            for key in sorted(self.logs):
-                log = self.logs[key]
+            for key in sorted(self.logs):  # type: str
+                log = self.logs[key]  # type: List[LogRecord]
                 output.write('    "' + key + '": [\n')
                 log_length = len(log)
-                for index, record in enumerate(log):
-                    date, word, response = record
-                    output.write('        ["' +
-                        date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + word +
-                        '", "' + str(response) + '"]')
+                for index, record in enumerate(log):  # type: int, LogRecord
+                    output.write('        ' + record.to_json_str())
                     output.write("\n" if index == log_length - 1 else ",\n")
                 output.write("    ],\n")
 
             output.write('    "words": {\n')
             words_length = len(self.words)
-            for index, word in enumerate(self.words):
+            for index, word in enumerate(self.words):  # type: int, str
                 output.write('        "' + word + '": ' +
-                    self.words[word].to_json())
+                    self.words[word].to_json_str())
                 output.write("\n" if index == words_length - 1 else ",\n")
             output.write("    }\n")
 
             output.write("}\n")
-
-    def write_yaml_fast(self) -> None:
-        """
-        Write lexicon to a file using simple printing. Should be faster than
-        `write` but less accurate.
-        """
-        # ui.write("Writing lexicon to " + self.file_name + "...")
-
-        with open(self.file_name, "w") as output:
-            for key in sorted(self.logs):
-                output.write(key + ":\n")
-                for date, word, response in self.logs[key]:
-                    date_string = date.strftime("%Y.%m.%d %H:%M:%S")
-                    output.write("- ['" + date_string + "', '" + word + "', " +
-                        str(response) + "]\n")
-            output.write("words:\n")
-            for word in sorted(self.words):
-                element = self.words[word]
-                output.write("  '" + word + "': {knowing: " +
-                    str(element.knowing))
-                if element.to_skip:
-                    output.write(", to_skip: " + str(element.to_skip))
-                output.write("}\n")
 
     def know(self, word: str) -> bool:
         """
@@ -301,7 +214,7 @@ class Lexicon:
 
         if log_name not in self.logs:
             self.logs[log_name] = []
-        self.logs[log_name].append([date, word, response])
+        self.logs[log_name].append(LogRecord(date, word, response))
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
             self.dates.append(date)
@@ -314,10 +227,10 @@ class Lexicon:
 
     def get_statistics(self) -> (float, float):
         count = [0, 0]
-        for date, word, response in self.logs["log"]:
-            if response == LexiconResponse.KNOW:
+        for record in self.logs["log"]:  # type: LogRecord
+            if record.response == LexiconResponse.KNOW:
                 count[0] += 1
-            elif response == LexiconResponse.DO_NOT_KNOW:
+            elif record.response == LexiconResponse.DO_NOT_KNOW:
                 count[1] += 1
 
         count_ratio = 0
@@ -334,19 +247,20 @@ class Lexicon:
 
     def get_log_size(self) -> int:
         result = 0
-        for date, word, response in self.logs["log"]:
-            if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
+        for record in self.logs["log"]:  # type: LogRecord
+            if record.response in [
+                    LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
 
     def count_unknowns(self) -> int:
         result = 0
-        for date, word, response in self.logs["log"]:
-            if response in [LexiconResponse.DO_NOT_KNOW]:
+        for record in self.logs["log"]:  # type: LogRecord
+            if record.response in [LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
 
-    def get_bounds(self, point_1, point_2):
+    def get_bounds(self, point_1: datetime, point_2: datetime) -> (int, int):
 
         min_value, max_value, min_index, max_index = None, None, None, None
 
@@ -402,6 +316,7 @@ class Lexicon:
 
         :param output_file_name: name of output data file in the format of
             space-separated values.
+        :param precision: ratio precision.
         :param first: function that computes the point of time to start with.
         :param next_: function that computes the next point of time.
         """
@@ -416,6 +331,10 @@ class Lexicon:
             point = next_point
 
         last = 0
+        data = None
+        preferred = None
+        length = None
+        percent = None
 
         for current_index in range(len(points)):
             m = sorted(points.keys())[current_index]
@@ -754,7 +673,7 @@ class UserLexicon:
                 language = file_name[-3-l:-1-l]
                 lexicon =\
                     Lexicon(language, os.path.join(input_directory, file_name))
-                lexicon.read_json()
+                lexicon.read()
                 self.lexicons[language] = lexicon
 
 
