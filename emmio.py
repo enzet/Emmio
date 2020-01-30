@@ -108,6 +108,8 @@ def lexicon(args):
             arguments.frequency_file_format = "yaml"
         elif arguments.frequency_file_name.endswith(".txt"):
             arguments.frequency_file_format = "text"
+        elif arguments.frequency_file_name.endswith(".json"):
+            arguments.frequency_file_format = "json"
         else:
             print("Unknown frequency file format.")
             return
@@ -123,7 +125,7 @@ def lexicon(args):
         open(file_name, "w+").write("log:\nwords:\n")
 
     user_lexicon = Lexicon(arguments.language, file_name)
-    user_lexicon.read_fast()
+    user_lexicon.read()
 
     if arguments.command == "unknown":
         top = user_lexicon.get_top_unknown()

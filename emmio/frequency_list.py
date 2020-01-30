@@ -28,6 +28,8 @@ class FrequencyList:
             self.read_yaml(file_name)
         elif file_format == "text":
             self.read_list(file_name)
+        elif file_format == "json":
+            self.read_json(file_name)
         else:
             raise Exception("unknown file format")
 

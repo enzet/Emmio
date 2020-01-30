@@ -202,6 +202,13 @@ class Lexicon:
                     self.start = date
                 self.finish = date
 
+    def write(self) -> None:
+        if self.file_name.endswith(".json"):
+            self.write_json_fast()
+        elif self.file_name.endswith(".yml") or \
+                self.file_name.endswith(".yaml"):
+            self.write_yaml_fast()
+
     def write_json_fast(self) -> None:
         """
         Write lexicon to a JSON file using string writing. Should be faster than
@@ -387,14 +394,16 @@ class Lexicon:
     def construct(self, output_file_name: str, precision: int,
             first: Callable, next_: Callable) -> dict:
         """
-        Construct data file with month-by-month statistics.
+        Construct data file with statistics.
 
-        ==== =======================
-        date ratio multiplied by 100
-        ==== =======================
+        ============= =======================
+        point of time ratio multiplied by 100
+        ============= =======================
 
         :param output_file_name: name of output data file in the format of
             space-separated values.
+        :param first: function that computes the point of time to start with.
+        :param next_: function that computes the next point of time.
         """
         output = open(output_file_name, "w+")
 
@@ -577,7 +586,7 @@ class Lexicon:
             answer = "ys"
         elif answer in ["q", "Q"]:
             print("Quit.")
-            self.write_json()
+            self.write()
             return False, False
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
@@ -644,7 +653,7 @@ class Lexicon:
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
                 wrong_answers += 1
-            self.write_json()
+            self.write()
 
             if update_dictionary and not to_skip and \
                     response != LexiconResponse.NOT_A_WORD and \
