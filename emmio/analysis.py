@@ -1,5 +1,9 @@
 """
+Emmio.
+
 Compute amount of correct answer before first wrong answer.
+
+Author: Sergey Vartanov (me@enzet.ru)
 """
 
 import argparse

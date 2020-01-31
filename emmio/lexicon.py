@@ -3,7 +3,7 @@ import math
 import os
 import re
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Dict, Any, Optional, Callable, List
 
@@ -611,12 +611,12 @@ class Lexicon:
 
     def do_skip(self, picked_word, skip_known, skip_unknown, log_name):
         if self.has(picked_word) and \
-                (self.words[picked_word].to_skip or
-                 self.get(picked_word) == LexiconResponse.NOT_A_WORD or
-                 (skip_known and
-                  self.get(picked_word) == LexiconResponse.KNOW) or
-                 (skip_unknown and
-                  self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
+            (self.words[picked_word].to_skip or
+                self.get(picked_word) == LexiconResponse.NOT_A_WORD or
+            (skip_known and
+                self.get(picked_word) == LexiconResponse.KNOW) or
+            (skip_unknown and
+                self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
 
             print("[skip] " + picked_word)
             response = self.get(picked_word)
