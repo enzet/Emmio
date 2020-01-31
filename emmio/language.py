@@ -1,5 +1,8 @@
-# -*- coding: utf-8 -*- from __future__ import unicode_literals
+"""
+Emmio.
 
+Author: Sergey Vartanov (me@enzet.ru)
+"""
 most_popular_words = {
     "en": "the",
     "fr": "de",

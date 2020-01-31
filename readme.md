@@ -2,7 +2,8 @@
 
 Emmio is a tool box for learning. It contains:
 
-  * [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
+  * _Teacher_:
+    [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
     flashcard learning system.
   * _Lexicon_: vocabulary test.
 
@@ -15,8 +16,16 @@ Emmio is a tool box for learning. It contains:
 
 ## Installation ##
 
-```
+```shell script
 pip install -r requirements.txt
+```
+
+## Teacher ##
+
+Is a flashcard learning system based on Leitner's algorithm.
+
+```shell script
+python3 emmio.py teacher ${OPTIONS}
 ```
 
 ## Lexicon ##
@@ -45,8 +54,8 @@ compare vocabulary of different people using one frequency list.
 | near 7      | Advanced, proficient             |
 | more than 9 | Native                           |
 
-```bash
-$ python3 emmio.py lexicon \
+```shell script
+python3 emmio.py lexicon \
     --language  ${LANGUAGE_CODE} \
     --lexicon   ${LEXICON_YAML_FILE_NAME} \
     --frequency ${FULL_FREQUENCY_FILE_NAME}    
@@ -77,8 +86,8 @@ full and stripped frequency lists base on
 [Opensubtitles](https://www.opensubtitles.org) project. You can get frequency
 list using this command:
 
-```bash
-$ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/${LANGUAGE_CODE}/${LANGUAGE_CODE}_full.txt \
+```shell script
+wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/${LANGUAGE_CODE}/${LANGUAGE_CODE}_full.txt \
     --output-document=${LANGUAGE_CODE}_opensubtitles_2018.txt
 ```
 
@@ -92,9 +101,9 @@ different languages.
 
 German vocabulary test based on Opensubtitles frequency list:
 
-```bash
-$ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
+```shell script
+wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
     --output-document=de_opensubtitles_2018.txt
-$ python3 emmio.py lexicon --language de --lexicon lexicon_de.yml \
+python3 emmio.py lexicon --language de --lexicon lexicon_de.yml \
     --frequency de_opensubtitles_2018.txt --skip-known --skip-unknown
 ```

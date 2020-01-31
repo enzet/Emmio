@@ -1,9 +1,17 @@
 #!/usr/bin/python3
 
+import argparse
+import json
 import os
 import sys
 
 from datetime import timedelta
+from typing import List
+
+from http.server import HTTPServer
+
+from emmio.teacher import Teacher
+from emmio import server
 
 from emmio.lexicon import Lexicon
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
@@ -12,7 +20,52 @@ from emmio.dictionary import Dictionary
 from emmio.ui import set_log, VerboseLogger
 
 
-def lexicon(args):
+def teacher(args: List[str]):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-l",
+        dest="learning_id")
+
+    parser.add_argument("-d",
+        dest="directory_name")
+
+    parser.add_argument("--run-server",
+        dest="is_server",
+        action="store_true",
+        help="run web interface instead of console mode",
+        default=False)
+
+    arguments = parser.parse_args(args)
+
+    usage = "teacher -d <dictionary file name> -u <user name> <options>"
+
+    directory_name = "."
+    if arguments.directory_name:
+        directory_name = arguments.directory_name
+    config_file_name = os.path.join(arguments.directory_name, "config.json")
+
+    config = json.load(open(config_file_name))
+
+    if arguments.is_server:
+        emmio_server = None
+        try:
+            handler = server.EmmioHandler
+            emmio_server = HTTPServer(("", 8080), handler)
+
+            handler.teachers = server.ServerTeachers(config)
+
+            print("Emmio started on port %d." % 8080)
+            emmio_server.serve_forever()
+        except KeyboardInterrupt:
+            if emmio_server:
+                emmio_server.socket.close()
+    else:
+        current_teacher = Teacher(arguments.learning_id, directory_name, config,
+            options=vars(arguments))
+        current_teacher.run()
+
+
+def lexicon(args: List[str]):
     import argparse
 
     # Arguments.
@@ -166,7 +219,11 @@ def lexicon(args):
 if __name__ == "__main__":
     command = sys.argv[1]
 
-    if command == "lexicon":
+    if command == "teacher":
+        print("\nEmmio. Teacher.\n")
+        set_log(VerboseLogger)
+        teacher(sys.argv[2:])
+    elif command == "lexicon":
         print("\nEmmio. Lexicon.\n")
         set_log(VerboseLogger)
         lexicon(sys.argv[2:])

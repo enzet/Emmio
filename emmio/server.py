@@ -11,7 +11,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-from emmio import emmio
+from emmio.teacher import Teacher
 from emmio import graph
 from emmio import network
 
@@ -23,7 +23,7 @@ class ServerTeachers:
         self.teachers = {}
         self.config = config
         for learning_id in config['learnings']:
-            teacher = emmio.Teacher(learning_id, config, {})
+            teacher = Teacher(learning_id, config, {})
             self.teachers[learning_id] = teacher
 
 

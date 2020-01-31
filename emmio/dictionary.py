@@ -14,8 +14,8 @@ class Dictionary:
     """
     def __init__(self, file_name: str = None, file_format: str = None) -> None:
         """
-        :param file_name: input dictionary file name
-        :param file_format: file format: `dict` or `yaml`
+        :param file_name: input dictionary file name.
+        :param file_format: file format: `dict` or `yaml`.
         """
         if file_name:
             self.file_name = file_name

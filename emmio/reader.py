@@ -118,15 +118,3 @@ def read_dict(file_name, format='dict'):
     else:
         error('unknown dictionary format: ' + format)
     return dictionary
-
-
-def write_dict_to_yaml(b, file_name):
-    c = open(file_name, 'w+')
-    c.write(yaml.safe_dump(b, allow_unicode=True))
-    c.close()
-
-
-def write_dict_to_json(b, file_name):
-    c = open(file_name, 'w+')
-    c.write(json.dumps(b))
-    c.close()
