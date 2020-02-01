@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, Callable, List
 
 from emmio import ui
 from emmio.dictionary import Dictionary
-from emmio.frequency_list import FrequencyList
+from emmio.frequency import FrequencyList
 from emmio.language import symbols
 
 
