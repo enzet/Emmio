@@ -20,27 +20,29 @@ class DictionaryTest:
         assert dictionary.get("письмо") == "    letter\n"
 
 
+def check(lexicon: Lexicon) -> None:
+    assert lexicon.has("книга")
+    assert lexicon.has("письмо")
+    assert lexicon.has("Иван")
+
+    assert lexicon.get("книга") == LexiconResponse.KNOW
+    assert lexicon.get("письмо") == LexiconResponse.DO_NOT_KNOW
+    assert lexicon.get("Иван") == LexiconResponse.NOT_A_WORD
+
+
 class LexiconTest:
     def __init__(self, language: str, lexicon_file_name: str) -> None:
         self.language = language
         self.lexicon_file_name = lexicon_file_name
-        self.lexicon = Lexicon(self.language, self.lexicon_file_name)
+        lexicon = Lexicon(self.language, self.lexicon_file_name)
 
-        self.lexicon.read()
-        self.check()
+        lexicon.read()
+        check(lexicon)
 
-        self.lexicon.write()
-        self.lexicon.read()
-        self.check()
-
-    def check(self) -> None:
-        assert self.lexicon.has("книга")
-        assert self.lexicon.has("письмо")
-        assert self.lexicon.has("Иван")
-
-        assert self.lexicon.get("книга") == LexiconResponse.KNOW
-        assert self.lexicon.get("письмо") == LexiconResponse.DO_NOT_KNOW
-        assert self.lexicon.get("Иван") == LexiconResponse.NOT_A_WORD
+        lexicon.file_name = "test/temp_lexicon.json"
+        lexicon.write()
+        lexicon.read()
+        check(lexicon)
 
 
 def test_dict() -> None:
