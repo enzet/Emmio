@@ -5,8 +5,8 @@
         ["2018.11.09 13:23:28", "Иван", "not_a_word"]
     ],
     "words": {
-        "Иван": {"knowing": "not_a_word"},
-        "книга": {"knowing": "know"},
-        "письмо": {"knowing": "dont"}
+        "Иван": {"knowing": "not_a_word", "to_skip": false},
+        "книга": {"knowing": "know", "to_skip": false},
+        "письмо": {"knowing": "dont", "to_skip": false}
     }
 }

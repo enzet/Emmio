@@ -70,7 +70,7 @@ class LogRecord:
         :param date: time of the answer.
         :param word: the word under question.
         :param response: the result.
-        :param is_reused: if the previous answer was used, None if it is
+        :param is_reused: if the previous answer was used, `None` if it is
             unknown.
         """
         self.date = date  # type: datetime
@@ -78,12 +78,26 @@ class LogRecord:
         self.response = response  # type: LexiconResponse
         self.is_reused = is_reused  # type: Optional[bool]
 
+    @classmethod
+    def from_structure(cls, structure) -> "LogRecord":
+        if isinstance(structure, list):
+            date_string, word, response = structure  # type: (str, str, str)
+            date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
+            return cls(date, word, LexiconResponse(response))
+        elif isinstance(structure, dict):
+            is_reused = None
+            if "is_reused" in structure:
+                is_reused = structure["is_reused"]
+            return cls(structure["date"], structure["word"],
+                structure["response"], is_reused)
+
     def to_structure(self) -> (datetime, str, str):
         return self.date, self.word, str(self.response)
 
     def to_json_str(self) -> str:
-        return '["' + self.date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + \
+        s = '["' + self.date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + \
             self.word + '", "' + str(self.response) + '"]'
+        return s
 
 
 def rate(ratio: float) -> Optional[float]:
@@ -126,9 +140,8 @@ class Lexicon:
         for key in data:  # type: str
             if key.startswith("log"):
                 self.logs[key] = []  # type: List[LogRecord]
-                for date_string, word, response in data[key]:
-                    date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
-                    self.logs[key].append(LogRecord(date, word, response))
+                for structure in data[key]:
+                    self.logs[key].append(LogRecord.from_structure(structure))
 
     def read(self):
         ui.write("Reading lexicon from " + self.file_name + "...")
