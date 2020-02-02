@@ -468,7 +468,7 @@ class Lexicon:
 
         return result
 
-    def ask(self, word: str, wiktionary_word_list, dictionary,
+    def ask(self, word: str, wiktionary_word_list, dictionary: Dictionary,
             skip_known: bool, skip_unknown: bool, log_name: str) \
             -> (bool, LexiconResponse):
         """
@@ -491,10 +491,10 @@ class Lexicon:
 
         answer = None
 
-        if dictionary and dictionary.has(word):
-            answer = dictionary.get(word)
+        if dictionary:
+            answer = dictionary.get(word)  # type: Optional[str]
 
-        if answer:
+        if answer is not None:
             input("[Show answer] ")
             print(answer)
 

@@ -7,6 +7,8 @@ Author: Sergey Vartanov (me@enzet.ru).
 """
 from emmio import reader
 
+from typing import Optional
+
 
 class Dictionary:
     """
@@ -52,5 +54,7 @@ class Dictionary:
     def has(self, word: str) -> bool:
         return word in self.dictionary
 
-    def get(self, word: str) -> str:
-        return self.dictionary[word]
+    def get(self, word: str) -> Optional[str]:
+        if word in self.dictionary:
+            return self.dictionary[word]
+        return None
