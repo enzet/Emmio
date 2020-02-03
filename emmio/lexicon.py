@@ -151,11 +151,11 @@ class Lexicon:
 
     def fill(self):
         for record in self.logs["log"]:  # type: LogRecord
-            if record.response in [LexiconResponse.KNOW.value,
-                    LexiconResponse.DO_NOT_KNOW.value]:
+            if record.response in [LexiconResponse.KNOW,
+                    LexiconResponse.DO_NOT_KNOW]:
                 self.dates.append(record.date)
                 self.responses.append(
-                    1 if record.response == LexiconResponse.KNOW.value else 0)
+                    1 if record.response == LexiconResponse.KNOW else 0)
 
                 if self.start is None:
                     self.start = record.date
@@ -468,9 +468,10 @@ class Lexicon:
 
         return result
 
-    def ask(self, word: str, wiktionary_word_list, dictionary: Dictionary,
-            skip_known: bool, skip_unknown: bool, log_name: str) \
-            -> (bool, LexiconResponse):
+    def ask(self, word: str, wiktionary_word_list,
+            dictionaries: List[Dictionary], skip_known: bool,
+            skip_unknown: bool, log_name: str) \
+            -> (bool, LexiconResponse, Optional[Dictionary]):
         """
         Ask user if the word is known.
         """
@@ -491,8 +492,13 @@ class Lexicon:
 
         answer = None
 
-        if dictionary:
-            answer = dictionary.get(word)  # type: Optional[str]
+        dictionary = None  # type: Optional[Dictionary]
+        for current_dictionary in dictionaries:
+            print("Try " + current_dictionary.get_name() + "...")
+            answer = current_dictionary.get(word)  # type: Optional[str]
+            if answer is not None:
+                dictionary = current_dictionary
+                break
 
         if answer is not None:
             input("[Show answer] ")
@@ -519,29 +525,29 @@ class Lexicon:
         elif answer in ["q", "Q"]:
             print("Quit.")
             self.write()
-            return False, False
+            return False, False, None
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
         self.register(word, response, to_skip, log_name=log_name)
 
-        return to_skip, response
+        return to_skip, response, dictionary
 
     def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
-            dictionary: Dictionary, log_type: str, skip_known: bool,
+            dictionaries: List[Dictionary], log_type: str, skip_known: bool,
             skip_unknown: bool, update_dictionary: bool,
             stop_at_wrong: Optional[int]) -> None:
         """
         Check current user vocabulary.
 
-        :param frequency_list: list of the words with frequency to check
-        :param stop_at: stop after a number of actions
-        :param dictionary: offer a translation from the dictionary
-        :param log_type: the method of picking words
-        :param skip_known: skip this word in the future if it is known
-        :param skip_unknown: skip this word in the future if it is unknown
+        :param frequency_list: list of the words with frequency to check.
+        :param stop_at: stop after a number of actions.
+        :param dictionaries: offer a translation from one of dictionaries.
+        :param log_type: the method of picking words.
+        :param skip_known: skip this word in the future if it is known.
+        :param skip_unknown: skip this word in the future if it is unknown.
         :param update_dictionary: ask a translation if there is no such in
-            dictionary
-        :param stop_at_wrong: stop after a number of unknown words
+            dictionary.
+        :param stop_at_wrong: stop after a number of unknown words.
         """
 
         # Actions during current session:
@@ -556,8 +562,8 @@ class Lexicon:
                     "wiktionary-\d*-all-titles-.*", dictionary_file_name)
                 if matcher:
                     wiktionary_word_list = \
-                        open(os.path.join("dictionary", dictionary_file_name)) \
-                            .readlines()
+                        open(os.path.join(
+                            "dictionary", dictionary_file_name)).readlines()
                     break
 
         if log_type == "frequency":
@@ -579,8 +585,8 @@ class Lexicon:
             if self.do_skip(picked_word, skip_known, skip_unknown, log_name):
                 continue
 
-            to_skip, response = self.ask(picked_word, wiktionary_word_list,
-                dictionary, skip_known, skip_unknown,
+            to_skip, response, dictionary = self.ask(picked_word,
+                wiktionary_word_list, dictionaries, skip_known, skip_unknown,
                 log_name=log_name)
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:

@@ -51,10 +51,10 @@ class Dictionary:
                     output.write('"' + word + '": ')
                     output.write('"' + self.dictionary[word] + '"\n')
 
-    def has(self, word: str) -> bool:
-        return word in self.dictionary
-
     def get(self, word: str) -> Optional[str]:
         if word in self.dictionary:
             return self.dictionary[word]
         return None
+
+    def get_name(self) -> str:
+        return self.file_name
