@@ -5,7 +5,7 @@ import re
 
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, Optional, Callable, List
+from typing import Any, Callable, Dict, List, Optional, TextIO
 
 from emmio import ui
 from emmio.dictionary import Dictionary
@@ -41,8 +41,8 @@ class LexiconResponse(Enum):
 
 class WordKnowledge:
     def __init__(self, knowing: LexiconResponse, to_skip: Optional[bool]):
-        self.knowing = knowing  # type: LexiconResponse
-        self.to_skip = to_skip  # type: Optional[bool]
+        self.knowing: LexiconResponse = knowing
+        self.to_skip: Optional[bool] = to_skip
 
     def to_structure(self) -> Dict[str, Any]:
         """
@@ -267,7 +267,7 @@ class Lexicon:
         return self.words[word].knowing
 
     def get_log_size(self) -> int:
-        result = 0
+        result: int = 0
         for record in self.logs["log"]:  # type: LogRecord
             if record.response in [
                     LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
@@ -275,7 +275,7 @@ class Lexicon:
         return result
 
     def count_unknowns(self) -> int:
-        result = 0
+        result: int = 0
         for record in self.logs["log"]:  # type: LogRecord
             if record.response in [LexiconResponse.DO_NOT_KNOW]:
                 result += 1
@@ -314,20 +314,20 @@ class Lexicon:
         return 1 - (sum(self.responses[index_1:index_2]) /
                     len(self.responses[index_1:index_2]))
 
-    def get_data(self, start, finish):
-        length = 0
-        data = 0
-        for i in range(len(self.dates)):
-            if start <= self.dates[i] < finish:
+    def get_data(self, start: datetime, finish: datetime) -> (int, int):
+        length: int = 0
+        data: int = 0
+        for index in range(len(self.dates)):  # type: int
+            if start <= self.dates[index] < finish:
                 length += 1
-                data += self.responses[i]
+                data += self.responses[index]
         return length, data
 
-    def get_preferred_interval(self):
+    def get_preferred_interval(self) -> int:
         return int(100 / self.get_average())
 
     def construct(self, output_file_name: str, precision: int,
-            first: Callable, next_: Callable) -> dict:
+            first: Callable, next_: Callable) -> Dict:
         """
         Construct data file with statistics.
 
@@ -341,17 +341,17 @@ class Lexicon:
         :param first: function that computes the point of time to start with.
         :param next_: function that computes the next point of time.
         """
-        output = open(output_file_name, "w+")
+        output: TextIO = open(output_file_name, "w+")
 
         points = {}
-        point = first(self.start)
-        while point <= datetime.now():  # self.finish:
-            next_point = next_(point)
+        point: datetime = first(self.start)
+
+        while point <= datetime.now():
+            next_point: datetime = next_(point)
             length, data = self.get_data(point, next_point)
             points[point] = [length, data]
             point = next_point
 
-        last = 0
         data = None
         preferred = None
         length = None
@@ -361,10 +361,10 @@ class Lexicon:
             m = sorted(points.keys())[current_index]
             sample_length, responses = points[m]
 
-            try:
-                percent = sample_length / \
-                    (precision / (1 - responses / sample_length)) * 100
-            except Exception:
+            if sample_length != 0 and precision != 0:
+                percent = sample_length / precision * \
+                    (1 - responses / sample_length) * 100
+            else:
                 percent = 0
 
             auxiliary_index = current_index
@@ -385,19 +385,10 @@ class Lexicon:
 
                 if length >= preferred:
                     current_rate = rate(1 - data / length)
-                    color = "0m  " if (last == current_rate) else \
-                        ("32m ▲" if (last < current_rate) else "31m ▼")
-                    last = current_rate
-                    # print("%s  %3d %%  \033[%s %7.4f\033[0m" %
-                    #     (m.strftime("%Y.%m.%d"), percent,
-                    #         color, current_rate))
                     output.write("    %s %f\n" %
                         (m.strftime("%Y.%m.%d"), current_rate))
                     break
-                elif auxiliary_index == 0:
-                    # print("%s  %3d %%" %
-                    #       (m.strftime("%Y.%m.%d"), percent))
-                    pass
+
                 auxiliary_index -= 1
 
         if preferred > length:
@@ -636,7 +627,7 @@ class Lexicon:
         if update_dictionary:
             dictionary.write()
 
-    def do_skip(self, picked_word, skip_known, skip_unknown, log_name):
+    def do_skip(self, picked_word, skip_known, skip_unknown, log_name) -> bool:
         if self.has(picked_word) and \
             (self.words[picked_word].to_skip or
                 self.get(picked_word) == LexiconResponse.NOT_A_WORD or
@@ -670,7 +661,7 @@ class Lexicon:
 
         return False
 
-    def print_statistics(self):
+    def print_statistics(self) -> None:
         count_ratio = self.get_statistics()
 
         print("Skipping:          %9.4f" %
@@ -680,7 +671,7 @@ class Lexicon:
         # print("All words:         %4d" % len(frequency.words))
         print("Size:              %4d" % self.get_log_size())
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.words)
 
 
