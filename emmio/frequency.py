@@ -2,6 +2,8 @@ import json
 import random
 import yaml
 
+from typing import Dict, List
+
 from emmio import ui
 
 
@@ -16,14 +18,20 @@ class FrequencyList:
     Frequency list of some text.
     """
     def __init__(self) -> None:
-        self.data = {}
-        self.occurrences = 0
-        self.sorted_keys = None
+        self.data: Dict[str, int] = {}
+        self.occurrences: int = 0
+        self.sorted_keys: List[str] = []
 
     def __len__(self) -> int:
         return len(self.data)
 
     def read(self, file_name: str, file_format: str) -> None:
+        """
+        Read frequency list from the file.
+
+        :param file_name: input file name.
+        :param file_format: file format (`yaml`, `text`, or `json`).
+        """
         if file_format == "yaml":
             self.read_yaml(file_name)
         elif file_format == "text":
@@ -38,7 +46,7 @@ class FrequencyList:
         Read file with frequency in the format:
         `<word>: <number of occurrences>`.
 
-        :param file_name: input YAML file name
+        :param file_name: input YAML file name.
         """
         ui.write("Reading YAML frequency list from " + file_name + "...")
 
@@ -57,13 +65,13 @@ class FrequencyList:
         Read file with frequency in the JSON format:
         `[["<word>", <number of occurrences>], ...]`.
 
-        :param file_name: input JSON file name
+        :param file_name: input JSON file name.
         """
         ui.write("Reading JSON frequency list from " + file_name + "...")
 
-        structure = json.load(open(file_name, "r"))
+        structure: List[(str, int)] = json.load(open(file_name, "r"))
 
-        for word, occurrences in structure:
+        for word, occurrences in structure:  # type: (str, int)
             self.data[word] = int(occurrences)
             self.occurrences += occurrences
 
@@ -74,8 +82,8 @@ class FrequencyList:
         Read file with frequency in the format:
         `<word><delimiter><number of occurrences>`.
 
-        :param file_name: input text file name
-        :param delimiter: delimiter between word and its number of occurrences
+        :param file_name: input text file name.
+        :param delimiter: delimiter between word and its number of occurrences.
         """
         ui.write("Reading frequency list from " + file_name + "...")
 
@@ -94,12 +102,25 @@ class FrequencyList:
 
         self.sort()
 
-    def write_list(self, file_name: str) -> None:
-        with open(file_name, 'w+') as output:
+    def write_list(self, file_name: str, delimiter: str = " ") -> None:
+        """
+        Write frequency list in the format:
+        `<word><delimiter><number of occurrences>`.
+
+        :param file_name: output text file name.
+        :param delimiter: delimiter between word and its number of occurrences.
+        """
+        with open(file_name, "w+") as output:
             for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
-                output.write(word + ' ' + str(self.data[word]) + '\n')
+                output.write(word + delimiter + str(self.data[word]) + "\n")
 
     def write_json(self, file_name: str) -> None:
+        """
+        Write frequency list in the JSON format:
+        `[["<word>", <number of occurrences>], ...]`.
+
+        :param file_name: output JSON file name.
+        """
         structure = []
         for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
             structure.append([word, self.data[word]])
