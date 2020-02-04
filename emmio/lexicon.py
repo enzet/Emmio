@@ -533,8 +533,7 @@ class Lexicon:
 
     def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: List[Dictionary], log_type: str, skip_known: bool,
-            skip_unknown: bool, update_dictionary: bool,
-            stop_at_wrong: Optional[int]) -> None:
+            skip_unknown: bool, stop_at_wrong: Optional[int]) -> None:
         """
         Check current user vocabulary.
 
@@ -544,8 +543,6 @@ class Lexicon:
         :param log_type: the method of picking words.
         :param skip_known: skip this word in the future if it is known.
         :param skip_unknown: skip this word in the future if it is unknown.
-        :param update_dictionary: ask a translation if there is no such in
-            dictionary.
         :param stop_at_wrong: stop after a number of unknown words.
         """
 
@@ -592,17 +589,6 @@ class Lexicon:
                 wrong_answers += 1
             self.write()
 
-            if update_dictionary and not to_skip and \
-                    response != LexiconResponse.NOT_A_WORD and \
-                    dictionary and not dictionary.has(picked_word):
-                translation = input("translation > ")  # type: str
-                if translation:
-                    dictionary.add(picked_word, translation)
-                    if " -> " in translation:
-                        origin, origin_translation = translation.split(" -> ")
-                        if not dictionary.has(origin):
-                            dictionary.add(origin, origin_translation)
-
             average = self.get_average()
 
             precision = self.count_unknowns() / 100
@@ -623,9 +609,6 @@ class Lexicon:
 
             if stop_at_wrong and wrong_answers >= stop_at_wrong:
                 break
-
-        if update_dictionary:
-            dictionary.write()
 
     def do_skip(self, picked_word, skip_known, skip_unknown, log_name) -> bool:
         if self.has(picked_word) and \

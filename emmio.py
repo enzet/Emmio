@@ -211,9 +211,8 @@ def lexicon(args: List[str]):
     <q>             exit
 """)
 
-    user_lexicon.check(frequency_list, stop_at, dictionary,
-        arguments.log, arguments.skip_known, arguments.skip_unknown,
-        arguments.update_dictionary, None)
+    user_lexicon.check(frequency_list, stop_at, [dictionary],
+        arguments.log, arguments.skip_known, arguments.skip_unknown, None)
 
 
 if __name__ == "__main__":
