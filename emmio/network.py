@@ -1,7 +1,9 @@
 """
+Emmio.
+
 Utility for network connections using urllib3.
 
-Author: Sergey Vartanov (me@enzet.ru)
+Author: Sergey Vartanov (me@enzet.ru).
 """
 
 import json
@@ -9,12 +11,11 @@ import os
 import urllib3
 import time
 
-from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Any, Dict, Optional
 
 from emmio import util
 
-DEFAULT_SLEEP_TIME = 2
+DEFAULT_SLEEP_TIME: int = 2
 
 
 def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
@@ -29,7 +30,7 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     :param sleep_time: time to pause after request in seconds.
     :return: connection descriptor
     """
-    url = f"http{('s' if is_secure else '')}://{address}"
+    url: str = f"http{('s' if is_secure else '')}://{address}"
 
     if not name:
         name = url
@@ -49,9 +50,37 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     return result.data
 
 
-def get_content(address: str, parameters: Dict[str, str], cache_file_name: str,
-        kind: str, is_secure: bool, name: str = None, exceptions=None,
-        update_cache: bool = False):
+def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
+    """
+    Store requested data in cache file.
+
+    :param data: requested data.
+    :param kind: type of content: `html` or `json`
+    :param cache_file_name: name of cache file
+    """
+    if kind == "json":
+        try:
+            obj = json.loads(data.decode("utf-8"))
+            if cache_file_name is not None:
+                with open(cache_file_name, "w+") as cached:
+                    cached.write(json.dumps(obj, indent=4))
+            return obj
+        except ValueError:
+            return None
+    elif kind == "html":
+        if cache_file_name is not None:
+            with open(cache_file_name, "w+") as cached:
+                cached.write(data.decode("utf-8"))
+        return data.decode("utf-8")
+    else:
+        util.error(f"unknown data format {kind}")
+
+    return None
+
+
+def get_content(address: str, parameters: Dict[str, str],
+        cache_file_name: Optional[str], kind: str, is_secure: bool,
+        name: str = None, update_cache: bool = False) -> Any:
     """
     Read content from URL or from cached file.
 
@@ -60,49 +89,37 @@ def get_content(address: str, parameters: Dict[str, str], cache_file_name: str,
     :param cache_file_name: name of cache file
     :param kind: type of content: `html` or `json`
     :param is_secure: use `https://` instead of `http://`.
+    :param name: short request name to display in logs.
+    :param update_cache: rewrite cache file.
     :return: content if exist.
     """
-    if exceptions and address in exceptions:
-        return None
-
     if cache_file_name is not None:
         os.makedirs(os.path.dirname(cache_file_name), exist_ok=True)
 
-    if cache_file_name is not None and os.path.isfile(cache_file_name) and \
-            datetime(1, 1, 1).fromtimestamp(os.stat(cache_file_name).st_mtime) > \
-                datetime.now() - timedelta(days=90) and \
-            not update_cache:
+    # Read from the cache file.
+
+    if cache_file_name is not None and not update_cache and \
+            os.path.isfile(cache_file_name):
         with open(cache_file_name) as cache_file:
             if kind == "json":
                 try:
                     return json.load(cache_file)
                 except ValueError:
                     return None
-            if kind == "html":
-                return cache_file.read()
-    else:
-        try:
-            data = get_data(address, parameters, is_secure=is_secure, name=name)
-            if kind == "json":
-                try:
-                    obj = json.loads(data.decode("utf-8"))
-                    if cache_file_name is not None:
-                        with open(cache_file_name, "w+") as cached:
-                            cached.write(json.dumps(obj, indent=4))
-                    return obj
-                except ValueError:
-                    util.error("cannot get " + address + " " + str(parameters))
-                    return None
             elif kind == "html":
-                if cache_file_name is not None:
-                    with open(cache_file_name, "w+") as cached:
-                        cached.write(data)
-                return data.decode("utf-8")
+                return cache_file.read()
             else:
-                print("Error: unknown format.")
-        except Exception as e:
-            util.error("during getting JSON from " + address + " with parameters " + str(parameters))
-            print(e)
-            if exceptions:
-                exceptions.append(address)
-            return None
+                util.error(f"unknown data format {kind}")
+
+    # Read from the network.
+
+    try:
+        data: bytes = \
+            get_data(address, parameters, is_secure=is_secure, name=name)
+        if cache_file_name is not None:
+            return write_cache(data, kind, cache_file_name)
+    except Exception as e:
+        print(e)
+        return None
+
+    return None

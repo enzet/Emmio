@@ -112,18 +112,18 @@ class Lexicon:
     """
     def __init__(self, language: str, file_name: str) -> None:
 
-        self.language = language  # type: str
-        self.file_name = file_name  # type: str
+        self.language: str = language
+        self.file_name: str = file_name
 
-        self.words = {}  # type: Dict[str, WordKnowledge]
-        self.logs = {}  # type: Dict[str, List[LogRecord]]
+        self.words: Dict[str, WordKnowledge] = {}
+        self.logs: Dict[str, List[LogRecord]] = {}
 
         # Temporary data.
 
-        self.dates = []  # type: List[datetime]
-        self.responses = []  # type: List[int]
-        self.start = None  # type: Optional[datetime]
-        self.finish = None  # type: Optional[datetime]
+        self.dates: List[datetime] = []
+        self.responses: List[int] = []
+        self.start: Optional[datetime] = None
+        self.finish: Optional[datetime] = None
 
     def rd(self, data):
         for word in data["words"]:
@@ -139,7 +139,7 @@ class Lexicon:
 
         for key in data:  # type: str
             if key.startswith("log"):
-                self.logs[key] = []  # type: List[LogRecord]
+                self.logs[key]: List[LogRecord] = []
                 for structure in data[key]:
                     self.logs[key].append(LogRecord.from_structure(structure))
 
@@ -174,7 +174,7 @@ class Lexicon:
             output.write("{\n")
 
             for key in sorted(self.logs):  # type: str
-                log = self.logs[key]  # type: List[LogRecord]
+                log: List[LogRecord] = self.logs[key]
                 output.write('    "' + key + '": [\n')
                 log_length = len(log)
                 for index, record in enumerate(log):  # type: int, LogRecord
@@ -707,7 +707,7 @@ def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
 
     :return if word should be skipped in the future, word response
     """
-    to_skip = False
+    to_skip: bool = False
     if not answer or answer.lower() == "y":
         response = LexiconResponse.KNOW
         to_skip = skip_known
