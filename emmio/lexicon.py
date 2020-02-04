@@ -32,10 +32,10 @@ class LexiconResponse(Enum):
         if self == self.NOT_A_WORD:
             return "not a word"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value
 
 
@@ -48,16 +48,13 @@ class WordKnowledge:
         """
         Serialize to structure.
         """
-        structure = {"knowing": str(self.knowing)}
-        if self.to_skip:
+        structure: Dict[str, Any] = {"knowing": str(self.knowing)}
+        if self.to_skip is not None:
             structure["to_skip"] = self.to_skip
         return structure
 
     def to_json_str(self) -> str:
-        string = '{"knowing": "' + str(self.knowing) + '"'
-        if self.to_skip is not None:
-            string += ', "to_skip": ' + ("true" if self.to_skip else "false")
-        return string + "}"
+        return json.dumps(self.to_structure())
 
 
 class LogRecord:
@@ -94,6 +91,9 @@ class LogRecord:
                 is_reused)
 
     def to_structure(self) -> Dict[str, Any]:
+        """
+        Serialize to structure.
+        """
         structure = {
             "date": self.date.strftime("%Y.%m.%d %H:%M:%S"),
             "word": self.word,
