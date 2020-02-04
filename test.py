@@ -13,7 +13,7 @@ class DictionaryTest:
 
     def test_run(self) -> None:
         dictionary = Dictionary(self.file_name, self.format_)
-        assert dictionary.get("other") == None
+        assert dictionary.get("other") is None
         assert dictionary.get("книга") == "    book\n"
         assert dictionary.get("письмо") == "    letter\n"
 

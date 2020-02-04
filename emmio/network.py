@@ -1,12 +1,11 @@
 """
-Utility for network connections.
+Utility for network connections using urllib3.
 
 Author: Sergey Vartanov (me@enzet.ru)
 """
 
 import json
 import os
-import urllib
 import urllib3
 import time
 
@@ -15,30 +14,38 @@ from typing import Dict, List
 
 from emmio import util
 
+DEFAULT_SLEEP_TIME = 2
+
 
 def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
-        name: str = None) -> bytes:
+        name: str = None, sleep_time: int = DEFAULT_SLEEP_TIME) -> bytes:
     """
-    Construct Internet page URL and get its descriptor.
+    Construct Internet page URL and get data.
 
-    :param address: first part of URL without "http://"
-    :param parameters: URL parameters
-    :param is_secure: https or http
-    :param name: name to display in logs
+    :param address: first part of URL without "http://".
+    :param parameters: URL parameters.
+    :param is_secure: use `https://` instead of `http://`.
+    :param name: short request name to display in logs.
+    :param sleep_time: time to pause after request in seconds.
     :return: connection descriptor
     """
-    url = "http" + ("s" if is_secure else "") + "://" + address
-    if len(parameters) > 0:
-        url += "?" + urllib.parse.urlencode(parameters)
+    url = f"http{('s' if is_secure else '')}://{address}"
+
     if not name:
         name = url
-    util.network("getting " + name)
+
+    util.network(f"getting {name}")
+
+    # Request content.
     pool_manager = urllib3.PoolManager()
-    url = url.replace(" ", "_")
     urllib3.disable_warnings()
-    result = pool_manager.request("GET", url)
+    result = pool_manager.request("GET", url, parameters)
     pool_manager.clear()
-    time.sleep(2)
+
+    # Just to be sure you're not making too many requests.
+    if sleep_time:
+        time.sleep(sleep_time)
+
     return result.data
 
 
