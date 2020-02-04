@@ -455,15 +455,19 @@ class Lexicon:
 
         return None, None
 
-    def get_top_unknown(self):
+    def get_top_unknown(self, frequency_list: FrequencyList) -> List[str]:
+        """
+        Get all words user marked as unknown in order of frequency.
 
-        result = []
+        :param frequency_list: sort words using this list.
+        """
+        result: List[str] = []
 
         for word in sorted(self.words.keys(),
-                key=lambda x: -self.words[x].occurrences):
+                key=lambda x: -frequency_list.get_occurrences(x)):
             word_knowledge = self.words[word]
             if word_knowledge.knowing == LexiconResponse.DO_NOT_KNOW:
-                result.append([word, word_knowledge])
+                result.append(word)
 
         return result
 
@@ -491,10 +495,10 @@ class Lexicon:
 
         answer = None
 
-        dictionary = None  # type: Optional[Dictionary]
+        dictionary: Optional[Dictionary] = None
         for current_dictionary in dictionaries:
             print("Try " + current_dictionary.get_name() + "...")
-            answer = current_dictionary.get(word)  # type: Optional[str]
+            answer: Optional[str] = current_dictionary.get(word)
             if answer is not None:
                 dictionary = current_dictionary
                 break
@@ -555,7 +559,7 @@ class Lexicon:
         if os.path.isdir("dictionary"):
             for dictionary_file_name in os.listdir("dictionary"):
                 matcher = re.match(self.language +
-                    "wiktionary-\d*-all-titles-.*", dictionary_file_name)
+                    r"wiktionary-\d*-all-titles-.*", dictionary_file_name)
                 if matcher:
                     wiktionary_word_list = \
                         open(os.path.join(
@@ -668,10 +672,10 @@ class UserLexicon:
         for file_name in os.listdir(input_directory):
             if not file_name.endswith(".json"):
                 continue
-            l = 4
-            current_user_name = file_name[:-4-l]
+            ln = 4
+            current_user_name = file_name[:-4-ln]
             if user_name == current_user_name:
-                language = file_name[-3-l:-1-l]
+                language = file_name[-3-ln:-1-ln]
                 lexicon =\
                     Lexicon(language, os.path.join(input_directory, file_name))
                 lexicon.read()

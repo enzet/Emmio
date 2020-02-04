@@ -183,11 +183,11 @@ def lexicon(args: List[str]):
     user_lexicon.read()
 
     if arguments.command == "unknown":
-        top = user_lexicon.get_top_unknown()
+        top: List[str] = user_lexicon.get_top_unknown(frequency_list)
         print("%-20s %-10s" % ("word", "occurrences"))
         print(20 * "-" + " " + 10 * "-")
-        for word, word_knowledge in top[:50]:
-            print("%-20s %10d" % (word, word_knowledge.occurrences))
+        for word in top[:50]:
+            print("%-20s %10d" % (word, frequency_list.get_occurrences(word)))
         return
 
     stop_at = None
