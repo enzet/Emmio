@@ -73,10 +73,10 @@ class LogRecord:
         :param is_reused: if the previous answer was used, `None` if it is
             unknown.
         """
-        self.date = date  # type: datetime
-        self.word = word  # type: str
-        self.response = response  # type: LexiconResponse
-        self.is_reused = is_reused  # type: Optional[bool]
+        self.date: datetime = date
+        self.word: str = word
+        self.response: LexiconResponse = response
+        self.is_reused: Optional[bool] = is_reused
 
     @classmethod
     def from_structure(cls, structure) -> "LogRecord":
@@ -88,16 +88,24 @@ class LogRecord:
             is_reused = None
             if "is_reused" in structure:
                 is_reused = structure["is_reused"]
-            return cls(structure["date"], structure["word"],
-                structure["response"], is_reused)
+            return cls(
+                datetime.strptime(structure["date"], "%Y.%m.%d %H:%M:%S"),
+                structure["word"], LexiconResponse(structure["response"]),
+                is_reused)
 
-    def to_structure(self) -> (datetime, str, str):
-        return self.date, self.word, str(self.response)
+    def to_structure(self) -> Dict[str, Any]:
+        structure = {
+            "date": self.date.strftime("%Y.%m.%d %H:%M:%S"),
+            "word": self.word,
+            "response": self.response.value
+        }
+        if self.is_reused is not None:
+            structure["is_reused"] = self.is_reused
+
+        return structure
 
     def to_json_str(self) -> str:
-        s = '["' + self.date.strftime("%Y.%m.%d %H:%M:%S") + '", "' + \
-            self.word + '", "' + str(self.response) + '"]'
-        return s
+        return json.dumps(self.to_structure())
 
 
 def rate(ratio: float) -> Optional[float]:
