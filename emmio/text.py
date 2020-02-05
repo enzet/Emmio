@@ -3,20 +3,32 @@ from emmio.frequency import FrequencyList
 
 
 class Text:
-
+    """
+    Text processing utility.
+    """
     def __init__(self, text: str, language: str):
-        self.text = text
-        self.language = language
+        """
+        :param text: some text to process.
+        :param language: 2-letters ISO 639-1 language code.
+        """
+        self.text: str = text
+        self.language: str = language
 
-    def get_frequency_list(self, ignore_proper_nouns=False) -> FrequencyList:
+    def get_frequency_list(self, ignore_proper_nouns: bool = False) \
+            -> FrequencyList:
+        """
+        Construct frequency list of the text.
+
+        :param ignore_proper_nouns: ignore capital letters.
+        """
         print("Construct frequency list...")
 
-        possible_symbols = symbols[self.language]
-
+        possible_symbols: str = symbols[self.language]
         frequency_list = FrequencyList()
-        for line in self.text.split("\n"):
-            word = ""
-            for c in line:
+
+        for line in self.text.split("\n"):  # type: str
+            word: str = ""
+            for c in line:  # type: str
                 if c in possible_symbols:
                     word += c
                     continue
