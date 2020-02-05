@@ -5,11 +5,10 @@ Utility for network connections using urllib3.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
-
 import json
 import os
-import urllib3
 import time
+import urllib3
 
 from typing import Any, Dict, Optional
 
@@ -55,8 +54,8 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
     Store requested data in cache file.
 
     :param data: requested data.
-    :param kind: type of content: `html` or `json`
-    :param cache_file_name: name of cache file
+    :param kind: type of content: `html` or `json`.
+    :param cache_file_name: name of cache file.
     """
     if kind == "json":
         try:
