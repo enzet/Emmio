@@ -1,5 +1,7 @@
 from emmio.dictionary import Dictionary
 from emmio.lexicon import Lexicon, LexiconResponse
+from emmio.text import Text
+from emmio.frequency import FrequencyList
 
 
 class DictionaryTest:
@@ -49,3 +51,15 @@ def test_dict() -> None:
 
 def test_lexicon() -> None:
     LexiconTest("ru", "test/lexicon.json")
+
+
+def test_text() -> None:
+    text = Text("It’s not the history of man… that’s the history of Gods.",
+        "en")
+    frequency_list: FrequencyList = text.get_frequency_list()
+
+    assert frequency_list.get_occurrences("it") == 1
+    assert frequency_list.get_occurrences("it’s") == 0
+    assert frequency_list.get_occurrences("It") == 0
+
+    assert frequency_list.get_occurrences("the") == 2

@@ -149,7 +149,9 @@ class FrequencyList:
         return word in self.data
 
     def get_occurrences(self, word: str) -> int:
-        return self.data[word]
+        if word in self.data:
+            return self.data[word]
+        return 0
 
     def get_all_occurrences(self) -> int:
         return self.occurrences
