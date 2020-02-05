@@ -54,7 +54,7 @@ class WordKnowledge:
         return structure
 
     def to_json_str(self) -> str:
-        return json.dumps(self.to_structure())
+        return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
 class LogRecord:
@@ -105,7 +105,7 @@ class LogRecord:
         return structure
 
     def to_json_str(self) -> str:
-        return json.dumps(self.to_structure())
+        return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
 def rate(ratio: float) -> Optional[float]:
@@ -472,8 +472,8 @@ class Lexicon:
         return result
 
     def ask(self, word: str, wiktionary_word_list,
-            dictionaries: List[Dictionary], skip_known: bool,
-            skip_unknown: bool, log_name: str) \
+            dictionaries: List[Dictionary], skip_known: bool = False,
+            skip_unknown: bool = False, log_name: str = "log") \
             -> (bool, LexiconResponse, Optional[Dictionary]):
         """
         Ask user if the word is known.

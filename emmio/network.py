@@ -63,7 +63,7 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
             obj = json.loads(data.decode("utf-8"))
             if cache_file_name is not None:
                 with open(cache_file_name, "w+") as cached:
-                    cached.write(json.dumps(obj, indent=4))
+                    cached.write(json.dumps(obj, indent=4, ensure_ascii=False))
             return obj
         except ValueError:
             return None
