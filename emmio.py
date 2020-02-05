@@ -14,10 +14,12 @@ from emmio.teacher import Teacher
 from emmio import server
 
 from emmio.lexicon import Lexicon
+from emmio.language import languages
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency import FrequencyList
 from emmio.dictionary import Dictionary
 from emmio.ui import set_log, VerboseLogger
+from emmio.text import Text
 
 
 def teacher(args: List[str]):
@@ -201,18 +203,46 @@ def lexicon(args: List[str]):
 
     print("""
     <y> or <Enter>  I know at least one meaning of the word
-    <n>             I don't know any of meanings of the word
-    <s>             I know at least one meanings of the word and I'm sure I
+    <n>             I don"t know any of meanings of the word
+    <s>             I know at least one meanings of the word and I"m sure I
                     will not forget it, skip this word in the future
-    <b>             I don't know any of meanings of the word, but it is a proper
+    <b>             I don"t know any of meanings of the word, but it is a proper
                     name too
-    <->             the word doesn't exist or is a proper name
+    <->             the word doesn"t exist or is a proper name
 
     <q>             exit
 """)
 
     user_lexicon.check(frequency_list, stop_at, [dictionary],
         arguments.log, arguments.skip_known, arguments.skip_unknown, None)
+
+
+def do_text(arguments: List[str]):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-i",
+        help="input file",
+        dest="input_file_name",
+        required=True)
+
+    parser.add_argument("-l",
+        help="language",
+        dest="language",
+        required=True)
+
+    options = parser.parse_args(arguments)
+
+    # Options check
+
+    if not (options.language in languages):
+        print(
+            "Unknown language: " + options.language + ". Known languages: " +
+            ", ".join(languages) + ".")
+        return
+
+    content = open(options.file_name, "r").read()
+
+    text = Text(content, options.language)
 
 
 if __name__ == "__main__":
@@ -226,5 +256,9 @@ if __name__ == "__main__":
         print("\nEmmio. Lexicon.\n")
         set_log(VerboseLogger)
         lexicon(sys.argv[2:])
+    elif command == "text":
+        print("\nEmmio. Text\n")
+        set_log(VerboseLogger)
+        do_text(sys.argv[2:])
     else:
         print("Unknown command: " + command + ".")

@@ -45,7 +45,7 @@ def dump_times(file_name, answers, scale=1):
             keys.add(key)
 
     if len(keys) < 3:
-        keys = set({1, 2, 3})
+        keys = {1, 2, 3}
 
     for key in range(max(keys) + 1):
         out.write(str(key) + ' ')
