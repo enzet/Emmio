@@ -220,14 +220,22 @@ def lexicon(args: List[str]):
 def do_text(arguments: List[str]):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-i",
-        help="input file",
+    parser.add_argument("-i", "--input",
+        help="input file with the text",
         dest="input_file_name",
+        metavar="<path>",
         required=True)
 
-    parser.add_argument("-l",
-        help="language",
+    parser.add_argument("-o", "--output",
+        help="output file for the frequency list",
+        dest="output_file_name",
+        metavar="<path>",
+        required=True)
+
+    parser.add_argument("-l", "--language",
+        help="text language",
         dest="language",
+        metavar="<2-letters ISO 639-1 language code>",
         required=True)
 
     options = parser.parse_args(arguments)
@@ -240,9 +248,11 @@ def do_text(arguments: List[str]):
             ", ".join(languages) + ".")
         return
 
-    content = open(options.file_name, "r").read()
+    content = open(options.input_file_name, "r").read()
 
     text = Text(content, options.language)
+    frequency_list: FrequencyList = text.get_frequency_list()
+    frequency_list.write_json(options.output_file_name)
 
 
 if __name__ == "__main__":
