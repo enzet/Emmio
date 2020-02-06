@@ -14,7 +14,7 @@ class Dictionary:
     """
     Dictionary.
     """
-    def __init__(self, file_name: str = None, file_format: str = None) -> None:
+    def __init__(self, file_name: str = None, file_format: str = None):
         """
         :param file_name: input dictionary file name.
         :param file_format: file format: `dict`, `json`, or `yaml`.

@@ -19,7 +19,7 @@ from emmio import ui
 
 
 class Emmio:
-    def __init__(self, config_file_name: str) -> None:
+    def __init__(self, config_file_name: str):
         config = yaml.load(open(config_file_name, "r"))
         self.teachers = {}
         self.config = config

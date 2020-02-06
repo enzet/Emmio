@@ -102,7 +102,7 @@ class Logger:
     """
     BOXES = [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
-    def __init__(self) -> None:
+    def __init__(self):
         pass
 
     def write(self, message: str) -> None:
@@ -128,7 +128,7 @@ class VerboseLogger(Logger):
     """
     Log that writes all messages.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
     def write(self, message: str) -> None:

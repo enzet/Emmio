@@ -62,7 +62,7 @@ class LogRecord:
     Record of user's answer.
     """
     def __init__(self, date: datetime, word: str, response: LexiconResponse,
-            is_reused: Optional[bool] = None) -> None:
+            is_reused: Optional[bool] = None):
         """
         :param date: time of the answer.
         :param word: the word under question.
@@ -118,7 +118,7 @@ class Lexicon:
     """
     Tracking of lexicon for one particular language through time.
     """
-    def __init__(self, language: str, file_name: str) -> None:
+    def __init__(self, language: str, file_name: str):
 
         self.language: str = language
         self.file_name: str = file_name
@@ -221,8 +221,8 @@ class Lexicon:
         :param word: word that user was responded to.
         :param response: response type.
         :param to_skip: skip this word in the future.
-        :param date: time of response
-        :param log_name: specifier of the log
+        :param date: time of response.
+        :param log_name: specifier of the log.
         """
         if not date:
             date = datetime.now()
@@ -528,7 +528,7 @@ class Lexicon:
         elif answer in ["q", "Q"]:
             print("Quit.")
             self.write()
-            return False, False, None
+            return False, None, None
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
         self.register(word, response, to_skip, log_name=log_name)
@@ -663,7 +663,7 @@ class Lexicon:
 
 
 class UserLexicon:
-    def __init__(self, user_name: str, input_directory: str) -> None:
+    def __init__(self, user_name: str, input_directory: str):
         self.user_name = user_name
         self.input_directory = input_directory
 

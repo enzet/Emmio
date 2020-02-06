@@ -17,7 +17,7 @@ class FrequencyList:
     """
     Frequency list of some text.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         self.data: Dict[str, int] = {}
         self.occurrences: int = 0
         self.sorted_keys: List[str] = []
