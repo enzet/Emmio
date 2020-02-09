@@ -4,8 +4,6 @@ import yaml
 
 from typing import Any, Dict
 
-from emmio.util import error
-
 
 def read_priority(file_name):
     priority_list = []
@@ -55,67 +53,3 @@ def read_answers_fast(file_name: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
 
             answers[dictionary_name][key] = element
     return answers
-
-
-def read_dict(file_name, format='dict'):
-    """
-    Construct dictionary with key and values as Unicode strings.
-
-    :param file_name: dictionary file name.
-    :param format: dictionary file format (dict or yaml).
-
-    :return parsed dictionary as Python dict structure.
-    """
-    dictionary = {}
-
-    if format == 'dict':
-        key, value = '', ''
-        with open(file_name) as file:
-            lines = file.readlines()
-            if file_name == 'mueller7.dict':
-                for line in lines:
-                    line = line[:-1]
-                    if len(line) > 0 and \
-                            ('a' <= line[0] <= 'z' or 'A' <= line[0] <= 'Z'):
-                        if key:
-                            dictionary[key] = value
-                        key = line
-                        value = ''
-                    else:
-                        value += line + '\n'
-
-            else:
-                for line in lines:
-                    line = line[:-1]
-                    if len(line) > 0 and line[0] not in ' \t':
-                        if key:
-                            dictionary[key] = value
-                        key = line
-                        value = ''
-                    else:
-                        value += line + '\n'
-
-            if key:
-                dictionary[key] = value
-    elif format == 'yaml':
-        structure = yaml.load(open(file_name).read())
-        if isinstance(structure, list):
-            for element in structure:
-                if isinstance(element, list):
-                    question = element[0]
-                    answer = None
-                    if len(element) > 2:
-                        answer = element[1:]
-                    else:
-                        answer = element[1]
-                    dictionary[question] = answer
-                else:
-                    error('unknown YAML dictionary element format: ' +
-                        str(element))
-        elif isinstance(structure, dict):
-            for question in structure:
-                answer = structure[question]
-                dictionary[question] = answer
-    else:
-        error('unknown dictionary format: ' + format)
-    return dictionary

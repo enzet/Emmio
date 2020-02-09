@@ -10,12 +10,13 @@ import sys
 import yaml
 
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 from emmio import analysis
 from emmio import graph
 from emmio import reader
 from emmio import ui
+from emmio.dictionary import Dictionary
 
 
 class Emmio:
@@ -29,6 +30,32 @@ class Emmio:
 
     def get_teacher(self, teacher_id: str) -> "Teacher":
         return self.teachers[teacher_id]
+
+
+class Cards:
+    def __init__(self, file_name: str, file_format: str = 'dict'):
+        """
+        Construct dictionary with key and values as Unicode strings.
+
+        :param file_name: dictionary file name.
+        :param file_format: dictionary file format (dict or yaml).
+
+        :return parsed dictionary as Python dict structure.
+        """
+        self.dictionary = Dictionary(file_name, file_format)
+
+    def has(self, question: str) -> bool:
+        return question in self.dictionary
+
+    def get_questions(self) -> List[str]:
+        return self.dictionary.get_keys()
+
+    def get_answer(self, question: str) -> str:
+        return self.dictionary.get(question)
+
+    def get_answer_key(self, question: str, key: str) -> str:
+        return self.dictionary.get(question)[key]
+
 
 
 class Teacher:
@@ -83,7 +110,7 @@ class Teacher:
         if not self.dictionary_user_id:
             self.dictionary_user_id = dictionary_id
 
-        self.dictionary = reader.read_dict(
+        self.dictionary: Cards = Cards(
             os.path.join(directory_name, dictionary_config["file"]),
             dictionary_config['format'])
 
@@ -149,7 +176,7 @@ class Teacher:
                 question = question_and_scheme
                 scheme_id = ''
 
-            if question not in self.dictionary:
+            if question not in self.dictionary.get_questions():
                 continue
             if scheme_id not in scheme_ids:
                 continue
@@ -183,7 +210,7 @@ class Teacher:
                         return next_question, True, scheme_id
         else:
             # Return arbitrary question.
-            for question in self.dictionary:
+            for question in self.dictionary.get_questions():
                 for scheme in self.schemes:
                     current_scheme_id = scheme['id']
                     if not ((question + current_scheme_id) in self.user_data):
@@ -191,20 +218,13 @@ class Teacher:
                         scheme_id = current_scheme_id
                         return next_question, True, scheme_id
 
-    def get_answer(self, question):
-        return self.dictionary[question]
-
-    def get_answer_key(self, question, key):
-        return self.dictionary[question][key]
-
     def get_element_text(self, question_id, element):
         if element['source'] == 'key':
             text = question_id
         elif element['source'] == 'value':
-            text = self.get_answer(question_id)
+            text = self.dictionary.get_answer(question_id)
         elif element['source'] == 'dict_value':
-            text = self.get_answer_key(question_id,
-                element['field'])
+            text = self.dictionary.get_answer_key(question_id, element['field'])
         else:
             text = question_id
 

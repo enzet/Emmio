@@ -14,14 +14,10 @@ from datetime import datetime
 
 from emmio import graph
 from emmio import reader
+from emmio.teacher import Cards
 
 
-class Analyzer:
-    def __init__(self):
-        pass
-
-
-def get_statistics(responses: dict, dictionary: dict, now=0,
+def get_statistics(responses: dict, dictionary: Cards, now=0,
         postfix='') -> dict:
     """
     Getting statistics.
@@ -45,7 +41,7 @@ def get_statistics(responses: dict, dictionary: dict, now=0,
     total_probability = 0
 
     for question in responses:
-        if question not in dictionary:
+        if not dictionary.has(question):
             continue
         if not postfix and '#' in question:
             continue
@@ -88,7 +84,7 @@ def get_statistics(responses: dict, dictionary: dict, now=0,
     if not minimum_time:
         minimum_time = 0
 
-    for question in dictionary:
+    for question in dictionary.get_questions():
         if not (question in responses):
             to_learn += 1
     return {'learned': learned, 'not_learned': not_learned, 'skipped': skipped,
