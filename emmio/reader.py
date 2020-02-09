@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*- from __future__ import unicode_literals
 
-import json
 import yaml
+
+from typing import Any, Dict
 
 from emmio.util import error
 
@@ -19,8 +20,8 @@ def read_priority(file_name):
     return priority_list
 
 
-def read_answers_fast(file_name):
-    answers = {}
+def read_answers_fast(file_name: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    answers: Dict[str, Dict[str, Dict[str, Any]]] = {}
     input_file = open(file_name)
     line = None
     read = False
@@ -33,7 +34,7 @@ def read_answers_fast(file_name):
             dictionary_name = line[:-2]
             answers[dictionary_name] = {}
         else:
-            element = \
+            element: Dict[str, Any] = \
                 {'last': int(line[line.find('last: 2') + 6:line.find(', plan')]),
                  'plan': int(line[line.find('plan: ', 10) + 6:line.find('}')])}
 
