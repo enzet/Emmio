@@ -15,6 +15,7 @@ from datetime import datetime
 from emmio import graph
 from emmio import reader
 from emmio.teacher import Cards
+from emmio.frequency import FrequencyList
 
 
 def get_statistics(responses: dict, dictionary: Cards, now=0,
@@ -296,9 +297,10 @@ if __name__ == '__main__':
 
     main_priority_config = config['priorities'][main_priority_id]
 
-    priority_list = reader.read_priority(main_priority_config['file'])
+    priority_list = FrequencyList()
+    priority_list.read(main_priority_config['file'], "dict")
     skip = []
-    for word_priority in priority_list:
+    for word_priority in priority_list.get_words():
         word, priority = word_priority
         if "'" + word + "'" in responses:
             word = "'" + word + "'"

@@ -17,6 +17,7 @@ from emmio import graph
 from emmio import reader
 from emmio import ui
 from emmio.dictionary import Dictionary
+from emmio.frequency import FrequencyList
 
 
 class Emmio:
@@ -56,6 +57,18 @@ class Cards:
     def get_answer_key(self, question: str, key: str) -> str:
         return self.dictionary.get(question)[key]
 
+
+def read_priority(file_name):
+    priority_list = []
+    priority_list_file = open(file_name)
+    line = priority_list_file.readline()
+    while len(line) > 3:
+        pr = int(line[line.find(': ') + 2:])
+        if pr > 0:
+            k = [line[:line.find(': ')], pr]
+            priority_list.append(k)
+        line = priority_list_file.readline()
+    return priority_list
 
 
 class Teacher:
@@ -121,7 +134,7 @@ class Teacher:
 
             for priority_list_id in priority_list_ids:
                 priority_config = config['priorities'][priority_list_id]
-                priority_list = reader.read_priority(
+                priority_list = read_priority(
                     os.path.join(directory_name, priority_config["file"]))
                 self.priority_list += priority_list
         else:

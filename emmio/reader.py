@@ -5,19 +5,6 @@ import yaml
 from typing import Any, Dict
 
 
-def read_priority(file_name):
-    priority_list = []
-    priority_list_file = open(file_name)
-    line = priority_list_file.readline()
-    while len(line) > 3:
-        pr = int(line[line.find(': ') + 2:])
-        if pr > 0:
-            k = [line[:line.find(': ')], pr]
-            priority_list.append(k)
-        line = priority_list_file.readline()
-    return priority_list
-
-
 def read_answers_fast(file_name: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
     answers: Dict[str, Dict[str, Dict[str, Any]]] = {}
     input_file = open(file_name)
