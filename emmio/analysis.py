@@ -14,7 +14,7 @@ from datetime import datetime
 
 from emmio import graph
 from emmio import reader
-from emmio.teacher import Cards
+from emmio.cards import Cards
 from emmio.frequency import FrequencyList
 
 
