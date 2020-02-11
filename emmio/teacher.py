@@ -10,14 +10,13 @@ import sys
 import yaml
 
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from emmio import analysis
 from emmio import graph
 from emmio import reader
 from emmio import ui
 from emmio.dictionary import Dictionary
-from emmio.frequency import FrequencyList
 
 
 class Emmio:
