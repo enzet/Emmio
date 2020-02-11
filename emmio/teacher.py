@@ -10,13 +10,14 @@ import sys
 import yaml
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from emmio import analysis
 from emmio import graph
 from emmio import reader
 from emmio import ui
 from emmio.dictionary import Dictionary
+from emmio.learning import FullUserData, Responses
 
 
 class Emmio:
@@ -108,14 +109,14 @@ class Teacher:
         user_config = config['users'][user_id]
 
         self.user_file_name = os.path.join(directory_name, user_config["file"])
-        full_user_data = reader.read_answers_fast(self.user_file_name)
+        full_user_data = FullUserData(self.user_file_name)
 
-        self.user_data = {}
-        self.dictionary_user_id = None
+        self.user_data: Dict[str, Responses] = {}
+        self.dictionary_user_id: Optional[str] = None
 
-        for dictionary_user_id in full_user_data:
+        for dictionary_user_id in full_user_data.get_answers():
             if dictionary_user_id in dictionary_config['user_ids']:
-                self.user_data = full_user_data[dictionary_user_id]
+                self.user_data = full_user_data.get_answers()[dictionary_user_id]
                 self.dictionary_user_id = dictionary_user_id
                 break
 
@@ -180,7 +181,7 @@ class Teacher:
 
         # Looking for repetition.
 
-        for question_and_scheme in self.user_data:
+        for question_and_scheme in self.user_data:  # type: str
             if '#' in question_and_scheme:
                 question = question_and_scheme[:question_and_scheme.find('#')]
                 scheme_id = question_and_scheme[question_and_scheme.find('#'):]
@@ -193,11 +194,10 @@ class Teacher:
             if scheme_id not in scheme_ids:
                 continue
 
-            response = self.user_data[question_and_scheme]
-            if 'plan' in response and response['plan'] < now \
-                    and 'answers' in response:
-                yes = len(response['answers']) - \
-                    response['answers'].rfind('n') - 1
+            response: Responses = self.user_data[question_and_scheme]
+            if response.plan and response.plan < now and response.answers:
+                yes = len(response.answers) - \
+                    response.answers.rfind("n") - 1
                 if yes < minimum_yes:
                     minimum_yes = yes
                     next_question = question
@@ -271,24 +271,24 @@ class Teacher:
 
         if (question + scheme_id) not in self.user_data:
             self.user_data[question + scheme_id] = {}
-        current = self.user_data[question + scheme_id]
+        current: Responses = self.user_data[question + scheme_id]
 
-        if 'answers' in current:
-            current['answers'] += shortcut
+        if current.answers:
+            current.answers += shortcut
         else:
-            current['answers'] = shortcut
+            current.answers = shortcut
             if not response:
-                current['added'] = now
+                current.added = now
 
         # yes = len(current['answers']) - current['answers'].rfind('n') - 1
 
         if 'plan' not in current:
             if response:
-                current['plan'] = 1000000000
+                current.plan = 1000000000
             else:
-                current['plan'] = now + 2 + int(6 * random.random())
+                current.plan = now + 2 + int(6 * random.random())
         else:
-            diff = current['plan'] - current['last']
+            diff = current.plan - current.last
             if response:
                 if diff < 8:
                     diff = 8 + int(8 * random.random())
@@ -300,8 +300,8 @@ class Teacher:
                     diff = int(diff * (2.0 + random.random()))
             else:
                 diff = 2 + int(6 * random.random())
-            current['plan'] = now + diff
-        current['last'] = now
+            current.plan = now + diff
+        current.last = now
 
         self.user_data[question + scheme_id] = current
 
@@ -443,14 +443,15 @@ class Teacher:
         """
         Write changed user data and archive it.
         """
-        now = int((datetime.now() - datetime(1970, 1, 1)).total_seconds() / 60)
+        now: int = \
+            int((datetime.now() - datetime(1970, 1, 1)).total_seconds() / 60)
 
         # obj = yaml.safe_dump(full_user_data, allow_unicode=True, width=200)
 
         full_user_data = reader.read_answers_fast(self.user_file_name)
         full_user_data[self.dictionary_user_id] = self.user_data
 
-        obj = ''
+        obj = ""
         for dictionary_name in sorted(full_user_data.keys()):
             obj += dictionary_name + ':\n'
             for key in sorted(full_user_data[dictionary_name].keys()):
