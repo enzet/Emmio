@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TextIO
 
 from emmio.ui import get_char, one_button, write
-from emmio.dictionary import SimpleDictionary
+from emmio.dictionary import Dictionary
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
 
@@ -472,9 +472,9 @@ class Lexicon:
         return result
 
     def ask(self, word: str, wiktionary_word_list,
-            dictionaries: List[SimpleDictionary], skip_known: bool = False,
+            dictionaries: List[Dictionary], skip_known: bool = False,
             skip_unknown: bool = False, log_name: str = "log") \
-            -> (bool, LexiconResponse, Optional[SimpleDictionary]):
+            -> (bool, LexiconResponse, Optional[Dictionary]):
         """
         Ask user if the word is known.
         """
@@ -495,7 +495,7 @@ class Lexicon:
 
         answer = None
 
-        dictionary: Optional[SimpleDictionary] = None
+        dictionary: Optional[Dictionary] = None
         for current_dictionary in dictionaries:
             print("Try " + current_dictionary.get_name() + "...")
             answer: Optional[str] = current_dictionary.get(word)
@@ -536,7 +536,7 @@ class Lexicon:
         return to_skip, response, dictionary
 
     def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
-            dictionaries: List[SimpleDictionary], log_type: str,
+            dictionaries: List[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
             stop_at_wrong: Optional[int]) -> None:
         """

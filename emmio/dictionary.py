@@ -12,7 +12,15 @@ from typing import Dict, List, Optional
 from emmio.util import error
 
 
-class SimpleDictionary:
+class Dictionary:
+    def get(self, word: str) -> Optional[str]:
+        """
+        Get word definition.
+        """
+        pass
+
+
+class SimpleDictionary(Dictionary):
     """
     Simple key to value mapping.
     """
@@ -30,51 +38,50 @@ class SimpleDictionary:
 
         self.file_name = file_name
         self.file_format = file_format
-        if file_format == 'dict':
-            key, value = '', ''
+        if file_format == "dict":
+            key, value = "", ""
             with open(file_name) as file:
                 lines = file.readlines()
-                if file_name == 'mueller7.dict':
+                if file_name == "mueller7.dict":
                     for line in lines:
                         line = line[:-1]
                         if len(line) > 0 and \
-                                ('a' <= line[0] <= 'z' or 'A' <= line[
-                                    0] <= 'Z'):
+                                ("a" <= line[0] <= "z" or "A" <= line[
+                                    0] <= "Z"):
                             if key:
                                 self.dictionary[key] = value
                             key = line
-                            value = ''
+                            value = ""
                         else:
-                            value += line + '\n'
+                            value += line + "\n"
 
                 else:
                     for line in lines:
                         line = line[:-1]
-                        if len(line) > 0 and line[0] not in ' \t':
+                        if len(line) > 0 and line[0] not in " \t":
                             if key:
                                 self.dictionary[key] = value
                             key = line
-                            value = ''
+                            value = ""
                         else:
-                            value += line + '\n'
+                            value += line + "\n"
 
                 if key:
                     self.dictionary[key] = value
-        elif file_format == 'yaml':
+        elif file_format == "yaml":
             structure = yaml.load(open(file_name).read())
             if isinstance(structure, list):
                 for element in structure:
                     if isinstance(element, list):
                         question = element[0]
-                        answer = None
                         if len(element) > 2:
                             answer = element[1:]
                         else:
                             answer = element[1]
                         self.dictionary[question] = answer
                     else:
-                        error('unknown YAML dictionary element format: ' +
-                              str(element))
+                        error(f"unknown YAML dictionary element format: "
+                            f"{element!s}")
             elif isinstance(structure, dict):
                 for question in structure:
                     answer = structure[question]
@@ -98,15 +105,15 @@ class SimpleDictionary:
         self.file_name = file_name
 
     def write(self) -> None:
-        with open(self.file_name, 'w+') as output:
+        with open(self.file_name, "w+") as output:
             if self.file_format == "dict":
                 for word in sorted(self.dictionary):
-                    output.write(word + '\n')
+                    output.write(word + "\n")
                     output.write("    " + self.dictionary[word] + "\n")
             else:
                 for word in sorted(self.dictionary):
-                    output.write('"' + word + '": ')
-                    output.write('"' + self.dictionary[word] + '"\n')
+                    output.write(f'"{word}": ')
+                    output.write(f'"{self.dictionary[word]}"\n')
 
     def get(self, word: str) -> Optional[str]:
         if word in self.dictionary:
