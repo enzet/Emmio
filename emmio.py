@@ -17,7 +17,7 @@ from emmio.lexicon import Lexicon
 from emmio.language import languages
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency import FrequencyList
-from emmio.dictionary import Dictionary
+from emmio.dictionary import SimpleDictionary
 from emmio.ui import set_log, VerboseLogger
 from emmio.text import Text
 
@@ -198,7 +198,7 @@ def lexicon(args: List[str]):
 
     dictionary = None
     if arguments.dictionary_file_name:
-        dictionary = Dictionary(arguments.dictionary_file_name,
+        dictionary = SimpleDictionary(arguments.dictionary_file_name,
             arguments.dictionary_file_format)
 
     print("""

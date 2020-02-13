@@ -2,7 +2,7 @@ import json
 
 from typing import Any, Dict, List
 
-from emmio.dictionary import Dictionary
+from emmio.dictionary import SimpleDictionary
 
 
 class Cards:
@@ -17,7 +17,7 @@ class Cards:
         """
         if file_format == "dict":
             self.cards: Dict[str, str] = \
-                Dictionary(file_name, file_format).to_structure()
+                SimpleDictionary(file_name, file_format).to_structure()
         elif file_format == "json":
             self.cards: Dict[str, Any] = json.load(open(file_name, "r"))
 

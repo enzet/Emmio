@@ -1,4 +1,4 @@
-from emmio.dictionary import Dictionary
+from emmio.dictionary import SimpleDictionary
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.text import Text
 from emmio.frequency import FrequencyList
@@ -27,7 +27,7 @@ def do_lexicon(language: str, lexicon_file_name: str) -> None:
 
 
 def test_dict() -> None:
-    dictionary = Dictionary("test/simple.dict", "dict")
+    dictionary = SimpleDictionary("test/simple.dict", "dict")
     assert dictionary.get("other") is None
     assert dictionary.get("книга") == "    book\n"
     assert dictionary.get("письмо") == "    letter\n"

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from emmio.util import error
 
 
-class Dictionary:
+class SimpleDictionary:
     """
     Simple key to value mapping.
     """
@@ -86,7 +86,7 @@ class Dictionary:
         return self.dictionary
 
     def join(self, file_name: str, format_: str) -> None:
-        new_dictionary = Dictionary(file_name, format_)
+        new_dictionary = SimpleDictionary(file_name, format_)
         for key in new_dictionary.dictionary:  # type: str
             if key not in self.dictionary:
                 self.dictionary[key] = new_dictionary.dictionary[key]
