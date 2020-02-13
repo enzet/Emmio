@@ -5,6 +5,8 @@ Dictionary.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
+import yaml
+
 from typing import Dict, List, Optional
 
 from emmio.util import error
