@@ -12,9 +12,13 @@ most_popular_words = {
 
 languages = ["de", "en", "fr", "ru"]
 
-latin = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz"
-cyrillic = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" + \
-           "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+latin_upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+latin_lower = "abcdefghijklmnopqrstuvwxyz"
+latin = latin_upper + latin_lower
+
+cyrillic_upper = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+cyrillic_lower = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+cyrillic = cyrillic_upper + cyrillic_lower
 
 skippers = "'’"
 

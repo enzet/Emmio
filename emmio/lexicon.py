@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TextIO
 
-from emmio import ui
+from emmio.ui import get_char, one_button, write
 from emmio.dictionary import Dictionary
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
@@ -152,7 +152,7 @@ class Lexicon:
                     self.logs[key].append(LogRecord.from_structure(structure))
 
     def read(self):
-        ui.write("Reading lexicon from " + self.file_name + "...")
+        write("Reading lexicon from " + self.file_name + "...")
         with open(self.file_name, "r") as input_file:
             self.rd(json.load(input_file))
         self.fill()
@@ -246,15 +246,15 @@ class Lexicon:
             if not self.finish or date > self.finish:
                 self.finish = date
 
-    def get_statistics(self) -> (float, float):
-        count = [0, 0]
+    def get_statistics(self) -> float:
+        count: List[int] = [0, 0]
         for record in self.logs["log"]:  # type: LogRecord
             if record.response == LexiconResponse.KNOW:
                 count[0] += 1
             elif record.response == LexiconResponse.DO_NOT_KNOW:
                 count[1] += 1
 
-        count_ratio = 0
+        count_ratio: float = 0
         if count[0] + count[1]:
             count_ratio = count[0] / (count[0] + count[1])
 
@@ -385,15 +385,15 @@ class Lexicon:
 
                 if length >= preferred:
                     current_rate = rate(1 - data / length)
-                    output.write("    %s %f\n" %
-                        (m.strftime("%Y.%m.%d"), current_rate))
+                    output.write(
+                        f"    {m.strftime('%Y.%m.%d')} {current_rate:f}\n")
                     break
 
                 auxiliary_index -= 1
 
         if preferred > length:
-            print("Need " + str(int(preferred - length)) + " more.")
-            print("Need " + str(100 - (length - data)) + " more wrong answers.")
+            print(f"Need {int(preferred - length)!s} more.")
+            print(f"Need {100 - (length - data)!s} more wrong answers.")
 
         output.close()
 
@@ -412,8 +412,8 @@ class Lexicon:
             else:
                 current_rate = 0
             if unknowns >= 100:
-                output.write("    %s %f\n" %
-                    (date.strftime("%Y.%m.%d"), rate(current_rate)))
+                output.write(
+                    f"    {date.strftime('%Y.%m.%d')} {rate(current_rate):f}\n")
 
                 response = self.responses[left]
                 if response == 1:
@@ -504,14 +504,14 @@ class Lexicon:
                 break
 
         if answer is not None:
-            input("[Show answer] ")
+            one_button("Show answer")
             print(answer)
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/q]> ")
-        answer = ui.get_char()
+        answer = get_char()
         while answer not in ["y", "Y", "Enter", "n", "N", "b", "B", "s", "S",
                 "-", "q", "Q"]:
-            answer = ui.get_char()
+            answer = get_char()
 
         if answer in ["y", "Enter"]:
             print("Know.")
@@ -596,14 +596,14 @@ class Lexicon:
             average = self.get_average()
 
             precision = self.count_unknowns() / 100
-            rate_string = "%.2f" % rate(average) if rate(average) else "unknown"
+            rate_string = f"{rate(average):.2f}" if rate(average) else "unknown"
             if precision < 1:
-                print("Precision: %.2f" % (precision * 100))
-                print("Rate so far is: %s" % rate_string)
+                print(f"Precision: {precision * 100:.2f}")
+                print(f"Rate so far is: {rate_string}")
             else:
-                print("Precision: %.2f" % (precision * 100))
-                print("Rate is: %s" % rate_string)
-            print("Words: %d" % len(self.words))
+                print(f"Precision: {precision * 100:.2f}")
+                print(f"Rate is: {rate_string}")
+            print(f"Words: {len(self.words):d}")
 
             if not response:
                 break
@@ -626,8 +626,7 @@ class Lexicon:
             print("[skip] " + picked_word)
             response = self.get(picked_word)
             to_skip = self.words[picked_word].to_skip
-            self.register(picked_word, response, to_skip,
-                log_name=log_name)
+            self.register(picked_word, response, to_skip, log_name=log_name)
             return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
@@ -649,7 +648,7 @@ class Lexicon:
         return False
 
     def print_statistics(self) -> None:
-        count_ratio = self.get_statistics()
+        count_ratio: float = self.get_statistics()
 
         print("Skipping:          %9.4f" %
               (len(self.logs["log"]) / len(self.words)))
@@ -673,10 +672,10 @@ class UserLexicon:
             if not file_name.endswith(".json"):
                 continue
             ln = 4
-            current_user_name = file_name[:-4-ln]
+            current_user_name = file_name[:-4 - ln]
             if user_name == current_user_name:
-                language = file_name[-3-ln:-1-ln]
-                lexicon =\
+                language = file_name[-3 - ln:-1 - ln]
+                lexicon = \
                     Lexicon(language, os.path.join(input_directory, file_name))
                 lexicon.read()
                 self.lexicons[language] = lexicon

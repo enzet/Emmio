@@ -5,21 +5,21 @@ Dictionary.
 
 Author: Sergey Vartanov (me@enzet.ru).
 """
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from emmio.util import error
 
 
 class Dictionary:
     """
-    Dictionary.
+    Simple key to value mapping.
     """
     def __init__(self, file_name: str = None, file_format: str = None):
         """
         :param file_name: input dictionary file name.
         :param file_format: file format: `dict`, `json`, or `yaml`.
         """
-        self.dictionary = {}
+        self.dictionary: Dict[str, str] = {}
 
         if not file_name:
             self.file_name = None
@@ -79,6 +79,9 @@ class Dictionary:
                     self.dictionary[question] = answer
         else:
             error(f"unknown dictionary format: {file_format}")
+
+    def to_structure(self) -> Dict[str, str]:
+        return self.dictionary
 
     def join(self, file_name: str, format_: str) -> None:
         new_dictionary = Dictionary(file_name, format_)

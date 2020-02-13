@@ -205,5 +205,9 @@ def get_terminal_size() -> (int, int):
     return int(cr[1]), int(cr[0])
 
 
+def one_button(text: str) -> None:
+    input(f"[{text}] ")
+
+
 if __name__ == "__main__":
     get_word("test")

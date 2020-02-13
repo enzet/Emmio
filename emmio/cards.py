@@ -1,10 +1,12 @@
-from typing import List
+import json
+
+from typing import Any, Dict, List
 
 from emmio.dictionary import Dictionary
 
 
 class Cards:
-    def __init__(self, file_name: str, file_format: str = 'dict'):
+    def __init__(self, file_name: str, file_format: str = "dict"):
         """
         Construct dictionary with key and values as Unicode strings.
 
@@ -13,16 +15,20 @@ class Cards:
 
         :return parsed dictionary as Python dict structure.
         """
-        self.dictionary = Dictionary(file_name, file_format)
+        if file_format == "dict":
+            self.cards: Dict[str, str] = \
+                Dictionary(file_name, file_format).to_structure()
+        elif file_format == "json":
+            self.cards: Dict[str, Any] = json.load(open(file_name, "r"))
 
     def has(self, question: str) -> bool:
-        return question in self.dictionary
+        return question in self.cards
 
     def get_questions(self) -> List[str]:
-        return self.dictionary.get_keys()
+        return list(self.cards.keys())
 
     def get_answer(self, question: str) -> str:
-        return self.dictionary.get(question)
+        return self.cards.get(question)
 
     def get_answer_key(self, question: str, key: str) -> str:
-        return self.dictionary.get(question)[key]
+        return self.cards.get(question)[key]

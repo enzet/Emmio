@@ -59,11 +59,12 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
     """
     if kind == "json":
         try:
-            obj = json.loads(data.decode("utf-8"))
+            object_ = json.loads(data.decode("utf-8"))
             if cache_file_name is not None:
                 with open(cache_file_name, "w+") as cached:
-                    cached.write(json.dumps(obj, indent=4, ensure_ascii=False))
-            return obj
+                    cached.write(json.dumps(
+                        object_, indent=4, ensure_ascii=False))
+            return object_
         except ValueError:
             return None
     elif kind == "html":
