@@ -25,6 +25,7 @@ class Form:
         self.links: List[(str, str)] = []
 
         self.verb_group: Optional[int] = None
+        self.is_singular: Optional[bool] = None
 
     def add_transcription(self, transcription: str) -> None:
         self.transcriptions.add(transcription)
@@ -55,6 +56,11 @@ class Form:
             result += self.gender
         if self.verb_group:
             result += f" {self.verb_group!s} group"
+        if self.is_singular is not None:
+            if self.is_singular:
+                result += " sing."
+            else:
+                result += " plur."
         if self.transcriptions or self.gender:
             result += "\n"
         if self.links:
