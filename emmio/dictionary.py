@@ -7,15 +7,89 @@ Author: Sergey Vartanov (me@enzet.ru).
 """
 import yaml
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from emmio.util import error
+
+
+class Form:
+    """
+    Word form: noun, verb, etc.
+    """
+
+    def __init__(self, type_: str):
+        self.type = type_
+        self.gender: Optional[str] = None
+        self.transcriptions: Set[str] = set()
+        self.translations: Dict[str, Set] = {}
+        self.links = []
+        self.images = []
+
+        self.verb_group: Optional[int] = None
+
+    def add_transcription(self, transcription: str) -> None:
+        self.transcriptions.add(transcription)
+
+    def add_translations(self, translations: Set, language: str) -> None:
+        if language not in self.translations:
+            self.translations[language] = set()
+        self.translations[language] = \
+            self.translations[language].union(translations)
+
+    def add_link(self, link_type: str, link: str) -> None:
+        self.links.append((link_type, link))
+
+    def set_gender(self, gender: str) -> None:
+        self.gender = gender
+
+    def set_verb_group(self, verb_group: int) -> None:
+        self.verb_group = verb_group
+
+    def to_dict(self, write_en: bool = False) -> str:
+        result = "  "
+        type_ = self.type
+        if self.type.startswith("form of "):
+            result += "форма "
+            type_ = type_[8:]
+        if type_ == "verb":
+            result += "гл."
+        elif type_ == "preposition":
+            result += "предл."
+        else:
+            result += type_
+        result += "\n"
+        if self.transcriptions or self.gender:
+            result += "    "
+        if self.transcriptions:
+            result += ", ".join(
+                map(lambda x: "[" + x + "]", sorted(self.transcriptions)))
+        if self.gender:
+            result += self.gender
+        if self.verb_group:
+            result += " " + str(self.verb_group) + " гр."
+        if self.transcriptions or self.gender:
+            result += "\n"
+        if self.links:
+            result += "    -> " + ", ".join(
+                map(lambda x: "(" + x[0] + ") " + x[1], self.links)) + "\n"
+        if self.translations["ru"]:
+            result += "    " + ", ".join(sorted(self.translations["ru"])) + "\n"
+        elif write_en and self.translations["en"]:
+            result += "    (англ.) " + ", ".join(
+                sorted(self.translations["en"])) + "\n"
+        return result
 
 
 class Dictionary:
     def get(self, word: str) -> Optional[str]:
         """
         Get word definition.
+        """
+        pass
+
+    def get_name(self) -> str:
+        """
+        Get dictionary name.
         """
         pass
 
