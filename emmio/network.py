@@ -10,11 +10,14 @@ import os
 import time
 import urllib3
 
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from emmio import util
 
 DEFAULT_SLEEP_TIME: int = 2
+
+last_request_time: datetime = datetime.now()
 
 
 def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
@@ -29,6 +32,8 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     :param sleep_time: time to pause after request in seconds.
     :return: connection descriptor
     """
+    global last_request_time
+
     url: str = f"http{('s' if is_secure else '')}://{address}"
 
     if not name:
@@ -43,7 +48,9 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     pool_manager.clear()
 
     # Just to be sure you're not making too many requests.
-    if sleep_time:
+    diff: timedelta = (datetime.now() - last_request_time)
+    last_request_time = datetime.now()
+    if diff < timedelta(seconds=sleep_time):
         time.sleep(sleep_time)
 
     return result.data
