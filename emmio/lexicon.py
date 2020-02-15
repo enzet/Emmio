@@ -142,9 +142,9 @@ class Lexicon:
         for word in data["words"]:
             record = data["words"][word]
             if isinstance(record, list):
-                self.words[word] = WordKnowledge(record[1], False)
+                self.words[word] = WordKnowledge(record[1], None)
             elif isinstance(record, dict):
-                to_skip = False
+                to_skip = None
                 if "to_skip" in record:
                     to_skip = record["to_skip"]
                 self.words[word] = WordKnowledge(
