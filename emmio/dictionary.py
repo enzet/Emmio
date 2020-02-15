@@ -22,8 +22,7 @@ class Form:
         self.gender: Optional[str] = None
         self.transcriptions: Set[str] = set()
         self.translations: Dict[str, Set] = {}
-        self.links = []
-        self.images = []
+        self.links: List[(str, str)] = []
 
         self.verb_group: Optional[int] = None
 
@@ -45,19 +44,8 @@ class Form:
     def set_verb_group(self, verb_group: int) -> None:
         self.verb_group = verb_group
 
-    def to_dict(self, write_en: bool = False) -> str:
-        result = "  "
-        type_ = self.type
-        if self.type.startswith("form of "):
-            result += "форма "
-            type_ = type_[8:]
-        if type_ == "verb":
-            result += "гл."
-        elif type_ == "preposition":
-            result += "предл."
-        else:
-            result += type_
-        result += "\n"
+    def to_dict(self) -> str:
+        result = f"  {self.type}\n"
         if self.transcriptions or self.gender:
             result += "    "
         if self.transcriptions:
@@ -66,17 +54,16 @@ class Form:
         if self.gender:
             result += self.gender
         if self.verb_group:
-            result += " " + str(self.verb_group) + " гр."
+            result += f" {self.verb_group!s} group"
         if self.transcriptions or self.gender:
             result += "\n"
         if self.links:
             result += "    -> " + ", ".join(
                 map(lambda x: "(" + x[0] + ") " + x[1], self.links)) + "\n"
-        if self.translations["ru"]:
-            result += "    " + ", ".join(sorted(self.translations["ru"])) + "\n"
-        elif write_en and self.translations["en"]:
-            result += "    (англ.) " + ", ".join(
-                sorted(self.translations["en"])) + "\n"
+        for language in self.translations:  # type: str
+            if self.translations[language]:
+                result += f"    [{language}]" + \
+                    ", ".join(sorted(self.translations[language])) + "\n"
         return result
 
 
