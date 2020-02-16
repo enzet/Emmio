@@ -17,20 +17,8 @@ from emmio import graph
 from emmio import reader
 from emmio import ui
 from emmio.cards import Cards
-from emmio.learning import FullUserData, Responses
-
-
-class Emmio:
-    def __init__(self, config_file_name: str):
-        config = yaml.load(open(config_file_name, "r"))
-        self.teachers = {}
-        self.config = config
-        for learning_id in config['learnings']:  # type: str
-            teacher = Teacher(learning_id, config, {})
-            self.teachers[learning_id] = teacher
-
-    def get_teacher(self, teacher_id: str) -> "Teacher":
-        return self.teachers[teacher_id]
+from emmio.learning import FullUserData, Responses, Learning
+from emmio.frequency import FrequencyList
 
 
 def read_priority(file_name):
@@ -86,12 +74,12 @@ class Teacher:
         self.user_file_name = os.path.join(directory_name, user_config["file"])
         full_user_data = FullUserData(self.user_file_name)
 
-        self.user_data: Dict[str, Responses] = {}
+        self.learning: Learning
         self.dictionary_user_id: Optional[str] = None
 
-        for dictionary_user_id in full_user_data.get_answers():
+        for dictionary_user_id in full_user_data.get_learning_ids():
             if dictionary_user_id in dictionary_config['user_ids']:
-                self.user_data = full_user_data.get_answers()[dictionary_user_id]
+                self.learning = full_user_data.get_learning(dictionary_user_id)
                 self.dictionary_user_id = dictionary_user_id
                 break
 
@@ -156,12 +144,12 @@ class Teacher:
 
         # Looking for repetition.
 
-        for question_and_scheme in self.user_data:  # type: str
-            if '#' in question_and_scheme:
-                question = question_and_scheme[:question_and_scheme.find('#')]
-                scheme_id = question_and_scheme[question_and_scheme.find('#'):]
+        for question_id in self.learning.get_question_ids():  # type: str
+            if '#' in question_id:
+                question = question_id[:question_id.find('#')]
+                scheme_id = question_id[question_id.find('#'):]
             else:
-                question = question_and_scheme
+                question = question_id
                 scheme_id = ''
 
             if question not in self.dictionary.get_questions():
@@ -169,7 +157,7 @@ class Teacher:
             if scheme_id not in scheme_ids:
                 continue
 
-            response: Responses = self.user_data[question_and_scheme]
+            response: Responses = self.learning.get_responses(question_id)
             if response.plan and response.plan < now and response.answers:
                 yes = len(response.answers) - \
                     response.answers.rfind("n") - 1
@@ -191,7 +179,7 @@ class Teacher:
                     question = q[0]
                     if (question in self.dictionary) and \
                             not ((question + current_scheme_id) in
-                                self.user_data):
+                                self.learning.get_question_ids()):
                         next_question = question
                         scheme_id = current_scheme_id
                         return next_question, True, scheme_id
@@ -200,7 +188,8 @@ class Teacher:
             for question in self.dictionary.get_questions():
                 for scheme in self.schemes:
                     current_scheme_id = scheme['id']
-                    if not ((question + current_scheme_id) in self.user_data):
+                    if not ((question + current_scheme_id) in
+                            self.learning.get_question_ids()):
                         next_question = question
                         scheme_id = current_scheme_id
                         return next_question, True, scheme_id
@@ -235,53 +224,15 @@ class Teacher:
         """
         Process user response.
 
-        :param response: user response: know or don't know
-        :param question: current question
-        :param now: time point integer representation
-        :param scheme_id: current learning scheme identifier
-
-        :returns: nothing
+        :param response: user response: know or don't know.
+        :param question: current question.
+        :param now: time point integer representation.
+        :param scheme_id: current learning scheme identifier.
         """
-        shortcut = 'y' if response else 'n'
-
-        if (question + scheme_id) not in self.user_data:
-            self.user_data[question + scheme_id] = {}
-        current: Responses = self.user_data[question + scheme_id]
-
-        if current.answers:
-            current.answers += shortcut
-        else:
-            current.answers = shortcut
-            if not response:
-                current.added = now
-
-        # yes = len(current['answers']) - current['answers'].rfind('n') - 1
-
-        if 'plan' not in current:
-            if response:
-                current.plan = 1000000000
-            else:
-                current.plan = now + 2 + int(6 * random.random())
-        else:
-            diff = current.plan - current.last
-            if response:
-                if diff < 8:
-                    diff = 8 + int(8 * random.random())
-                elif diff < 16:
-                    diff = 16 + int((60 * 24 - 16) * random.random())
-                elif diff < 60 * 24:
-                    diff = 60 * 24 + int(60 * 24 * random.random())
-                else:
-                    diff = int(diff * (2.0 + random.random()))
-            else:
-                diff = 2 + int(6 * random.random())
-            current.plan = now + diff
-        current.last = now
-
-        self.user_data[question + scheme_id] = current
+        self.learning.answer(question + scheme_id, response, now)
 
     def get_statistics(self):
-        return analysis.get_statistics(self.user_data, self.dictionary)
+        return analysis.get_statistics(self.learning, self.dictionary)
 
     def run(self):
         """
@@ -308,7 +259,7 @@ class Teacher:
 
             # Get current statistics
 
-            statistics = analysis.get_statistics(self.user_data,
+            statistics = analysis.get_statistics(self.learning,
                 self.dictionary, now, '')
 
             # if statistics['to_repeat'] <= 0 and \
