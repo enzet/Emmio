@@ -73,6 +73,49 @@ class Form:
         return result
 
 
+class DictionaryItem:
+    def __init__(self, word: str):
+        self.word: str = word
+        self.forms: Dict[str, Form] = {}
+
+    def set_gender(self, form_type: str, gender: str) -> None:
+        if form_type not in self.forms:  # type: str
+            self.forms[form_type] = Form(form_type)
+        self.forms[form_type].set_gender(gender)
+
+    def add_transcription(self, form_type: str, transcription: str) -> None:
+        if form_type not in self.forms:  # type: str
+            self.forms[form_type] = Form(form_type)
+        self.forms[form_type].add_transcription(transcription)
+
+    def add_translations(self, form_type: str, translations: set,
+                         language: str) -> None:
+
+        if form_type not in self.forms:  # type: str
+            self.forms[form_type] = Form(form_type)
+        self.forms[form_type].add_translations(translations, language)
+
+    def add_link(self, form_type: str, link_type: str, link: str) -> None:
+        if form_type not in self.forms:  # type: str
+            self.forms[form_type] = Form(form_type)
+        self.forms[form_type].add_link(link_type, link)
+
+    def set_verb_group(self, verb_group) -> None:
+        if "verb" not in self.forms:  # type: str
+            form = Form("verb")
+            form.set_verb_group(verb_group)
+            self.forms["verb"] = form
+
+    def to_dict(self):
+        result = ""
+        for form_type in sorted(self.forms):
+            result += self.forms[form_type].to_dict()
+        return result
+
+    def __repr__(self) -> str:
+        return str(self.to_dict())
+
+
 class Dictionary:
     def get(self, word: str) -> Optional[str]:
         """
