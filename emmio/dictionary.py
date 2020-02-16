@@ -235,3 +235,62 @@ class SimpleDictionary(Dictionary):
 
     def get_name(self) -> str:
         return self.file_name
+
+class ExtendedDictionary(Dictionary):
+    def __init__(self):
+        self.items: Dict[str, DictionaryItem] = {}
+
+    def add(self, word: str, item: DictionaryItem) -> None:
+        self.items[word] = item
+
+    def get(self, word: str) -> DictionaryItem:
+        return self.items[word]
+
+    def to_dict(self, write_unknown=True) -> str:
+        result = ""
+        for word in sorted(self.items):
+            text = self.items[word].to_dict()
+            if text:
+                result += word + "\n"
+                result += text
+            elif write_unknown:
+                result += word + "\n"
+                result += "  ?\n"
+        return result
+
+    def update_links(self) -> None:
+        for word in self.items:
+            item = self.items[word]
+            for form_type in item.forms:
+                if not form_type.startswith("form of "):
+                    continue
+                link_form = form_type[len("form of "):]
+                form = item.forms[form_type]
+                for link_type, link in form.links:
+                    if link not in self.items:
+                        continue
+                    link_item = self.items[link]
+                    if link_form not in link_item.forms:
+                        continue
+                    translations = link_item.forms[link_form].translations
+                    for language in translations:
+                        form.add_translations(translations[language], language)
+                    verb_group = link_item.forms[link_form].verb_group
+                    form.set_verb_group(verb_group)
+
+    def get_forms(self) -> Dict[str, Set[str]]:
+        result: Dict[str, Set[str]] = {}
+        for w in self.items:  # type: str
+            item = self.items[w]
+            for form_type in item.forms:
+                if form_type.startswith("form of "):
+                    form = item.forms[form_type]
+                    for link_type, link in form.links:
+                        if link not in result:
+                            result[link] = set()
+                        result[link].add(w)
+
+        for key in result:  # type: str
+            result[key] = list(result[key])
+
+        return result
