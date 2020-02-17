@@ -30,6 +30,21 @@ class Learning:
     def get_responses(self, question_id: str) -> "Responses":
         return self.responses[question_id]
 
+    def to_string(self):
+        obj = ""
+        obj += self.id + ':\n'
+        for question_id in self.responses:  # type: str
+            responses: Responses = self.responses[question_id]
+            if question_id in ['on', 'off', 'yes', 'no', 'null', 'true',
+                    'false']:
+                obj += "  '" + question_id + "': {"
+            else:
+                obj += '  ' + question_id + ': {'
+            obj += responses.to_string()
+            obj = obj[:-2]
+            obj += '}\n'
+        return obj
+
 
 class Responses:
     def __init__(self, word_id: str, structure: Dict[str, Any]):
@@ -80,6 +95,20 @@ class Responses:
         return self.answers[-3:] == "yyy" or self.answers == "y" or \
                (not self.answers and self.plan >= 1000000000)
 
+    def to_string(self) -> str:
+        obj = ""
+        if self.added is not None:
+            obj += f"added: {self.added}"
+        if self.answers is not None:
+            obj += f"answers: {self.answers}"
+        if self.last is not None:
+            obj += f"last: {self.last}"
+        if self.plan is not None:
+            obj += f"plan: {self.plan}"
+        if obj:
+            obj = obj[:-2]
+        return obj
+
 
 class FullUserData:
     def __init__(self, file_name: str):
@@ -123,6 +152,14 @@ class FullUserData:
                     key = key[1:-1]
 
                 ll[key] = Responses(key, element)
+
+    def write(self, user_file_name: str):
+        obj = ""
+
+        for learning in self.learnings:  # type: Learning
+            obj += learning.to_string()
+
+        open(user_file_name, 'w+').write(obj)
 
     def get_learning(self, learning_id: str) -> Learning:
         return self.learnings[learning_id]

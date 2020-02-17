@@ -72,14 +72,15 @@ class Teacher:
         user_config = config['users'][user_id]
 
         self.user_file_name = os.path.join(directory_name, user_config["file"])
-        full_user_data = FullUserData(self.user_file_name)
+        self.full_user_data = FullUserData(self.user_file_name)
 
         self.learning: Learning
         self.dictionary_user_id: Optional[str] = None
 
-        for dictionary_user_id in full_user_data.get_learning_ids():
+        for dictionary_user_id in self.full_user_data.get_learning_ids():
             if dictionary_user_id in dictionary_config['user_ids']:
-                self.learning = full_user_data.get_learning(dictionary_user_id)
+                self.learning = \
+                    self.full_user_data.get_learning(dictionary_user_id)
                 self.dictionary_user_id = dictionary_user_id
                 break
 
@@ -369,27 +370,4 @@ class Teacher:
         """
         Write changed user data and archive it.
         """
-        now: int = \
-            int((datetime.now() - datetime(1970, 1, 1)).total_seconds() / 60)
-
-        # obj = yaml.safe_dump(full_user_data, allow_unicode=True, width=200)
-
-        full_user_data = reader.read_answers_fast(self.user_file_name)
-        full_user_data[self.dictionary_user_id] = self.user_data
-
-        obj = ""
-        for dictionary_name in sorted(full_user_data.keys()):
-            obj += dictionary_name + ':\n'
-            for key in sorted(full_user_data[dictionary_name].keys()):
-                answer = full_user_data[dictionary_name][key]
-                if key in ['on', 'off', 'yes', 'no', 'null', 'true', 'false']:
-                    obj += "  '" + key + "': {"
-                else:
-                    obj += '  ' + key + ': {'
-                for field in ['added', 'answers', 'last', 'plan']:
-                    if field in answer:
-                        obj += field + ': ' + str(answer[field]) + ', '
-                obj = obj[:-2]
-                obj += '}\n'
-
-        open(self.user_file_name, 'w+').write(obj)
+        self.full_user_data.write(self.user_file_name)
