@@ -163,6 +163,8 @@ class Lexicon:
         self.fill()
 
     def fill(self):
+        if "log" not in self.logs:
+            return
         for record in self.logs["log"]:  # type: LogRecord
             if record.response in [LexiconResponse.KNOW,
                     LexiconResponse.DO_NOT_KNOW]:
