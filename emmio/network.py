@@ -51,6 +51,7 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     diff: timedelta = (datetime.now() - last_request_time)
     last_request_time = datetime.now()
     if diff < timedelta(seconds=sleep_time):
+        print(f"Sleeping for {sleep_time} seconds.")
         time.sleep(sleep_time)
 
     return result.data
