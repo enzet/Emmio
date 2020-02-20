@@ -158,9 +158,10 @@ class Lexicon:
 
     def read(self):
         write("Reading lexicon from " + self.file_name + "...")
-        with open(self.file_name, "r") as input_file:
-            self.rd(json.load(input_file))
-        self.fill()
+        if os.path.isfile(self.file_name):
+            with open(self.file_name, "r") as input_file:
+                self.rd(json.load(input_file))
+            self.fill()
 
     def fill(self):
         if "log" not in self.logs:
