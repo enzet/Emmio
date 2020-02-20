@@ -346,6 +346,9 @@ class Lexicon:
         :param first: function that computes the point of time to start with.
         :param next_: function that computes the next point of time.
         """
+        if not self.start:
+            return {"current_percent": 0}
+
         output: TextIO = open(output_file_name, "w+")
 
         points = {}
