@@ -41,18 +41,18 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
 
     util.network(f"getting {name}")
 
-    # Request content.
-    pool_manager = urllib3.PoolManager()
-    urllib3.disable_warnings()
-    result = pool_manager.request("GET", url, parameters)
-    pool_manager.clear()
-
-    # Just to be sure you're not making too many requests.
+    # Sleep before the next request.
     diff: timedelta = (datetime.now() - last_request_time)
     last_request_time = datetime.now()
     if diff < timedelta(seconds=sleep_time):
         print(f"Sleeping for {sleep_time} seconds.")
         time.sleep(sleep_time)
+
+    # Request content.
+    pool_manager = urllib3.PoolManager()
+    urllib3.disable_warnings()
+    result = pool_manager.request("GET", url, parameters)
+    pool_manager.clear()
 
     return result.data
 
