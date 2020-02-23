@@ -505,12 +505,16 @@ class Lexicon:
         answer = None
 
         dictionary: Optional[Dictionary] = None
+        to_update_dictionary: Optional[Dictionary] = None
         for current_dictionary in dictionaries:
             print("Try " + current_dictionary.get_name() + "...")
             answer: Optional[str] = current_dictionary.get(word)
             if answer is not None:
                 dictionary = current_dictionary
+                to_update_dictionary = None
                 break
+            elif current_dictionary.to_update:
+                to_update_dictionary = current_dictionary
 
         if answer is not None:
             one_button("Show answer")
@@ -541,6 +545,12 @@ class Lexicon:
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
         self.register([word], response, to_skip, log_name=log_name)
+
+        if to_update_dictionary is not None:
+            translation = input("translation > ")
+            if translation:
+                to_update_dictionary.add(word, translation)
+                to_update_dictionary.write()
 
         return to_skip, response, dictionary
 

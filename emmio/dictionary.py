@@ -117,6 +117,9 @@ class DictionaryItem:
 
 
 class Dictionary:
+
+    to_update: bool = False
+
     def get(self, word: str) -> Optional[str]:
         """
         Get word definition.
@@ -235,6 +238,7 @@ class SimpleDictionary(Dictionary):
 
     def get_name(self) -> str:
         return self.file_name
+
 
 class ExtendedDictionary(Dictionary):
     def __init__(self):
