@@ -22,13 +22,13 @@ class LexiconResponse(Enum):
 
     def get_message(self) -> str:
         if self == self.KNOW:
-            return "know"
+            return "knows at least one meaning of the word"
         if self == self.DO_NOT_KNOW:
-            return "don't know"
+            return "does not know any meaning of the word"
         if self == self.KNOW_OR_NOT_A_WORD:
-            return "know or not a word"
+            return "knows or not a word"
         if self == self.DO_NOT_BUT_PROPER_NOUN_TOO:
-            return "don't know but proper noun too"
+            return "does not know, but a proper noun too"
         if self == self.NOT_A_WORD:
             return "not a word"
 
