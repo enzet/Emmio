@@ -675,7 +675,7 @@ class Lexicon:
             (skip_unknown and
                 self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
 
-            print("[skip] " + picked_word)
+            print("[propagate.user] " + picked_word)
             response = self.get(picked_word)
             to_skip = self.words[picked_word].to_skip
             self.register([picked_word], response, to_skip, log_name=log_name,
@@ -693,7 +693,7 @@ class Lexicon:
                     break
 
         if foreign:
-            print("[forg] " + picked_word)
+            print("[assume.not_a_word] " + picked_word)
             self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
                 log_name=log_name, answer_type=AnswerType.ASSUME_NOT_A_WORD)
             return True
