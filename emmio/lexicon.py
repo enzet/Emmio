@@ -538,31 +538,42 @@ class Lexicon:
             one_button("Show answer")
             print(answer)
 
-        print("Do you know at least one meaning of this word? [Y/n/b/s/q]> ")
+        print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
         answer = get_char()
         while answer not in ["y", "Y", "Enter", "n", "N", "b", "B", "s", "S",
                 "-", "q", "Q"]:
             answer = get_char()
 
-        if answer in ["y", "Enter"]:
-            print("Know.")
-            answer = "y"
+        response: LexiconResponse
+        skip_in_future: Optional[bool] = None
+
+        if answer in ["y", "Y", "Enter"]:
+            response = LexiconResponse.KNOW
         elif answer in ["n", "N"]:
-            print("Don't know.")
-            answer = "n"
+            response = LexiconResponse.DO_NOT_KNOW
         elif answer in ["b", "B"]:
-            print("Don't know, but it is a proper name too.")
-            answer = "nb"
+            response = LexiconResponse.DO_NOT_BUT_PROPER_NOUN_TOO
         elif answer in ["s", "S"]:
-            print("Know and skip this word in the future.")
-            answer = "ys"
+            response = LexiconResponse.KNOW
+            skip_in_future = True
+        elif answer == "-":
+            response = LexiconResponse.NOT_A_WORD
         elif answer in ["q", "Q"]:
             print("Quit.")
             self.write()
             return False, None, None
+        else:
+            response = LexiconResponse.DO_NOT_KNOW
 
-        to_skip, response = process_response(skip_known, skip_unknown, answer)
-        self.register([word], response, to_skip, log_name=log_name,
+        print(response.get_message())
+
+        if skip_in_future is None:
+            if response == LexiconResponse.KNOW:
+                skip_in_future = skip_known
+            elif response == LexiconResponse.DO_NOT_KNOW:
+                skip_in_future = skip_unknown
+
+        self.register([word], response, skip_in_future, log_name=log_name,
             answer_type=AnswerType.USER_ANSWER)
 
         if to_update_dictionary is not None:
@@ -571,7 +582,7 @@ class Lexicon:
                 to_update_dictionary.add(word, translation)
                 to_update_dictionary.write()
 
-        return to_skip, response, dictionary
+        return skip_in_future, response, dictionary
 
     def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: List[Dictionary], log_type: str,
@@ -721,38 +732,3 @@ class UserLexicon:
                     Lexicon(language, os.path.join(input_directory, file_name))
                 lexicon.read()
                 self.lexicons[language] = lexicon
-
-
-def process_response(skip_known: bool, skip_unknown: bool, answer: str) \
-        -> (bool, LexiconResponse):
-    """
-    Process user response.
-
-    :param skip_known: skip word in the future if user know it
-    :param skip_unknown: skip word in the future if user don't know it
-    :param answer: user response
-
-    :return if word should be skipped in the future, word response
-    """
-    to_skip: bool = False
-    if not answer or answer.lower() == "y":
-        response = LexiconResponse.KNOW
-        to_skip = skip_known
-    elif answer.lower() == "ys":
-        response = LexiconResponse.KNOW
-        to_skip = True
-    elif answer.lower() == "n":
-        response = LexiconResponse.DO_NOT_KNOW
-        to_skip = skip_unknown
-    elif answer.lower() == "ns":
-        response = LexiconResponse.DO_NOT_KNOW
-        to_skip = True
-    elif answer.lower() == "nb":
-        response = LexiconResponse.DO_NOT_BUT_PROPER_NOUN_TOO
-        to_skip = skip_unknown
-    elif answer.lower() == "-":
-        response = LexiconResponse.NOT_A_WORD
-    else:
-        response = LexiconResponse.DO_NOT_KNOW
-
-    return to_skip, response
