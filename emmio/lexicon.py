@@ -39,6 +39,20 @@ class LexiconResponse(Enum):
         return self.value
 
 
+class AnswerType(Enum):
+    UNKNOWN = "unknown"
+    USER_ANSWER = "user_answer"
+    PROPAGATE_USER = "propagate_user"
+    PROPAGATE_TIME = "propagate_time"
+    ASSUME_NOT_A_WORD = "assume_not_a_word"
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
+
+
 class WordKnowledge:
     def __init__(self, knowing: LexiconResponse, to_skip: Optional[bool]):
         self.knowing: LexiconResponse = knowing
@@ -62,18 +76,19 @@ class LogRecord:
     Record of user's answer.
     """
     def __init__(self, date: datetime, words: List[str],
-            response: LexiconResponse, is_reused: Optional[bool] = None):
+            response: LexiconResponse,
+            answer_type: AnswerType = AnswerType.UNKNOWN):
         """
         :param date: time of the answer.
         :param words: list of words under question.
         :param response: the result.
-        :param is_reused: if the previous answer was used, `None` if it is
-            unknown.
+        :param answer_type: is it was a user answer or the previous answer was
+            used.
         """
         self.date: datetime = date
         self.words: List[str] = words
         self.response: LexiconResponse = response
-        self.is_reused: Optional[bool] = is_reused
+        self.answer_type: AnswerType = answer_type
 
     @classmethod
     def from_structure(cls, structure) -> "LogRecord":
@@ -82,17 +97,16 @@ class LogRecord:
             date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
             return cls(date, [word], LexiconResponse(response))
         elif isinstance(structure, dict):
-            is_reused = None
-            if "is_reused" in structure:
-                is_reused = structure["is_reused"]
+            answer_type: AnswerType = AnswerType.UNKNOWN
+            if "answer_type" in structure:
+                answer_type = AnswerType(structure["answer_type"])
             if "word" in structure:
                 words = [structure["word"]]
             else:  # "words" in structure
                 words = structure["words"]
             return cls(
                 datetime.strptime(structure["date"], "%Y.%m.%d %H:%M:%S"),
-                words, LexiconResponse(structure["response"]),
-                is_reused)
+                words, LexiconResponse(structure["response"]), answer_type)
 
     def to_structure(self) -> Dict[str, Any]:
         """
@@ -104,8 +118,8 @@ class LogRecord:
         else:
             structure["words"] = self.words
         structure["response"] = self.response.value
-        if self.is_reused is not None:
-            structure["is_reused"] = self.is_reused
+        if self.answer_type != AnswerType.UNKNOWN:
+            structure["answer_type"] = self.answer_type.value
 
         return structure
 
@@ -223,7 +237,8 @@ class Lexicon:
 
     def register(self, words: List[str], response: LexiconResponse,
             to_skip: Optional[bool], date: Optional[datetime] = None,
-            log_name: str = "log") -> None:
+            log_name: str = "log",
+            answer_type: AnswerType = AnswerType.UNKNOWN) -> None:
         """
         Register user's response.
 
@@ -232,6 +247,8 @@ class Lexicon:
         :param to_skip: skip this word in the future.
         :param date: time of response.
         :param log_name: specifier of the log.
+        :param answer_type: is it was a user answer or the previous answer was
+            used.
         """
         if not date:
             date = datetime.now()
@@ -241,7 +258,8 @@ class Lexicon:
 
         if log_name not in self.logs:
             self.logs[log_name] = []
-        self.logs[log_name].append(LogRecord(date, words, response))
+        self.logs[log_name]\
+            .append(LogRecord(date, words, response, answer_type))
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
             self.dates.append(date)
@@ -544,7 +562,8 @@ class Lexicon:
             return False, None, None
 
         to_skip, response = process_response(skip_known, skip_unknown, answer)
-        self.register([word], response, to_skip, log_name=log_name)
+        self.register([word], response, to_skip, log_name=log_name,
+            answer_type=AnswerType.USER_ANSWER)
 
         if to_update_dictionary is not None:
             translation = input("translation > ")
@@ -648,7 +667,8 @@ class Lexicon:
             print("[skip] " + picked_word)
             response = self.get(picked_word)
             to_skip = self.words[picked_word].to_skip
-            self.register([picked_word], response, to_skip, log_name=log_name)
+            self.register([picked_word], response, to_skip, log_name=log_name,
+                answer_type=AnswerType.PROPAGATE_USER)
             return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
@@ -664,7 +684,7 @@ class Lexicon:
         if foreign:
             print("[forg] " + picked_word)
             self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
-                log_name=log_name)
+                log_name=log_name, answer_type=AnswerType.ASSUME_NOT_A_WORD)
             return True
 
         return False
