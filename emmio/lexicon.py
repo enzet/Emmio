@@ -235,6 +235,11 @@ class Lexicon:
         """
         return self.words[word].knowing == LexiconResponse.DO_NOT_KNOW
 
+    def get_last_answer(self, word: str) -> Optional[LogRecord]:
+        for record in reversed(self.logs["log"]):  # type: LogRecord
+            if word in record.words:
+                return record
+
     def register(self, words: List[str], response: LexiconResponse,
             to_skip: Optional[bool], date: Optional[datetime] = None,
             log_name: str = "log",
@@ -697,6 +702,15 @@ class Lexicon:
             self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
                 log_name=log_name, answer_type=AnswerType.ASSUME_NOT_A_WORD)
             return True
+
+        record = self.get_last_answer(picked_word)
+        if record is not None and record.answer_type == AnswerType.USER_ANSWER:
+            delta = record.date - datetime.now()
+            if delta.days < 30:
+                print("[propagate.time] " + picked_word)
+                self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
+                    log_name=log_name, answer_type=AnswerType.PROPAGATE_TIME)
+                return True
 
         return False
 

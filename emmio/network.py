@@ -39,14 +39,14 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
     if not name:
         name = url
 
-    util.network(f"getting {name}")
-
     # Sleep before the next request.
     diff: timedelta = (datetime.now() - last_request_time)
     last_request_time = datetime.now()
     if diff < timedelta(seconds=sleep_time):
         print(f"Sleeping for {sleep_time} seconds.")
         time.sleep(sleep_time)
+
+    util.network(f"getting {name}")
 
     # Request content.
     pool_manager = urllib3.PoolManager()
