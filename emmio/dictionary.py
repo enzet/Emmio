@@ -9,7 +9,7 @@ import yaml
 
 from typing import Dict, List, Optional, Set
 
-from emmio.util import error
+from emmio.ui import log
 
 
 class Form:
@@ -193,14 +193,14 @@ class SimpleDictionary(Dictionary):
                             answer = element[1]
                         self.dictionary[question] = answer
                     else:
-                        error(f"unknown YAML dictionary element format: "
+                        log.error(f"unknown YAML dictionary element format: "
                             f"{element!s}")
             elif isinstance(structure, dict):
                 for question in structure:
                     answer = structure[question]
                     self.dictionary[question] = answer
         else:
-            error(f"unknown dictionary format: {file_format}")
+            log.error(f"unknown dictionary format: {file_format}")
 
     def to_structure(self) -> Dict[str, str]:
         return self.dictionary

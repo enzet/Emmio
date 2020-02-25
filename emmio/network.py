@@ -13,7 +13,7 @@ import urllib3
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from emmio import util
+from emmio.ui import log
 
 DEFAULT_SLEEP_TIME: int = 2
 
@@ -46,7 +46,7 @@ def get_data(address: str, parameters: Dict[str, str], is_secure: bool = False,
         print(f"Sleeping for {sleep_time} seconds.")
         time.sleep(sleep_time)
 
-    util.network(f"getting {name}")
+    log.network(f"getting {name}")
 
     # Request content.
     pool_manager = urllib3.PoolManager()
@@ -81,7 +81,7 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
                 cached.write(data.decode("utf-8"))
         return data.decode("utf-8")
     else:
-        util.error(f"unknown data format {kind}")
+        log.error(f"unknown data format {kind}")
 
     return None
 
@@ -117,7 +117,7 @@ def get_content(address: str, parameters: Dict[str, str],
             elif kind == "html":
                 return cache_file.read()
             else:
-                util.error(f"unknown data format {kind}")
+                log.error(f"unknown data format {kind}")
 
     # Read from the network.
 
