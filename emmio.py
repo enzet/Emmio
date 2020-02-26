@@ -212,12 +212,12 @@ def lexicon(args: List[str]):
 
     print("""
     <y> or <Enter>  I know at least one meaning of the word
-    <n>             I don"t know any of meanings of the word
-    <s>             I know at least one meanings of the word and I"m sure I
+    <n>             I don’t know any of meanings of the word
+    <s>             I know at least one meanings of the word and I’m sure I
                     will not forget it, skip this word in the future
-    <b>             I don"t know any of meanings of the word, but it is a proper
+    <b>             I don’t know any of meanings of the word, but it is a proper
                     name too
-    <->             the word doesn"t exist or is a proper name
+    <->             the word doesn’t exist or is a proper name
 
     <q>             exit
 """)
