@@ -147,13 +147,22 @@ def lexicon(args: List[str]):
             # next_ = lambda x: x + timedelta(days=1)
 
             print(language)
-            r = user_lexicon.construct(os.path.join(arguments.output_directory,
-                "lexicon_" + language + "_time.dat"), 100, first, next_)
-            current_percent[language] = r["current_percent"]
+            r = user_lexicon.construct(100, first, next_)
+            file_name = os.path.join(arguments.output_directory,
+                "lexicon_" + language + "_time.dat")
+            with open(file_name, "w+") as output_file:
+                for date in r:
+                    output_file.write(
+                        f"    {date.strftime('%Y.%m.%d')} {r[date]:f}\n")
 
-            user_lexicon.construct_precise(
-                os.path.join(arguments.output_directory,
-                "lexicon_" + language + "_time_precise.dat"))
+            file_name = os.path.join(arguments.output_directory,
+                "lexicon_" + language + "_time_precise.dat")
+            r = user_lexicon.construct_precise()
+            with open(file_name, "w+") as output_file:
+                for date in r:
+                    output_file.write(
+                        f"    {date.strftime('%Y.%m.%d')} {r[date]:f}\n")
+                    current_percent[language] = r[date]
 
         for language in \
                 sorted(current_percent, key=lambda x: current_percent[x]):

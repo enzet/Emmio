@@ -356,25 +356,19 @@ class Lexicon:
     def get_preferred_interval(self) -> int:
         return int(100 / self.get_average())
 
-    def construct(self, output_file_name: str, precision: int,
-            first: Callable, next_: Callable) -> Dict:
+    def construct(self, precision: int, first: Callable, next_: Callable) \
+            -> Dict[datetime, float]:
         """
-        Construct data file with statistics.
+        Construct statistics. Point of time to ratio multiplied by 100.
 
-        ============= =======================
-        point of time ratio multiplied by 100
-        ============= =======================
-
-        :param output_file_name: name of output data file in the format of
-            space-separated values.
         :param precision: ratio precision.
         :param first: function that computes the point of time to start with.
         :param next_: function that computes the next point of time.
         """
-        if not self.start:
-            return {"current_percent": 0}
+        result: Dict[datetime, float] = {}
 
-        output: TextIO = open(output_file_name, "w+")
+        if not self.start:
+            return result
 
         points = {}
         point: datetime = first(self.start)
@@ -418,8 +412,7 @@ class Lexicon:
 
                 if length >= preferred:
                     current_rate = rate(1 - data / length)
-                    output.write(
-                        f"    {m.strftime('%Y.%m.%d')} {current_rate:f}\n")
+                    result[m] = current_rate
                     break
 
                 auxiliary_index -= 1
@@ -428,16 +421,17 @@ class Lexicon:
             print(f"Need {int(preferred - length)!s} more.")
             print(f"Need {100 - (length - data)!s} more wrong answers.")
 
-        output.close()
+        return result
 
-        return {"current_percent": percent}
+    def construct_precise(self) -> Dict[datetime, float]:
 
-    def construct_precise(self, output_file_name: str) -> None:
-        output = open(output_file_name, "w+")
-        left = 0
-        right = 0
-        knowns = 0
-        unknowns = 0
+        result: Dict[datetime, float] = {}
+
+        left: int = 0
+        right: int = 0
+        knowns: int = 0
+        unknowns: int = 0
+
         while right < len(self.dates) - 1:
             date = self.dates[right]
             if knowns + unknowns:
@@ -445,8 +439,7 @@ class Lexicon:
             else:
                 current_rate = 0
             if unknowns >= 100:
-                output.write(
-                    f"    {date.strftime('%Y.%m.%d')} {rate(current_rate):f}\n")
+                result[date] = rate(current_rate)
 
                 response = self.responses[left]
                 if response == 1:
@@ -462,7 +455,7 @@ class Lexicon:
             if response == 0:
                 unknowns += 1
 
-        output.close()
+        return result
 
     def construct_by_frequency(self, frequency_list: FrequencyList):
         response = None
