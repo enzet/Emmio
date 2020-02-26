@@ -17,7 +17,7 @@ from emmio.lexicon import Lexicon
 from emmio.language import languages
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency import FrequencyList
-from emmio.dictionary import SimpleDictionary
+from emmio.dictionary import SimpleDictionary, Dictionary
 from emmio.ui import set_log, VerboseLogger
 from emmio.text import Text
 
@@ -186,10 +186,6 @@ def lexicon(args: List[str]):
 
     file_name = arguments.lexicon_file_name
 
-    if not os.path.isfile(file_name):
-        print("Create new user file " + file_name)
-        open(file_name, "w+").write("log:\nwords:\n")
-
     user_lexicon = Lexicon(arguments.language, file_name)
     user_lexicon.read()
 
@@ -205,10 +201,10 @@ def lexicon(args: List[str]):
     if arguments.stop_at:
         stop_at = int(arguments.stop_at)
 
-    dictionary = None
+    dictionaries: List[Dictionary] = []
     if arguments.dictionary_file_name:
-        dictionary = SimpleDictionary(arguments.dictionary_file_name,
-            arguments.dictionary_file_format)
+        dictionaries.append(SimpleDictionary(arguments.dictionary_file_name,
+            arguments.dictionary_file_format))
 
     print("""
     <y> or <Enter>  I know at least one meaning of the word
@@ -222,7 +218,7 @@ def lexicon(args: List[str]):
     <q>             exit
 """)
 
-    user_lexicon.check(frequency_list, stop_at, [dictionary],
+    user_lexicon.check(frequency_list, stop_at, dictionaries,
         arguments.log, arguments.skip_known, arguments.skip_unknown, None)
 
 
