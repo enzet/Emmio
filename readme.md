@@ -57,7 +57,7 @@ compare vocabulary of different people using one frequency list.
 ```shell script
 python3 emmio.py lexicon \
     --language  ${LANGUAGE_CODE} \
-    --lexicon   ${LEXICON_YAML_FILE_NAME} \
+    --lexicon   ${LEXICON_JSON_FILE_NAME} \
     --frequency ${FULL_FREQUENCY_FILE_NAME}    
 ```
 
@@ -65,8 +65,8 @@ Arguments:
 
   * `${LANGUAGE_CODE}` is 2-letters ISO 639-1 language code (e.g. `en` for
     English and `ru` for Russian).
-  * `${LEXICON_YAML_FILE_NAME}` is a name of file with lexicon (e.g. 
-    `lexicon_john_de.yml`). If file doesn't exist, it will be created.
+  * `${LEXICON_JSON_FILE_NAME}` is a name of file with lexicon (e.g.
+    `lexicon_john_de.json`). If file doesn't exist, it will be created.
   * `${FREQUENCY_FILE_NAME}` is a name of [full frequency file](#frequency). 
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
@@ -104,6 +104,6 @@ German vocabulary test based on Opensubtitles frequency list:
 ```shell script
 wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
     --output-document=de_opensubtitles_2018.txt
-python3 emmio.py lexicon --language de --lexicon lexicon_de.yml \
+python3 emmio.py lexicon --language de --lexicon lexicon_de.json \
     --frequency de_opensubtitles_2018.txt --skip-known --skip-unknown
 ```
