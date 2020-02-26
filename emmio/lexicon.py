@@ -42,9 +42,10 @@ class LexiconResponse(Enum):
 class AnswerType(Enum):
     UNKNOWN = "unknown"
     USER_ANSWER = "user_answer"
-    PROPAGATE_USER = "propagate_user"
-    PROPAGATE_TIME = "propagate_time"
-    ASSUME_NOT_A_WORD = "assume_not_a_word"
+    PROPAGATE__USER = "propagate_user"
+    PROPAGATE__TIME = "propagate_time"
+    ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
+    ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
 
     def __str__(self):
         return self.value
@@ -235,8 +236,8 @@ class Lexicon:
         """
         return self.words[word].knowing == LexiconResponse.DO_NOT_KNOW
 
-    def get_last_answer(self, word: str) -> Optional[LogRecord]:
-        for record in reversed(self.logs["log"]):  # type: LogRecord
+    def get_last_answer(self, word: str, log_name: str) -> Optional[LogRecord]:
+        for record in reversed(self.logs[log_name]):  # type: LogRecord
             if word in record.words:
                 return record
 
@@ -295,17 +296,17 @@ class Lexicon:
     def get(self, word: str) -> LexiconResponse:
         return self.words[word].knowing
 
-    def get_log_size(self) -> int:
+    def get_log_size(self, log_name: str) -> int:
         result: int = 0
-        for record in self.logs["log"]:  # type: LogRecord
+        for record in self.logs[log_name]:  # type: LogRecord
             if record.response in [
                     LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
 
-    def count_unknowns(self) -> int:
+    def count_unknowns(self, log_name: str) -> int:
         result: int = 0
-        for record in self.logs["log"]:  # type: LogRecord
+        for record in self.logs[log_name]:  # type: LogRecord
             if record.response in [LexiconResponse.DO_NOT_KNOW]:
                 result += 1
         return result
@@ -463,6 +464,18 @@ class Lexicon:
 
         output.close()
 
+    def construct_by_frequency(self, frequency_list: FrequencyList):
+        response = None
+        knowns: int = 0
+        unknowns: int = 0
+        for word in frequency_list.get_words():
+            if self.has(word):
+                response = self.get(word)
+            if response == LexiconResponse.KNOW:
+                knowns += frequency_list.get_occurrences(word)
+            elif response == LexiconResponse.DO_NOT_KNOW:
+                unknowns += frequency_list.get_occurrences(word)
+
     def get_rate(self, point_1: datetime, point_2: datetime) -> \
             (Optional[float], Optional[float]):
         """
@@ -606,8 +619,8 @@ class Lexicon:
         """
 
         # Actions during current session:
-        actions = 0
-        wrong_answers = 0
+        actions: int = 0
+        wrong_answers: int = 0
 
         wiktionary_word_list = None
 
@@ -629,6 +642,9 @@ class Lexicon:
             print("ERROR: unknown log type")
             return
 
+        if log_name not in self.logs:
+            self.logs[log_name] = []
+
         while True:
             picked_word = None
             if log_type == "frequency":
@@ -648,9 +664,9 @@ class Lexicon:
                 wrong_answers += 1
             self.write()
 
-            average = self.get_average()
+            average: Optional[float] = self.get_average()
 
-            precision = self.count_unknowns() / 100
+            precision: float = self.count_unknowns(log_name) / 100
             rate_string = f"{rate(average):.2f}" if rate(average) else "unknown"
             if precision < 1:
                 print(f"Precision: {precision * 100:.2f}")
@@ -684,7 +700,7 @@ class Lexicon:
             response = self.get(picked_word)
             to_skip = self.words[picked_word].to_skip
             self.register([picked_word], response, to_skip, log_name=log_name,
-                answer_type=AnswerType.PROPAGATE_USER)
+                          answer_type=AnswerType.PROPAGATE__USER)
             return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
@@ -700,21 +716,21 @@ class Lexicon:
         if foreign:
             print("[assume.not_a_word] " + picked_word)
             self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
-                log_name=log_name, answer_type=AnswerType.ASSUME_NOT_A_WORD)
+                          log_name=log_name, answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET)
             return True
 
-        record = self.get_last_answer(picked_word)
+        record = self.get_last_answer(picked_word, log_name)
         if record is not None and record.answer_type == AnswerType.USER_ANSWER:
             delta = record.date - datetime.now()
             if delta.days < 30:
                 print("[propagate.time] " + picked_word)
                 self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
-                    log_name=log_name, answer_type=AnswerType.PROPAGATE_TIME)
+                              log_name=log_name, answer_type=AnswerType.PROPAGATE__TIME)
                 return True
 
         return False
 
-    def print_statistics(self) -> None:
+    def print_statistics(self, log_name: str) -> None:
         count_ratio: float = self.get_statistics()
 
         print("Skipping:          %9.4f" %
@@ -722,7 +738,7 @@ class Lexicon:
         print("Count ratio:       %9.4f %%" % (count_ratio * 100))
         print("Words:             %4d" % len(self.words))
         # print("All words:         %4d" % len(frequency.words))
-        print("Size:              %4d" % self.get_log_size())
+        print("Size:              %4d" % self.get_log_size(log_name))
 
     def __len__(self) -> int:
         return len(self.words)
