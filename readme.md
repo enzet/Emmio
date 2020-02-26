@@ -6,6 +6,7 @@ Emmio is a tool box for learning. It contains:
     [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
     flashcard learning system.
   * _Lexicon_: vocabulary test.
+  * _Text_ analysis.
 
 [![Build Status](https://travis-ci.org/enzet/Emmio.svg?branch=master)](https://travis-ci.org/enzet/Emmio)
 
@@ -97,9 +98,22 @@ Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
 
-## Example ##
+## Text analysis ##
 
-German vocabulary test based on Opensubtitles frequency list:
+Create frequency list from the text.
+
+```shell script
+python3 emmio.py text \
+    --language ${LANGUAGE_CODE} \
+    --input    ${INPUT_TEXT_FILE_NAME} \
+    --output   ${OUTPUT_JSON_FREQUENCY_FILE_NAME}
+```
+
+## Examples ##
+
+### Check vocabulary ###
+
+Check German vocabulary test based on Opensubtitles frequency list:
 
 ```shell script
 wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
