@@ -197,6 +197,8 @@ class Lexicon:
         Write lexicon to a JSON file using string writing. Should be faster than
         `write_json` but less accurate.
         """
+        write("Writing lexicon to " + self.file_name + "...")
+
         words_structure = {}
         for word in self.words:
             words_structure[word] = self.words[word].to_structure()
@@ -509,7 +511,7 @@ class Lexicon:
 
         return result
 
-    def ask(self, word: str, wiktionary_word_list,
+    def ask(self, word: str, word_list: List[str],
             dictionaries: List[Dictionary], skip_known: bool = False,
             skip_unknown: bool = False, log_name: str = "log") \
             -> (bool, LexiconResponse, Optional[Dictionary]):
@@ -518,15 +520,15 @@ class Lexicon:
         """
         print("\n    " + word + "\n")
 
-        if wiktionary_word_list:
-            if word + "\n" in wiktionary_word_list:
-                print("\033[32mIn Wiktionary.\033[0m")
+        if word_list:
+            if word + "\n" in word_list:
+                print("\033[32mIn word list.\033[0m")
             else:
-                print("\033[31mNot in Wiktionary.\033[0m")
-            if word[0].upper() + word[1:] + "\n" in wiktionary_word_list:
-                print("\033[32mCapitalized in Wiktionary.\033[0m")
+                print("\033[31mNot in word list.\033[0m")
+            if word[0].upper() + word[1:] + "\n" in word_list:
+                print("\033[32mCapitalized in word list.\033[0m")
             else:
-                print("\033[31mCapitalized not in Wiktionary.\033[0m")
+                print("\033[31mCapitalized not in word list.\033[0m")
 
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
@@ -598,7 +600,8 @@ class Lexicon:
     def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: List[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
-            stop_at_wrong: Optional[int]) -> None:
+            stop_at_wrong: Optional[int],
+            word_list: List[str] = None) -> None:
         """
         Check current user vocabulary.
 
@@ -614,18 +617,6 @@ class Lexicon:
         # Actions during current session:
         actions: int = 0
         wrong_answers: int = 0
-
-        wiktionary_word_list = None
-
-        if os.path.isdir("dictionary"):
-            for dictionary_file_name in os.listdir("dictionary"):
-                matcher = re.match(self.language +
-                    r"wiktionary-\d*-all-titles-.*", dictionary_file_name)
-                if matcher:
-                    wiktionary_word_list = \
-                        open(os.path.join(
-                            "dictionary", dictionary_file_name)).readlines()
-                    break
 
         if log_type == "frequency":
             log_name = "log"
@@ -650,12 +641,12 @@ class Lexicon:
                 continue
 
             to_skip, response, dictionary = self.ask(picked_word,
-                wiktionary_word_list, dictionaries, skip_known, skip_unknown,
+                word_list, dictionaries, skip_known, skip_unknown,
                 log_name=log_name)
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
                 wrong_answers += 1
-            self.write()
+            #self.write()
 
             average: Optional[float] = self.get_average()
 
@@ -693,7 +684,7 @@ class Lexicon:
             response = self.get(picked_word)
             to_skip = self.words[picked_word].to_skip
             self.register([picked_word], response, to_skip, log_name=log_name,
-                          answer_type=AnswerType.PROPAGATE__USER)
+                answer_type=AnswerType.PROPAGATE__USER)
             return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
