@@ -518,17 +518,17 @@ class Lexicon:
         """
         Ask user if the word is known.
         """
-        print("\n    " + word + "\n")
+        write("\n    " + word + "\n")
 
         if word_list:
             if word + "\n" in word_list:
-                print("\033[32mIn word list.\033[0m")
+                write("In word list.", color="green")
             else:
-                print("\033[31mNot in word list.\033[0m")
+                write("Not in word list.", color="red")
             if word[0].upper() + word[1:] + "\n" in word_list:
-                print("\033[32mCapitalized in word list.\033[0m")
+                write("Capitalized in word list.", color="green")
             else:
-                print("\033[31mCapitalized not in word list.\033[0m")
+                write("Capitalized not in word list.", color="red")
 
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")

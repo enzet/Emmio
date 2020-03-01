@@ -30,8 +30,11 @@ colors = {
 }
 
 
-def colorize(text, color):
-    return f"\033[{colors[color]}m{text}\033[0m"
+def colorize(text: str, color: str):
+    if color in colors:
+        return f"\033[{colors[color]}m{text}\033[0m"
+    else:
+        return text
 
 
 def get_char():
@@ -129,17 +132,20 @@ class Logger:
     def __init__(self):
         pass
 
-    def write(self, message: str) -> None:
-        print(message)
+    def write(self, message: str, color: str = None) -> None:
+        if color:
+            print(colorize(message, color))
+        else:
+            print(message)
 
     def error(self, message):
-        print(colorize(f"Error: {str(message)}.", "red"))
+        write(f"Error: {str(message)}.", "red")
 
     def warning(self, message):
-        print(colorize(f"Warning: {str(message)}.", "yellow"))
+        write(f"Warning: {str(message)}.", "yellow")
 
     def network(self, message):
-        print(colorize(f"Network: {str(message)}.", "blue"))
+        write(f"Network: {str(message)}.", "blue")
 
     def progress_bar(self, number: int, total: int, length: int = 20,
             step: int = 1000) -> None:
@@ -164,8 +170,8 @@ class VerboseLogger(Logger):
     def __init__(self):
         super().__init__()
 
-    def write(self, message: str) -> None:
-        super().write(message)
+    def write(self, message: str, color: str = None) -> None:
+        super().write(message, color)
 
     def error(self, message: str) -> None:
         super().error(message)
@@ -188,7 +194,7 @@ class SilentLogger(Logger):
     def __init__(self):
         super().__init__()
 
-    def write(self, message: str) -> None:
+    def write(self, message: str, color: str = None) -> None:
         pass
 
     def error(self, message: str) -> None:
@@ -208,11 +214,11 @@ class SilentLogger(Logger):
 log = SilentLogger()
 
 
-def write(message: str) -> None:
+def write(message: str, color: str = None) -> None:
     """
     Write message.
     """
-    log.write(message)
+    log.write(message, color)
 
 
 def progress_bar(number, total, length: int = 20, step: int = 1000) -> None:
