@@ -119,5 +119,5 @@ Check German vocabulary test based on Opensubtitles frequency list:
 wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
     --output-document=de_opensubtitles_2018.txt
 python3 emmio.py lexicon --language de --lexicon lexicon_de.json \
-    --frequency de_opensubtitles_2018.txt --skip-known --skip-unknown
+    --frequency de_opensubtitles_2018.txt
 ```
