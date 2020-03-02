@@ -41,11 +41,16 @@ class LexiconResponse(Enum):
 
 class AnswerType(Enum):
     UNKNOWN = "unknown"
+
+    # First answer.
     USER_ANSWER = "user_answer"
-    PROPAGATE__USER = "propagate_user"
-    PROPAGATE__TIME = "propagate_time"
     ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
     ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
+
+    # Propagation of a previous answer.
+    PROPAGATE__SKIP = "propagate_skip"
+    PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
+    PROPAGATE__TIME = "propagate_time"
 
     def __str__(self):
         return self.value
@@ -672,20 +677,41 @@ class Lexicon:
     def do_skip(self, picked_word: str, skip_known: bool, skip_unknown: bool,
             log_name: str) -> bool:
 
-        if self.has(picked_word) and \
-            (self.words[picked_word].to_skip or
-                self.get(picked_word) == LexiconResponse.NOT_A_WORD or
-            (skip_known and
-                self.get(picked_word) == LexiconResponse.KNOW) or
-            (skip_unknown and
-                self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
+        last_record: LogRecord = self.get_last_answer(picked_word, log_name)
 
-            print("[propagate.user] " + picked_word)
-            response = self.get(picked_word)
-            to_skip = self.words[picked_word].to_skip
-            self.register([picked_word], response, to_skip, log_name=log_name,
-                answer_type=AnswerType.PROPAGATE__USER)
-            return True
+        if last_record is not None:
+            if (self.words[picked_word].to_skip or
+                    (skip_known and
+                     self.get(picked_word) == LexiconResponse.KNOW) or
+                    (skip_unknown and
+                     self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
+
+                answer_type = AnswerType.PROPAGATE__SKIP
+
+                print("[propagate.skip] " + picked_word)
+                response: LexiconResponse = self.get(picked_word)
+                to_skip: bool = self.words[picked_word].to_skip
+                self.register(
+                    [picked_word], response, to_skip, log_name=log_name,
+                    answer_type=answer_type)
+                return True
+
+            if self.get(picked_word) == LexiconResponse.NOT_A_WORD:
+                answer_type = AnswerType.PROPAGATE__NOT_A_WORD
+                self.register(
+                    [picked_word], LexiconResponse.NOT_A_WORD, None,
+                    log_name=log_name, answer_type=answer_type)
+                return True
+
+            if last_record.answer_type == AnswerType.USER_ANSWER:
+                delta = last_record.date - datetime.now()
+                if delta.days < 30:
+                    print("[propagate.time] " + picked_word)
+                    self.register(
+                        [picked_word], last_record.response, None,
+                        log_name=log_name,
+                        answer_type=AnswerType.PROPAGATE__TIME)
+                    return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
         # in language.
@@ -699,18 +725,11 @@ class Lexicon:
 
         if foreign:
             print("[assume.not_a_word] " + picked_word)
-            self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
-                          log_name=log_name, answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET)
+            self.register(
+                [picked_word], LexiconResponse.NOT_A_WORD, None,
+                log_name=log_name,
+                answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET)
             return True
-
-        record = self.get_last_answer(picked_word, log_name)
-        if record is not None and record.answer_type == AnswerType.USER_ANSWER:
-            delta = record.date - datetime.now()
-            if delta.days < 30:
-                print("[propagate.time] " + picked_word)
-                self.register([picked_word], LexiconResponse.NOT_A_WORD, True,
-                              log_name=log_name, answer_type=AnswerType.PROPAGATE__TIME)
-                return True
 
         return False
 
