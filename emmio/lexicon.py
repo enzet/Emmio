@@ -703,15 +703,24 @@ class Lexicon:
                     log_name=log_name, answer_type=answer_type)
                 return True
 
-            if last_record.answer_type == AnswerType.USER_ANSWER:
-                delta = last_record.date - datetime.now()
-                if delta.days < 30:
-                    print("[propagate.time] " + picked_word)
-                    self.register(
-                        [picked_word], last_record.response, None,
-                        log_name=log_name,
-                        answer_type=AnswerType.PROPAGATE__TIME)
-                    return True
+            was_user_answer: bool = False
+
+            for record in reversed(self.logs[log_name]):  # type: LogRecord
+                delta = record.date - datetime.now()
+                if delta.days > 30:
+                    break
+                if picked_word in record.words and \
+                        record.answer_type == AnswerType.USER_ANSWER:
+                    was_user_answer = True
+                    break
+
+            if was_user_answer:
+                print("[propagate.time] " + picked_word)
+                self.register(
+                    [picked_word], last_record.response, None,
+                    log_name=log_name,
+                    answer_type=AnswerType.PROPAGATE__TIME)
+                return True
 
         # Mark word as "not a word" if it contains symbols that do not appear
         # in language.
