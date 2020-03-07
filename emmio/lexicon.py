@@ -606,7 +606,7 @@ class Lexicon:
             dictionaries: List[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
             stop_at_wrong: Optional[int],
-            word_list: List[str] = None) -> None:
+            word_list: List[str] = None) -> str:
         """
         Check current user vocabulary.
 
@@ -617,6 +617,8 @@ class Lexicon:
         :param skip_known: skip this word in the future if it is known.
         :param skip_unknown: skip this word in the future if it is unknown.
         :param stop_at_wrong: stop after a number of unknown words.
+
+        :return: exit code.
         """
 
         # Actions during current session:
@@ -629,10 +631,12 @@ class Lexicon:
             log_name = "log_random"
         else:
             print("ERROR: unknown log type")
-            return
+            return "error"
 
         if log_name not in self.logs:
             self.logs[log_name] = []
+
+        exit_code = "quit"
 
         while True:
             picked_word = None
@@ -666,15 +670,20 @@ class Lexicon:
             print(f"Words: {len(self.words):d}")
 
             if not response:
+                exit_code = "no_response"
                 break
 
             if stop_at and actions >= stop_at:
+                exit_code = "limit"
                 break
 
             if stop_at_wrong and wrong_answers >= stop_at_wrong:
+                exit_code = "limit"
                 break
 
         self.write()
+
+        return exit_code
 
     def do_skip(self, picked_word: str, skip_known: bool, skip_unknown: bool,
             log_name: str) -> bool:
