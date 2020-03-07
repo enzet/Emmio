@@ -674,6 +674,8 @@ class Lexicon:
             if stop_at_wrong and wrong_answers >= stop_at_wrong:
                 break
 
+        self.write()
+
     def do_skip(self, picked_word: str, skip_known: bool, skip_unknown: bool,
             log_name: str) -> bool:
 
