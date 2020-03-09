@@ -158,8 +158,10 @@ class Lexicon:
         self.start: Optional[datetime] = None
         self.finish: Optional[datetime] = None
 
-    def read(self):
+        # Read data from file.
+
         write("Reading lexicon from " + self.file_name + "...")
+
         if os.path.isfile(self.file_name):
             with open(self.file_name, "r") as input_file:
                 data = json.load(input_file)
@@ -180,6 +182,8 @@ class Lexicon:
                         for structure in data[key]:
                             self.logs[key].append(
                                 LogRecord.from_structure(structure))
+
+            # Fill data.
 
             if "log" not in self.logs:
                 return

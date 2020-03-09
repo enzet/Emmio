@@ -137,7 +137,6 @@ def lexicon(args: List[str]):
             language = file_name[-7:-5]
             user_lexicon = Lexicon(language,
                 os.path.join(arguments.input_directory, file_name))
-            user_lexicon.read()
 
             # first = first_day_of_month
             # next_ = plus_month
@@ -187,7 +186,6 @@ def lexicon(args: List[str]):
     file_name = arguments.lexicon_file_name
 
     user_lexicon = Lexicon(arguments.language, file_name)
-    user_lexicon.read()
 
     if arguments.command == "unknown":
         top: List[str] = user_lexicon.get_top_unknown(frequency_list)

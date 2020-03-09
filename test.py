@@ -16,13 +16,10 @@ def check(lexicon: Lexicon) -> None:
 
 def do_lexicon(language: str, lexicon_file_name: str) -> None:
     lexicon = Lexicon(language, lexicon_file_name)
-
-    lexicon.read()
     check(lexicon)
-
-    lexicon.file_name = "test/temp_lexicon.json"
     lexicon.write()
-    lexicon.read()
+
+    lexicon = Lexicon(language, "test/temp_lexicon.json")
     check(lexicon)
 
 
