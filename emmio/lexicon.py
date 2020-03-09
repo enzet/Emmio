@@ -784,5 +784,4 @@ class UserLexicon:
                 language = file_name[-3 - ln:-1 - ln]
                 lexicon = \
                     Lexicon(language, os.path.join(input_directory, file_name))
-                lexicon.read()
                 self.lexicons[language] = lexicon
