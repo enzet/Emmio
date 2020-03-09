@@ -97,7 +97,7 @@ class LogRecord:
         self.answer_type: AnswerType = answer_type
 
     @classmethod
-    def from_structure(cls, structure) -> "LogRecord":
+    def from_structure(cls, structure: Any) -> "LogRecord":
         if isinstance(structure, list):
             date_string, word, response = structure  # type: (str, str, str)
             date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
@@ -158,44 +158,41 @@ class Lexicon:
         self.start: Optional[datetime] = None
         self.finish: Optional[datetime] = None
 
-    def rd(self, data):
-        for word in data["words"]:
-            record = data["words"][word]
-            if isinstance(record, list):
-                self.words[word] = WordKnowledge(record[1], None)
-            elif isinstance(record, dict):
-                to_skip = None
-                if "to_skip" in record:
-                    to_skip = record["to_skip"]
-                self.words[word] = WordKnowledge(
-                    LexiconResponse(record["knowing"]), to_skip)
-
-        for key in data:  # type: str
-            if key.startswith("log"):
-                self.logs[key]: List[LogRecord] = []
-                for structure in data[key]:
-                    self.logs[key].append(LogRecord.from_structure(structure))
-
     def read(self):
         write("Reading lexicon from " + self.file_name + "...")
         if os.path.isfile(self.file_name):
             with open(self.file_name, "r") as input_file:
-                self.rd(json.load(input_file))
-            self.fill()
+                data = json.load(input_file)
+                for word in data["words"]:
+                    record = data["words"][word]
+                    if isinstance(record, list):
+                        self.words[word] = WordKnowledge(record[1], None)
+                    elif isinstance(record, dict):
+                        to_skip = None
+                        if "to_skip" in record:
+                            to_skip = record["to_skip"]
+                        self.words[word] = WordKnowledge(
+                            LexiconResponse(record["knowing"]), to_skip)
 
-    def fill(self):
-        if "log" not in self.logs:
-            return
-        for record in self.logs["log"]:  # type: LogRecord
-            if record.response in [LexiconResponse.KNOW,
-                    LexiconResponse.DO_NOT_KNOW]:
-                self.dates.append(record.date)
-                self.responses.append(
-                    1 if record.response == LexiconResponse.KNOW else 0)
+                for key in data:  # type: str
+                    if key.startswith("log"):
+                        self.logs[key]: List[LogRecord] = []
+                        for structure in data[key]:
+                            self.logs[key].append(
+                                LogRecord.from_structure(structure))
 
-                if self.start is None:
-                    self.start = record.date
-                self.finish = record.date
+            if "log" not in self.logs:
+                return
+            for record in self.logs["log"]:  # type: LogRecord
+                if record.response in [LexiconResponse.KNOW,
+                        LexiconResponse.DO_NOT_KNOW]:
+                    self.dates.append(record.date)
+                    self.responses.append(
+                        1 if record.response == LexiconResponse.KNOW else 0)
+
+                    if self.start is None:
+                        self.start = record.date
+                    self.finish = record.date
 
     def write(self) -> None:
         """
