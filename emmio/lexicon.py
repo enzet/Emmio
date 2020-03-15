@@ -1,16 +1,15 @@
 import json
 import math
 import os
-import re
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TextIO
+from typing import Any, Callable, Dict, List, Optional
 
-from emmio.ui import get_char, one_button, write
 from emmio.dictionary import Dictionary
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
+from emmio.ui import get_char, one_button, write
 
 
 class LexiconResponse(Enum):

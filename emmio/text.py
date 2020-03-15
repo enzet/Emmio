@@ -6,6 +6,7 @@ class Text:
     """
     Text processing utility.
     """
+
     def __init__(self, text: str, language: str):
         """
         :param text: some text to process.

@@ -9,7 +9,6 @@ import sys
 import termios
 import tty
 
-
 colors = {
     "black": "30",
     "red": "31",
@@ -91,7 +90,7 @@ def get_word(right_word):
 
     while True:
         char = get_char()
-        
+
         if ord(char) == BACKSPACE:
             word = word[:-1]
         elif ord(char) == ESCAPE:
@@ -100,7 +99,7 @@ def get_word(right_word):
             break
         else:
             word += char
-        
+
         sys.stdout.write("                    ")
         sys.stdout.write("\r")
         if word == right_word:
@@ -147,7 +146,8 @@ class Logger:
     def network(self, message):
         write(f"Network: {str(message)}.", "blue")
 
-    def progress_bar(self, number: int, total: int, length: int = 20,
+    def progress_bar(
+            self, number: int, total: int, length: int = 20,
             step: int = 1000) -> None:
 
         if number == -1:
@@ -159,7 +159,7 @@ class Logger:
             fl = int(l / 8)
             pr = int(l - fl * 8)
             print("%3s" % str(int(int(p * 1000) / 10)) + " % " + (fl * "█") +
-                self.BOXES[pr] + int(length - fl - 1) * " " + "▏")
+                  self.BOXES[pr] + int(length - fl - 1) * " " + "▏")
             sys.stdout.write("\033[F")
 
 
@@ -167,6 +167,7 @@ class VerboseLogger(Logger):
     """
     Log that writes all messages.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -182,8 +183,10 @@ class VerboseLogger(Logger):
     def network(self, message: str) -> None:
         super().network(message)
 
-    def progress_bar(self, number: int, total: int, length: int = 20,
+    def progress_bar(
+            self, number: int, total: int, length: int = 20,
             step: int = 1000) -> None:
+
         super().progress_bar(number, total, length, step)
 
 
@@ -191,6 +194,7 @@ class SilentLogger(Logger):
     """
     Log that does nothing.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -206,7 +210,8 @@ class SilentLogger(Logger):
     def network(self, message: str) -> None:
         super().network(message)
 
-    def progress_bar(self, number: int, total: int, length: int = 20,
+    def progress_bar(
+            self, number: int, total: int, length: int = 20,
             step: int = 1000) -> None:
         pass
 
@@ -236,10 +241,12 @@ def get_terminal_size() -> (int, int):
 
     :return: height (lines), width (symbols)
     """
+
     def ioctl_GWINSZ(fd):
         try:
             import fcntl, termios, struct, os
-            cr = struct.unpack("hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234"))
+            cr = struct.unpack(
+                "hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234"))
         except:
             return
         return cr

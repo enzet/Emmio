@@ -1,9 +1,6 @@
 import random
-import yaml
 
-from typing import Any, Dict, List, Optional, Set
-
-from emmio import reader
+from typing import Any, Dict, Optional, Set
 
 
 class Learning:
@@ -32,17 +29,17 @@ class Learning:
 
     def to_string(self):
         obj = ""
-        obj += self.id + ':\n'
+        obj += self.id + ":\n"
         for question_id in self.responses:  # type: str
             responses: Responses = self.responses[question_id]
-            if question_id in ['on', 'off', 'yes', 'no', 'null', 'true',
-                    'false']:
+            if question_id in ["on", "off", "yes", "no", "null", "true",
+                    "false"]:
                 obj += "  '" + question_id + "': {"
             else:
-                obj += '  ' + question_id + ': {'
+                obj += "  " + question_id + ": {"
             obj += responses.to_string()
             obj = obj[:-2]
-            obj += '}\n'
+            obj += "}\n"
         return obj
 
 
@@ -159,7 +156,7 @@ class FullUserData:
         for learning in self.learnings:  # type: Learning
             obj += learning.to_string()
 
-        open(user_file_name, 'w+').write(obj)
+        open(user_file_name, "w+").write(obj)
 
     def get_learning(self, learning_id: str) -> Learning:
         return self.learnings[learning_id]
