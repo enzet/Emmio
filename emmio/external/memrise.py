@@ -108,14 +108,14 @@ class MemriseData:
             course_name, _, string_date_from, string_date_to, num_tests, \
                 score = row
 
-            if num_tests:
+            if not num_tests or not string_date_from or not string_date_to:
+                continue
+
+            date_from: Optional[datetime] = parse_date(string_date_from)
+            date_to: Optional[datetime] = parse_date(string_date_to)
+
+            if date_from and date_to:
                 self.all_tests += int(num_tests)
-
-            if string_date_from and string_date_to:
-                date_from: Optional[datetime] = parse_date(string_date_from)
-                date_to: Optional[datetime] = parse_date(string_date_to)
-
-                if date_from and date_to:
-                    self.data.append(MemriseDataRecord(
-                        course_name, date_from, date_to, int(num_tests),
-                        float(score)))
+                self.data.append(MemriseDataRecord(
+                    course_name, date_from, date_to, int(num_tests),
+                    float(score)))
