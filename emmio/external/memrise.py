@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from html.parser import HTMLParser
-from typing import Optional
+from typing import List, Optional
 
 from emmio.ui import log
 
@@ -8,10 +8,10 @@ from emmio.ui import log
 class TableParser(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.tables = []
-        self.current_table = []
-        self.current_row = []
-        self.in_td = False
+        self.tables: List[List[List[str]]] = []
+        self.current_table: List[List[str]] = []
+        self.current_row: List[str] = []
+        self.in_td: bool = False
 
     def error(self, message: str) -> None:
         log.error(message)
@@ -42,7 +42,7 @@ def parse_date(date_string: str) -> Optional[datetime]:
         try:
             return datetime.strptime(date_string, date_format)
         except ValueError:
-            pass
+            continue
 
     return None
 
@@ -52,25 +52,27 @@ class MemriseDataRecord:
             self, course_name: str, date_from: datetime, date_to: datetime,
             num_tests: int, score: float):
 
-        self.course_name = course_name
-        self.date_from = date_from
-        self.date_to = date_to
-        self.num_tests = num_tests
-        self.score = score
+        self.course_name: str = course_name
+        self.date_from: datetime = date_from
+        self.date_to: datetime = date_to
+        self.num_tests: int = num_tests
+        self.score: float = score
 
 
 class MemriseData:
     def __init__(self, file_name: str):
         with open(file_name, "r") as input_file:
-            content = input_file.read()
+            content: str = input_file.read()
 
-        parser = TableParser()
+        parser: TableParser = TableParser()
         parser.feed(content)
 
-        self.all_tests = 0
-        self.data = []
+        self.all_tests: int = 0
+        self.data: List[MemriseDataRecord] = []
 
-        for row in parser.tables[4]:
+        table: List[List[str]] = parser.tables[4]
+
+        for row in table:  # type: List[str]
             course_name, _, from_date, to_date, num_tests, score = row
 
             if num_tests:
