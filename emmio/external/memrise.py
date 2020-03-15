@@ -6,6 +6,10 @@ from emmio.ui import log
 
 
 class TableParser(HTMLParser):
+    """
+    Simple parser that extracts tables from the HTML file and stores them as the
+    list of lists of lists of strings.
+    """
     def __init__(self):
         super().__init__()
         self.tables: List[List[List[str]]] = []
@@ -17,10 +21,16 @@ class TableParser(HTMLParser):
         log.error(message)
 
     def handle_starttag(self, tag, attrs) -> None:
+        """
+        Start saving data if we are inside `<td>` tag.
+        """
         if tag == "td":
             self.in_td = True
 
     def handle_endtag(self, tag) -> None:
+        """
+        Store data into structures.
+        """
         if tag == "td":
             self.in_td = False
         elif tag == "table":
@@ -33,11 +43,17 @@ class TableParser(HTMLParser):
                 self.current_row = []
 
     def handle_data(self, data) -> None:
+        """
+        Store data if we are inside `<td>` tag.
+        """
         if self.in_td:
             self.current_row.append(data.strip())
 
 
 def parse_date(date_string: str) -> Optional[datetime]:
+    """
+    Try to parse data string representation.
+    """
     for date_format in ["%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"]:
         try:
             return datetime.strptime(date_string, date_format)
@@ -73,14 +89,17 @@ class MemriseData:
         table: List[List[str]] = parser.tables[4]
 
         for row in table:  # type: List[str]
-            course_name, _, from_date, to_date, num_tests, score = row
+            course_name, _, string_date_from, string_date_to, num_tests, \
+                score = row
 
             if num_tests:
                 self.all_tests += int(num_tests)
 
-            if to_date:
-                f = parse_date(from_date)
-                t = parse_date(to_date)
+            if string_date_from and string_date_to:
+                date_from: Optional[datetime] = parse_date(string_date_from)
+                date_to: Optional[datetime] = parse_date(string_date_to)
 
-                self.data.append(MemriseDataRecord(
-                    course_name, f, t, int(num_tests), float(score)))
+                if date_from and date_to:
+                    self.data.append(MemriseDataRecord(
+                        course_name, date_from, date_to, int(num_tests),
+                        float(score)))
