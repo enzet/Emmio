@@ -84,7 +84,15 @@ class MemriseDataRecord:
 
 
 class MemriseData:
+    """
+    Memrise allows one to download user data in the HTML format.  To do so, one
+    should go to https://www.memrise.com/settings/ and click "Download personal
+    data".  The result HTML file will be sent to user's email.
+    """
     def __init__(self, file_name: str):
+        """
+        :param file_name: HTML input file name.
+        """
         with open(file_name, "r") as input_file:
             content: str = input_file.read()
 
