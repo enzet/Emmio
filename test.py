@@ -19,7 +19,7 @@ def do_lexicon(language: str, lexicon_file_name: str) -> None:
     check(lexicon)
     lexicon.write()
 
-    lexicon = Lexicon(language, "test/temp_lexicon.json")
+    lexicon = Lexicon(language, lexicon_file_name)
     check(lexicon)
 
 
