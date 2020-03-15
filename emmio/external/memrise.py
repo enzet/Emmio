@@ -10,6 +10,7 @@ class TableParser(HTMLParser):
     Simple parser that extracts tables from the HTML file and stores them as the
     list of lists of lists of strings.
     """
+
     def __init__(self):
         super().__init__()
         self.tables: List[List[List[str]]] = []
@@ -67,7 +68,14 @@ class MemriseDataRecord:
     def __init__(
             self, course_name: str, date_from: datetime, date_to: datetime,
             num_tests: int, score: float):
-
+        """
+        :param course_name: the title of the course. E.g. "Manuel De Français"
+            or "Icelandic 1".
+        :param date_from: session start time.
+        :param date_to: session end time.
+        :param num_tests: number of tests passed in the session.
+        :param score: score achieved.
+        """
         self.course_name: str = course_name
         self.date_from: datetime = date_from
         self.date_to: datetime = date_to
