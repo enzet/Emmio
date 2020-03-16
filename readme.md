@@ -109,6 +109,12 @@ python3 emmio.py text \
     --output   ${OUTPUT_JSON_FREQUENCY_FILE_NAME}
 ```
 
+## Memrise ##
+
+Memrise allows one to download user data in the HTML format.  To do so, one
+should go to [Memrise settings](https://www.memrise.com/settings/) and click
+"Download personal data".  The result HTML file will be sent to user's email.
+
 ## Examples ##
 
 ### Check vocabulary ###
