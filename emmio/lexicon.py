@@ -670,7 +670,7 @@ class Lexicon:
             print(f"Words: {len(self.words):d}")
 
             if not response:
-                exit_code = "no_response"
+                exit_code = "quit"
                 break
 
             if stop_at and actions >= stop_at:
