@@ -201,8 +201,8 @@ class FrequencyList:
 
 
 class FrequencyDataBase:
-    def __init__(self):
-        frequency_db = sqlite3.connect("frequency.db")
+    def __init__(self, data_base_file_name: str):
+        frequency_db = sqlite3.connect(data_base_file_name)
         self.frequency_cursor = frequency_db.cursor()
 
     def get_words(self, language) -> List[Tuple[int, str, int]]:

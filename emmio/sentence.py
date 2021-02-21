@@ -36,8 +36,8 @@ class SentenceDataBase:
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
     """
-    def __init__(self):
-        sentence_db = sqlite3.connect("sentences.db")
+    def __init__(self, data_base_file_name: str):
+        sentence_db = sqlite3.connect(data_base_file_name)
         self.sentence_cursor = sentence_db.cursor()
 
     def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
