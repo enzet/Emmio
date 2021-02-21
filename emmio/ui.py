@@ -205,7 +205,7 @@ class SilentLogger(Logger):
         super().__init__()
 
     def write(self, message: str, color: str = None) -> None:
-        pass
+        super().write(message, color)
 
     def error(self, message: str) -> None:
         pass
