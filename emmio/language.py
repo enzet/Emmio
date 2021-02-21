@@ -3,7 +3,9 @@ Emmio.
 
 Author: Sergey Vartanov (me@enzet.ru)
 """
-most_popular_words = {
+from typing import Dict
+
+most_popular_words: Dict[str, str] = {
     "en": "the",
     "fr": "de",
 }
@@ -12,30 +14,34 @@ most_popular_words = {
 
 languages = ["de", "en", "fr", "ru"]
 
-latin_upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-latin_lower = "abcdefghijklmnopqrstuvwxyz"
-latin = latin_upper + latin_lower
+LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+LATIN_LOWER: str = "abcdefghijklmnopqrstuvwxyz"
+LATIN: str = LATIN_UPPER + LATIN_LOWER
 
-ru_upper = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
-ru_lower = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-ru = ru_upper + ru_lower
+RU_UPPER: str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+RU_LOWER: str = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
 
-uk_upper = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
-uk_lower = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"
-uk = uk_upper + uk_lower
+UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
+UK_LOWER: str = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"
 
-skippers = "'’"
+EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
+EO_LOWER: str = "abcĉdefgĝhĥijĵklmnoprsŝtuŭvz"
 
-symbols = {
-    "de": latin + "ÄäÖöÜüß",
-    "en": latin + "ﬁﬂﬀﬃﬄﬆﬅ",
-    "fr": latin + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + skippers,
-    "la": latin + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
-    "ru": ru,
-    "uk": uk + skippers,
+SKIPPERS: str = "'’"
+
+symbols: Dict[str, str] = {
+    "de": LATIN + "ÄäÖöÜüß",
+    "en": LATIN + "ﬁﬂﬀﬃﬄﬆﬅÏïÉé",
+    "fr": LATIN + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
+    "la": LATIN + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
+    "ru": RU_UPPER + RU_LOWER,
+    "uk": UK_LOWER + UK_UPPER + SKIPPERS,
+    "eo": EO_LOWER + EO_UPPER,
+    "it": LATIN,
+    "es": LATIN + "ÑÁÉÍÓÚÜñáéíóúü"
 }
 
-ligatures = {
+LIGATURES: Dict[str, str] = {
     "ﬁ": "fi",
     "ﬂ": "fl",
     "ﬀ": "ff",
@@ -44,3 +50,23 @@ ligatures = {
     "ﬆ": "st",
     "ﬅ": "ft",
 }
+
+
+def decode_esperanto(text: str) -> str:
+    digraphs = {
+        "cx": "ĉ",
+        "gx": "ĝ",
+        "hx": "ĥ",
+        "jx": "ĵ",
+        "sx": "ŝ",
+        "ux": "ŭ"
+    }
+    for digraph in digraphs:
+        text = text.replace(digraph, digraphs[digraph])
+
+    return text
+
+
+class Language:
+    def get_name(self):
+        result: str = self.language.name

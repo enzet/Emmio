@@ -24,10 +24,10 @@ def do_lexicon(language: str, lexicon_file_name: str) -> None:
 
 
 def test_dict() -> None:
-    dictionary = SimpleDictionary("test/simple.dict", "dict")
-    assert dictionary.get("other") is None
-    assert dictionary.get("книга") == "    book\n"
-    assert dictionary.get("письмо") == "    letter\n"
+    dictionary = SimpleDictionary("ru", "test/simple.dict", "dict")
+    assert dictionary.get("other", "en") is None
+    assert dictionary.get("книга", "en") == "    book\n"
+    assert dictionary.get("письмо", "en") == "    letter\n"
 
 
 def test_lexicon() -> None:
@@ -35,8 +35,8 @@ def test_lexicon() -> None:
 
 
 def test_text() -> None:
-    text = Text("It’s not the history of man… that’s the history of Gods.",
-        "en")
+    text = Text(
+        "It’s not the history of man… that’s the history of Gods.", "en")
     frequency_list: FrequencyList = text.get_frequency_list()
 
     assert frequency_list.get_occurrences("it") == 1

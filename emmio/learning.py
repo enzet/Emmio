@@ -1,165 +1,228 @@
-import random
+"""
+The learning process.
+"""
+import json
+import os
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Dict, Any, List, Optional, Set
 
-from typing import Any, Dict, Optional, Set
+from iso639 import languages
+
+from emmio.dictionary import SimpleDictionary
+
+FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
+SMALLEST_INTERVAL: timedelta = timedelta(days=1)
+
+
+class ResponseType(Enum):
+    """ Possible user responses. """
+    RIGHT = "y"
+    WRONG = "n"
+    SKIP = "s"
+
+
+@dataclass
+class Record:
+    """ Learning record for a question. """
+    question_id: str
+    answer: ResponseType
+    sentence_id: int
+    time: datetime
+    interval: timedelta
+
+    def is_learning(self) -> bool:
+        """ Is the question should be repeated in the future. """
+        return self.interval.total_seconds() != 0
+
+    @classmethod
+    def from_structure(cls, structure: Dict[str, Any]) -> "Record":
+        """ Parse learning record from the dictionary. """
+        interval = SMALLEST_INTERVAL
+        if "interval" in structure:
+            interval = timedelta(seconds=structure["interval"])
+        return cls(
+            structure["word"], ResponseType(structure["answer"]),
+            structure["sentence_id"],
+            datetime.strptime(structure["time"], FORMAT), interval)
+
+    def to_structure(self) -> Dict[str, Any]:
+        """ Export learning record as a dictionary. """
+        return {
+            "word": self.question_id, "answer": self.answer.value,
+            "sentence_id": self.sentence_id,
+            "time": self.time.strftime(FORMAT),
+            "interval": self.interval.total_seconds()}
+
+
+@dataclass
+class Knowledge:
+    """ Knowledge of the question. """
+    question_id: str
+    responses: List[ResponseType]
+    last_record_time: datetime
+    interval: timedelta
+
+    def is_learning(self) -> bool:
+        """ Is the question should be repeated in the future. """
+        return self.interval.total_seconds() != 0
+
+    def get_depth(self) -> int:
+        """
+        Get learning depth (length of the last consequence of right answers).
+        """
+        if ResponseType.WRONG in self.responses:
+            return list(reversed(self.responses)).index(ResponseType.WRONG)
+        else:
+            return len(self.responses)
+
+    def get_last_answer(self) -> ResponseType:
+        """ Get last answer for the word. """
+        return self.responses[-1]
+
+    def get_returns(self) -> int:
+        """ Get number of times learning interval was set to minimal. """
+        return self.responses.count(ResponseType.WRONG)
+
+    def get_answers_number(self) -> int:
+        """ Get number of answers. """
+        return len(self.responses)
+
+    def get_next_time(self) -> datetime:
+        """ Get next point in time question should be repeated. """
+        return self.last_record_time + self.interval
 
 
 class Learning:
-    def __init__(self, learning_id: str, responses: Dict[str, "Responses"]):
-        self.id: str = learning_id
-        self.responses: Dict[str, "Responses"] = responses
+    """ Learning process. """
+    def __init__(self, file_name: str, course_id: str):
+        self.file_name: str = file_name
+        self.records: List[Record] = []
+        self.knowledges: Dict[str, Knowledge] = {}
+        self.config = {}
 
-    def answer(self, question_id: str, is_yes: bool, time: int):
-        if question_id not in self.responses:  # type: str
-            self.responses[question_id] = Responses(question_id, {})
-        self.responses[question_id].answer(is_yes, time)
+        # Create learning file if it doesn't exist.
+        if not os.path.isfile(self.file_name):
+            self.write()
 
-    def has(self, word_id: str) -> bool:
-        return word_id in self.responses
+        with open(self.file_name) as log_file:
+            content = json.load(log_file)
+            log = content["log"]
+            self.config = content["config"]
 
-    def is_learned(self, word_id: str) -> bool:
-        if word_id not in self.responses:
-            return False
-        return self.responses[word_id].is_learned()
+        # Config defaults.
+        self.ratio = 10
+        self.language = None
+        self.subject = None
+        self.check_lexicon = True
+        self.dictionaries = []
+        self.name = "Unknown"
 
-    def get_question_ids(self) -> Set[str]:
-        return set(self.responses.keys())
+        if "ratio" in self.config:
+            self.ratio = self.config["ratio"]
+        if "language" in self.config:
+            self.language = languages.get(part1=self.config["language"])
+        if "subject" in self.config:
+            self.subject = self.config["subject"]
+        if "check_lexicon" in self.config:
+            self.check_lexicon = self.config["check_lexicon"]
+        if "name" in self.config:
+            self.name = self.config["name"]
 
-    def get_responses(self, question_id: str) -> "Responses":
-        return self.responses[question_id]
+        self.dictionaries = []
+        if "dictionaries" in self.config:
+            for dictionary_file_name in self.config["dictionaries"]:
+                self.dictionaries.append(SimpleDictionary(
+                    self.language, dictionary_file_name))
 
-    def to_string(self):
-        obj = ""
-        obj += self.id + ":\n"
-        for question_id in self.responses:  # type: str
-            responses: Responses = self.responses[question_id]
-            if question_id in ["on", "off", "yes", "no", "null", "true",
-                    "false"]:
-                obj += "  '" + question_id + "': {"
-            else:
-                obj += "  " + question_id + ": {"
-            obj += responses.to_string()
-            obj = obj[:-2]
-            obj += "}\n"
-        return obj
+        for record_structure in log:
+            record = Record.from_structure(record_structure)
+            self.records.append(record)
+            self._update_knowledge(record)
 
+    def _update_knowledge(self, record: Record):
+        last_answers: List[ResponseType] = []
+        if record.question_id in self.knowledges:
+            last_answers = self.knowledges[record.question_id].responses
+        self.knowledges[record.question_id] = Knowledge(
+            record.question_id, last_answers + [record.answer], record.time,
+            record.interval)
 
-class Responses:
-    def __init__(self, word_id: str, structure: Dict[str, Any]):
-        self.id: str = word_id
+    def register(
+            self, answer: ResponseType, sentence_id: int, question_id: str,
+            interval: timedelta) -> None:
+        """
+        Register student answer.
 
-        self.answers: str = ""
-        if "answers" in structure:
-            self.answers = structure["answers"]
+        :param answer: user response
+        :param sentence_id: sentence identifier was used to learn the word
+        :param question_id: question identifier
+        :param interval: repeat interval
+        """
+        record: Record = Record(
+            question_id, answer, sentence_id, datetime.now(), interval)
+        self.records.append(record)
+        self._update_knowledge(record)
 
-        self.added: Optional[int] = None
-        if "added" in structure:
-            self.added = structure["added"]
+    def get_next(self, skip: Set[str]) -> Optional[str]:
+        """
+        Get question identifier of the next question.
 
-        self.plan: Optional[int] = None
-        if "plan" in structure:
-            self.plan = structure["plan"]
+        :param skip: question identifiers to skip
+        """
+        for question_id in self.knowledges:  # type: str
+            if (
+                    question_id not in skip and
+                    self.knowledges[question_id].is_learning() != 0 and
+                    datetime.now() > self.knowledges[
+                        question_id].get_next_time()):
+                return question_id
 
-        self.last: Optional[int] = None
-        if "last" in structure:
-            self.last = structure["last"]
+    def has(self, word: str) -> bool:
+        return word in self.knowledges
 
-    def answer(self, is_yes: bool, time: int):
-        shortcut: str = "y" if is_yes else "n"
-        self.answers += shortcut
+    def get_nearest(self) -> Optional[datetime]:
+        """ Get nearest repetition time. """
+        return min([
+            self.knowledges[word].get_next_time() for word in self.knowledges
+            if self.knowledges[word].is_learning()])
 
-        if self.plan is None:
-            if is_yes:
-                self.plan = 1000000000
-            else:
-                self.plan = time + 2 + int(6 * random.random())
-        else:
-            diff = self.plan - self.last
-            if is_yes:
-                if diff < 8:
-                    diff = 8 + int(8 * random.random())
-                elif diff < 16:
-                    diff = 16 + int((60 * 24 - 16) * random.random())
-                elif diff < 60 * 24:
-                    diff = 60 * 24 + int(60 * 24 * random.random())
-                else:
-                    diff = int(diff * (2.0 + random.random()))
-            else:
-                diff = 2 + int(6 * random.random())
-            self.plan = time + diff
-        self.last = time
+    def new_today(self):
+        seen = set()
+        now = datetime.now()
+        today_start = datetime(year=now.year, month=now.month, day=now.day)
+        count = 0
+        for record in self.records:  # type: Record
+            if (
+                    record.question_id not in seen and
+                    record.is_learning() and record.time > today_start):
+                count += 1
+            seen.add(record.question_id)
+        return count
 
-    def is_learned(self):
-        return self.answers[-3:] == "yyy" or self.answers == "y" or \
-               (not self.answers and self.plan >= 1000000000)
+    def to_repeat(self):
+        count = 0
+        now = datetime.now()
+        for word in self.knowledges:
+            record: Knowledge = self.knowledges[word]
+            if record.is_learning() and record.get_next_time() < now:
+                count += 1
+        return count
 
-    def to_string(self) -> str:
-        obj = ""
-        if self.added is not None:
-            obj += f"added: {self.added}"
-        if self.answers is not None:
-            obj += f"answers: {self.answers}"
-        if self.last is not None:
-            obj += f"last: {self.last}"
-        if self.plan is not None:
-            obj += f"plan: {self.plan}"
-        if obj:
-            obj = obj[:-2]
-        return obj
+    def learning(self):
+        count = 0
+        for word in self.knowledges:
+            record: Knowledge = self.knowledges[word]
+            if record.is_learning():
+                count += 1
+        return count
 
-
-class FullUserData:
-    def __init__(self, file_name: str):
-        self.learnings: Dict[str, Learning] = {}
-        input_file = open(file_name)
-        line = None
-        dictionary_name = None
-        ll: Dict[str, Responses] = {}
-        while line != "":
-            line = input_file.readline()
-            if line == "":
-                break
-            if line[0] != " ":
-                if ll is not None:
-                    self.learnings[dictionary_name] = \
-                        Learning(dictionary_name, ll)
-                dictionary_name = line[:-2]
-                ll = {}
-            else:
-                element: Dict[str, Any] = \
-                    {"last": int(line[line.find("last: 2") + 6:
-                        line.find(", plan")]),
-                     "plan": int(line[line.find("plan: ", 10) + 6:
-                        line.find("}")])}
-
-                answers_position = line.find("answers:")
-                if answers_position != -1:
-                    element["answers"] = \
-                        line[answers_position + 9:
-                            line.find(",", answers_position)]
-
-                added_position = line.find("added:")
-                if added_position != -1:
-                    element["added"] = \
-                        int(line[added_position + 7:
-                            line.find(",", added_position)])
-
-                key = line[2:line.find(":")]
-
-                if key[0] == '"':
-                    key = key[1:-1]
-
-                ll[key] = Responses(key, element)
-
-    def write(self, user_file_name: str):
-        obj = ""
-
-        for learning in self.learnings:  # type: Learning
-            obj += learning.to_string()
-
-        open(user_file_name, "w+").write(obj)
-
-    def get_learning(self, learning_id: str) -> Learning:
-        return self.learnings[learning_id]
-
-    def get_learning_ids(self) -> Set[str]:
-        return set(self.learnings.keys())
+    def write(self) -> None:
+        """ Serialize learning process to a file. """
+        structure = {"log": [], "config": self.config}
+        for record in self.records:
+            structure["log"].append(record.to_structure())
+        with open(self.file_name, "w+") as output_file:
+            json.dump(structure, output_file, ensure_ascii=False, indent=4)

@@ -9,7 +9,12 @@ import sys
 import termios
 import tty
 
+from iso639 import languages
+
+from emmio.language import decode_esperanto
+
 colors = {
+    "grey": "2",
     "black": "30",
     "red": "31",
     "green": "32",
@@ -47,8 +52,6 @@ def get_char():
         character = sys.stdin.read(1)
     finally:
         termios.tcsetattr(file_descriptor, termios.TCSADRAIN, settings)
-    if ord(character) == 13:
-        return "Enter"
     return character
 
 
@@ -83,10 +86,13 @@ ESCAPE = 27
 BACKSPACE = 127
 
 
-def get_word(right_word):
-    word = ""
+def get_word(right_word: str, language) -> str:
 
-    result = "wrong"
+    sys.stdout.write(len(right_word) * "_")
+    sys.stdout.write("\r")
+    sys.stdout.flush()
+
+    word: str = ""
 
     while True:
         char = get_char()
@@ -94,13 +100,21 @@ def get_word(right_word):
         if ord(char) == BACKSPACE:
             word = word[:-1]
         elif ord(char) == ESCAPE:
-            break
+            word = ""
         elif ord(char) == ENTER:
-            break
+            sys.stdout.write("\n")
+            return word
         else:
             word += char
 
+        sys.stdout.write("\r")
         sys.stdout.write("                    ")
+        sys.stdout.write("\r")
+
+        if language == languages.get(part1="eo"):
+            word = decode_esperanto(word)
+
+        sys.stdout.write(word + (len(right_word) - len(word)) * "_")
         sys.stdout.write("\r")
         if word == right_word:
             sys.stdout.write("\033[32m")
@@ -110,16 +124,8 @@ def get_word(right_word):
         sys.stdout.flush()
 
         if word == right_word:
-            result = "right"
-            break
-        if word == "\\skip":
-            result = "skip"
-            break
-        if word == "\\quit":
-            result = "quit"
-            break
-
-    return result
+            sys.stdout.write("\n")
+            return word
 
 
 class Logger:
@@ -271,5 +277,49 @@ def one_button(text: str) -> None:
     input(f"[{text}] ")
 
 
-if __name__ == "__main__":
-    get_word("test")
+def header(text: str) -> None:
+    print()
+    print("    " + "─" * len(text))
+    print("    " + text)
+    print("    " + "─" * len(text))
+    print()
+
+
+def box(text) -> str:
+    s = "┌─" + "─" * len(text) + "─┐\n"
+    s += f"│ {text} │\n"
+    s += "└─" + "─" * len(text) + "─┘"
+    return s
+
+
+class InputOutput:
+    def __init__(self):
+        pass
+
+    def get(self) -> str:
+        pass
+
+    def put(self, message: str) -> None:
+        pass
+
+
+class TelegramIO(InputOutput):
+    def __init__(self):
+        super().__init__()
+
+    def get(self) -> str:
+        pass
+
+    def put(self, message: str) -> None:
+        pass
+
+
+class TerminalIO(InputOutput):
+    def __init__(self):
+        super().__init__()
+
+    def get(self) -> str:
+        return input()
+
+    def put(self, message: str) -> None:
+        print(message)

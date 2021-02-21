@@ -86,7 +86,8 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
     return None
 
 
-def get_content(address: str, parameters: Dict[str, str],
+def get_content(
+        address: str, parameters: Dict[str, str],
         cache_file_name: Optional[str], kind: str, is_secure: bool,
         name: str = None, update_cache: bool = False) -> Any:
     """

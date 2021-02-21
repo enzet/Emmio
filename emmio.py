@@ -8,10 +8,7 @@ import sys
 from datetime import timedelta
 from typing import List
 
-from http.server import HTTPServer
-
 from emmio.teacher import Teacher
-from emmio import server
 
 from emmio.lexicon import Lexicon
 from emmio.language import languages
@@ -25,21 +22,15 @@ from emmio.text import Text
 def teacher(args: List[str]):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-l",
+    parser.add_argument(
+        "-l",
         dest="learning_id")
 
-    parser.add_argument("-d",
+    parser.add_argument(
+        "-d",
         dest="directory_name")
 
-    parser.add_argument("--run-server",
-        dest="is_server",
-        action="store_true",
-        help="run web interface instead of console mode",
-        default=False)
-
     arguments = parser.parse_args(args)
-
-    usage = "teacher -d <dictionary file name> -u <user name> <options>"
 
     directory_name = "."
     if arguments.directory_name:
@@ -48,23 +39,9 @@ def teacher(args: List[str]):
 
     config = json.load(open(config_file_name))
 
-    if arguments.is_server:
-        emmio_server = None
-        try:
-            handler = server.EmmioHandler
-            emmio_server = HTTPServer(("", 8080), handler)
-
-            handler.teachers = server.ServerTeachers(config)
-
-            print("Emmio started on port %d." % 8080)
-            emmio_server.serve_forever()
-        except KeyboardInterrupt:
-            if emmio_server:
-                emmio_server.socket.close()
-    else:
-        current_teacher = Teacher(arguments.learning_id, directory_name, config,
-            options=vars(arguments))
-        current_teacher.run()
+    current_teacher = Teacher(arguments.learning_id, directory_name, config,
+        options=vars(arguments))
+    current_teacher.run()
 
 
 def lexicon(args: List[str]):
@@ -163,8 +140,8 @@ def lexicon(args: List[str]):
                         f"    {date.strftime('%Y.%m.%d')} {r[date]:f}\n")
                     current_percent[language] = r[date]
 
-        for language in \
-                sorted(current_percent, key=lambda x: current_percent[x]):
+        for language in sorted(
+                current_percent, key=lambda x: current_percent[x]):
             print("%s %5.2f %%" % (language, current_percent[language]))
         return
 
@@ -201,7 +178,8 @@ def lexicon(args: List[str]):
 
     dictionaries: List[Dictionary] = []
     if arguments.dictionary_file_name:
-        dictionaries.append(SimpleDictionary(arguments.dictionary_file_name,
+        dictionaries.append(SimpleDictionary(
+            arguments.language, arguments.dictionary_file_name,
             arguments.dictionary_file_format))
 
     print("""
@@ -247,8 +225,8 @@ def do_text(arguments: List[str]):
 
     if not (options.language in languages):
         print(
-            "Unknown language: " + options.language + ". Known languages: " +
-            ", ".join(languages) + ".")
+            f"Unknown language: {options.language}. "
+            f"Known languages: {', '.join(languages)}.")
         return
 
     content = open(options.input_file_name, "r").read()
@@ -274,4 +252,4 @@ if __name__ == "__main__":
         set_log(VerboseLogger)
         do_text(sys.argv[2:])
     else:
-        print("Unknown command: " + command + ".")
+        print(f"Unknown command: {command}.")

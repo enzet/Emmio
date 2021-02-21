@@ -4,9 +4,10 @@ import os
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Iterator
+from iso639 import languages
 
-from emmio.dictionary import Dictionary
+from emmio.dictionary import Dictionary, Dictionaries
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
 from emmio.ui import get_char, one_button, write
@@ -51,10 +52,10 @@ class AnswerType(Enum):
     PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
     PROPAGATE__TIME = "propagate_time"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value
 
 
@@ -80,7 +81,8 @@ class LogRecord:
     """
     Record of user's answer.
     """
-    def __init__(self, date: datetime, words: List[str],
+    def __init__(
+            self, date: datetime, words: List[str],
             response: LexiconResponse,
             answer_type: AnswerType = AnswerType.UNKNOWN):
         """
@@ -97,6 +99,7 @@ class LogRecord:
 
     @classmethod
     def from_structure(cls, structure: Any) -> "LogRecord":
+
         if isinstance(structure, list):
             date_string, word, response = structure  # type: (str, str, str)
             date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
@@ -159,43 +162,43 @@ class Lexicon:
 
         # Read data from file.
 
-        write("Reading lexicon from " + self.file_name + "...")
+        write(f"Reading lexicon from {self.file_name}...")
 
-        if os.path.isfile(self.file_name):
-            with open(self.file_name, "r") as input_file:
-                data = json.load(input_file)
-                for word in data["words"]:
-                    record = data["words"][word]
-                    if isinstance(record, list):
-                        self.words[word] = WordKnowledge(record[1], None)
-                    elif isinstance(record, dict):
-                        to_skip = None
-                        if "to_skip" in record:
-                            to_skip = record["to_skip"]
-                        self.words[word] = WordKnowledge(
-                            LexiconResponse(record["knowing"]), to_skip)
+        if not os.path.isfile(self.file_name):
+            return
 
-                for key in data:  # type: str
-                    if key.startswith("log"):
-                        self.logs[key]: List[LogRecord] = []
-                        for structure in data[key]:
-                            self.logs[key].append(
-                                LogRecord.from_structure(structure))
+        with open(self.file_name) as input_file:
+            data = json.load(input_file)
+            for word in data["words"]:
+                record = data["words"][word]
+                if isinstance(record, list):
+                    self.words[word] = WordKnowledge(record[1], None)
+                elif isinstance(record, dict):
+                    to_skip = None
+                    if "to_skip" in record:
+                        to_skip = record["to_skip"]
+                    self.words[word] = WordKnowledge(
+                        LexiconResponse(record["knowing"]), to_skip)
 
-            # Fill data.
+            for key in data:  # type: str
+                if key.startswith("log"):
+                    self.logs[key]: List[LogRecord] = []
+                    for structure in data[key]:
+                        self.logs[key].append(
+                            LogRecord.from_structure(structure))
 
-            if "log" not in self.logs:
-                return
-            for record in self.logs["log"]:  # type: LogRecord
-                if record.response in [LexiconResponse.KNOW,
-                        LexiconResponse.DO_NOT_KNOW]:
-                    self.dates.append(record.date)
-                    self.responses.append(
-                        1 if record.response == LexiconResponse.KNOW else 0)
+        # Fill data.
 
-                    if self.start is None:
-                        self.start = record.date
-                    self.finish = record.date
+        for record in self.logs["log"]:  # type: LogRecord
+            if record.response in [
+                    LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
+                self.dates.append(record.date)
+                self.responses.append(
+                    1 if record.response == LexiconResponse.KNOW else 0)
+
+                if self.start is None:
+                    self.start = record.date
+                self.finish = record.date
 
     def write(self) -> None:
         """
@@ -248,7 +251,8 @@ class Lexicon:
             if word in record.words:
                 return record
 
-    def register(self, words: List[str], response: LexiconResponse,
+    def register(
+            self, words: List[str], response: LexiconResponse,
             to_skip: Optional[bool], date: Optional[datetime] = None,
             log_name: str = "log",
             answer_type: AnswerType = AnswerType.UNKNOWN) -> None:
@@ -304,19 +308,22 @@ class Lexicon:
         return self.words[word].knowing
 
     def get_log_size(self, log_name: str) -> int:
-        result: int = 0
-        for record in self.logs[log_name]:  # type: LogRecord
-            if record.response in [
-                    LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
-                result += 1
-        return result
+        responses = [x.response for x in self.logs[log_name]]
+        return (
+            responses.count(LexiconResponse.DO_NOT_KNOW) +
+            responses.count(LexiconResponse.KNOW))
 
-    def count_unknowns(self, log_name: str) -> int:
-        result: int = 0
-        for record in self.logs[log_name]:  # type: LogRecord
-            if record.response in [LexiconResponse.DO_NOT_KNOW]:
-                result += 1
-        return result
+    def count_unknowns(
+            self, log_name: str, point_1: datetime = None,
+            point_2: datetime = None) -> int:
+        """
+        Return the number of UNKNOWN answers.
+        """
+        records: Iterator[LogRecord] = filter(
+            lambda record: not point_1 or point_1 <= record.date <= point_2,
+            self.logs[log_name])
+        return [x.response for x in records].count(
+            LexiconResponse.DO_NOT_KNOW)
 
     def get_bounds(self, point_1: datetime, point_2: datetime) -> (int, int):
 
@@ -333,7 +340,8 @@ class Lexicon:
 
         return min_index, max_index
 
-    def get_average(self, index_1: Optional[int] = None,
+    def get_average(
+            self, index_1: Optional[int] = None,
             index_2: Optional[int] = None) -> Optional[float]:
         """
         Get average ratio.
@@ -363,74 +371,7 @@ class Lexicon:
     def get_preferred_interval(self) -> int:
         return int(100 / self.get_average())
 
-    def construct(self, precision: int, first: Callable, next_: Callable) \
-            -> Dict[datetime, float]:
-        """
-        Construct statistics. Point of time to ratio multiplied by 100.
-
-        :param precision: ratio precision.
-        :param first: function that computes the point of time to start with.
-        :param next_: function that computes the next point of time.
-        """
-        result: Dict[datetime, float] = {}
-
-        if not self.start:
-            return result
-
-        points = {}
-        point: datetime = first(self.start)
-
-        while point <= datetime.now():
-            next_point: datetime = next_(point)
-            length, data = self.get_data(point, next_point)
-            points[point] = [length, data]
-            point = next_point
-
-        data = None
-        preferred = None
-        length = None
-        percent = None
-
-        for current_index in range(len(points)):
-            m = sorted(points.keys())[current_index]
-            sample_length, responses = points[m]
-
-            if sample_length != 0 and precision != 0:
-                percent = sample_length / precision * \
-                    (1 - responses / sample_length) * 100
-            else:
-                percent = 0
-
-            auxiliary_index = current_index
-            length, data = 0, 0
-
-            while auxiliary_index >= 0:
-                sample_length, responses = \
-                    points[sorted(points.keys())[auxiliary_index]]
-                length += sample_length
-                data += responses
-                if length and 1 - data / length:
-                    if self.language == "ru":
-                        preferred = precision / (1 - data / length)
-                    else:
-                        preferred = precision / (1 - data / length)
-                else:
-                    preferred = 10000000
-
-                if length >= preferred:
-                    current_rate = rate(1 - data / length)
-                    result[m] = current_rate
-                    break
-
-                auxiliary_index -= 1
-
-        if preferred > length:
-            print(f"Need {int(preferred - length)!s} more.")
-            print(f"Need {100 - (length - data)!s} more wrong answers.")
-
-        return result
-
-    def construct_precise(self) -> Dict[datetime, float]:
+    def construct_precise(self, precision: int = 100) -> Dict[datetime, float]:
 
         result: Dict[datetime, float] = {}
 
@@ -445,7 +386,7 @@ class Lexicon:
                 current_rate = unknowns / float(knowns + unknowns)
             else:
                 current_rate = 0
-            if unknowns >= 100:
+            if unknowns >= precision:
                 result[date] = rate(current_rate)
 
                 response = self.responses[left]
@@ -476,8 +417,9 @@ class Lexicon:
             elif response == LexiconResponse.DO_NOT_KNOW:
                 unknowns += frequency_list.get_occurrences(word)
 
-    def get_rate(self, point_1: datetime, point_2: datetime) -> \
-            (Optional[float], Optional[float]):
+    def get_rate(
+            self, point_1: datetime, point_2: datetime) -> (
+            Optional[float], Optional[float]):
         """
         Get rate for selected time interval.
 
@@ -492,9 +434,9 @@ class Lexicon:
         if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
             return rate(self.get_average(index_1, index_2)), 1.0
         elif index_2 and index_2 >= preferred_interval:
-            return \
-                rate(self.get_average(index_2 - preferred_interval, index_2)), \
-                (index_2 - index_1) / preferred_interval
+            return (
+                rate(self.get_average(index_2 - preferred_interval, index_2)),
+                (index_2 - index_1) / preferred_interval)
         elif index_2:
             return None, (index_2 - index_1) / preferred_interval
 
@@ -508,18 +450,21 @@ class Lexicon:
         """
         result: List[str] = []
 
-        for word in sorted(self.words.keys(),
+        for word in sorted(
+                self.words.keys(),
                 key=lambda x: -frequency_list.get_occurrences(x)):
+
             word_knowledge = self.words[word]
             if word_knowledge.knowing == LexiconResponse.DO_NOT_KNOW:
                 result.append(word)
 
         return result
 
-    def ask(self, word: str, word_list: List[str],
+    def ask(
+            self, word: str, word_list: List[str],
             dictionaries: List[Dictionary], skip_known: bool = False,
-            skip_unknown: bool = False, log_name: str = "log") \
-            -> (bool, LexiconResponse, Optional[Dictionary]):
+            skip_unknown: bool = False, log_name: str = "log") -> (
+            bool, LexiconResponse, Optional[Dictionary]):
         """
         Ask user if the word is known.
         """
@@ -538,28 +483,18 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        answer = None
+        translation = Dictionaries(
+            languages.get(part1="ru"), dictionaries).get_translation(word, True, [])
 
-        dictionary: Optional[Dictionary] = None
-        to_update_dictionary: Optional[Dictionary] = None
-        for current_dictionary in dictionaries:
-            print("Try " + current_dictionary.get_name() + "...")
-            answer: Optional[str] = current_dictionary.get(word)
-            if answer is not None:
-                dictionary = current_dictionary
-                to_update_dictionary = None
-                break
-            elif current_dictionary.to_update:
-                to_update_dictionary = current_dictionary
-
-        if answer is not None:
-            one_button("Show answer")
-            print(answer)
+        if translation:
+            one_button("Show translation")
+            print(translation)
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
         answer = get_char()
-        while answer not in ["y", "Y", "Enter", "n", "N", "b", "B", "s", "S",
-                "-", "q", "Q"]:
+        while answer not in [
+                "y", "Y", "Enter", "n", "N", "b", "B", "s", "S", "-", "q", "Q",
+                "z"]:
             answer = get_char()
 
         response: LexiconResponse
@@ -591,18 +526,14 @@ class Lexicon:
             elif response == LexiconResponse.DO_NOT_KNOW:
                 skip_in_future = skip_unknown
 
-        self.register([word], response, skip_in_future, log_name=log_name,
+        self.register(
+            [word], response, skip_in_future, log_name=log_name,
             answer_type=AnswerType.USER_ANSWER)
 
-        if to_update_dictionary is not None:
-            translation = input("translation > ")
-            if translation:
-                to_update_dictionary.add(word, translation)
-                to_update_dictionary.write()
+        return skip_in_future, response, None
 
-        return skip_in_future, response, dictionary
-
-    def check(self, frequency_list: FrequencyList, stop_at: Optional[int],
+    def check(
+            self, frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: List[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
             stop_at_wrong: Optional[int],
@@ -641,16 +572,16 @@ class Lexicon:
         while True:
             picked_word = None
             if log_type == "frequency":
-                picked_word, occurrences = \
-                    frequency_list.get_random_word_by_frequency()
+                picked_word, occurrences = (
+                    frequency_list.get_random_word_by_frequency())
             elif log_type == "random":
                 picked_word, occurrences = frequency_list.get_random_word()
 
             if self.do_skip(picked_word, skip_known, skip_unknown, log_name):
                 continue
 
-            to_skip, response, dictionary = self.ask(picked_word,
-                word_list, dictionaries, skip_known, skip_unknown,
+            to_skip, response, dictionary = self.ask(
+                picked_word, word_list, dictionaries, skip_known, skip_unknown,
                 log_name=log_name)
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
@@ -685,7 +616,8 @@ class Lexicon:
 
         return exit_code
 
-    def do_skip(self, picked_word: str, skip_known: bool, skip_unknown: bool,
+    def do_skip(
+            self, picked_word: str, skip_known: bool, skip_unknown: bool,
             log_name: str) -> bool:
 
         last_record: LogRecord = self.get_last_answer(picked_word, log_name)
@@ -760,7 +692,6 @@ class Lexicon:
               (len(self.logs["log"]) / len(self.words)))
         print("Count ratio:       %9.4f %%" % (count_ratio * 100))
         print("Words:             %4d" % len(self.words))
-        # print("All words:         %4d" % len(frequency.words))
         print("Size:              %4d" % self.get_log_size(log_name))
 
     def __len__(self) -> int:

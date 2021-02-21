@@ -1,16 +1,19 @@
 import json
 import random
+import sqlite3
+from dataclasses import dataclass
+
 import yaml
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from emmio import ui
 
 
+@dataclass
 class WordOccurrences:
-    def __init__(self, word: str, occurrences: int):
-        self.word = word
-        self.occurrences = occurrences
+    word: str
+    occurrences: int
 
 
 class FrequencyList:
@@ -153,6 +156,11 @@ class FrequencyList:
             return self.data[word]
         return 0
 
+    def get_position(self, word: str) -> int:
+        if word in self.sorted_keys:
+            return self.sorted_keys.index(word)
+        return -1
+
     def get_all_occurrences(self) -> int:
         return self.occurrences
 
@@ -190,3 +198,13 @@ class FrequencyList:
                 return word, self.data[word]
 
         return "", 0
+
+
+class FrequencyDataBase:
+    def __init__(self):
+        frequency_db = sqlite3.connect("frequency.db")
+        self.frequency_cursor = frequency_db.cursor()
+
+    def get_words(self, language) -> List[Tuple[int, str, int]]:
+        table_id: str = f"{language.part1}_opensubtitles"
+        return self.frequency_cursor.execute(f"SELECT * FROM {table_id}")

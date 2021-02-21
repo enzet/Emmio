@@ -8,6 +8,14 @@ Author: Sergey Vartanov.
 from datetime import datetime, timedelta
 
 
+def day_start(point: datetime) -> datetime:
+    return datetime(year=point.year, month=point.month, day=point.day)
+
+
+def day_end(point: datetime) -> datetime:
+    return day_start(point) + timedelta(days=1)
+
+
 def first_day_of_month(point: datetime) -> datetime:
     return datetime(year=point.year, month=point.month, day=1)
 

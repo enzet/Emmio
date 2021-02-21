@@ -1,373 +1,248 @@
-"""
-Emmio. Simple flashcard learner based on modified Leitner system.
-
-Author: Sergey Vartanov (me@enzet.ru).
-"""
-import os
+import json
+import math
 import random
-import subprocess
-import sys
-import yaml
+from datetime import timedelta
+from typing import List, Tuple, Optional, Set
 
-from datetime import datetime
-from typing import Dict, Optional
+from iso639 import languages
+from iso639.iso639 import _Language as Language
 
-from emmio import analysis
-from emmio import graph
-from emmio import reader
-from emmio import ui
-from emmio.cards import Cards
-from emmio.learning import FullUserData, Responses, Learning
-from emmio.frequency import FrequencyList
-
-
-def read_priority(file_name):
-    priority_list = []
-    priority_list_file = open(file_name)
-    line = priority_list_file.readline()
-    while len(line) > 3:
-        pr = int(line[line.find(': ') + 2:])
-        if pr > 0:
-            k = [line[:line.find(': ')], pr]
-            priority_list.append(k)
-        line = priority_list_file.readline()
-    return priority_list
+from emmio.dictionary import SimpleDictionary, Dictionaries
+from emmio.frequency import FrequencyDataBase
+from emmio.graph import Visualizer
+from emmio.language import symbols, decode_esperanto
+from emmio.learning import Learning, ResponseType
+from emmio.lexicon import Lexicon, LexiconResponse
+from emmio.sentence import (
+    SentenceDataBase, Sentences, Translation, SMALLEST_INTERVAL)
+from emmio.ui import get_word, box
 
 
 class Teacher:
-    """
-    Teacher.
-    """
-    def __init__(self, learning_id: str, directory_name: str, config: Dict,
-            options: Dict) -> None:
-        """
-        :param learning_id: learning process identifier.
-        :param directory_name: working directory name.
-        :param config: configuration file.
-        :param options: dictionary with other options.
-        """
-        self.learning_id = learning_id
-        self.options = options
+    def __init__(
+            self, cache_directory_name: str, sentence_db: SentenceDataBase,
+            frequency_db: FrequencyDataBase, learning: Learning,
+            get_dictionaries=None):
 
-        if learning_id not in config["learnings"]:
-            print("Fatal: no learning with ID " + learning_id + ".")
-            sys.exit(1)
+        self.language_1: Language = learning.language
+        self.language_2: Language = languages.get(part1=learning.subject)
+        self.max_for_day = learning.ratio
+        self.sentences_db = sentence_db
+        self.frequency_db = frequency_db
+        self.learning = learning
+        self.dictionaries: List[SimpleDictionary] = get_dictionaries(
+            self.language_2.part1)
 
-        learning_config = config["learnings"][learning_id]
+        self.lexicon = Lexicon(
+            self.language_2.part1,
+            f"../Emmio-dev/lexicon/enzet_{self.language_2.part1}.json")
 
-        dictionary_id = learning_config['dictionary']
-        user_id = learning_config['user']
-        self.learning_name = learning_config['name']
+        self.sentences: Sentences = Sentences(
+            cache_directory_name, sentence_db, frequency_db, self.language_1,
+            self.language_2)
 
-        if dictionary_id not in config['dictionaries']:
-            print('Fatal: no dictionary with ID ' + dictionary_id + '.')
-            sys.exit(1)
+        self.words: List[Tuple[int, str]] = []
+        print("Getting words...")
+        for index, word, _ in self.frequency_db.get_words(self.language_2):
+            if (word in self.sentences.cache
+                    and (not self.learning.check_lexicon or
+                         not self.lexicon or
+                         not self.lexicon.has(word) or
+                         self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW)):
+                for id_ in self.sentences.cache[word]:
+                    if str(id_) in self.sentences.links:
+                        self.words.append((index, word))
+                        break
 
-        dictionary_config = config['dictionaries'][dictionary_id]
+        with open("exclude_sentences.json") as input_file:
+            self.exclude_sentences = json.load(input_file)
+        with open("exclude_translations.json") as input_file:
+            self.exclude_translations = json.load(input_file)
 
-        if user_id not in config['users']:
-            print('Fatal: no user with ID ' + user_id + '.')
-            sys.exit(1)
+        self.skip = set()
 
-        user_config = config['users'][user_id]
+    def start(self) -> bool:
+        while True:
+            word: Optional[str] = self.learning.get_next(self.skip)
+            if word:
+                proceed: bool = self.learn(
+                    word, self.learning.knowledges[word].interval, 0)
+                self.learning.write()
+                if not proceed:
+                    return False
+            else:
+                if self.learning.new_today() >= self.max_for_day:
+                    return True
+                has_new_word = False
+                for index, word in self.words:
+                    if not self.learning.has(word) and word not in self.skip:
+                        has_new_word = True
+                        proceed: bool = self.learn(word, timedelta(), index)
+                        self.learning.write()
+                        if not proceed:
+                            return False
+                        break
+                if not has_new_word:
+                    break
 
-        self.user_file_name = os.path.join(directory_name, user_config["file"])
-        self.full_user_data = FullUserData(self.user_file_name)
+        return True
 
-        self.learning: Learning
-        self.dictionary_user_id: Optional[str] = None
-
-        for dictionary_user_id in self.full_user_data.get_learning_ids():
-            if dictionary_user_id in dictionary_config['user_ids']:
-                self.learning = \
-                    self.full_user_data.get_learning(dictionary_user_id)
-                self.dictionary_user_id = dictionary_user_id
+    def repeat(self) -> bool:
+        while True:
+            has_repeat: bool = False
+            word = self.learning.get_next(self.skip)
+            if word:
+                proceed: bool = self.learn(
+                    word, self.learning.knowledges[word].interval, 0)
+                self.learning.write()
+                has_repeat = True
+                if not proceed:
+                    return False
+            if not has_repeat:
                 break
 
-        if not self.dictionary_user_id:
-            self.dictionary_user_id = dictionary_id
+        return True
 
-        self.dictionary: Cards = Cards(
-            os.path.join(directory_name, dictionary_config["file"]),
-            dictionary_config['format'])
+    def learn(self, word: str, interval: timedelta, word_index: int) -> bool:
 
-        if "priority" in learning_config:
-            priority_list_ids = learning_config["priority"]
+        ids_to_skip: Set[int] = set()
+        if word in self.exclude_sentences:
+            ids_to_skip = set(self.exclude_sentences[word])
 
-            self.priority_list = []
+        translations: List[Translation] = self.sentences.filter_(
+            word, ids_to_skip)
+        if not translations:
+            return True
 
-            for priority_list_id in priority_list_ids:
-                priority_config = config['priorities'][priority_list_id]
-                priority_list = read_priority(
-                    os.path.join(directory_name, priority_config["file"]))
-                self.priority_list += priority_list
+        if interval.total_seconds() == 0:
+            translations = sorted(
+                translations, key=lambda x: len(x.sentence.text))
         else:
-            self.priority_list = None
+            random.shuffle(translations)
 
-        self.schemes = learning_config['scheme']
+        dictionaries = Dictionaries(self.language_1, self.dictionaries)
 
-        self.per_day = None
-        if 'per_day' in learning_config:
-            self.per_day = learning_config['per_day']
+        def print_sentence(show_index: bool = False, max_translations: int = 3):
+            """
+            Print sentence and its translations.
 
-    @staticmethod
-    def get_full_status(statistics: dict) -> str:
-        return 'Now  ' + str(statistics['to_repeat']) + '    ' + \
-            'Learned  ' + str(statistics['learned']) + '    ' \
-            'Not  ' + str(statistics['not_learned']) + '    ' \
-            'Heaviness  ' + str(int(statistics['heaviness'])) + '    ' \
-            'All  ' + str(statistics['learned'] +
-                statistics['skipped']) + '    ' \
-            'Score  ' + str(statistics['score']) + '    ' \
-            'Added today  ' + str(statistics['added_today'])
+            :param show_index: show current sentence index
+            :param max_translations: maximum number of translations to show
+            """
+            text: str = translations[index].sentence.text
+            if show_index:
+                text += f" ({index + 1}/{len(translations)})"
 
-    @staticmethod
-    def get_status(statistics: dict) -> str:
-        s = 'Now  %d    Heaviness  %.2f' % \
-            (statistics['to_repeat'], statistics['heaviness'])
-        s += '    Added today  %d' % statistics['added_today']
-        s += ' '
-        return s
+            result: str = ""
 
-    def get_next_question(self, now: int):
-        """
-        Next card for learning.
+            w = ""
+            for position, char in enumerate(text):  # type: str
+                if char.lower() in symbols[self.language_2.part1]:
+                    w += char
+                else:
+                    if w:
+                        if w.lower() == word:
+                            result += "░" * len(word)
+                        else:
+                            result += w
+                    result += char
+                    w = ""
 
-        :returns: Next question (card ID), is it new.
-        """
-        minimum_yes = 1000
-        next_question = None
-        next_scheme_id = None
+            print(result)
+            for i in range(max_translations):
+                if len(translations[index].translations) > i:
+                    print(translations[index].translations[i].text)
 
-        scheme_ids = []
-        for scheme in self.schemes:
-            scheme_ids.append(scheme['id'])
+        def log_(interval):
+            if interval.total_seconds() == 0:
+                return 0
+            return int(math.log(interval.total_seconds() / 60 / 60 / 24, 2)) + 1
 
-        # Looking for repetition.
-
-        for question_id in self.learning.get_question_ids():  # type: str
-            if '#' in question_id:
-                question = question_id[:question_id.find('#')]
-                scheme_id = question_id[question_id.find('#'):]
-            else:
-                question = question_id
-                scheme_id = ''
-
-            if question not in self.dictionary.get_questions():
-                continue
-            if scheme_id not in scheme_ids:
-                continue
-
-            response: Responses = self.learning.get_responses(question_id)
-            if response.plan and response.plan < now and response.answers:
-                yes = len(response.answers) - \
-                    response.answers.rfind("n") - 1
-                if yes < minimum_yes:
-                    minimum_yes = yes
-                    next_question = question
-                    next_scheme_id = scheme_id
-
-        if next_question:
-            return next_question, False, next_scheme_id
-
-        # Looking for new word.
-
-        if self.priority_list:
-            # Return new question using priority list.
-            for q in self.priority_list:
-                for scheme in self.schemes:
-                    current_scheme_id = scheme['id']
-                    question = q[0]
-                    if (question in self.dictionary) and \
-                            not ((question + current_scheme_id) in
-                                self.learning.get_question_ids()):
-                        next_question = question
-                        scheme_id = current_scheme_id
-                        return next_question, True, scheme_id
+        index: int = 0
+        s = ""
+        if interval.total_seconds() > 0:
+            s += f"{'◕ ' * log_(interval)} "
         else:
-            # Return arbitrary question.
-            for question in self.dictionary.get_questions():
-                for scheme in self.schemes:
-                    current_scheme_id = scheme['id']
-                    if not ((question + current_scheme_id) in
-                            self.learning.get_question_ids()):
-                        next_question = question
-                        scheme_id = current_scheme_id
-                        return next_question, True, scheme_id
+            s += f"frequency index: {word_index}  "
+        s += (
+            f"new today: {self.learning.new_today()}  "
+            f"to repeat: {self.learning.to_repeat()}")
+        print(s)
 
-    def get_element_text(self, question_id, element):
-        if element['source'] == 'key':
-            text = question_id
-        elif element['source'] == 'value':
-            text = self.dictionary.get_answer(question_id)
-        elif element['source'] == 'dict_value':
-            text = self.dictionary.get_answer_key(question_id, element['field'])
-        else:
-            text = question_id
+        exclude_translations: Set[str] = set()
+        if word in self.exclude_translations:
+            exclude_translations = self.exclude_translations[word]
+        translation = dictionaries.get_translation(
+            word, False, exclude_translations)
+        if translation:
+            print(translation)
 
-        after_text = text
+        print_sentence()
 
-        if 'action' in element:
-            if element['action'] == 'remove latin':
-                new_text = ''
-                for c in text:
-                    if 'a' <= c <= 'z' or 'A' <= c <= 'Z' or \
-                            c in 'ʃʊɜðɪæɘʌɑʒɛ↗θŋ':
-                        new_text += '█'
-                    else:
-                        new_text += c
-                text = new_text
-
-        return text, after_text
-
-    def process_user_response(self, response: bool, question: str, now: int,
-            scheme_id: str):
-        """
-        Process user response.
-
-        :param response: user response: know or don't know.
-        :param question: current question.
-        :param now: time point integer representation.
-        :param scheme_id: current learning scheme identifier.
-        """
-        self.learning.answer(question + scheme_id, response, now)
-
-    def get_statistics(self):
-        return analysis.get_statistics(self.learning, self.dictionary)
-
-    def run(self):
-        """
-        Run learning process.
-
-        :returns: Nothing.
-        """
-        per_day = 100
-        if 'per_day' in self.options:
-            per_day = self.options['per_day']
-
-        heaviness = None
-        if 'heaviness' in self.options:
-            heaviness = self.options['heaviness']
-
-        # now = int((datetime.now() -
-        #     datetime(1970, 1, 1)).total_seconds() / 60)
-        # begin_statistics = analysis.get_statistics(self.user_data,
-        #     self.dictionary, now, postfix)
+        visualizer = Visualizer()
 
         while True:
-            now = int((datetime.now() -
-                datetime(1970, 1, 1)).total_seconds() / 60)
-
-            # Get current statistics
-
-            statistics = analysis.get_statistics(self.learning,
-                self.dictionary, now, '')
-
-            # if statistics['to_repeat'] <= 0 and \
-            #        statistics['to_learn'] <= 0 and \
-            #        statistics['added_last_24_hours'] >= 24:
-            #    break
-
-            # Get next card
-
-            next_question, is_new_card, scheme_id = \
-                self.get_next_question(now)
-
-            if is_new_card:
-                if per_day and statistics['added_today'] >= per_day:
-                    break
-                if heaviness and statistics['heaviness'] >= heaviness:
-                    break
-
-            if next_question is None:
-                break
-
-            status = self.get_status(statistics)
-
-            question, answer = None, None
-
-            scheme = None
-            for current_scheme in self.schemes:
-                if current_scheme['id'] == scheme_id:
-                    scheme = current_scheme
-                    break
-
-            question, after_question = \
-                self.get_element_text(next_question, scheme['question'])
-
-            answer = ''
-            for answer_element in scheme['answer']:
-                text, _ = self.get_element_text(next_question, answer_element)
-                answer += text
-
-            # Show question
-
-            ui.show(question, status, 31 if is_new_card else None)
-
-            result = 'wrong'
-
-            if 'check' in scheme and scheme['check'] == 'type':
-                result = ui.get_word(answer)
-            else:
-                a = ui.get_char()
-                while a in 's':
-                    if a == 's':
-                        try:
-                            print('Dumping statistics...')
-                            graph.dump_times('times.dat', self.user_data)
-                            graph.dump_times('times_24.dat', self.user_data,
-                                scale=24)
-                            graph.dump_quality('quality.dat', self.user_data)
-                            graph.dump_quality('quality_sum.dat', self.user_data,
-                                is_sum=True)
-                            subprocess.check_output(['gnuplot',
-                                'statistics.gnuplot'])
-                            print('Done.')
-                        except Exception as e:
-                            print(e)
-                    a = ui.get_char()
-
-                if a == 'q':  # Quit
-                    break
-
-            # Show answer
-
-            if 'м. р.' in answer and 'ж. р.' not in answer:
-                ui.show(question + '\n' + answer, status, 31)
-            elif 'ж. р.' in answer and 'м. р.' not in answer:
-                ui.show(question + '\n' + answer, status, 34)
-            else:
-                ui.show(after_question + '\n' + answer, status)
-
-            if 'check' in scheme and scheme['check'] == 'type':
-                if result == 'quit':
-                    break
-                elif result == 'skip':
-                    self.process_user_response(True, next_question, now,
-                        scheme_id)
-                elif result == 'right':
-                    self.process_user_response(True, next_question, now,
-                        scheme_id)
-                elif result == 'wrong':
-                    self.process_user_response(False, next_question, now,
-                        scheme_id)
-            else:
-                a = ui.get_char()
-                while not (a in 'qynjkfd,.'):
-                    a = ui.get_char()
-                if a == 'q':  # Quit
-                    break
-                elif a in 'ynjkfd,.':  # Answer
-                    response = a in 'yjf,'
-                    self.process_user_response(response, question, now, scheme_id)
-
-        sys.stdout.write('\nWriting results... ')
-        sys.stdout.flush()
-
-        self.write_data()
-
-    def write_data(self):
-        """
-        Write changed user data and archive it.
-        """
-        self.full_user_data.write(self.user_file_name)
+            answer: str = get_word(word, self.language_2)
+            if self.language_2 == languages.get(part1="eo"):
+                answer = decode_esperanto(answer)
+            if answer == word:
+                self.learning.register(
+                    ResponseType.RIGHT, translations[index].sentence.id_, word,
+                    interval * 2)
+                translation = dictionaries.get_translation(word)
+                if translation:
+                    print(translation)
+                new_answer = input(">>> ")
+                while new_answer:
+                    if new_answer == "s":
+                        self.learning.register(
+                            ResponseType.SKIP, translations[index].sentence.id_,
+                            word, timedelta())
+                        break
+                    new_answer = input(">>> ")
+                return True
+            if answer in ["s", "/skip"]:
+                self.skip.add(word)
+                return True
+            if answer == "/stop":
+                return False
+            if answer.startswith("/b"):
+                if answer == "/bs":
+                    if word not in self.exclude_sentences:
+                        self.exclude_sentences[word] = []
+                    self.exclude_sentences[word].append(
+                        translations[index].sentence.id_)
+                    with open("exclude_sentences.json", "w+") as output_file:
+                        json.dump(self.exclude_sentences, output_file)
+                elif answer.startswith("/bt "):
+                    if word not in self.exclude_translations:
+                        self.exclude_translations[word] = []
+                    self.exclude_translations[word].append(answer[4:])
+                    with open("exclude_translations.json", "w+") as output_file:
+                        json.dump(self.exclude_translations, output_file)
+                self.skip.add(word)
+                return True
+            if answer == "n":
+                print(box(word))
+                translation = dictionaries.get_translation(word)
+                if translation:
+                    print(translation)
+                new_answer = input("Learn word? ")
+                if not new_answer:
+                    self.learning.register(
+                        ResponseType.WRONG, translations[index].sentence.id_,
+                        word, SMALLEST_INTERVAL)
+                else:
+                    self.learning.register(
+                        ResponseType.SKIP, translations[index].sentence.id_,
+                        word, timedelta())
+                return True
+            visualizer.process_command(
+                answer, self.learning.records, self.learning.knowledges)
+            if answer == "":
+                index += 1
+                if index >= len(translations):
+                    print("No more sentences.")
+                    index -= 1
+                else:
+                    print_sentence()

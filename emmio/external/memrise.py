@@ -10,7 +10,6 @@ class TableParser(HTMLParser):
     Simple parser that extracts tables from the HTML file and stores them as the
     list of lists of lists of strings.
     """
-
     def __init__(self):
         super().__init__()
         self.tables: List[List[List[str]]] = []
@@ -93,7 +92,7 @@ class MemriseData:
         """
         :param file_name: HTML input file name.
         """
-        with open(file_name, "r") as input_file:
+        with open(file_name) as input_file:
             content: str = input_file.read()
 
         parser: TableParser = TableParser()
