@@ -12,8 +12,8 @@ Emmio is a tool box for learning. It contains:
 
 ## Requirements ##
 
-  * Python 3,
-  * PyYAML (at least 4.2b1).
+  * Python 3.9,
+  * See `requirements.txt`.
 
 ## Installation ##
 
