@@ -1,8 +1,6 @@
-from emmio.dictionary import SimpleDictionary
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDataBase
-from emmio.teacher import Teacher
 from emmio.text import Text
 from emmio.frequency import FrequencyList, FrequencyDataBase
 
@@ -24,13 +22,6 @@ def do_lexicon(language: str, lexicon_file_name: str) -> None:
 
     lexicon = Lexicon(language, lexicon_file_name)
     check(lexicon)
-
-
-def test_dict() -> None:
-    dictionary = SimpleDictionary("ru", "test/simple.dict", "dict")
-    assert dictionary.get("other", "en") is None
-    assert dictionary.get("книга", "en") == "    book\n"
-    assert dictionary.get("письмо", "en") == "    letter\n"
 
 
 def test_lexicon() -> None:

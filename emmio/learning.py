@@ -3,7 +3,6 @@ The learning process.
 """
 import json
 import os
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -11,7 +10,7 @@ from typing import Dict, Any, List, Optional, Set
 
 from iso639 import languages
 
-from emmio.dictionary import SimpleDictionary
+from emmio.dictionary import Dictionary
 
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
@@ -117,7 +116,6 @@ class Learning:
         self.language = None
         self.subject = None
         self.check_lexicon = True
-        self.dictionaries = []
         self.name = "Unknown"
 
         if "ratio" in self.config:
@@ -130,12 +128,6 @@ class Learning:
             self.check_lexicon = self.config["check_lexicon"]
         if "name" in self.config:
             self.name = self.config["name"]
-
-        self.dictionaries = []
-        if "dictionaries" in self.config:
-            for dictionary_file_name in self.config["dictionaries"]:
-                self.dictionaries.append(SimpleDictionary(
-                    self.language, dictionary_file_name))
 
         for record_structure in log:
             record = Record.from_structure(record_structure)

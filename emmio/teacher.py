@@ -7,7 +7,7 @@ from typing import List, Tuple, Optional, Set
 from iso639 import languages
 from iso639.iso639 import _Language as Language
 
-from emmio.dictionary import SimpleDictionary, Dictionaries
+from emmio.dictionary import Dictionary, Dictionaries
 from emmio.frequency import FrequencyDataBase
 from emmio.language import symbols, decode_esperanto
 from emmio.learning import Learning, ResponseType
@@ -35,7 +35,7 @@ class Teacher:
         self.sentences_db = sentence_db
         self.frequency_db = frequency_db
         self.learning = learning
-        self.dictionaries: List[SimpleDictionary] = get_dictionaries(
+        self.dictionaries: List[Dictionary] = get_dictionaries(
             self.language_2.part1)
 
         self.lexicon = Lexicon(

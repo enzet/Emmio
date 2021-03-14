@@ -14,7 +14,7 @@ from emmio.lexicon import Lexicon
 from emmio.language import languages
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency import FrequencyList
-from emmio.dictionary import SimpleDictionary, Dictionary
+from emmio.dictionary import Dictionary
 from emmio.ui import set_log, Logger
 from emmio.text import Text
 
@@ -88,12 +88,6 @@ def lexicon(args: List[str]):
 
     parser.add_argument("-ff",
         dest="frequency_file_format")
-
-    parser.add_argument("-d", "--dictionary",
-        dest="dictionary_file_name")
-
-    parser.add_argument("-df",
-        dest="dictionary_file_format")
 
     parser.add_argument("--stop-at",
         dest="stop_at")
@@ -177,10 +171,6 @@ def lexicon(args: List[str]):
         stop_at = int(arguments.stop_at)
 
     dictionaries: List[Dictionary] = []
-    if arguments.dictionary_file_name:
-        dictionaries.append(SimpleDictionary(
-            arguments.language, arguments.dictionary_file_name,
-            arguments.dictionary_file_format))
 
     print("""
     <y> or <Enter>  I know at least one meaning of the word
