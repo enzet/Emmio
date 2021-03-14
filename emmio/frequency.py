@@ -6,8 +6,7 @@ from dataclasses import dataclass
 import yaml
 
 from typing import Dict, List, Tuple
-
-from emmio import ui
+from emmio.ui import log, progress_bar
 
 
 @dataclass
@@ -51,12 +50,12 @@ class FrequencyList:
 
         :param file_name: input YAML file name.
         """
-        ui.write("Reading YAML frequency list from " + file_name + "...")
+        log(f"Reading YAML frequency list from {file_name}...")
 
         try:
             self.read_list(file_name, ": ")
         except Exception:
-            structure = yaml.load(open(file_name, "r"))
+            structure = yaml.load(open(file_name))
 
             for word in structure:
                 self.data[word] = structure[word]
@@ -70,9 +69,9 @@ class FrequencyList:
 
         :param file_name: input JSON file name.
         """
-        ui.write("Reading JSON frequency list from " + file_name + "...")
+        log(f"Reading JSON frequency list from {file_name}...")
 
-        structure: List[(str, int)] = json.load(open(file_name, "r"))
+        structure: List[(str, int)] = json.load(open(file_name))
 
         for word, occurrences in structure:  # type: (str, int)
             self.data[word] = int(occurrences)
@@ -88,20 +87,20 @@ class FrequencyList:
         :param file_name: input text file name.
         :param delimiter: delimiter between word and its number of occurrences.
         """
-        ui.write("Reading frequency list from " + file_name + "...")
+        log(f"Reading frequency list from {file_name}...")
 
         lines = open(file_name).readlines()
         lines_number = len(lines)
         length = len(delimiter)
 
         for index, line in enumerate(lines):
-            ui.progress_bar(index, lines_number)
+            progress_bar(index, lines_number)
             position = line.find(delimiter)
             word = line[:position]
             occurrences = int(line[position + length:])
             self.data[word] = occurrences
             self.occurrences += occurrences
-        ui.progress_bar(-1, 0)
+        progress_bar(-1, 0)
 
         self.sort()
 
@@ -174,6 +173,15 @@ class FrequencyList:
         :return word, number of its occurrences in text
         """
         word = random.choice(list(self.data.keys()))
+        return word, self.data[word]
+
+    def get_word_by_occurrences(self, occurrences: int) -> (str, int):
+        for word in self.sorted_keys:
+            if self.data[word] > occurrences:
+                return word, self.data[word]
+
+    def get_word_by_index(self, index: int) -> (str, int):
+        word: str = self.sorted_keys[index]
         return word, self.data[word]
 
     def sort(self) -> None:

@@ -187,10 +187,13 @@ class Sentences:
             id_: int
             sentence: Sentence = self.sentence_db.get_sentence(
                 self.language_2, id_)
+            if len(sentence.text) > 120:
+                continue
             index = sentence.text.lower().find(word)
             assert index >= 0
             if str(id_) in self.links:
                 result.append(Translation(
                     sentence,
-                    [self.sentence_db.get_sentence(self.language_1, x) for x in self.links[str(id_)]]))
+                    [self.sentence_db.get_sentence(self.language_1, x)
+                     for x in self.links[str(id_)]]))
         return result

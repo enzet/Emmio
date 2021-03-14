@@ -10,7 +10,10 @@ from iso639 import languages
 from emmio.dictionary import Dictionary, Dictionaries
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
-from emmio.ui import get_char, one_button, write
+from emmio.ui import get_char, one_button, write, log
+
+
+DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
 
 class LexiconResponse(Enum):
@@ -102,7 +105,7 @@ class LogRecord:
 
         if isinstance(structure, list):
             date_string, word, response = structure  # type: (str, str, str)
-            date = datetime.strptime(date_string, "%Y.%m.%d %H:%M:%S")
+            date = datetime.strptime(date_string, DATE_FORMAT)
             return cls(date, [word], LexiconResponse(response))
         elif isinstance(structure, dict):
             answer_type: AnswerType = AnswerType.UNKNOWN
@@ -113,14 +116,14 @@ class LogRecord:
             else:  # "words" in structure
                 words = structure["words"]
             return cls(
-                datetime.strptime(structure["date"], "%Y.%m.%d %H:%M:%S"),
+                datetime.strptime(structure["date"], DATE_FORMAT),
                 words, LexiconResponse(structure["response"]), answer_type)
 
     def to_structure(self) -> Dict[str, Any]:
         """
         Serialize to structure.
         """
-        structure = {"date": self.date.strftime("%Y.%m.%d %H:%M:%S")}
+        structure = {"date": self.date.strftime(DATE_FORMAT)}
         if len(self.words) == 1:
             structure["word"] = self.words[0]
         else:
@@ -162,7 +165,7 @@ class Lexicon:
 
         # Read data from file.
 
-        write(f"Reading lexicon from {self.file_name}...")
+        log(f"Reading lexicon from {self.file_name}...")
 
         if not os.path.isfile(self.file_name):
             return
@@ -205,7 +208,7 @@ class Lexicon:
         Write lexicon to a JSON file using string writing. Should be faster than
         `write_json` but less accurate.
         """
-        write("Writing lexicon to " + self.file_name + "...")
+        log(f"Writing lexicon to {self.file_name}...")
 
         words_structure = {}
         for word in self.words:
@@ -215,10 +218,10 @@ class Lexicon:
             output.write("{\n")
 
             for key in sorted(self.logs):  # type: str
-                log: List[LogRecord] = self.logs[key]
+                log_records: List[LogRecord] = self.logs[key]
                 output.write('    "' + key + '": [\n')
-                log_length = len(log)
-                for index, record in enumerate(log):  # type: int, LogRecord
+                log_length = len(log_records)
+                for index, record in enumerate(log_records):
                     output.write('        ' + record.to_json_str())
                     output.write("\n" if index == log_length - 1 else ",\n")
                 output.write("    ],\n")
@@ -374,34 +377,21 @@ class Lexicon:
     def construct_precise(self, precision: int = 100) -> Dict[datetime, float]:
 
         result: Dict[datetime, float] = {}
-
-        left: int = 0
-        right: int = 0
-        knowns: int = 0
-        unknowns: int = 0
+        left, right, knowns = 0, 0, 0
 
         while right < len(self.dates) - 1:
-            date = self.dates[right]
-            if knowns + unknowns:
-                current_rate = unknowns / float(knowns + unknowns)
-            else:
-                current_rate = 0
-            if unknowns >= precision:
-                result[date] = rate(current_rate)
-
-                response = self.responses[left]
-                if response == 1:
-                    knowns -= 1
-                if response == 0:
-                    unknowns -= 1
-                left += 1
-
+            knowns += 1 if self.responses[right] else 0
             right += 1
-            response = self.responses[right]
-            if response == 1:
-                knowns += 1
-            if response == 0:
-                unknowns += 1
+            length: int = right - left
+
+            if length - knowns > precision:
+                knowns -= 1 if self.responses[left] else 0
+                left += 1
+                length: int = right - left
+
+            if length - knowns >= precision:
+                result[self.dates[right]] = rate(
+                    (length - knowns) / length if length else 0.0)
 
         return result
 
@@ -468,7 +458,7 @@ class Lexicon:
         """
         Ask user if the word is known.
         """
-        write("\n    " + word + "\n")
+        write(f"\n    {word}\n")
 
         if word_list:
             if word + "\n" in word_list:
@@ -484,7 +474,7 @@ class Lexicon:
             print("Last response was: " + self.get(word).get_message() + ".")
 
         translation = Dictionaries(
-            languages.get(part1="ru"), dictionaries).get_translation(word, True, [])
+            languages.get(part1="ru"), dictionaries).get_translation(word)
 
         if translation:
             one_button("Show translation")
@@ -493,14 +483,14 @@ class Lexicon:
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
         answer = get_char()
         while answer not in [
-                "y", "Y", "Enter", "n", "N", "b", "B", "s", "S", "-", "q", "Q",
+                "y", "Y", "\r", "n", "N", "b", "B", "s", "S", "-", "q", "Q",
                 "z"]:
             answer = get_char()
 
         response: LexiconResponse
         skip_in_future: Optional[bool] = None
 
-        if answer in ["y", "Y", "Enter"]:
+        if answer in ["y", "Y", "\r"]:
             response = LexiconResponse.KNOW
         elif answer in ["n", "N"]:
             response = LexiconResponse.DO_NOT_KNOW
@@ -532,6 +522,36 @@ class Lexicon:
 
         return skip_in_future, response, None
 
+    def binary_search(
+            self, frequency_list: FrequencyList,
+            dictionaries: List[Dictionary]):
+        left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
+        while True:
+            print(left_border, right_border)
+            index: int = int((left_border + right_border) / 2)
+            picked_word, occurrences = (
+                frequency_list.get_word_by_index(index))
+            print(occurrences)
+            to_skip, response, dictionary = self.ask(
+                picked_word, [], dictionaries, log_name="log_binary_search")
+            if not response:
+                break
+            if response == LexiconResponse.KNOW:
+                left_border = index
+            elif response == LexiconResponse.DO_NOT_KNOW:
+                right_border = index
+            else:
+                left_border += 2
+            dont = 0
+            print(f"index: {index}, len: {len(frequency_list)}")
+            for i in range(index, len(frequency_list) - 1):
+                _, occurrences = frequency_list.get_word_by_index(i)
+                dont += occurrences
+            print(f"dont: {dont}, all: {frequency_list.get_all_occurrences()}")
+            print(f"Rate: {rate(dont / frequency_list.get_all_occurrences())}")
+            self.write()
+
+
     def check(
             self, frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: List[Dictionary], log_type: str,
@@ -556,6 +576,7 @@ class Lexicon:
         actions: int = 0
         wrong_answers: int = 0
 
+        log_name: str
         if log_type == "frequency":
             log_name = "log"
         elif log_type == "random":
@@ -567,7 +588,7 @@ class Lexicon:
         if log_name not in self.logs:
             self.logs[log_name] = []
 
-        exit_code = "quit"
+        exit_code: str = "quit"
 
         while True:
             picked_word = None
@@ -586,7 +607,7 @@ class Lexicon:
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
                 wrong_answers += 1
-            #self.write()
+            # self.write()
 
             average: Optional[float] = self.get_average()
 

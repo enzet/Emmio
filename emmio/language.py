@@ -3,7 +3,11 @@ Emmio.
 
 Author: Sergey Vartanov (me@enzet.ru)
 """
+import re
 from typing import Dict
+
+from iso639.iso639 import _Language as ISOLanguage
+from iso639 import languages as iso_languages
 
 most_popular_words: Dict[str, str] = {
     "en": "the",
@@ -68,5 +72,10 @@ def decode_esperanto(text: str) -> str:
 
 
 class Language:
+    def __init__(self, code: str):
+        self.language: ISOLanguage = iso_languages.get(part1=code)
+
     def get_name(self):
         result: str = self.language.name
+        re.sub(" (.*)", "", result)
+        return result

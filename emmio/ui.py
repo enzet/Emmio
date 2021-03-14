@@ -41,7 +41,7 @@ def colorize(text: str, color: str):
         return text
 
 
-def get_char():
+def get_char() -> str:
     """
     Read character from user input.
     """
@@ -138,18 +138,26 @@ class Logger:
         pass
 
     def write(self, message: str, color: str = None) -> None:
+        """ Write text to the screen. """
         if color:
             print(colorize(message, color))
         else:
             print(message)
 
-    def error(self, message):
+    def log(self, message: str) -> None:
+        """ Write log message. """
+        write(f"Info: {str(message)}.")
+
+    def error(self, message) -> None:
+        """ Write error message. """
         write(f"Error: {str(message)}.", "red")
 
-    def warning(self, message):
+    def warning(self, message) -> None:
+        """ Write warning. """
         write(f"Warning: {str(message)}.", "yellow")
 
-    def network(self, message):
+    def network(self, message) -> None:
+        """ Write network operation message. """
         write(f"Network: {str(message)}.", "blue")
 
     def progress_bar(
@@ -169,43 +177,17 @@ class Logger:
             sys.stdout.write("\033[F")
 
 
-class VerboseLogger(Logger):
-    """
-    Log that writes all messages.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-    def write(self, message: str, color: str = None) -> None:
-        super().write(message, color)
-
-    def error(self, message: str) -> None:
-        super().error(message)
-
-    def warning(self, message: str) -> None:
-        super().warning(message)
-
-    def network(self, message: str) -> None:
-        super().network(message)
-
-    def progress_bar(
-            self, number: int, total: int, length: int = 20,
-            step: int = 1000) -> None:
-
-        super().progress_bar(number, total, length, step)
-
-
 class SilentLogger(Logger):
-    """
-    Log that does nothing.
-    """
+    """ Log that write normal messages and network operation messages. """
 
     def __init__(self):
         super().__init__()
 
     def write(self, message: str, color: str = None) -> None:
         super().write(message, color)
+
+    def log(self, message: str) -> None:
+        pass
 
     def error(self, message: str) -> None:
         pass
@@ -222,23 +204,37 @@ class SilentLogger(Logger):
         pass
 
 
-log = SilentLogger()
+logger = SilentLogger()
 
 
 def write(message: str, color: str = None) -> None:
-    """
-    Write message.
-    """
-    log.write(message, color)
+    """ Write message. """
+    logger.write(message, color)
+
+
+def log(message: str) -> None:
+    logger.log(message)
+
+
+def network(message: str) -> None:
+    logger.network(message)
+
+
+def warning(message: str) -> None:
+    logger.warning(message)
+
+
+def error(message: str) -> None:
+    logger.error(message)
 
 
 def progress_bar(number, total, length: int = 20, step: int = 1000) -> None:
-    log.progress_bar(number, total, length, step)
+    logger.progress_bar(number, total, length, step)
 
 
 def set_log(class_):
-    global log
-    log = class_()
+    global logger
+    logger = class_()
 
 
 def get_terminal_size() -> (int, int):

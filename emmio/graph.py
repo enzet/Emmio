@@ -9,6 +9,7 @@ import matplotlib.dates as mdates
 import matplotlib.transforms as mtransforms
 
 from emmio.learning import Record, Knowledge, ResponseType
+from emmio.lexicon import Lexicon
 
 colors = [
     "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
@@ -63,8 +64,9 @@ class Visualizer:
         knowledges = {}
 
         def idn(record: Record):
-            return f"{knowledges[record.question_id].get_depth()}," \
-                   f"{knowledges[record.question_id].get_answers_number()}"
+            return (
+                f"{knowledges[record.question_id].get_depth()},"
+                f"{knowledges[record.question_id].get_answers_number()}")
 
         count = 0
 
@@ -134,17 +136,22 @@ class Visualizer:
         plt.show()
 
     def actions(self, records: List[Record]):
-        x = []
-        count: int = 0
+        x, y = [], []
+        count_learning: int = 0
         for record in records:  # type: Record
-            count += 1
+            if record.is_learning():
+                count_learning += 1
             x.append(record.time)
-        plt.plot(sorted(x), range(len(x)), color="black", linewidth=1)
+            y.append(count_learning)
+        plt.plot(x, range(len(x)), color="grey", linewidth=1)
+        plt.plot(x, y, color="black", linewidth=1)
         plt.show()
 
     def cumulative_actions(self, records: List[Record]):
         data = {}
         for record in records:  # type: Record
+            if not record.is_learning():
+                continue
             time = datetime(
                 day=record.time.day, month=record.time.month,
                 year=record.time.year)
@@ -214,7 +221,15 @@ class Visualizer:
         plt.show()
 
     @staticmethod
-    def graph_lexicon(lexicons: List, show_text: bool = False):
+    def graph_lexicon(
+            lexicons: List, show_text: bool = False, margin: float = 0.0):
+        """
+        Plot lexicon rate change through time.
+
+        :param lexicons: list of lexicons
+        :param show_text: show labels on the current rate
+        :param margin: do not show languages that never had rate over the margin
+        """
         from matplotlib import pyplot as plt
         import matplotlib.dates as mdates
 
@@ -223,19 +238,23 @@ class Visualizer:
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(
             mdates.ConciseDateFormatter(locator))
-        for lexicon in lexicons:
+
+        for lexicon in lexicons:  # type: Lexicon
             stat = lexicon.construct_precise()
+            if max(stat.values()) < margin:
+                continue
             language_name = languages.get(part1=lexicon.language).name
             plt.plot(
-                stat.keys(), stat.values(),
-                label=language_name, linewidth=1)
+                stat.keys(), stat.values(), "o", markersize=0.5,
+                label=language_name, linewidth=1, alpha=0.1)
             trans_offset = mtransforms.offset_copy(
                 ax.transData, fig=fig, x=0.1, y=0)
             if show_text:
                 plt.text(
                     list(stat.keys())[-1], list(stat.values())[-1],
                     language_name, transform=trans_offset)
+
         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-        plt.ylim(ymin=0)
+        plt.ylim(ymin=margin)
         plt.tight_layout()
         plt.show()

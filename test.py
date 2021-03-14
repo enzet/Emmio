@@ -1,7 +1,10 @@
 from emmio.dictionary import SimpleDictionary
+from emmio.learning import Learning
 from emmio.lexicon import Lexicon, LexiconResponse
+from emmio.sentence import SentenceDataBase
+from emmio.teacher import Teacher
 from emmio.text import Text
-from emmio.frequency import FrequencyList
+from emmio.frequency import FrequencyList, FrequencyDataBase
 
 
 def check(lexicon: Lexicon) -> None:
@@ -45,3 +48,9 @@ def test_text() -> None:
     assert frequency_list.get_occurrences("the") == 2
     assert frequency_list.get_occurrences("s") == 2
     assert len(frequency_list) == 9
+
+
+def test_teacher() -> None:
+    learning = Learning("test/learning.json", "test_course")
+    sentence_db = SentenceDataBase("test/sentence.db")
+    frequency_db = FrequencyDataBase("test/frequency.db")

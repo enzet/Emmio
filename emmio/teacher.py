@@ -9,7 +9,6 @@ from iso639.iso639 import _Language as Language
 
 from emmio.dictionary import SimpleDictionary, Dictionaries
 from emmio.frequency import FrequencyDataBase
-from emmio.graph import Visualizer
 from emmio.language import symbols, decode_esperanto
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse
@@ -25,7 +24,13 @@ class Teacher:
             get_dictionaries=None):
 
         self.language_1: Language = learning.language
-        self.language_2: Language = languages.get(part1=learning.subject)
+
+        self.language_2: Language
+        try:
+            self.language_2 = languages.get(part1=learning.subject)
+        except KeyError:
+            self.language_2 = None
+
         self.max_for_day = learning.ratio
         self.sentences_db = sentence_db
         self.frequency_db = frequency_db
@@ -92,18 +97,21 @@ class Teacher:
             has_repeat: bool = False
             word = self.learning.get_next(self.skip)
             if word:
-                proceed: bool = self.learn(
+                code: str = self.learn(
                     word, self.learning.knowledges[word].interval, 0)
-                self.learning.write()
+                if code == "bad question":
+                    self.skip.add(word)
+                else:
+                    self.learning.write()
                 has_repeat = True
-                if not proceed:
+                if code == "stop":
                     return False
             if not has_repeat:
                 break
 
         return True
 
-    def learn(self, word: str, interval: timedelta, word_index: int) -> bool:
+    def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
         ids_to_skip: Set[int] = set()
         if word in self.exclude_sentences:
@@ -112,7 +120,7 @@ class Teacher:
         translations: List[Translation] = self.sentences.filter_(
             word, ids_to_skip)
         if not translations:
-            return True
+            return "bad question"
 
         if interval.total_seconds() == 0:
             translations = sorted(
@@ -179,8 +187,6 @@ class Teacher:
 
         print_sentence()
 
-        visualizer = Visualizer()
-
         while True:
             answer: str = get_word(word, self.language_2)
             if self.language_2 == languages.get(part1="eo"):
@@ -200,12 +206,12 @@ class Teacher:
                             word, timedelta())
                         break
                     new_answer = input(">>> ")
-                return True
+                return "ok"
             if answer in ["s", "/skip"]:
                 self.skip.add(word)
-                return True
+                return "ok"
             if answer == "/stop":
-                return False
+                return "stop"
             if answer.startswith("/b"):
                 if answer == "/bs":
                     if word not in self.exclude_sentences:
@@ -214,14 +220,25 @@ class Teacher:
                         translations[index].sentence.id_)
                     with open("exclude_sentences.json", "w+") as output_file:
                         json.dump(self.exclude_sentences, output_file)
+                    self.skip.add(word)
+                    return "ok"
                 elif answer.startswith("/bt "):
                     if word not in self.exclude_translations:
                         self.exclude_translations[word] = []
-                    self.exclude_translations[word].append(answer[4:])
+                    _, t = answer.split(" ")
+                    self.exclude_translations[word].append(t)
                     with open("exclude_translations.json", "w+") as output_file:
                         json.dump(self.exclude_translations, output_file)
-                self.skip.add(word)
-                return True
+                    self.skip.add(word)
+                    return "ok"
+                elif answer.startswith("/btt "):
+                    _, w, t = answer.split(" ")
+                    if w not in self.exclude_translations:
+                        self.exclude_translations[w] = []
+                    self.exclude_translations[w].append(t)
+                    with open("exclude_translations.json", "w+") as output_file:
+                        json.dump(self.exclude_translations, output_file)
+                    continue
             if answer == "n":
                 print(box(word))
                 translation = dictionaries.get_translation(word)
@@ -236,9 +253,7 @@ class Teacher:
                     self.learning.register(
                         ResponseType.SKIP, translations[index].sentence.id_,
                         word, timedelta())
-                return True
-            visualizer.process_command(
-                answer, self.learning.records, self.learning.knowledges)
+                return "ok"
             if answer == "":
                 index += 1
                 if index >= len(translations):

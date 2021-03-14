@@ -10,36 +10,45 @@ import yaml
 from typing import Dict, List, Optional, Set
 
 from emmio.language import symbols
-from emmio.ui import log, colorize
+from emmio.ui import error, colorize
 
 
 class Form:
     """
     Word form: noun, verb, etc.
     """
-    def __init__(self, type_: str):
-        self.part_of_speech: str = type_
-        self.gender: Optional[str] = None
+    def __init__(self, part_of_speech: str):
+        self.part_of_speech: str = part_of_speech
         self.transcriptions: Set[str] = set()
         self.translations: Dict[str, Set] = {}
         self.links: List[(str, str)] = []
 
+        # Optional characteristics.
+        self.gender: Optional[str] = None
         self.verb_group: Optional[int] = None
         self.is_singular: Optional[bool] = None
 
     def add_transcription(self, transcription: str) -> None:
+        """ Add word form IPA transcription. """
         self.transcriptions.add(transcription)
 
-    def add_translations(self, translations: Set[str], language: str) -> None:
+    def add_translations(self, translations: List[str], language: str) -> None:
+        """
+        Add word translations.  It is assumed that translations are sorted by
+        usage frequency.
+
+        :param language: language of translations
+        :param translations: list of translations
+        """
         if language not in self.translations:
-            self.translations[language] = set()
-        self.translations[language] = (
-            self.translations[language].union(translations))
+            self.translations[language] = []
+        self.translations[language] += translations
 
     def add_link(self, link_type: str, link: str) -> None:
         self.links.append((link_type, link))
 
     def set_gender(self, gender: str) -> None:
+        """ Set gender of the form if has any. """
         self.gender = gender
 
     def set_verb_group(self, verb_group: int) -> None:
@@ -147,13 +156,13 @@ class Dictionary:
         """
         Get word definition.
         """
-        pass
+        raise NotImplementedError()
 
     def get_name(self) -> str:
         """
         Get dictionary name.
         """
-        pass
+        raise NotImplementedError()
 
 
 class SimpleDictionary(Dictionary):
@@ -228,7 +237,7 @@ class SimpleDictionary(Dictionary):
                             answer = element[1]
                         self.dictionary[question] = answer
                     else:
-                        log.error(
+                        error(
                             f"unknown YAML dictionary element format: "
                             f"{element}")
             elif isinstance(structure, dict):
@@ -236,7 +245,7 @@ class SimpleDictionary(Dictionary):
                     answer = structure[question]
                     self.dictionary[question] = answer
         else:
-            log.error(f"unknown dictionary format: {file_format}")
+            error(f"unknown dictionary format: {file_format}")
 
     def to_structure(self) -> Dict[str, str]:
         return self.dictionary
@@ -315,7 +324,7 @@ class Dictionaries:
 
     def get_translation(
             self, word: str, show_word: bool = True,
-            translations_to_hide: Set[str] = None):
+            translations_to_hide: Set[str] = None) -> str:
         """
         Get word definition from the first dictionary.
         """

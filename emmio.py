@@ -15,7 +15,7 @@ from emmio.language import languages
 from emmio.util import first_day_of_week, first_day_of_month, plus_month
 from emmio.frequency import FrequencyList
 from emmio.dictionary import SimpleDictionary, Dictionary
-from emmio.ui import set_log, VerboseLogger
+from emmio.ui import set_log, Logger
 from emmio.text import Text
 
 
@@ -241,15 +241,15 @@ if __name__ == "__main__":
 
     if command == "teacher":
         print("\nEmmio. Teacher.\n")
-        set_log(VerboseLogger)
+        set_log(Logger)
         teacher(sys.argv[2:])
     elif command == "lexicon":
         print("\nEmmio. Lexicon.\n")
-        set_log(VerboseLogger)
+        set_log(Logger)
         lexicon(sys.argv[2:])
     elif command == "text":
         print("\nEmmio. Text\n")
-        set_log(VerboseLogger)
+        set_log(Logger)
         do_text(sys.argv[2:])
     else:
         print(f"Unknown command: {command}.")
