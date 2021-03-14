@@ -195,7 +195,7 @@ class Dictionaries:
         self.dictionaries.append(dictionary)
 
     def get_translation(
-            self, word: str, show_word: bool = True,
+            self, word: str, show_word: bool = True, use_colors: bool = True,
             translations_to_hide: Set[str] = None) -> str:
         """
         Get word definition from the first dictionary.
@@ -208,17 +208,18 @@ class Dictionaries:
             if item:
                 s = "\n"
                 s += item.to_str(
-                    self.language.part1, show_word, True, translations_to_hide) + "\n"
+                    self.language.part1, show_word, use_colors,
+                    translations_to_hide) + "\n"
                 s += "\n"
                 links = set()
                 for definition in item.definitions:
                     links |= set([x[1] for x in definition.links])
                 for link in links:  # type: str
-                    text = dictionary.get(
-                        link, self.language.part1, show_word,
-                        use_colors=True,
-                        hide_translations=translations_to_hide)
-                    if text:
+                    link_item: DictionaryItem = dictionary.get_item(link)
+                    if link_item:
+                        text = link_item.to_str(
+                            self.language.part1, show_word, use_colors,
+                            translations_to_hide)
                         s += link + "\n" if show_word else "-->\n"
                         s += (text + "\n")
                         s += "\n"

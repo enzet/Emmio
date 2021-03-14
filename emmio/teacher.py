@@ -181,7 +181,7 @@ class Teacher:
         if word in self.exclude_translations:
             exclude_translations = self.exclude_translations[word]
         translation = dictionaries.get_translation(
-            word, False, exclude_translations)
+            word, False, translations_to_hide=exclude_translations)
         if translation:
             print(translation)
 
