@@ -8,6 +8,7 @@ import os
 import sys
 import termios
 import tty
+from typing import Set
 
 from iso639 import languages
 
@@ -81,12 +82,12 @@ def show(words, status=None, color=None, is_center=False):
     sys.stdout.write(s)
 
 
-ENTER = 13
-ESCAPE = 27
-BACKSPACE = 127
+ENTER: int = 13
+ESCAPE: int = 27
+BACKSPACE: int = 127
 
 
-def get_word(right_word: str, language) -> str:
+def get_word(right_word: str, alternative_forms: Set[str], language) -> str:
 
     sys.stdout.write(len(right_word) * "_")
     sys.stdout.write("\r")
@@ -94,8 +95,11 @@ def get_word(right_word: str, language) -> str:
 
     word: str = ""
 
+    def is_right(word: str) -> bool:
+        return word == right_word
+
     while True:
-        char = get_char()
+        char: str = get_char()
 
         if ord(char) == BACKSPACE:
             word = word[:-1]
@@ -116,14 +120,16 @@ def get_word(right_word: str, language) -> str:
 
         sys.stdout.write(word + (len(right_word) - len(word)) * "_")
         sys.stdout.write("\r")
-        if word == right_word:
+        if is_right(word):
             sys.stdout.write("\033[32m")
+        if word in alternative_forms:
+            sys.stdout.write("\033[33m")
         sys.stdout.write(word)
-        if word == right_word:
+        if is_right(word) or word in alternative_forms:
             sys.stdout.write("\033[0m")
         sys.stdout.flush()
 
-        if word == right_word:
+        if is_right(word):
             sys.stdout.write("\n")
             return word
 

@@ -70,10 +70,10 @@ class Teacher:
         while True:
             word: Optional[str] = self.learning.get_next(self.skip)
             if word:
-                proceed: bool = self.learn(
+                code: str = self.learn(
                     word, self.learning.knowledges[word].interval, 0)
                 self.learning.write()
-                if not proceed:
+                if code == "stop":
                     return False
             else:
                 if self.learning.new_today() >= self.max_for_day:
@@ -82,9 +82,9 @@ class Teacher:
                 for index, word in self.words:
                     if not self.learning.has(word) and word not in self.skip:
                         has_new_word = True
-                        proceed: bool = self.learn(word, timedelta(), index)
+                        code: str = self.learn(word, timedelta(), index)
                         self.learning.write()
-                        if not proceed:
+                        if code == "stop":
                             return False
                         break
                 if not has_new_word:
@@ -128,7 +128,7 @@ class Teacher:
         else:
             random.shuffle(translations)
 
-        dictionaries = Dictionaries(self.language_1, self.dictionaries)
+        dictionaries = Dictionaries(self.dictionaries)
 
         def print_sentence(show_index: bool = False, max_translations: int = 3):
             """
@@ -177,27 +177,36 @@ class Teacher:
             f"to repeat: {self.learning.to_repeat()}")
         print(s)
 
+        alternative_forms: Set[str] = set()
         exclude_translations: Set[str] = set()
+
         if word in self.exclude_translations:
             exclude_translations = self.exclude_translations[word]
-        translation = dictionaries.get_translation(
-            word, False, translations_to_hide=exclude_translations)
-        if translation:
-            print(translation)
+        items = dictionaries.get_items(word)
+        if items:
+            print("\n".join(map(lambda x: x.to_str(
+                self.language_1.part1, False,
+                hide_translations=exclude_translations), items)))
+            alternative_forms: Set[str] = items[0].get_links()
+        else:
+            print("No translations.")
 
         print_sentence()
 
         while True:
-            answer: str = get_word(word, self.language_2)
+            answer: str = get_word(word, alternative_forms, self.language_2)
+
+            # Preprocess answer.
             if self.language_2 == languages.get(part1="eo"):
                 answer = decode_esperanto(answer)
+
             if answer == word:
                 self.learning.register(
                     ResponseType.RIGHT, translations[index].sentence.id_, word,
                     interval * 2)
-                translation = dictionaries.get_translation(word)
-                if translation:
-                    print(translation)
+                if items:
+                    print("\n".join(
+                        map(lambda x: x.to_str(self.language_1.part1), items)))
                 new_answer = input(">>> ")
                 while new_answer:
                     if new_answer == "s":
@@ -207,6 +216,7 @@ class Teacher:
                         break
                     new_answer = input(">>> ")
                 return "ok"
+
             if answer in ["s", "/skip"]:
                 self.skip.add(word)
                 return "ok"
@@ -241,9 +251,9 @@ class Teacher:
                     continue
             if answer == "n":
                 print(box(word))
-                translation = dictionaries.get_translation(word)
-                if translation:
-                    print(translation)
+                if items:
+                    print("\n".join(
+                        map(lambda x: x.to_str(self.language_1.part1), items)))
                 new_answer = input("Learn word? ")
                 if not new_answer:
                     self.learning.register(

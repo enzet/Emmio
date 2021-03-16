@@ -2,5 +2,6 @@
 __pycache__
 *.pyc
 cache
-output
+out
 venv
+test

@@ -15,10 +15,12 @@ class Form:
     """
     Word form: noun, verb, etc.
     """
-    def __init__(self, part_of_speech: str):
+    def __init__(self, word: str, part_of_speech: str):
+        self.word: str = word
+
         self.part_of_speech: str = part_of_speech
         self.transcriptions: Set[str] = set()
-        self.translations: Dict[str, Set] = {}
+        self.translations: Dict[str, List[str]] = {}
         self.links: List[(str, str)] = []
 
         # Optional characteristics.
@@ -31,16 +33,21 @@ class Form:
         self.transcriptions.add(transcription)
 
     def add_translations(self, translations: List[str], language: str) -> None:
+        """ Add word translations. """
+        for translation in translations:  # type: str
+            self.add_translation(translation, language)
+
+    def add_translation(self, translation: str, language: str) -> None:
         """
-        Add word translations.  It is assumed that translations are sorted by
+        Add word translation.  It is assumed that translations are sorted by
         usage frequency.
 
-        :param language: language of translations
-        :param translations: list of translations
+        :param language: language of translation
+        :param translation: word translation
         """
         if language not in self.translations:
             self.translations[language] = []
-        self.translations[language] += translations
+        self.translations[language].append(translation)
 
     def add_link(self, link_type: str, link: str) -> None:
         self.links.append((link_type, link))
@@ -52,32 +59,51 @@ class Form:
     def set_verb_group(self, verb_group: int) -> None:
         self.verb_group = verb_group
 
-    def to_dict(self) -> str:
-        result = f"  {self.part_of_speech}\n"
-        if self.transcriptions or self.gender:
-            result += "    "
-        if self.transcriptions:
-            result += ", ".join(
-                map(lambda x: f"[{x}]", sorted(self.transcriptions)))
-        if self.gender:
-            result += self.gender
-        if self.verb_group:
-            result += f" {self.verb_group!s} group"
-        if self.is_singular is not None:
-            if self.is_singular:
-                result += " sing."
-            else:
-                result += " plur."
-        if self.transcriptions or self.gender:
-            result += "\n"
+    def to_str(
+            self, language: str, show_word: bool = True,
+            use_colors: bool = True, hide_translations: Set[str] = None) -> str:
+        """
+        Get human-readable representation of the word form.
+        """
+        result: str = ""
+
+        desc = self.part_of_speech
+        if show_word and self.transcriptions:
+            desc += " " + ", ".join(map(
+                lambda x: f"/{x}/", self.transcriptions))
+
+        if self.translations and language in self.translations:
+            translation_words = self.translations[language]
+            translation_words = list(filter(
+                lambda x:
+                (not hide_translations or
+                 x.lower() not in hide_translations) and
+                x.lower() != self.word.lower(),
+                translation_words))
+            if not show_word:
+                translation_words = map(
+                    lambda x: x.replace(self.word, "_" * len(self.word)),
+                    translation_words)
+                translation_words = map(
+                    lambda x: re.sub(
+                        " of [^ ]*", " of ?", re.sub("\\([^)]*\\)", "--", x)),
+                    translation_words)
+                translation_words = list(translation_words)
+            if translation_words:
+                delimiter = (
+                    "; " if max(map(len, translation_words)) < 25
+                    else "\n    ")
+                result += colorize(desc, "grey") if use_colors else desc
+                result += "\n    " + delimiter.join(translation_words) + "\n"
+
         if self.links:
-            result += "    -> " + ", ".join(
-                map(lambda x: "(" + x[0] + ") " + x[1], self.links)) + "\n"
-        for language in self.translations:  # type: str
-            if self.translations[language]:
-                result += (
-                    f"    [{language}]" +
-                    ", ".join(sorted(self.translations[language])) + "\n")
+            for link_type, link in self.links:
+                result += colorize(desc, "grey") if use_colors else desc
+                if show_word:
+                    result += f"\n    -> {link_type} of {link}\n"
+                else:
+                    result += f"\n    -> {link_type}\n"
+
         return result
 
 
@@ -93,10 +119,16 @@ class DictionaryItem:
         """ Add word form to dictionary item. """
         self.definitions.append(form)
 
+    def get_links(self) -> Set[str]:
+        result: Set[str] = set()
+        for definition in self.definitions:
+            for _, link in definition.links:
+                result.add(link)
+        return result
+
     def to_str(
             self, language: str, show_word: bool = True,
-            use_colors: bool = False,
-            hide_translations: Set[str] = None) -> str:
+            use_colors: bool = True, hide_translations: Set[str] = None) -> str:
         """
         Get human-readable representation of the dictionary item.
 
@@ -110,35 +142,8 @@ class DictionaryItem:
         result: str = ""
 
         for definition in self.definitions:  # type: Form
-            desc = definition.part_of_speech
-            if show_word and definition.transcriptions:
-                desc += " " + ", ".join(map(
-                    lambda x: f"/{x}/", definition.transcriptions))
-            if definition.translations and language in definition.translations:
-                translation_words = definition.translations[language]
-                translation_words = set(filter(
-                    lambda x:
-                        (not hide_translations or
-                         x.lower() not in hide_translations) and
-                        x.lower() != self.word.lower(),
-                    translation_words))
-                if not show_word:
-                    translation_words = map(
-                        lambda x: x.replace(self.word, "_" * len(self.word)),
-                        translation_words)
-                    translation_words = map(
-                        lambda x:
-                            re.sub(" of [^ ]*", " of ?",
-                            re.sub("\\([^)]*\\)", "--", x)),
-                        translation_words)
-                    translation_words = list(translation_words)
-                if translation_words:
-                    delimiter = (
-                        "; " if max(map(len, translation_words)) < 25
-                        else "\n    ")
-                    result += colorize(desc, "grey") if use_colors else desc
-                    result += (
-                        "\n    " + delimiter.join(translation_words) + "\n")
+            result += definition.to_str(
+                language, show_word, use_colors, hide_translations)
 
         return result
 
@@ -149,35 +154,30 @@ class Dictionary:
         self.__items: Dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
+        """ Add word definition. """
         self.__items[word] = item
 
-    def get_item(self, word: str) -> DictionaryItem:
-        return self.__items[word]
+    def get_item(self, word: str) -> Optional[DictionaryItem]:
+        """ Get word definition. """
+        if word in self.__items:
+            return self.__items[word]
 
     def get_forms(self) -> Dict[str, Set[str]]:
         result: Dict[str, Set[str]] = {}
-        for w in self.__items:  # type: str
-            item = self.__items[w]
-            for form_type in item.definitions:
-                if form_type.startswith("form of "):
-                    form = item.definitions[form_type]
-                    for link_type, link in form.links:
-                        if link not in result:
-                            result[link] = set()
-                        result[link].add(w)
-
-        for key in result:  # type: str
-            result[key] = list(result[key])
+        for word in self.__items:  # type: str
+            item = self.__items[word]
+            for form in item.definitions:
+                for link_type, link in form.links:
+                    if link not in result:
+                        result[link] = set()
+                    result[link].add(word)
 
         return result
 
 
 class Dictionaries:
     """ A set of dictionaries for a language. """
-    def __init__(
-            self, language: Language, dictionaries: List[Dictionary] = None):
-
-        self.language: Language = language
+    def __init__(self, dictionaries: List[Dictionary] = None):
 
         self.dictionaries: List[Dictionary]
         if dictionaries is None:
@@ -194,33 +194,21 @@ class Dictionaries:
         """
         self.dictionaries.append(dictionary)
 
-    def get_translation(
-            self, word: str, show_word: bool = True, use_colors: bool = True,
-            translations_to_hide: Set[str] = None) -> str:
+    def get_items(self, word: str) -> List[DictionaryItem]:
         """
         Get word definition from the first dictionary.
         """
-        if translations_to_hide is None:
-            translations_to_hide = set()
+        items: List[DictionaryItem] = []
 
         for dictionary in self.dictionaries:  # type: Dictionary
             item: DictionaryItem = dictionary.get_item(word)
             if item:
-                s = "\n"
-                s += item.to_str(
-                    self.language.part1, show_word, use_colors,
-                    translations_to_hide) + "\n"
-                s += "\n"
+                items.append(item)
                 links = set()
                 for definition in item.definitions:
                     links |= set([x[1] for x in definition.links])
                 for link in links:  # type: str
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
-                        text = link_item.to_str(
-                            self.language.part1, show_word, use_colors,
-                            translations_to_hide)
-                        s += link + "\n" if show_word else "-->\n"
-                        s += (text + "\n")
-                        s += "\n"
-                return s
+                        items.append(link_item)
+                return items

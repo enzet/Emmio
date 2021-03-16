@@ -71,11 +71,11 @@ class Visualizer:
         count = 0
 
         for index, record in enumerate(records):  # type: (int, Record)
-            if record.interval.total_seconds() == 0:
-                continue
             if record.question_id in knowledges:
                 data[idn(record)] -= 1
                 # / (2 ** knowledges[record.question_id].get_depth())
+            if not record.is_learning():
+                continue
             last_answers = (
                 knowledges[record.question_id].responses
                 if record.question_id in knowledges else [])
@@ -108,7 +108,8 @@ class Visualizer:
             depth, returns = map(lambda z: int(z) * 1, i.split(","))
             number = max(0, 255 - returns * 0 - depth * 10)
             # color =
-            # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}{hex(number)[2:]:>02}"
+            # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}
+            # {hex(number)[2:]:>02}"
             color = colors[depth + 1]
             plt.fill_between(
                 x, [0] * (len(x) - len(y[i])) + y[i],
@@ -245,8 +246,10 @@ class Visualizer:
                 continue
             language_name = languages.get(part1=lexicon.language).name
             plt.plot(
-                stat.keys(), stat.values(), "o", markersize=0.5,
-                label=language_name, linewidth=1, alpha=0.1)
+                stat.keys(), stat.values(), label=language_name, linewidth=1)
+            # plt.plot(
+            #     stat.keys(), stat.values(), "o", markersize=0.5,
+            #     linewidth=1, alpha=0.1, color="black")
             trans_offset = mtransforms.offset_copy(
                 ax.transData, fig=fig, x=0.1, y=0)
             if show_text:

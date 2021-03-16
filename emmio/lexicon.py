@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Iterator
 from iso639 import languages
 
-from emmio.dictionary import Dictionary, Dictionaries
+from emmio.dictionary import Dictionary, Dictionaries, DictionaryItem
 from emmio.frequency import FrequencyList
 from emmio.language import symbols
 from emmio.ui import get_char, one_button, write, log
@@ -473,12 +473,11 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        translation = Dictionaries(
-            languages.get(part1="ru"), dictionaries).get_translation(word)
+        items: List[DictionaryItem] = Dictionaries(dictionaries).get_items(word)
 
-        if translation:
+        if items:
             one_button("Show translation")
-            print(translation)
+            print("\n".join(map(lambda x: x.to_str("ru"), items)))
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
         answer = get_char()
