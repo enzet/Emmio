@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Set
 
 from datetime import datetime, timedelta
 
+import matplotlib
 from iso639 import languages
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
@@ -10,6 +11,7 @@ import matplotlib.transforms as mtransforms
 
 from emmio.learning import Record, Knowledge, ResponseType
 from emmio.lexicon import Lexicon
+from emmio.util import year_start, year_end, first_day_of_month, plus_month, first_day_of_week
 
 colors = [
     "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
@@ -223,33 +225,45 @@ class Visualizer:
 
     @staticmethod
     def graph_lexicon(
-            lexicons: List, show_text: bool = False, margin: float = 0.0):
+            lexicons: List, show_text: bool = False, margin: float = 0.0,
+            plot_precise_values: bool = False, precision: int = 100):
         """
         Plot lexicon rate change through time.
 
         :param lexicons: list of lexicons
         :param show_text: show labels on the current rate
         :param margin: do not show languages that never had rate over the margin
+        :param plot_precise_values: plot marker for each user response
         """
         from matplotlib import pyplot as plt
         import matplotlib.dates as mdates
 
+        font = {"size": 8}
+        matplotlib.rc("font", **font)
+
         fig, ax = plt.subplots()
-        locator = mdates.AutoDateLocator()
+        locator = mdates.YearLocator()
         ax.xaxis.set_major_locator(locator)
-        ax.xaxis.set_major_formatter(
-            mdates.ConciseDateFormatter(locator))
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+        x_min, x_max = None, None
 
         for lexicon in lexicons:  # type: Lexicon
-            stat = lexicon.construct_precise()
-            if max(stat.values()) < margin:
+            stat = lexicon.construct_precise(precision)
+
+            if not stat or max(stat.values()) < margin:
                 continue
-            language_name = languages.get(part1=lexicon.language).name
-            plt.plot(
-                stat.keys(), stat.values(), label=language_name, linewidth=1)
-            # plt.plot(
-            #     stat.keys(), stat.values(), "o", markersize=0.5,
-            #     linewidth=1, alpha=0.1, color="black")
+
+            x_min = min(x_min, min(stat.keys())) if x_min else min(stat.keys())
+            x_max = max(x_max, max(stat.keys())) if x_max else max(stat.keys())
+
+            language_name: str = lexicon.language.get_name()
+
+            if plot_precise_values:
+                plt.plot(
+                    stat.keys(), stat.values(), "o", alpha=0.01,
+                    markersize=0.5, color=lexicon.language.get_color())
+
             trans_offset = mtransforms.offset_copy(
                 ax.transData, fig=fig, x=0.1, y=0)
             if show_text:
@@ -257,7 +271,26 @@ class Visualizer:
                     list(stat.keys())[-1], list(stat.values())[-1],
                     language_name, transform=trans_offset)
 
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+            xs: List[datetime] = []
+            ys: List[float] = []
+            last: Optional[float] = None
+
+            point = first_day_of_week(min(stat.keys()))
+            for p in sorted(stat.keys()):
+                while p > point:
+                    if last is not None:
+                        xs.append(point)
+                        ys.append(last)
+                    xs.append(point)
+                    ys.append(stat[p])
+                    last = stat[p]
+                    point += timedelta(days=7)
+            plt.plot(
+                xs, ys, color=lexicon.language.get_color(),
+                linewidth=1, label=language_name)
+
+        plt.legend(bbox_to_anchor=(1.05, 0.5), loc="center left", frameon=False)
         plt.ylim(ymin=margin)
+        plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
         plt.tight_layout()
         plt.show()

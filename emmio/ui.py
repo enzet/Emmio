@@ -249,7 +249,6 @@ def get_terminal_size() -> (int, int):
 
     :return: height (lines), width (symbols)
     """
-
     def ioctl_GWINSZ(fd):
         try:
             import fcntl, termios, struct, os

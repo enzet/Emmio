@@ -5,11 +5,10 @@ import os
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Iterator
-from iso639 import languages
 
 from emmio.dictionary import Dictionary, Dictionaries, DictionaryItem
 from emmio.frequency import FrequencyList
-from emmio.language import symbols
+from emmio.language import Language
 from emmio.ui import get_char, one_button, write, log
 
 
@@ -150,7 +149,7 @@ class Lexicon:
     """
     def __init__(self, language: str, file_name: str):
 
-        self.language: str = language
+        self.language: Language = Language(language)
         self.file_name: str = file_name
 
         self.words: Dict[str, WordKnowledge] = {}
@@ -165,7 +164,7 @@ class Lexicon:
 
         # Read data from file.
 
-        log(f"Reading lexicon from {self.file_name}...")
+        log(f"reading lexicon from {self.file_name}")
 
         if not os.path.isfile(self.file_name):
             return
@@ -689,9 +688,9 @@ class Lexicon:
         # in language.
 
         foreign = False
-        if self.language in symbols.keys():
+        if self.language.get_symbols():
             for symbol in picked_word:
-                if symbol not in symbols[self.language]:
+                if symbol not in self.language.get_symbols():
                     foreign = True
                     break
 
@@ -717,21 +716,5 @@ class Lexicon:
     def __len__(self) -> int:
         return len(self.words)
 
-
-class UserLexicon:
-    def __init__(self, user_name: str, input_directory: str):
-        self.user_name = user_name
-        self.input_directory = input_directory
-
-        self.lexicons = {}
-
-        for file_name in os.listdir(input_directory):
-            if not file_name.endswith(".json"):
-                continue
-            ln = 4
-            current_user_name = file_name[:-4 - ln]
-            if user_name == current_user_name:
-                language = file_name[-3 - ln:-1 - ln]
-                lexicon = \
-                    Lexicon(language, os.path.join(input_directory, file_name))
-                self.lexicons[language] = lexicon
+    def __repr__(self) -> str:
+        return f"<User lexicon {self.language.get_name()}>"

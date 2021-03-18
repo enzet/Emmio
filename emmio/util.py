@@ -16,6 +16,14 @@ def day_end(point: datetime) -> datetime:
     return day_start(point) + timedelta(days=1)
 
 
+def year_start(point: datetime) -> datetime:
+    return datetime(year=point.year, month=1, day=1)
+
+
+def year_end(point: datetime) -> datetime:
+    return datetime(year=point.year + 1, month=1, day=1)
+
+
 def first_day_of_month(point: datetime) -> datetime:
     return datetime(year=point.year, month=point.month, day=1)
 

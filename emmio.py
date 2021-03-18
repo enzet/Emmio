@@ -6,8 +6,11 @@ import os
 import sys
 
 from datetime import timedelta
-from typing import List
+from typing import List, ValuesView
 
+from emmio.config import UserData
+from emmio.graph import Visualizer
+from emmio.learning import Learning, Record
 from emmio.teacher import Teacher
 
 from emmio.lexicon import Lexicon
@@ -39,8 +42,8 @@ def teacher(args: List[str]):
 
     config = json.load(open(config_file_name))
 
-    current_teacher = Teacher(arguments.learning_id, directory_name, config,
-        options=vars(arguments))
+    current_teacher: Teacher = Teacher(
+        arguments.learning_id, directory_name, config, options=vars(arguments))
     current_teacher.run()
 
 
@@ -238,8 +241,29 @@ if __name__ == "__main__":
         set_log(Logger)
         lexicon(sys.argv[2:])
     elif command == "text":
-        print("\nEmmio. Text\n")
+        print("\nEmmio. Text.\n")
         set_log(Logger)
         do_text(sys.argv[2:])
     else:
-        print(f"Unknown command: {command}.")
+        set_log(Logger)
+
+        data_path: str = sys.argv[1]
+        user_data: UserData = UserData.from_directory(data_path)
+
+        while True:
+            command: str = input("> ")
+            if command in ["exit", "quit", "q"]:
+                break
+            if command == "plot lexicon":
+                lexicons: List[Lexicon] = sorted(
+                    list(user_data.get_lexicons().values()),
+                    key=lambda x: x.get_average())
+                visualizer: Visualizer = Visualizer()
+                visualizer.graph_lexicon(lexicons, precision=50)
+            elif command == "plot depth":
+                courses: List[Learning] = list(user_data.get_courses().values())
+                visualizer: Visualizer = Visualizer()
+                records: List[Record] = []
+                for course in courses:
+                    records += course.records
+                visualizer.depth(sorted(records, key=lambda x: x.time))
