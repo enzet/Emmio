@@ -1,4 +1,4 @@
-from emmio.language import Language
+from emmio.language import ENGLISH, Language, RUSSIAN
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase
@@ -26,12 +26,12 @@ def do_lexicon(language: Language, lexicon_file_name: str) -> None:
 
 
 def test_lexicon() -> None:
-    do_lexicon(Language("ru"), "test/lexicon.json")
+    do_lexicon(RUSSIAN, "test/lexicon.json")
 
 
 def test_text() -> None:
     text = Text(
-        "It’s not the history of man… that’s the history of Gods.", "en")
+        "It’s not the history of man… that’s the history of Gods.", ENGLISH)
     frequency_list: FrequencyList = text.get_frequency_list()
 
     assert frequency_list.get_occurrences("it") == 1

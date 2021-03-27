@@ -1,51 +1,80 @@
 """
-Emmio.
+Language and font specifics.
 
-Author: Sergey Vartanov (me@enzet.ru)
+Author: Sergey Vartanov (me@enzet.ru).
 """
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 from iso639 import languages as iso_languages
 from iso639.iso639 import _Language as ISOLanguage
 
-most_popular_words: Dict[str, str] = {
-    "en": "the",
-    "fr": "de",
-}
 
-# Language and font specifics.
+DEFAULT_COLOR: str = "#000000"
+
+
+class Language:
+    """
+    Natural language description.
+    """
+    def __init__(
+            self, code: str, symbols: Optional[str] = None,
+            color: Optional[str] = None):
+        self.language: ISOLanguage = iso_languages.get(part1=code)
+        self.symbols: Optional[str] = symbols
+        self.color: Optional[str] = color
+
+    def __eq__(self, other: "Language"):
+        return self.language == other.language
+
+    def __hash__(self):
+        return hash(self.language.part1)
+
+    def get_name(self) -> str:
+        result: str = self.language.name
+        result = re.sub(" \\(.*\\)", "", result)
+        return result
+
+    def get_color(self) -> str:
+        if self.color is not None:
+            return self.color
+        return DEFAULT_COLOR
+
+    def get_code(self) -> str:
+        return self.language.part1
+
+    def get_part3(self) -> str:
+        return self.language.part3
+
+    def has_symbol(self, symbol: str) -> bool:
+        return symbol in self.symbols
+
+    def has_symbols(self) -> bool:
+        """ Check whether language knows its allowed symbols. """
+        return self.symbols is not None
+
+    def decode_text(self, text: str) -> str:
+        if self.language == ESPERANTO:
+            return decode_esperanto(text)
+        if self.language == UKRAINIAN:
+            return decode_ukrainian(text)
+        if self.language == LATIN:
+            return decode_latin(text)
+        return text
+
 
 languages = ["de", "en", "fr", "ru"]
 
 LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-LATIN_LOWER: str = "abcdefghijklmnopqrstuvwxyz"
-LATIN: str = LATIN_UPPER + LATIN_LOWER
+LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
 
 RU_UPPER: str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
-RU_LOWER: str = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-
 UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
-UK_LOWER: str = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"
-
 EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
-EO_LOWER: str = "abcĉdefgĝhĥijĵklmnoprsŝtuŭvz"
 
 SKIPPERS: str = "'’"
 
-symbols: Dict[str, str] = {
-    "de": LATIN + "ÄäÖöÜüß",
-    "en": LATIN + "ﬁﬂﬀﬃﬄﬆﬅÏïÉé",
-    "eo": EO_LOWER + EO_UPPER,
-    "es": LATIN + "ÑÁÉÍÓÚÜñáéíóúü",
-    "fr": LATIN + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
-    "it": LATIN,
-    "la": LATIN + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
-    "ru": RU_UPPER + RU_LOWER,
-    "uk": UK_LOWER + UK_UPPER + SKIPPERS,
-}
-
-LIGATURES: Dict[str, str] = {
+LATIN_LIGATURES: Dict[str, str] = {
     "ﬁ": "fi",
     "ﬂ": "fl",
     "ﬀ": "ff",
@@ -55,25 +84,31 @@ LIGATURES: Dict[str, str] = {
     "ﬅ": "ft",
 }
 
-
-COLORS: Dict[str, str] = {
-    "ar": "#FF8800",  # "FF8800", "A71E49",
-    "de": "#FED12E",  # "#DD4444",  # "000000", "E34C26",
-    "el": "#444444",  # "444444", "CD6400",
-    "en": "#021A67",  # "#448888",  # "008800", "178600",
-    "eo": "#009900",  # "#AA0000",  # "AA0000", "003FA2",
-    "es": "#C61323",  # "#CC9977",  # "888800", "B30000",
-    "fr": "#16ACEC",  # "#444466",  # "0000FF", "3572A5",
-    "is": "#008844",  # "008844", "A78649",
-    "it": "#008888",  # "008888", "F34B7D",
-    "ja": "#CC2200",  # "FF0000", "28430A",
-    "ko": "#880088",  # "880088", "652B81",
-    "la": "#666666",  # "00AA00", "00ADD8",
-    "pt": "#00AA00",  # "00AA00", "00ADD8",
-    "ru": "#AAAAAA",  # "AAAAAA", "e4cc98",
-    "sv": "#004488",  # "004488", "358a5b",
-    "zh": "#444400",  # "444400", "b2b7f8",
-}
+ARABIC: Language = Language("ar", color="#FF8800")
+CHINESE: Language = Language("zh", color="#444400")
+ENGLISH: Language = Language(
+    "en", LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
+    color="#021A67")
+ESPERANTO: Language = Language(
+    "eo", EO_UPPER.lower() + EO_UPPER, color="#009900")
+FRENCH: Language = Language(
+    "fr",
+    LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
+    color="#16ACEC")
+GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#FED12E")
+ICELANDIC: Language = Language("is", color="#008844")
+ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
+JAPANESE: Language = Language("ja", color="#CC2200")
+KOREAN: Language = Language("ko", color="#880088")
+LATIN: Language = Language(
+    "la", LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ", color="#666666")
+MODERN_GREEK: Language = Language("el", color="#444444")
+PORTUGUESE: Language = Language("pt", color="#00AA00")
+RUSSIAN: Language = Language("ru", RU_UPPER + RU_UPPER.lower(), color="#AAAAAA")
+SPANISH: Language = Language(
+    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#C61323")
+SWEDISH: Language = Language("sv", color="#004488")
+UKRAINIAN: Language = Language("uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS)
 
 
 def decode_ukrainian(text: str) -> str:
@@ -95,43 +130,5 @@ def decode_esperanto(text: str) -> str:
     return text
 
 
-class Language:
-    def __init__(self, code: str):
-        self.language: ISOLanguage = iso_languages.get(part1=code)
-
-    def __eq__(self, other: "Language"):
-        return self.language == other.language
-
-    def __hash__(self):
-        return hash(self.language.part1)
-
-    def get_name(self) -> str:
-        result: str = self.language.name
-        result = re.sub(" \\(.*\\)", "", result)
-        return result
-
-    def get_color(self) -> str:
-        if self.language.part1 in COLORS:
-            return COLORS[self.language.part1]
-        return "#000000"
-
-    def get_code(self) -> str:
-        return self.language.part1
-
-    def get_symbols(self) -> str:
-        return symbols[self.language.part1]
-
-    def has_symbol(self, symbol: str) -> bool:
-        return symbol in symbols[self.language.part1]
-
-    def decode_text(self, text: str) -> str:
-        if self.language == iso_languages.get(part1="eo"):
-            return decode_esperanto(text)
-        if self.language == iso_languages.get(part1="uk"):
-            return decode_ukrainian(text)
-        if self.language == iso_languages.get(part1="la"):
-            return text.replace("ā", "a").replace("ō", "o")
-        return text
-
-    def get_part3(self) -> str:
-        return self.language.part3
+def decode_latin(text: str) -> str:
+    return text.replace("ā", "a").replace("ō", "o")

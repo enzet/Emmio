@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from os.path import join
 from typing import Dict, List, Set
 
-from emmio.language import Language, symbols
+from emmio.language import Language
 from emmio.ui import log, progress_bar
 from emmio.util import Database
 
@@ -147,16 +147,16 @@ class Sentences:
         """ Construct dictionary from words to sentences. """
         log("fill word cache")
         size = len(self.links)
-        for index, id_ in enumerate(self.links.keys()):  # type: int
+        for index, id_ in enumerate(self.links.keys()):
             id_ = int(id_)
             progress_bar(index, size)
             word: str = ""
             sentence_words: Set[str] = set()
             sentence: str = self.sentence_db.get_sentence(
                 self.language_2, id_).text
-            for char in sentence.lower():  # type: str
-                if char in symbols[self.language_2.get_code()]:
-                    word += char
+            for symbol in sentence.lower():  # type: str
+                if self.language_2.has_symbol(symbol):
+                    word += symbol
                 else:
                     if word:
                         sentence_words.add(word)

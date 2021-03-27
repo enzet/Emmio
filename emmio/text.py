@@ -1,18 +1,18 @@
 from emmio.frequency import FrequencyList
-from emmio.language import symbols
+from emmio.language import Language
 
 
 class Text:
     """
     Text processing utility.
     """
-    def __init__(self, text: str, language: str):
+    def __init__(self, text: str, language: Language):
         """
         :param text: some text to process
-        :param language: 2-letters ISO 639-1 language code
+        :param language: text language
         """
         self.text: str = text
-        self.language: str = language
+        self.language: Language = language
 
     def get_frequency_list(
             self, ignore_proper_nouns: bool = False) -> FrequencyList:
@@ -23,14 +23,15 @@ class Text:
         """
         print("Construct frequency list...")
 
-        possible_symbols: str = symbols[self.language]
-        frequency_list = FrequencyList()
+        frequency_list: FrequencyList = FrequencyList()
 
-        for line in self.text.split("\n"):  # type: str
+        for line in self.text.split("\n"):
+            line: str
             word: str = ""
-            for c in line:  # type: str
-                if c in possible_symbols:
-                    word += c
+            for symbol in line:
+                symbol: str
+                if self.language.has_symbol(symbol):
+                    word += symbol
                     continue
                 if word != "":
                     if ignore_proper_nouns:
@@ -38,6 +39,8 @@ class Text:
                     else:
                         frequency_list.add(word.lower())
                 word = ""
+
         if ignore_proper_nouns:
             frequency_list.ignore_proper_nouns()
+
         return frequency_list
