@@ -250,7 +250,7 @@ class Lexicon:
             structure.append(self.logs[lexicon_log_id].to_structure())
 
         with open(self.file_name, "w+") as output:
-            json.dump(structure, output, indent=4)
+            json.dump(structure, output, indent=4, ensure_ascii=False)
 
     def know(self, word: str) -> bool:
         """

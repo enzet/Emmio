@@ -1,8 +1,9 @@
+from emmio.language import Language
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon, LexiconResponse
-from emmio.sentence import SentenceDataBase
+from emmio.sentence import SentenceDatabase
 from emmio.text import Text
-from emmio.frequency import FrequencyList, FrequencyDataBase
+from emmio.frequency import FrequencyList, FrequencyDatabase
 
 
 def check(lexicon: Lexicon) -> None:
@@ -15,7 +16,7 @@ def check(lexicon: Lexicon) -> None:
     assert lexicon.get("Иван") == LexiconResponse.NOT_A_WORD
 
 
-def do_lexicon(language: str, lexicon_file_name: str) -> None:
+def do_lexicon(language: Language, lexicon_file_name: str) -> None:
     lexicon = Lexicon(language, lexicon_file_name)
     check(lexicon)
     lexicon.write()
@@ -25,7 +26,7 @@ def do_lexicon(language: str, lexicon_file_name: str) -> None:
 
 
 def test_lexicon() -> None:
-    do_lexicon("ru", "test/lexicon.json")
+    do_lexicon(Language("ru"), "test/lexicon.json")
 
 
 def test_text() -> None:
@@ -43,5 +44,5 @@ def test_text() -> None:
 
 def test_teacher() -> None:
     learning = Learning("test/learning.json", "test_course")
-    sentence_db = SentenceDataBase("test/sentence.db")
-    frequency_db = FrequencyDataBase("test/frequency.db")
+    sentence_db = SentenceDatabase("test/sentence.db")
+    frequency_db = FrequencyDatabase("test/frequency.db")
