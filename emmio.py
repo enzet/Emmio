@@ -1,269 +1,247 @@
 #!/usr/bin/python3
-
-import argparse
 import json
-import os
 import sys
+from datetime import datetime, timedelta
+from os.path import join
+from typing import Dict, List
 
-from datetime import timedelta
-from typing import List, ValuesView
-
-from emmio.config import UserData
-from emmio.graph import Visualizer
-from emmio.learning import Learning, Record
-from emmio.teacher import Teacher
-
-from emmio.lexicon import Lexicon
-from emmio.language import languages
-from emmio.util import first_day_of_week, first_day_of_month, plus_month
-from emmio.frequency import FrequencyList
 from emmio.dictionary import Dictionary
-from emmio.ui import set_log, Logger
-from emmio.text import Text
+from emmio.external.en_wiktionary import EnglishWiktionary
+from emmio.external.yandex import YandexDictionary
+from emmio.frequency import FrequencyDatabase, FrequencyList
+from emmio.graph import Visualizer
+from emmio.language import Language
+from emmio.learning import Learning
+from emmio.lexicon import Lexicon
+from emmio.sentence import SentenceDatabase
+from emmio.teacher import Teacher
+from emmio.ui import Logger, header, set_log
+from emmio.user_data import UserData
+from emmio.util import day_end
+
+"""
+<y> or <Enter>  I know at least one meaning of the word
+<n>             I don’t know any of meanings of the word
+<s>             I know at least one meanings of the word and I’m sure I
+                will not forget it, skip this word in the future
+<b>             I don’t know any of meanings of the word, but it is a proper
+                name too
+<->             the word doesn’t exist or is a proper name
+
+<q>             exit
+"""
 
 
-def teacher(args: List[str]):
-    parser = argparse.ArgumentParser()
+class Emmio:
+    def __init__(self, user_data: UserData, path: str):
+        self.user_data: UserData = user_data
+        self.path: str = path
 
-    parser.add_argument(
-        "-l",
-        dest="learning_id")
+        self.sentence_db = SentenceDatabase(join(path, "sentence.db"))
+        self.frequency_db = FrequencyDatabase(join(path, "frequency.db"))
 
-    parser.add_argument(
-        "-d",
-        dest="directory_name")
+        with open(join(path, "config.json")) as input_file:
+            self.config = json.load(input_file)
 
-    arguments = parser.parse_args(args)
+        self.frequency_lists: Dict[str, FrequencyList] = {}
 
-    directory_name = "."
-    if arguments.directory_name:
-        directory_name = arguments.directory_name
-    config_file_name = os.path.join(arguments.directory_name, "config.json")
+    def get_frequency_list(self, frequency_list_id: str) -> FrequencyList:
+        if frequency_list_id not in self.frequency_lists:
+            frequency_list = FrequencyList()
+            frequency_list.read_json(join(
+                self.path, "priority",
+                self.config["priority"][frequency_list_id]["file_name"]))
+            self.frequency_lists[frequency_list_id] = frequency_list
+        return self.frequency_lists[frequency_list_id]
 
-    config = json.load(open(config_file_name))
+    def get_dictionaries(self, language: Language) -> List[Dictionary]:
+        dictionaries: List[Dictionary] = []
 
-    current_teacher: Teacher = Teacher(
-        arguments.learning_id, directory_name, config, options=vars(arguments))
-    current_teacher.run()
+        wiktionary = EnglishWiktionary("cache", language)
+        dictionaries.append(wiktionary)
 
+        return dictionaries
 
-def lexicon(args: List[str]):
-    import argparse
+    def run(self):
 
-    # Arguments.
+        print("\nEmmio\n")
 
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--lexicon",
-        dest="lexicon_file_name",
-        metavar="<name>",
-        help="user lexicon file name")
-
-    parser.add_argument("--language",
-        dest="language")
-
-    parser.add_argument("--input-directory",
-        dest="input_directory")
-
-    parser.add_argument("--output-directory",
-        dest="output_directory")
-
-    parser.add_argument("--log",
-        dest="log",
-        default="frequency")
-
-    parser.add_argument("--skip-known",
-        dest="skip_known",
-        action="store_true",
-        help="skip all words marked in that session as known in the future")
-
-    parser.add_argument("--skip-unknown",
-        dest="skip_unknown",
-        action="store_true",
-        help="skip all words marked in that session as unknown in the future")
-
-    parser.add_argument("--command",
-        dest="command",
-        default="check")
-
-    parser.add_argument("-f", "--frequency",
-        dest="frequency_file_name")
-
-    parser.add_argument("-ff",
-        dest="frequency_file_format")
-
-    parser.add_argument("--stop-at",
-        dest="stop_at")
-
-    parser.add_argument("--update-dictionary",
-        dest="update_dictionary",
-        action="store_true")
-
-    arguments = parser.parse_args(args)
-
-    if arguments.command not in ["check", "compute", "unknown"]:
-        print("Error: unknown command " + arguments.command)
-        return
-
-    if arguments.command == "compute":
-        current_percent = {}
-        for file_name in os.listdir(arguments.input_directory):
-            language = file_name[-7:-5]
-            user_lexicon = Lexicon(language,
-                os.path.join(arguments.input_directory, file_name))
-
-            # first = first_day_of_month
-            # next_ = plus_month
-            first = first_day_of_week
-            next_ = lambda x: x + timedelta(days=7)
-            # first = lambda x: datetime.combine(x, datetime.min.time())
-            # next_ = lambda x: x + timedelta(days=1)
-
-            print(language)
-            r = user_lexicon.construct(100, first, next_)
-            file_name = os.path.join(arguments.output_directory,
-                "lexicon_" + language + "_time.dat")
-            with open(file_name, "w+") as output_file:
-                for date in r:
-                    output_file.write(
-                        f"    {date.strftime('%Y.%m.%d')} {r[date]:f}\n")
-
-            file_name = os.path.join(arguments.output_directory,
-                "lexicon_" + language + "_time_precise.dat")
-            r = user_lexicon.construct_precise()
-            with open(file_name, "w+") as output_file:
-                for date in r:
-                    output_file.write(
-                        f"    {date.strftime('%Y.%m.%d')} {r[date]:f}\n")
-                    current_percent[language] = r[date]
-
-        for language in sorted(
-                current_percent, key=lambda x: current_percent[x]):
-            print("%s %5.2f %%" % (language, current_percent[language]))
-        return
-
-    if not arguments.frequency_file_format:
-        if arguments.frequency_file_name.endswith(".yml"):
-            arguments.frequency_file_format = "yaml"
-        elif arguments.frequency_file_name.endswith(".txt"):
-            arguments.frequency_file_format = "text"
-        elif arguments.frequency_file_name.endswith(".json"):
-            arguments.frequency_file_format = "json"
-        else:
-            print("Unknown frequency file format.")
-            return
-
-    frequency_list = FrequencyList()
-    frequency_list.read(
-        arguments.frequency_file_name, arguments.frequency_file_format)
-
-    file_name = arguments.lexicon_file_name
-
-    user_lexicon = Lexicon(arguments.language, file_name)
-
-    if arguments.command == "unknown":
-        top: List[str] = user_lexicon.get_top_unknown(frequency_list)
-        print("%-20s %-10s" % ("word", "occurrences"))
-        print(20 * "-" + " " + 10 * "-")
-        for word in top[:50]:
-            print("%-20s %10d" % (word, frequency_list.get_occurrences(word)))
-        return
-
-    stop_at = None
-    if arguments.stop_at:
-        stop_at = int(arguments.stop_at)
-
-    dictionaries: List[Dictionary] = []
-
-    print("""
-    <y> or <Enter>  I know at least one meaning of the word
-    <n>             I don’t know any of meanings of the word
-    <s>             I know at least one meanings of the word and I’m sure I
-                    will not forget it, skip this word in the future
-    <b>             I don’t know any of meanings of the word, but it is a proper
-                    name too
-    <->             the word doesn’t exist or is a proper name
-
-    <q>             exit
+        print("""
+    Press <Enter> or print "learn" to start learning.
+    Print "help" to see commands or "exit" to quit.
 """)
-
-    user_lexicon.check(frequency_list, stop_at, dictionaries,
-        arguments.log, arguments.skip_known, arguments.skip_unknown, None)
-
-
-def do_text(arguments: List[str]):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("-i", "--input",
-        help="input file with the text",
-        dest="input_file_name",
-        metavar="<path>",
-        required=True)
-
-    parser.add_argument("-o", "--output",
-        help="output file for the frequency list",
-        dest="output_file_name",
-        metavar="<path>",
-        required=True)
-
-    parser.add_argument("-l", "--language",
-        help="text language",
-        dest="language",
-        metavar="<2-letters ISO 639-1 language code>",
-        required=True)
-
-    options = parser.parse_args(arguments)
-
-    # Options check
-
-    if not (options.language in languages):
-        print(
-            f"Unknown language: {options.language}. "
-            f"Known languages: {', '.join(languages)}.")
-        return
-
-    content = open(options.input_file_name, "r").read()
-
-    text = Text(content, options.language)
-    frequency_list: FrequencyList = text.get_frequency_list()
-    frequency_list.write_json(options.output_file_name)
-
-
-if __name__ == "__main__":
-    command = sys.argv[1]
-
-    if command == "teacher":
-        print("\nEmmio. Teacher.\n")
-        set_log(Logger)
-        teacher(sys.argv[2:])
-    elif command == "lexicon":
-        print("\nEmmio. Lexicon.\n")
-        set_log(Logger)
-        lexicon(sys.argv[2:])
-    elif command == "text":
-        print("\nEmmio. Text.\n")
-        set_log(Logger)
-        do_text(sys.argv[2:])
-    else:
-        set_log(Logger)
-
-        data_path: str = sys.argv[1]
-        user_data: UserData = UserData.from_directory(data_path)
 
         while True:
             command: str = input("> ")
-            if command in ["exit", "quit", "q"]:
-                break
+            if command in ["q", "quit", "exit"]:
+                return
+            if command == "help":
+                print("""
+    help                print this message
+    exit / quit         close Emmio
+
+        Learning
+
+    learn / {Enter}     start learning process
+    stat learn          print learning statistics
+    depth               show depth graph
+    response time       show response time graph
+    next question time  show next question time graph
+    actions [per day]   show actions graph
+
+        Lexicon
+
+    lexicon             check lexicons
+    stat lexicon        print lexicon statistics
+    plot lexicon        draw lexicon graph
+""")
+
+            if not command or command == "learn":
+                self.learn()
+
+            if command == "lexicon":
+                for language in sorted(
+                        self.user_data.get_lexicon_languages(),
+                        key=lambda x:
+                        -self.user_data.get_lexicon(x).get_last_rate()):
+                    lexicon: Lexicon = self.user_data.get_lexicon(language)
+                    now = datetime.now()
+                    need: int = lexicon.count_unknowns(
+                        "log", now - timedelta(days=7), now)
+                    if need >= 5:
+                        continue
+                    header(f"Lexicon for {language.get_name()}")
+                    dictionaries = self.get_dictionaries(language)
+                    frequency_list_id: str = (
+                        self.user_data.get_frequency_list_id(language))
+                    frequency_list = self.get_frequency_list(frequency_list_id)
+                    lexicon.check(
+                        frequency_list, None, dictionaries, "frequency", False,
+                        False, 5 - need)
+                    break
+
+            if command == "stat learn":
+                stat = {}
+                total = 0
+                for course_id in self.user_data.course_ids:
+                    k = self.user_data.get_course(course_id).knowledges
+                    for word in k:
+                        if k[word].interval.total_seconds() == 0:
+                            continue
+                        depth = k[word].get_depth()
+                        if depth not in stat:
+                            stat[depth] = 0
+                        stat[depth] += 1
+                        total += 1 / (2 ** depth)
+
+                print()
+                for course_id in self.user_data.course_ids:
+                    learning = self.user_data.get_course(course_id)
+                    print(
+                        f"{learning.name:<20} "
+                        f"{learning.to_repeat():4d} / {learning.learning():4d} "
+                        f"{learning.new_today():2d} / {learning.ratio:2d}")
+                print(f"Pressure: {total:.2f}")
+                print()
+
+            if command == "stat lexicon":
+                from matplotlib import pyplot as plt
+                import matplotlib.dates as mdates
+                _, ax = plt.subplots()
+                locator = mdates.AutoDateLocator()
+                ax.xaxis.set_major_locator(locator)
+                ax.xaxis.set_major_formatter(
+                    mdates.ConciseDateFormatter(locator))
+                print()
+                for language in sorted(
+                        self.user_data.get_lexicon_languages(),
+                        key=lambda x:
+                        -self.user_data.get_lexicon(x).get_last_rate()):
+                    lexicon = self.user_data.get_lexicon(language)
+                    now = datetime.now()
+                    rate = lexicon.get_last_rate()
+                    rate_string = f"{rate:5.1f}" if rate else "  N/A"
+                    last_week_precision: int = lexicon.count_unknowns(
+                        "log", now - timedelta(days=7), now)
+                    print(
+                        f"{language.get_name():<20}  "
+                        f"{last_week_precision:3d} "
+                        f"{rate_string}")
+                print()
+
             if command == "plot lexicon":
-                lexicons: List[Lexicon] = sorted(
-                    list(user_data.get_lexicons().values()),
-                    key=lambda x: x.get_average())
-                visualizer: Visualizer = Visualizer()
-                visualizer.graph_lexicon(lexicons, precision=50)
-            elif command == "plot depth":
-                courses: List[Learning] = list(user_data.get_courses().values())
-                visualizer: Visualizer = Visualizer()
-                records: List[Record] = []
-                for course in courses:
-                    records += course.records
-                visualizer.depth(sorted(records, key=lambda x: x.time))
+                Visualizer.graph_lexicon([
+                    self.user_data.get_lexicon(language) for language
+                    in self.user_data.get_lexicon_languages()])
+
+            if command in Visualizer.get_commands():
+                ratios = 0
+                learning_words = 0
+                records = []
+                knowledges = {}
+                for course_id in self.user_data.course_ids:
+                    learning = self.user_data.get_course(course_id)
+                    ratios += learning.ratio
+                    learning_words += learning.learning()
+                    records += learning.records
+                    knowledges |= learning.knowledges
+
+                visualizer = Visualizer()
+                records = sorted(records, key=lambda x: x.time)
+
+                visualizer.process_command(command, records, knowledges)
+
+    def learn(self):
+        for course_id in self.user_data.course_ids:
+            learning: Learning = self.user_data.get_course(course_id)
+            lexicon: Lexicon = self.user_data.get_lexicon(
+                Language(learning.subject))
+            if learning.to_repeat() > 0:
+                header(f"Repeat learned for {learning.name}")
+                learner = Teacher(
+                    "tatoeba", self.sentence_db, self.frequency_db, learning,
+                    lexicon, get_dictionaries=self.get_dictionaries)
+                proceed = learner.repeat()
+                if not proceed:
+                    return
+
+        sorted_ids = sorted(
+            self.user_data.course_ids,
+            key=lambda x: (
+                self.user_data.get_course(x).learning() /
+                self.user_data.get_course(x).ratio))
+
+        for course_id in sorted_ids:  # type: str
+            learning = self.user_data.get_course(course_id)
+            lexicon: Lexicon = self.user_data.get_lexicon(
+                Language(learning.subject))
+            if learning.ratio > learning.new_today():
+                header(f"Learn new and repeat for {learning.name}")
+                learner = Teacher(
+                    "tatoeba", self.sentence_db, self.frequency_db, learning,
+                    lexicon, get_dictionaries=self.get_dictionaries)
+                proceed = learner.start()
+                if not proceed:
+                    return
+
+        print()
+        now = datetime.now()
+        time_to_repetition: timedelta = (min(map(
+            lambda x: x.get_nearest(), self.user_data.courses)) - now)
+        time_to_new: timedelta = day_end(now) - now
+        if time_to_repetition < time_to_new:
+            print(f"    Repetition in {time_to_repetition}.")
+        else:
+            print(f"    New question in {time_to_new}.")
+        print()
+
+
+if __name__ == "__main__":
+    set_log(Logger)
+
+    data_path: str = sys.argv[1]
+    user_id: str = sys.argv[2]
+
+    emmio: Emmio = Emmio(
+        UserData.from_directory(join(data_path, user_id)), data_path)
+    emmio.run()

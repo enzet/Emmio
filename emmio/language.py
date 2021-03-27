@@ -6,8 +6,8 @@ Author: Sergey Vartanov (me@enzet.ru)
 import re
 from typing import Dict
 
-from iso639.iso639 import _Language as ISOLanguage
 from iso639 import languages as iso_languages
+from iso639.iso639 import _Language as ISOLanguage
 
 most_popular_words: Dict[str, str] = {
     "en": "the",
@@ -76,6 +76,10 @@ COLORS: Dict[str, str] = {
 }
 
 
+def decode_ukrainian(text: str) -> str:
+    return text.replace("i", "і")  # i to U+0456
+
+
 def decode_esperanto(text: str) -> str:
     digraphs = {
         "cx": "ĉ",
@@ -95,12 +99,18 @@ class Language:
     def __init__(self, code: str):
         self.language: ISOLanguage = iso_languages.get(part1=code)
 
-    def get_name(self):
+    def __eq__(self, other: "Language"):
+        return self.language == other.language
+
+    def __hash__(self):
+        return hash(self.language.part1)
+
+    def get_name(self) -> str:
         result: str = self.language.name
         result = re.sub(" \\(.*\\)", "", result)
         return result
 
-    def get_color(self):
+    def get_color(self) -> str:
         if self.language.part1 in COLORS:
             return COLORS[self.language.part1]
         return "#000000"
@@ -108,5 +118,20 @@ class Language:
     def get_code(self) -> str:
         return self.language.part1
 
-    def get_symbols(self):
+    def get_symbols(self) -> str:
         return symbols[self.language.part1]
+
+    def has_symbol(self, symbol: str) -> bool:
+        return symbol in symbols[self.language.part1]
+
+    def decode_text(self, text: str) -> str:
+        if self.language == iso_languages.get(part1="eo"):
+            return decode_esperanto(text)
+        if self.language == iso_languages.get(part1="uk"):
+            return decode_ukrainian(text)
+        if self.language == iso_languages.get(part1="la"):
+            return text.replace("ā", "a").replace("ō", "o")
+        return text
+
+    def get_part3(self) -> str:
+        return self.language.part3

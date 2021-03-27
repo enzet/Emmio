@@ -1,45 +1,41 @@
 import json
 import os
-import sqlite3
-
 from dataclasses import dataclass
-from datetime import timedelta
-from iso639.iso639 import _Language as Language
-from typing import Dict, List, Set
 from os.path import join
+from typing import Dict, List, Set
 
-from emmio.frequency import FrequencyDataBase
-from emmio.language import symbols
-from emmio.ui import progress_bar
-
-FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
-SMALLEST_INTERVAL: timedelta = timedelta(days=1)
-RATIO: float = 2
+from emmio.language import Language, symbols
+from emmio.ui import log, progress_bar
+from emmio.util import Database
 
 
 @dataclass
 class Sentence:
+    """
+    Some part of a text written in a single language.  Sometimes it may contain
+    two or more sentences or not be complete in itself.
+    """
     id_: int
     text: str
 
 
 @dataclass
 class Translation:
+    """
+    Some part of a text written in a single language and its translations to
+    other languages.  Some translations may be transitive.
+    """
     sentence: Sentence
     translations: List[Sentence]
 
 
-class SentenceDataBase:
+class SentenceDatabase(Database):
     """
     Database with tables:
 
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
     """
-    def __init__(self, data_base_file_name: str):
-        sentence_db = sqlite3.connect(data_base_file_name)
-        self.sentence_cursor = sentence_db.cursor()
-
     def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
         """
         Get sentence by identifier.
@@ -47,15 +43,16 @@ class SentenceDataBase:
         :param language: language of the sentence
         :param sentence_id: sentence unique integer identifier
         """
-        table_id: str = f"{language.part1}_sentences"
-        id_, text = self.sentence_cursor.execute(
+        table_id: str = f"{language.get_code()}_sentences"
+        id_, text = self.cursor.execute(
             f"SELECT * FROM {table_id} WHERE id=?", (sentence_id, )).fetchone()
         return Sentence(id_, text)
 
-    def get_sentences(self, language) -> Dict[str, Sentence]:
+    def get_sentences(self, language: Language) -> Dict[str, Sentence]:
+        """ Get all sentences written in the specified language. """
         result = {}
-        table_id: str = f"{language.part1}_sentences"
-        for row in self.sentence_cursor.execute(f"SELECT * FROM {table_id}"):
+        table_id: str = f"{language.get_code()}_sentences"
+        for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
             id_, text = row
             result[id_] = Sentence(id_, text)
         return result
@@ -64,17 +61,17 @@ class SentenceDataBase:
 class Sentences:
     """ Collection of sentences. """
     def __init__(
-            self, cache_directory_name: str, sentence_db: SentenceDataBase,
-            frequency_db: FrequencyDataBase,
+            self, cache_directory_name: str, sentence_db: SentenceDatabase,
             language_1: Language, language_2: Language):
 
-        self.frequency_db: FrequencyDataBase = frequency_db
-        self.sentence_db: SentenceDataBase = sentence_db
+        self.sentence_db: SentenceDatabase = sentence_db
         self.language_1: Language = language_1
         self.language_2: Language = language_2
 
-        cache_file_name: str = (join(cache_directory_name,
-            f"links_{self.language_1.part3}_{self.language_2.part3}.json"))
+        cache_file_name: str = (join(
+            cache_directory_name,
+            f"links_{self.language_1.get_part3()}_"
+            f"{self.language_2.get_part3()}.json"))
 
         self.links: Dict[int, Set[int]] = {}
 
@@ -82,7 +79,7 @@ class Sentences:
             self.read_link_sets(cache_file_name)
         else:
             self.read_links(join(cache_directory_name, "links.csv"))
-            print("Writing link cache...")
+            log("writing link cache")
             with open(cache_file_name, "w+") as output_file:
                 content = {}
                 for key in self.links:
@@ -93,9 +90,9 @@ class Sentences:
         self.cache: Dict[str, List[int]] = {}
 
         cache_file_name: str = join(
-            cache_directory_name, f"cache_{self.language_2.part3}.json")
+            cache_directory_name, f"cache_{self.language_2.get_part3()}.json")
         if os.path.isfile(cache_file_name):
-            print("Reading word cache...")
+            log("reading word cache")
             with open(cache_file_name) as input_file:
                 self.cache = json.load(input_file)
         else:
@@ -103,7 +100,7 @@ class Sentences:
 
     def read_links(self, file_name: str):
 
-        print("Reading links...")
+        log("reading links")
         with open(file_name) as input_1:
             lines = input_1.readlines()
 
@@ -142,13 +139,13 @@ class Sentences:
                 self.links.pop(id_1)
 
     def read_link_sets(self, file_name: str):
-        print("Reading link cache...")
+        log("reading link cache")
         with open(file_name) as input_file:
             self.links = json.load(input_file)
 
     def fill_cache(self, file_name: str) -> None:
         """ Construct dictionary from words to sentences. """
-        print("Fill word cache...")
+        log("fill word cache")
         size = len(self.links)
         for index, id_ in enumerate(self.links.keys()):  # type: int
             id_ = int(id_)
@@ -158,7 +155,7 @@ class Sentences:
             sentence: str = self.sentence_db.get_sentence(
                 self.language_2, id_).text
             for char in sentence.lower():  # type: str
-                if char in symbols[self.language_2.part1]:
+                if char in symbols[self.language_2.get_code()]:
                     word += char
                 else:
                     if word:
@@ -172,10 +169,21 @@ class Sentences:
                 self.cache[word].append(id_)
         progress_bar(-1, size)
         with open(file_name, "w+") as output_file:
-            print("Writing word cache...")
+            log("writing word cache")
             json.dump(self.cache, output_file)
 
-    def filter_(self, word: str, ids_to_skip: Set[int]) -> List[Translation]:
+    def filter_(
+            self, word: str, ids_to_skip: Set[int],
+            max_length: int) -> List[Translation]:
+        """
+        Get sentences that contain the specified word and their translations to
+        the second language.
+
+        :param word: word in the first language
+        :param ids_to_skip: identifiers of sentences that should not be added to
+            the result
+        :param max_length: maximum sentence length
+        """
         result: List[Translation] = []
 
         if word not in self.cache:
@@ -187,7 +195,7 @@ class Sentences:
             id_: int
             sentence: Sentence = self.sentence_db.get_sentence(
                 self.language_2, id_)
-            if len(sentence.text) > 120:
+            if len(sentence.text) > max_length:
                 continue
             index = sentence.text.lower().find(word)
             assert index >= 0

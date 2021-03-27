@@ -1,17 +1,15 @@
 import random
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 
-from datetime import datetime, timedelta
-
 import matplotlib
-from iso639 import languages
-from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.transforms as mtransforms
+from matplotlib import pyplot as plt
 
-from emmio.learning import Record, Knowledge, ResponseType
+from emmio.learning import Knowledge, Record, ResponseType
 from emmio.lexicon import Lexicon
-from emmio.util import year_start, year_end, first_day_of_month, plus_month, first_day_of_week
+from emmio.util import first_day_of_week, year_end, year_start
 
 colors = [
     "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
@@ -249,41 +247,41 @@ class Visualizer:
         x_min, x_max = None, None
 
         for lexicon in lexicons:  # type: Lexicon
-            stat = lexicon.construct_precise(precision)
+            dates, rates = lexicon.construct_precise(precision)
 
-            if not stat or max(stat.values()) < margin:
+            if not rates or max(rates) < margin:
                 continue
 
-            x_min = min(x_min, min(stat.keys())) if x_min else min(stat.keys())
-            x_max = max(x_max, max(stat.keys())) if x_max else max(stat.keys())
+            x_min = min(x_min, min(dates)) if x_min else min(dates)
+            x_max = max(x_max, max(dates)) if x_max else max(dates)
 
             language_name: str = lexicon.language.get_name()
 
             if plot_precise_values:
                 plt.plot(
-                    stat.keys(), stat.values(), "o", alpha=0.01,
+                    dates, rates, "o", alpha=0.01,
                     markersize=0.5, color=lexicon.language.get_color())
 
             trans_offset = mtransforms.offset_copy(
                 ax.transData, fig=fig, x=0.1, y=0)
             if show_text:
                 plt.text(
-                    list(stat.keys())[-1], list(stat.values())[-1],
+                    dates[-1], rates[-1],
                     language_name, transform=trans_offset)
 
             xs: List[datetime] = []
             ys: List[float] = []
             last: Optional[float] = None
 
-            point = first_day_of_week(min(stat.keys()))
-            for p in sorted(stat.keys()):
+            point = first_day_of_week(min(dates))
+            for index, p in enumerate(dates):
                 while p > point:
                     if last is not None:
                         xs.append(point)
                         ys.append(last)
                     xs.append(point)
-                    ys.append(stat[p])
-                    last = stat[p]
+                    ys.append(rates[index])
+                    last = rates[index]
                     point += timedelta(days=7)
             plt.plot(
                 xs, ys, color=lexicon.language.get_color(),

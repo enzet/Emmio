@@ -10,9 +10,7 @@ import termios
 import tty
 from typing import Set
 
-from iso639 import languages
-
-from emmio.language import decode_esperanto
+from emmio.language import Language
 
 colors = {
     "grey": "2",
@@ -87,7 +85,9 @@ ESCAPE: int = 27
 BACKSPACE: int = 127
 
 
-def get_word(right_word: str, alternative_forms: Set[str], language) -> str:
+def get_word(
+        right_word: str, alternative_forms: Set[str],
+        language: Language) -> str:
 
     sys.stdout.write(len(right_word) * "_")
     sys.stdout.write("\r")
@@ -115,8 +115,7 @@ def get_word(right_word: str, alternative_forms: Set[str], language) -> str:
         sys.stdout.write("                    ")
         sys.stdout.write("\r")
 
-        if language == languages.get(part1="eo"):
-            word = decode_esperanto(word)
+        word = language.decode_text(word)
 
         sys.stdout.write(word + (len(right_word) - len(word)) * "_")
         sys.stdout.write("\r")

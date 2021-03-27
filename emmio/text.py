@@ -1,5 +1,5 @@
-from emmio.language import symbols
 from emmio.frequency import FrequencyList
+from emmio.language import symbols
 
 
 class Text:

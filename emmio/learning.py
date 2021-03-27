@@ -6,11 +6,10 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, Any, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
-from iso639 import languages
-
-from emmio.dictionary import Dictionary
+from emmio.language import Language
+from emmio.ui import log
 
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
@@ -106,22 +105,24 @@ class Learning:
         if not os.path.isfile(self.file_name):
             self.write()
 
+        log(f"loading learning process from {file_name}")
+
         with open(self.file_name) as log_file:
             content = json.load(log_file)
-            log = content["log"]
+            records = content["log"]
             self.config = content["config"]
 
         # Config defaults.
         self.ratio = 10
         self.language = None
-        self.subject = None
+        self.subject: Optional[str] = None
         self.check_lexicon = True
-        self.name = "Unknown"
+        self.name: str = "Unknown"
 
         if "ratio" in self.config:
             self.ratio = self.config["ratio"]
         if "language" in self.config:
-            self.language = languages.get(part1=self.config["language"])
+            self.language = Language(self.config["language"])
         if "subject" in self.config:
             self.subject = self.config["subject"]
         if "check_lexicon" in self.config:
@@ -129,7 +130,7 @@ class Learning:
         if "name" in self.config:
             self.name = self.config["name"]
 
-        for record_structure in log:
+        for record_structure in records:
             record = Record.from_structure(record_structure)
             self.records.append(record)
             self._update_knowledge(record)
@@ -213,6 +214,7 @@ class Learning:
 
     def write(self) -> None:
         """ Serialize learning process to a file. """
+        log(f"saving learning process to {self.file_name}")
         structure = {"log": [], "config": self.config}
         for record in self.records:
             structure["log"].append(record.to_structure())

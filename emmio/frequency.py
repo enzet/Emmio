@@ -1,12 +1,13 @@
 import json
 import random
-import sqlite3
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 import yaml
 
-from typing import Dict, List, Tuple
+from emmio.language import Language
 from emmio.ui import log, progress_bar
+from emmio.util import Database
 
 
 @dataclass
@@ -71,7 +72,8 @@ class FrequencyList:
         """
         log(f"Reading JSON frequency list from {file_name}...")
 
-        structure: List[(str, int)] = json.load(open(file_name))
+        with open(file_name) as input_file:
+            structure: List[(str, int)] = json.load(input_file)
 
         for word, occurrences in structure:  # type: (str, int)
             self.data[word] = int(occurrences)
@@ -208,11 +210,6 @@ class FrequencyList:
         return "", 0
 
 
-class FrequencyDataBase:
-    def __init__(self, data_base_file_name: str):
-        frequency_db = sqlite3.connect(data_base_file_name)
-        self.frequency_cursor = frequency_db.cursor()
-
-    def get_words(self, language) -> List[Tuple[int, str, int]]:
-        table_id: str = f"{language.part1}_opensubtitles"
-        return self.frequency_cursor.execute(f"SELECT * FROM {table_id}")
+class FrequencyDatabase(Database):
+    def get_words(self, frequency_list_id: str) -> List[Tuple[int, str, int]]:
+        return self.cursor.execute(f"SELECT * FROM {frequency_list_id}")

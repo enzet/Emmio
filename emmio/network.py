@@ -8,10 +8,10 @@ Author: Sergey Vartanov (me@enzet.ru).
 import json
 import os
 import time
-import urllib3
-
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
+
+import urllib3
 
 from emmio.ui import error, network
 

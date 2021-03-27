@@ -2,53 +2,49 @@ import json
 import math
 import random
 from datetime import timedelta
-from typing import List, Tuple, Optional, Set
+from typing import List, Optional, Set, Tuple
 
-from iso639 import languages
-from iso639.iso639 import _Language as Language
-
-from emmio.dictionary import Dictionary, Dictionaries
-from emmio.frequency import FrequencyDataBase
-from emmio.language import symbols, decode_esperanto
+from emmio.dictionary import Dictionaries, Dictionary
+from emmio.frequency import FrequencyDatabase
+from emmio.language import Language
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse
-from emmio.sentence import (
-    SentenceDataBase, Sentences, Translation, SMALLEST_INTERVAL)
-from emmio.ui import get_word, box
+from emmio.sentence import SentenceDatabase, Sentences, Translation
+from emmio.ui import box, get_word, log
+
+SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 
 class Teacher:
     def __init__(
-            self, cache_directory_name: str, sentence_db: SentenceDataBase,
-            frequency_db: FrequencyDataBase, learning: Learning,
-            get_dictionaries=None):
+            self, cache_directory_name: str, sentence_db: SentenceDatabase,
+            frequency_db: FrequencyDatabase, learning: Learning,
+            lexicon: Lexicon, get_dictionaries=None):
 
-        self.language_1: Language = learning.language
+        self.known_language: Language = learning.language
 
-        self.language_2: Language
+        self.learning_language: Language
         try:
-            self.language_2 = languages.get(part1=learning.subject)
+            self.learning_language = Language(learning.subject)
         except KeyError:
-            self.language_2 = None
+            self.learning_language = None
 
-        self.max_for_day = learning.ratio
-        self.sentences_db = sentence_db
-        self.frequency_db = frequency_db
-        self.learning = learning
-        self.dictionaries: List[Dictionary] = get_dictionaries(
-            self.language_2.part1)
+        self.max_for_day: int = learning.ratio
+        self.sentences_db: SentenceDatabase = sentence_db
+        self.frequency_db: FrequencyDatabase = frequency_db
+        self.learning: Learning = learning
+        self.dictionaries: List[Dictionary] = get_dictionaries(self.learning_language)
 
-        self.lexicon = Lexicon(
-            self.language_2.part1,
-            f"../Emmio-dev/lexicon/enzet_{self.language_2.part1}.json")
+        self.lexicon: Lexicon = lexicon
 
         self.sentences: Sentences = Sentences(
-            cache_directory_name, sentence_db, frequency_db, self.language_1,
-            self.language_2)
+            cache_directory_name, sentence_db, self.known_language,
+            self.learning_language)
 
         self.words: List[Tuple[int, str]] = []
-        print("Getting words...")
-        for index, word, _ in self.frequency_db.get_words(self.language_2):
+        log("getting words")
+        frequency_list_id: str = f"{self.learning_language.get_code()}_opensubtitles"  # FIXME: learning.frequnecy_list_id
+        for index, word, _ in self.frequency_db.get_words(frequency_list_id):
             if (word in self.sentences.cache
                     and (not self.learning.check_lexicon or
                          not self.lexicon or
@@ -118,7 +114,7 @@ class Teacher:
             ids_to_skip = set(self.exclude_sentences[word])
 
         translations: List[Translation] = self.sentences.filter_(
-            word, ids_to_skip)
+            word, ids_to_skip, 120)
         if not translations:
             return "bad question"
 
@@ -145,7 +141,7 @@ class Teacher:
 
             w = ""
             for position, char in enumerate(text):  # type: str
-                if char.lower() in symbols[self.language_2.part1]:
+                if self.learning_language.has_symbol(char.lower()):
                     w += char
                 else:
                     if w:
@@ -185,7 +181,7 @@ class Teacher:
         items = dictionaries.get_items(word)
         if items:
             print("\n".join(map(lambda x: x.to_str(
-                self.language_1.part1, False,
+                self.known_language.get_code(), False,
                 hide_translations=exclude_translations), items)))
             alternative_forms: Set[str] = items[0].get_links()
         else:
@@ -194,19 +190,18 @@ class Teacher:
         print_sentence()
 
         while True:
-            answer: str = get_word(word, alternative_forms, self.language_2)
+            answer: str = get_word(word, alternative_forms, self.learning_language)
 
             # Preprocess answer.
-            if self.language_2 == languages.get(part1="eo"):
-                answer = decode_esperanto(answer)
+            answer = self.learning_language.decode_text(answer)
 
             if answer == word:
                 self.learning.register(
                     ResponseType.RIGHT, translations[index].sentence.id_, word,
                     interval * 2)
                 if items:
-                    print("\n".join(
-                        map(lambda x: x.to_str(self.language_1.part1), items)))
+                    print("\n".join(map(
+                        lambda x: x.to_str(self.known_language.get_code()), items)))
                 new_answer = input(">>> ")
                 while new_answer:
                     if new_answer == "s":
@@ -252,8 +247,8 @@ class Teacher:
             if answer == "n":
                 print(box(word))
                 if items:
-                    print("\n".join(
-                        map(lambda x: x.to_str(self.language_1.part1), items)))
+                    print("\n".join(map(
+                        lambda x: x.to_str(self.known_language.get_code()), items)))
                 new_answer = input("Learn word? ")
                 if not new_answer:
                     self.learning.register(

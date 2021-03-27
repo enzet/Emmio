@@ -4,8 +4,6 @@ Dictionary.
 Author: Sergey Vartanov (me@enzet.ru).
 """
 import re
-from iso639.iso639 import _Language as Language
-
 from typing import Dict, List, Optional, Set
 
 from emmio.ui import colorize
