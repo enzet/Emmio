@@ -3,7 +3,7 @@ import math
 import os
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional
 
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyList

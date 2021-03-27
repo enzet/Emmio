@@ -5,7 +5,6 @@ from typing import Dict, List, Tuple
 
 import yaml
 
-from emmio.language import Language
 from emmio.ui import log, progress_bar
 from emmio.util import Database
 
