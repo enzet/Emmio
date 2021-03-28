@@ -105,12 +105,14 @@ class Learning:
         if not os.path.isfile(self.file_name):
             self.write()
 
-        log(f"loading learning process from {file_name}")
-
         with open(self.file_name) as log_file:
             content = json.load(log_file)
             records = content["log"]
             self.config = content["config"]
+
+        log(f"loading learning process from {file_name}")
+
+        self.frequency_list_ids: List[str] = self.config["frequency_lists"]
 
         # Config defaults.
         self.ratio = 10

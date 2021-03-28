@@ -1,7 +1,8 @@
 import json
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from sqlite3 import Cursor
+from typing import Dict, KeysView, List
 
 import yaml
 
@@ -130,25 +131,26 @@ class FrequencyList:
         with open(file_name, 'w+') as output:
             json.dump(structure, output, indent=4, ensure_ascii=False)
 
-    def add(self, word) -> None:
-        if word in self.data:
-            self.data[word] += 1
-        else:
-            self.data[word] = 1
+    def add(self, word: str, occurrences: int = 1) -> None:
+        """ Add word and its occurrences in some text. """
+        if word not in self.data:
+            self.data[word] = 0
 
-        self.occurrences += 1
+        self.data[word] += occurrences
+        self.occurrences += occurrences
         self.sorted_keys = None
 
     def ignore_proper_nouns(self) -> None:
-        words = self.data.keys()
+        words: KeysView[str] = self.data.keys()
         for word in words:
+            word: str
             if word.lower() != word:
                 if word.lower() in self.data:
                     self.data[word.lower()] += self.data[word]
                 del self.data[word]
         self.sort()
 
-    def has(self, word) -> bool:
+    def has(self, word: str) -> bool:
         return word in self.data
 
     def get_occurrences(self, word: str) -> int:
@@ -210,5 +212,24 @@ class FrequencyList:
 
 
 class FrequencyDatabase(Database):
-    def get_words(self, frequency_list_id: str) -> List[Tuple[int, str, int]]:
+    def get_words(self, frequency_list_id: str) -> Cursor:
         return self.cursor.execute(f"SELECT * FROM {frequency_list_id}")
+
+    def add_table(self, table_id: str, frequency_list: FrequencyList):
+        if self.has_table(table_id):
+            raise Exception()
+        self.cursor.execute(
+            f"CREATE TABLE {table_id} ("
+            f"id integer primary key, "
+            f"word text, "
+            f"frequency integer)"
+        )
+        for index, word in enumerate(frequency_list.get_words()):
+            index: int
+            word: str
+            occurrences: int = frequency_list.get_occurrences(word)
+            self.cursor.execute(
+                f"INSERT INTO {table_id} VALUES (?,?,?)",
+                (index, word, occurrences)
+            )
+        self.connection.commit()

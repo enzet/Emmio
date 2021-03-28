@@ -1,18 +1,19 @@
 #!/usr/bin/python3
+import csv
 import json
 import sys
 from datetime import datetime, timedelta
 from os.path import join
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 from emmio.dictionary import Dictionary
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.external.yandex import YandexDictionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer
 from emmio.language import Language
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon
+from emmio.network import get_file
 from emmio.sentence import SentenceDatabase
 from emmio.teacher import Teacher
 from emmio.ui import Logger, header, set_log
@@ -43,7 +44,40 @@ class Emmio:
         with open(join(path, "config.json")) as input_file:
             self.config = json.load(input_file)
 
+        for priority_list_id in self.config["priority"]:
+            priority_list_id: str
+            priority_list_config: Dict[str, Any] = (
+                self.config["priority"][priority_list_id]
+            )
+            if priority_list_config["type"] in [
+                "full_frequency_list",
+                "stripped_frequency_list"
+            ]:
+                if not self.frequency_db.has_table(priority_list_id):
+                    self.load_frequency_list(
+                        priority_list_id, priority_list_config["load"]
+                    )
+
         self.frequency_lists: Dict[str, FrequencyList] = {}
+
+    def load_frequency_list(
+            self, frequency_list_id: str, load_config: Dict[str, str]
+    ) -> None:
+
+        frequency_list: FrequencyList = FrequencyList()
+
+        if load_config["method"] == "get_file":
+            content: Optional[str] = get_file(load_config["path"])
+            if content is None:
+                return
+            if load_config["format"] == "csv":
+                delimiter: str = load_config["delimiter"]
+                lines = content.split("\n")
+                reader = csv.reader(lines, delimiter=delimiter)
+                for word, occurrences in reader:
+                    frequency_list.add(word, int(occurrences))
+
+        self.frequency_db.add_table(frequency_list_id, frequency_list)
 
     def get_frequency_list(self, frequency_list_id: str) -> FrequencyList:
         if frequency_list_id not in self.frequency_lists:
@@ -138,7 +172,7 @@ class Emmio:
                 for course_id in self.user_data.course_ids:
                     learning = self.user_data.get_course(course_id)
                     print(
-                        f"{learning.name:<20} "
+                        f"{learning.name:<50} "
                         f"{learning.to_repeat():4d} / {learning.learning():4d} "
                         f"{learning.new_today():2d} / {learning.ratio:2d}")
                 print(f"Pressure: {total:.2f}")

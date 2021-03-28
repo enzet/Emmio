@@ -1,3 +1,8 @@
+"""
+Teacher.
+
+Author: Sergey Vartanov (me@enzet.ru).
+"""
 import json
 import math
 import random
@@ -30,10 +35,9 @@ class Teacher:
             self.learning_language = None
 
         self.max_for_day: int = learning.ratio
-        self.sentences_db: SentenceDatabase = sentence_db
-        self.frequency_db: FrequencyDatabase = frequency_db
         self.learning: Learning = learning
-        self.dictionaries: List[Dictionary] = get_dictionaries(self.learning_language)
+        self.dictionaries: List[Dictionary] = get_dictionaries(
+            self.learning_language)
 
         self.lexicon: Lexicon = lexicon
 
@@ -43,17 +47,20 @@ class Teacher:
 
         self.words: List[Tuple[int, str]] = []
         log("getting words")
-        frequency_list_id: str = f"{self.learning_language.get_code()}_opensubtitles"  # FIXME: learning.frequnecy_list_id
-        for index, word, _ in self.frequency_db.get_words(frequency_list_id):
-            if (word in self.sentences.cache
-                    and (not self.learning.check_lexicon or
-                         not self.lexicon or
-                         not self.lexicon.has(word) or
-                         self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW)):
-                for id_ in self.sentences.cache[word]:
-                    if str(id_) in self.sentences.links:
-                        self.words.append((index, word))
-                        break
+        for frequency_list_id in learning.frequency_list_ids:
+            frequency_list_id: str
+            for index, word, _ in frequency_db.get_words(frequency_list_id):
+                index: int
+                word: str
+                if (word in self.sentences.cache
+                        and (not self.learning.check_lexicon or
+                             not self.lexicon or
+                             not self.lexicon.has(word) or
+                             self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW)):
+                    for id_ in self.sentences.cache[word]:
+                        if str(id_) in self.sentences.links:
+                            self.words.append((index, word))
+                            break
 
         with open("exclude_sentences.json") as input_file:
             self.exclude_sentences = json.load(input_file)
@@ -140,7 +147,9 @@ class Teacher:
             result: str = ""
 
             w = ""
-            for position, char in enumerate(text):  # type: str
+            for position, char in enumerate(text):
+                position: int
+                char: str
                 if self.learning_language.has_symbol(char.lower()):
                     w += char
                 else:

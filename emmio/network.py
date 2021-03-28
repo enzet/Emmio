@@ -133,3 +133,17 @@ def get_content(
         return None
 
     return None
+
+
+def get_file(path: str) -> Optional[str]:
+    """ Get file content from the network. """
+    if path.startswith("https://"):
+        path = path[len("https://"):]
+        is_secure = True
+    elif path.startswith("http://"):
+        path = path[len("http://"):]
+        is_secure = False
+    else:
+        return None
+
+    return get_content(path, {}, path, "html", is_secure, path)
