@@ -99,7 +99,7 @@ class Learning:
         self.file_name: str = file_name
         self.records: List[Record] = []
         self.knowledges: Dict[str, Knowledge] = {}
-        self.config = {}
+        self.config = {"frequency_lists": []}
 
         # Create learning file if it doesn't exist.
         if not os.path.isfile(self.file_name):
