@@ -1,9 +1,9 @@
+from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.language import ENGLISH, Language, RUSSIAN
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase
 from emmio.text import Text
-from emmio.frequency import FrequencyList, FrequencyDatabase
 
 
 def check(lexicon: Lexicon) -> None:

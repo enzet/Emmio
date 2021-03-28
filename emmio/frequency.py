@@ -6,8 +6,8 @@ from typing import Dict, KeysView, List
 
 import yaml
 
-from emmio.ui import log, progress_bar
 from emmio.database import Database
+from emmio.ui import log, progress_bar
 
 
 @dataclass

@@ -1,7 +1,7 @@
 import json
 from os import listdir
 from os.path import join
-from typing import Any, Dict, Optional, Set, Iterator
+from typing import Any, Dict, Iterator, Optional, Set
 
 from emmio.language import Language
 from emmio.learning import Learning

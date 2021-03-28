@@ -9,7 +9,6 @@ from typing import Dict, Optional
 from iso639 import languages as iso_languages
 from iso639.iso639 import _Language as ISOLanguage
 
-
 DEFAULT_COLOR: str = "#000000"
 
 

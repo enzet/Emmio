@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from os.path import join
 from typing import Dict, List, Set
 
+from emmio.database import Database
 from emmio.language import Language
 from emmio.ui import log, progress_bar
-from emmio.database import Database
 
 
 @dataclass
