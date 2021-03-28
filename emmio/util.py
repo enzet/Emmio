@@ -26,7 +26,7 @@ class Database:
         """ Get identifiers of all tables in the database. """
         self.cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table';")
-        return self.cursor.fetchall()
+        return [x[0] for x in self.cursor.fetchall()]
 
     def has_table(self, table_id: str) -> bool:
         """ Check whether table is in the database. """
