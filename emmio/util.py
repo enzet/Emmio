@@ -7,19 +7,30 @@ Author: Sergey Vartanov.
 """
 import sqlite3
 from datetime import datetime, timedelta
-from sqlite3 import Connection
+from sqlite3 import Connection, Cursor
 from typing import List
 
 
 class Database:
-    def __init__(self, data_base_file_name: str):
-        database: Connection = sqlite3.connect(data_base_file_name)
-        self.cursor = database.cursor()
+    """
+    Pretty simple wrapper for SQLite database.
+    """
+    def __init__(self, database_file_name: str):
+        """
+        :param database_file_name: SQLite database file name
+        """
+        self.connection: Connection = sqlite3.connect(database_file_name)
+        self.cursor: Cursor = self.connection.cursor()
 
     def get_table_ids(self) -> List[str]:
+        """ Get identifiers of all tables in the database. """
         self.cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table';")
         return self.cursor.fetchall()
+
+    def has_table(self, table_id: str) -> bool:
+        """ Check whether table is in the database. """
+        return table_id in self.get_table_ids()
 
 
 def day_start(point: datetime) -> datetime:
