@@ -54,9 +54,10 @@ class Emmio:
                 "stripped_frequency_list"
             ]:
                 if not self.frequency_db.has_table(priority_list_id):
-                    self.load_frequency_list(
-                        priority_list_id, priority_list_config["load"]
-                    )
+                    if "load" in priority_list_config:
+                        self.load_frequency_list(
+                            priority_list_id, priority_list_config["load"]
+                        )
 
         self.frequency_lists: Dict[str, FrequencyList] = {}
 
@@ -74,8 +75,12 @@ class Emmio:
                 delimiter: str = load_config["delimiter"]
                 lines = content.split("\n")
                 reader = csv.reader(lines, delimiter=delimiter)
-                for word, occurrences in reader:
-                    frequency_list.add(word, int(occurrences))
+                for row in reader:
+                    try:
+                        word, occurrences = row
+                        frequency_list.add(word, int(occurrences))
+                    except ValueError:
+                        pass
 
         self.frequency_db.add_table(frequency_list_id, frequency_list)
 

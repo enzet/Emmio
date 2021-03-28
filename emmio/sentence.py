@@ -6,7 +6,7 @@ from typing import Dict, List, Set
 
 from emmio.language import Language
 from emmio.ui import log, progress_bar
-from emmio.util import Database
+from emmio.database import Database
 
 
 @dataclass

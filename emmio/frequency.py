@@ -7,7 +7,7 @@ from typing import Dict, KeysView, List
 import yaml
 
 from emmio.ui import log, progress_bar
-from emmio.util import Database
+from emmio.database import Database
 
 
 @dataclass
