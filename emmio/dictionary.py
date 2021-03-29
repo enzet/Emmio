@@ -48,6 +48,12 @@ class Form:
         self.translations[language].append(translation)
 
     def add_link(self, link_type: str, link: str) -> None:
+        """
+        Add link to another dictionary item if the word is a form of other word.
+
+        :param link_type: link description, e.g. verb form
+        :param link: other dictionary item key
+        """
         self.links.append((link_type, link))
 
     def set_gender(self, gender: str) -> None:
@@ -55,6 +61,7 @@ class Form:
         self.gender = gender
 
     def set_verb_group(self, verb_group: int) -> None:
+        """ Set group if the word is a verb. """
         self.verb_group = verb_group
 
     def to_str(
@@ -118,8 +125,12 @@ class DictionaryItem:
         self.definitions.append(form)
 
     def get_links(self) -> Set[str]:
+        """
+        Get keys to other dictionary items this dictionary item is linked to.
+        """
         result: Set[str] = set()
         for definition in self.definitions:
+            definition: Form
             for _, link in definition.links:
                 result.add(link)
         return result
@@ -161,6 +172,7 @@ class Dictionary:
             return self.__items[word]
 
     def get_forms(self) -> Dict[str, Set[str]]:
+        """ Get all possible forms of all words. """
         result: Dict[str, Set[str]] = {}
         for word in self.__items:  # type: str
             item = self.__items[word]

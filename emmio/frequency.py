@@ -1,3 +1,8 @@
+"""
+Frequency list utility.
+
+Author: Sergey Vartanov (me@enzet.ru).
+"""
 import json
 import random
 from dataclasses import dataclass
@@ -12,6 +17,9 @@ from emmio.ui import log, progress_bar
 
 @dataclass
 class WordOccurrences:
+    """
+    Unique word and number of its occurrences in some text.
+    """
     word: str
     occurrences: int
 
@@ -75,7 +83,9 @@ class FrequencyList:
         with open(file_name) as input_file:
             structure: List[(str, int)] = json.load(input_file)
 
-        for word, occurrences in structure:  # type: (str, int)
+        for word, occurrences in structure:
+            word: str
+            occurrences: int
             self.data[word] = int(occurrences)
             self.occurrences += occurrences
 
@@ -89,19 +99,22 @@ class FrequencyList:
         :param file_name: input text file name.
         :param delimiter: delimiter between word and its number of occurrences.
         """
-        log(f"Reading frequency list from {file_name}...")
+        log(f"reading frequency list from {file_name}")
 
-        lines = open(file_name).readlines()
-        lines_number = len(lines)
-        length = len(delimiter)
+        lines: List[str] = open(file_name).readlines()
+        lines_number: int = len(lines)
+        length: int = len(delimiter)
 
         for index, line in enumerate(lines):
+            index: int
+            line: str
             progress_bar(index, lines_number)
-            position = line.find(delimiter)
-            word = line[:position]
-            occurrences = int(line[position + length:])
+            position: int = line.find(delimiter)
+            word: str = line[:position]
+            occurrences: int = int(line[position + length:])
             self.data[word] = occurrences
             self.occurrences += occurrences
+
         progress_bar(-1, 0)
 
         self.sort()
@@ -114,9 +127,9 @@ class FrequencyList:
         :param file_name: output text file name.
         :param delimiter: delimiter between word and its number of occurrences.
         """
-        with open(file_name, "w+") as output:
+        with open(file_name, "w+") as output_file:
             for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
-                output.write(word + delimiter + str(self.data[word]) + "\n")
+                output_file.write(f"{word}{delimiter}{self.data[word]}\n")
 
     def write_json(self, file_name: str) -> None:
         """
@@ -125,8 +138,9 @@ class FrequencyList:
 
         :param file_name: output JSON file name.
         """
-        structure = []
+        structure: List = []
         for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
+            word: str
             structure.append([word, self.data[word]])
         with open(file_name, 'w+') as output:
             json.dump(structure, output, indent=4, ensure_ascii=False)
@@ -141,8 +155,8 @@ class FrequencyList:
         self.sorted_keys = None
 
     def ignore_proper_nouns(self) -> None:
-        words: KeysView[str] = self.data.keys()
-        for word in words:
+        """ Make frequency list case-insensitive. """
+        for word in self.data.keys():
             word: str
             if word.lower() != word:
                 if word.lower() in self.data:
@@ -151,22 +165,30 @@ class FrequencyList:
         self.sort()
 
     def has(self, word: str) -> bool:
+        """ Check whether frequency list contains word. """
         return word in self.data
 
     def get_occurrences(self, word: str) -> int:
+        """ Get number of word occurrences in text. """
         if word in self.data:
             return self.data[word]
         return 0
 
     def get_position(self, word: str) -> int:
+        """
+        Get word index in frequency list.  The most popular word in the text has
+        index 1.  If word is not in frequency list, return -1.
+        """
         if word in self.sorted_keys:
             return self.sorted_keys.index(word)
         return -1
 
     def get_all_occurrences(self) -> int:
+        """ Get number of all words in the text. """
         return self.occurrences
 
     def get_words(self):
+        """ Get all unique words. """
         return sorted(self.data.keys(), key=lambda x: -self.data[x])
 
     def get_random_word(self) -> (str, int):
@@ -179,15 +201,23 @@ class FrequencyList:
         return word, self.data[word]
 
     def get_word_by_occurrences(self, occurrences: int) -> (str, int):
+        """
+        Get first word with the number of occurrences more or equals to
+        specified number.
+
+        :return word and its number of occurrences in the text
+        """
         for word in self.sorted_keys:
-            if self.data[word] > occurrences:
+            if self.data[word] >= occurrences:
                 return word, self.data[word]
 
     def get_word_by_index(self, index: int) -> (str, int):
+        """ Get word of the specified index. """
         word: str = self.sorted_keys[index]
         return word, self.data[word]
 
     def sort(self) -> None:
+        """ Sort keys by frequency. """
         self.sorted_keys = sorted(self.data.keys(), key=lambda x: -self.data[x])
 
     def get_random_word_by_frequency(self) -> (str, int):
@@ -212,17 +242,31 @@ class FrequencyList:
 
 
 class FrequencyDatabase(Database):
+    """
+    Database that contains frequency list tables.  Table format:
+
+        ID INTEGER PRIMARY KEY
+        WORD TEXT
+        FREQUENCY INTEGER
+    """
     def get_words(self, frequency_list_id: str) -> Cursor:
+        """
+        Get all records from the table in the format of (ID, WORD, FREQUENCY).
+        """
         return self.cursor.execute(f"SELECT * FROM {frequency_list_id}")
 
     def add_table(self, table_id: str, frequency_list: FrequencyList):
+        """
+        Add new table to the database and fill it with the data from frequency
+        list.
+        """
         if self.has_table(table_id):
             raise Exception()
         self.cursor.execute(
             f"CREATE TABLE {table_id} ("
-            f"id integer primary key, "
-            f"word text, "
-            f"frequency integer)"
+            f"ID INTEGER PRIMARY KEY, "
+            f"WORD TEXT, "
+            f"FREQUENCY INTEGER)"
         )
         for index, word in enumerate(frequency_list.get_words()):
             index: int
