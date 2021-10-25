@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 from emmio.language import Language
 from emmio.ui import log
@@ -39,7 +39,7 @@ class Record:
         return self.interval.total_seconds() != 0
 
     @classmethod
-    def from_structure(cls, structure: Dict[str, Any]) -> "Record":
+    def from_structure(cls, structure: dict[str, Any]) -> "Record":
         """ Parse learning record from the dictionary. """
         interval = SMALLEST_INTERVAL
         if "interval" in structure:
@@ -49,7 +49,7 @@ class Record:
             structure["sentence_id"],
             datetime.strptime(structure["time"], FORMAT), interval)
 
-    def to_structure(self) -> Dict[str, Any]:
+    def to_structure(self) -> dict[str, Any]:
         """ Export learning record as a dictionary. """
         return {
             "word": self.question_id, "answer": self.answer.value,
@@ -62,7 +62,7 @@ class Record:
 class Knowledge:
     """ Knowledge of the question. """
     question_id: str
-    responses: List[ResponseType]
+    responses: list[ResponseType]
     last_record_time: datetime
     interval: timedelta
 
@@ -100,8 +100,8 @@ class Learning:
     """ Learning process. """
     def __init__(self, file_name: str, course_id: str):
         self.file_name: str = file_name
-        self.records: List[Record] = []
-        self.knowledges: Dict[str, Knowledge] = {}
+        self.records: list[Record] = []
+        self.knowledges: dict[str, Knowledge] = {}
         self.config = {"frequency_lists": []}
 
         # Create learning file if it doesn't exist.
@@ -115,7 +115,7 @@ class Learning:
 
         log(f"loading learning process from {file_name}")
 
-        self.frequency_list_ids: List[str] = self.config["frequency_lists"]
+        self.frequency_list_ids: list[str] = self.config["frequency_lists"]
 
         # Config defaults.
         self.ratio = 10
@@ -141,7 +141,7 @@ class Learning:
             self._update_knowledge(record)
 
     def _update_knowledge(self, record: Record):
-        last_answers: List[ResponseType] = []
+        last_answers: list[ResponseType] = []
         if record.question_id in self.knowledges:
             last_answers = self.knowledges[record.question_id].responses
         self.knowledges[record.question_id] = Knowledge(
@@ -164,7 +164,7 @@ class Learning:
         self.records.append(record)
         self._update_knowledge(record)
 
-    def get_next(self, skip: Set[str]) -> Optional[str]:
+    def get_next(self, skip: set[str]) -> Optional[str]:
         """
         Get question identifier of the next question.
 

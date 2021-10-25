@@ -1,7 +1,7 @@
 import json
 from os import listdir
 from os.path import join
-from typing import Any, Dict, Iterator, Optional, Set
+from typing import Any, Iterator, Optional
 
 from emmio.language import Language
 from emmio.learning import Learning
@@ -21,9 +21,9 @@ class UserData:
         self.lexicons = {}
         self.path: Optional[str] = None
 
-        self.course_ids: Set[str] = set()
+        self.course_ids: set[str] = set()
 
-        self.lexicon_config: Dict[str, str] = {}
+        self.lexicon_config: dict[str, str] = {}
 
     @classmethod
     def from_directory(cls, path: str):
@@ -35,7 +35,7 @@ class UserData:
         user_data.path = path
 
         with open(join(path, "config.json")) as config_file:
-            config: Dict[str, Any] = json.load(config_file)
+            config: dict[str, Any] = json.load(config_file)
             user_data.id_ = config["id"]
             user_data.name = config["name"]
             user_data.native_languages = set(

@@ -3,7 +3,7 @@ import math
 import os
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Iterator, Optional
 
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyList
@@ -67,11 +67,11 @@ class WordKnowledge:
         self.knowing: LexiconResponse = knowing
         self.to_skip: Optional[bool] = to_skip
 
-    def to_structure(self) -> Dict[str, Any]:
+    def to_structure(self) -> dict[str, Any]:
         """
         Serialize to structure.
         """
-        structure: Dict[str, Any] = {"knowing": str(self.knowing)}
+        structure: dict[str, Any] = {"knowing": str(self.knowing)}
         if self.to_skip is not None:
             structure["to_skip"] = self.to_skip
         return structure
@@ -85,7 +85,7 @@ class LogRecord:
     Record of user's answer.
     """
     def __init__(
-            self, date: datetime, words: List[str],
+            self, date: datetime, words: list[str],
             response: LexiconResponse,
             answer_type: AnswerType = AnswerType.UNKNOWN,
             to_skip: Optional[bool] = None):
@@ -98,7 +98,7 @@ class LogRecord:
         :param to_skip: skip this word in the future
         """
         self.date: datetime = date
-        self.words: List[str] = words
+        self.words: list[str] = words
         self.response: LexiconResponse = response
         self.answer_type: AnswerType = answer_type
         self.to_skip: Optional[bool] = to_skip
@@ -132,7 +132,7 @@ class LogRecord:
                 words, LexiconResponse(structure["response"]), answer_type,
                 to_skip)
 
-    def to_structure(self) -> Dict[str, Any]:
+    def to_structure(self) -> dict[str, Any]:
         """
         Serialize to structure.
         """
@@ -160,7 +160,7 @@ def rate(ratio: float) -> Optional[float]:
 
 
 class LexiconLog:
-    def __init__(self, structure: Dict[str, Any]):
+    def __init__(self, structure: dict[str, Any]):
         self.id_: str = structure["id"]
 
         self.frequency_list_id: Optional[str]
@@ -171,12 +171,12 @@ class LexiconLog:
 
         self.selection: str = structure["selection"]
 
-        self.records: List[LogRecord] = []
-        for record_structure in structure["log"]:  # type: Dict[str, str]
+        self.records: list[LogRecord] = []
+        for record_structure in structure["log"]:  # type: dict[str, str]
             self.records.append(LogRecord.from_structure(record_structure))
 
-    def to_structure(self) -> Dict[str, Any]:
-        structure: Dict[str, Any] = {}
+    def to_structure(self) -> dict[str, Any]:
+        structure: dict[str, Any] = {}
         if self.frequency_list_id is not None:
             structure["frequency_list"] = self.frequency_list_id
         structure["selection"] = self.selection
@@ -197,13 +197,13 @@ class Lexicon:
         self.language: Language = language
         self.file_name: str = file_name
 
-        self.words: Dict[str, WordKnowledge] = {}
-        self.logs: Dict[str, LexiconLog] = {}
+        self.words: dict[str, WordKnowledge] = {}
+        self.logs: dict[str, LexiconLog] = {}
 
         # Temporary data.
 
-        self.dates: List[datetime] = []
-        self.responses: List[int] = []
+        self.dates: list[datetime] = []
+        self.responses: list[int] = []
         self.start: Optional[datetime] = None
         self.finish: Optional[datetime] = None
 
@@ -217,7 +217,7 @@ class Lexicon:
         with open(self.file_name) as input_file:
             data = json.load(input_file)
 
-        for log_structure in data:  # type: Dict[str, Any]
+        for log_structure in data:  # type: dict[str, Any]
             self.logs[log_structure["id"]] = LexiconLog(log_structure)
 
             for log_id in self.logs:
@@ -247,7 +247,7 @@ class Lexicon:
         """
         log(f"writing lexicon to {self.file_name}")
 
-        structure: List[Dict[str, Any]] = []
+        structure: list[dict[str, Any]] = []
 
         for lexicon_log_id in self.logs:  # type: str
             structure.append(self.logs[lexicon_log_id].to_structure())
@@ -274,7 +274,7 @@ class Lexicon:
                 return record
 
     def register(
-            self, words: List[str], response: LexiconResponse,
+            self, words: list[str], response: LexiconResponse,
             to_skip: Optional[bool], date: Optional[datetime] = None,
             log_name: str = "log",
             answer_type: AnswerType = AnswerType.UNKNOWN) -> None:
@@ -310,7 +310,7 @@ class Lexicon:
                 self.finish = date
 
     def get_statistics(self) -> float:
-        count: List[int] = [0, 0]
+        count: list[int] = [0, 0]
         for record in self.logs["log"].records:  # type: LogRecord
             if record.response == LexiconResponse.KNOW:
                 count[0] += 1
@@ -394,10 +394,10 @@ class Lexicon:
         return int(100 / self.get_average())
 
     def construct_precise(
-            self, precision: int = 100) -> (List[datetime], List[float]):
+            self, precision: int = 100) -> (list[datetime], list[float]):
 
-        dates: List[datetime] = []
-        rates: List[float] = []
+        dates: list[datetime] = []
+        rates: list[float] = []
         left, right, knowns = 0, 0, 0
 
         while right < len(self.dates) - 1:
@@ -460,13 +460,13 @@ class Lexicon:
 
         return None, None
 
-    def get_top_unknown(self, frequency_list: FrequencyList) -> List[str]:
+    def get_top_unknown(self, frequency_list: FrequencyList) -> list[str]:
         """
         Get all words user marked as unknown in order of frequency.
 
         :param frequency_list: sort words using this list.
         """
-        result: List[str] = []
+        result: list[str] = []
 
         for word in sorted(
                 self.words.keys(),
@@ -479,8 +479,8 @@ class Lexicon:
         return result
 
     def ask(
-            self, word: str, word_list: List[str],
-            dictionaries: List[Dictionary], skip_known: bool = False,
+            self, word: str, word_list: list[str],
+            dictionaries: list[Dictionary], skip_known: bool = False,
             skip_unknown: bool = False, log_name: str = "log") -> (
             bool, LexiconResponse, Optional[Dictionary]):
         """
@@ -501,7 +501,7 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        items: List[DictionaryItem] = Dictionaries(dictionaries).get_items(word)
+        items: list[DictionaryItem] = Dictionaries(dictionaries).get_items(word)
 
         if items:
             one_button("Show translation")
@@ -551,7 +551,7 @@ class Lexicon:
 
     def binary_search(
             self, frequency_list: FrequencyList,
-            dictionaries: List[Dictionary]):
+            dictionaries: list[Dictionary]):
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
             print(left_border, right_border)
@@ -581,10 +581,10 @@ class Lexicon:
 
     def check(
             self, frequency_list: FrequencyList, stop_at: Optional[int],
-            dictionaries: List[Dictionary], log_type: str,
+            dictionaries: list[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
             stop_at_wrong: Optional[int],
-            word_list: List[str] = None) -> str:
+            word_list: list[str] = None) -> str:
         """
         Check current user vocabulary.
 

@@ -1,6 +1,6 @@
 import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
+from typing import Optional
 
 import matplotlib
 import matplotlib.dates as mdates
@@ -28,7 +28,7 @@ class Visualizer:
         pass
 
     @staticmethod
-    def get_commands() -> Set[str]:
+    def get_commands() -> set[str]:
         return {
             "depth", "depth by time", "graph 2", "actions", "actions per day",
             "response time", "next question time"}
@@ -51,7 +51,7 @@ class Visualizer:
         return False
 
     def depth(
-            self, records: List[Record], is_time: bool = False,
+            self, records: list[Record], is_time: bool = False,
             show_text: bool = False):
         """
         Show depth graph.
@@ -139,7 +139,7 @@ class Visualizer:
 
         plt.show()
 
-    def actions(self, records: List[Record]):
+    def actions(self, records: list[Record]):
         x, y = [], []
         count_learning: int = 0
         for record in records:  # type: Record
@@ -151,7 +151,7 @@ class Visualizer:
         plt.plot(x, y, color="black", linewidth=1)
         plt.show()
 
-    def cumulative_actions(self, records: List[Record]):
+    def cumulative_actions(self, records: list[Record]):
         data = {}
         for record in records:  # type: Record
             if not record.is_learning():
@@ -167,7 +167,7 @@ class Visualizer:
             color="black", linewidth=1)
         plt.show()
 
-    def graph_2(self, records: List[Record]):
+    def graph_2(self, records: list[Record]):
         x = []
         count: int = 0
         for record in records:  # type: Record
@@ -179,7 +179,7 @@ class Visualizer:
         plt.plot(x, y)
         plt.show()
 
-    def next_question_time(self, last_records: Dict[str, Knowledge]):
+    def next_question_time(self, last_records: dict[str, Knowledge]):
         data = {}
         for word in last_records:  # type: str
             record = last_records[word]
@@ -193,7 +193,7 @@ class Visualizer:
 
     @staticmethod
     def response_time(
-            records: List[Record], steps: int = 10,
+            records: list[Record], steps: int = 10,
             max_: int = 60) -> None:
         """
         Draw user response time histogram.
@@ -202,9 +202,9 @@ class Visualizer:
         :param steps: number of histogram steps per second
         :param max_: maximum number of seconds to show
         """
-        x: List[float] = [time / steps for time in range(0, max_ * steps + 1)]
-        y_y: List[float] = [0.0] * (max_ * steps + 1)
-        y_n: List[float] = [0.0] * (max_ * steps + 1)
+        x: list[float] = [time / steps for time in range(0, max_ * steps + 1)]
+        y_y: list[float] = [0.0] * (max_ * steps + 1)
+        y_n: list[float] = [0.0] * (max_ * steps + 1)
 
         last_record: Optional[Record] = records[0] if records else None
 
@@ -226,7 +226,7 @@ class Visualizer:
 
     @staticmethod
     def graph_lexicon(
-            lexicons: List, show_text: bool = False, margin: float = 0.0,
+            lexicons: list, show_text: bool = False, margin: float = 0.0,
             plot_precise_values: bool = False, precision: int = 100):
         """
         Plot lexicon rate change through time.
@@ -272,8 +272,8 @@ class Visualizer:
                     dates[-1], rates[-1],
                     language_name, transform=trans_offset)
 
-            xs: List[datetime] = []
-            ys: List[float] = []
+            xs: list[datetime] = []
+            ys: list[float] = []
             last: Optional[float] = None
 
             point = first_day_of_week(min(dates))

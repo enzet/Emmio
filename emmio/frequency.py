@@ -5,7 +5,6 @@ import json
 import random
 from dataclasses import dataclass
 from sqlite3 import Cursor
-from typing import Dict, KeysView, List
 
 import yaml
 
@@ -30,9 +29,9 @@ class FrequencyList:
     Frequency list of some text.
     """
     def __init__(self):
-        self.data: Dict[str, int] = {}
+        self.data: dict[str, int] = {}
         self.occurrences: int = 0
-        self.sorted_keys: List[str] = []
+        self.sorted_keys: list[str] = []
 
     def __len__(self) -> int:
         return len(self.data)
@@ -65,7 +64,7 @@ class FrequencyList:
         try:
             self.read_list(file_name, ": ")
         except Exception:
-            structure = yaml.load(open(file_name))
+            structure = yaml.load(open(file_name), Loader=yaml.FullLoader)
 
             for word in structure:
                 self.data[word] = structure[word]
@@ -82,7 +81,7 @@ class FrequencyList:
         log(f"Reading JSON frequency list from {file_name}...")
 
         with open(file_name) as input_file:
-            structure: List[(str, int)] = json.load(input_file)
+            structure: list[(str, int)] = json.load(input_file)
 
         for word, occurrences in structure:
             word: str
@@ -102,7 +101,7 @@ class FrequencyList:
         """
         log(f"reading frequency list from {file_name}")
 
-        lines: List[str] = open(file_name).readlines()
+        lines: list[str] = open(file_name).readlines()
         lines_number: int = len(lines)
         length: int = len(delimiter)
 
@@ -139,7 +138,7 @@ class FrequencyList:
 
         :param file_name: output JSON file name.
         """
-        structure: List = []
+        structure: list = []
         for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
             word: str
             structure.append([word, self.data[word]])

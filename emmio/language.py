@@ -2,7 +2,7 @@
 Language and font specifics.
 """
 import re
-from typing import Dict, Optional
+from typing import Optional
 
 from iso639 import languages as iso_languages
 from iso639.iso639 import _Language as ISOLanguage
@@ -78,7 +78,7 @@ EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
 
 SKIPPERS: str = "'’"
 
-LATIN_LIGATURES: Dict[str, str] = {
+LATIN_LIGATURES: dict[str, str] = {
     "ﬁ": "fi",
     "ﬂ": "fl",
     "ﬀ": "ff",

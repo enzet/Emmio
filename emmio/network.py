@@ -7,7 +7,7 @@ import json
 import os
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import urllib3
 
@@ -23,7 +23,7 @@ last_request_time: datetime = datetime.now()
 
 def get_data(
     address: str,
-    parameters: Dict[str, str],
+    parameters: dict[str, str],
     is_secure: bool = False,
     name: str = None,
     sleep_time: int = DEFAULT_SLEEP_TIME,
@@ -95,7 +95,7 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
 
 def get_content(
     address: str,
-    parameters: Dict[str, str],
+    parameters: dict[str, str],
     cache_file_name: Optional[str],
     kind: str,
     is_secure: bool,

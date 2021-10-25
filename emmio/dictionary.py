@@ -2,7 +2,7 @@
 Dictionary.
 """
 import re
-from typing import Dict, List, Optional, Set
+from typing import Optional
 
 from emmio.ui import colorize
 
@@ -19,9 +19,9 @@ class Form:
         self.word: str = word
 
         self.part_of_speech: str = part_of_speech
-        self.transcriptions: Set[str] = set()
-        self.translations: Dict[str, List[str]] = {}
-        self.links: List[(str, str)] = []
+        self.transcriptions: set[str] = set()
+        self.translations: dict[str, list[str]] = {}
+        self.links: list[(str, str)] = []
 
         # Optional characteristics.
         self.gender: Optional[str] = None
@@ -32,7 +32,7 @@ class Form:
         """Add word form IPA transcription."""
         self.transcriptions.add(transcription)
 
-    def add_translations(self, translations: List[str], language: str) -> None:
+    def add_translations(self, translations: list[str], language: str) -> None:
         """Add word translations."""
         for translation in translations:  # type: str
             self.add_translation(translation, language)
@@ -71,7 +71,7 @@ class Form:
         language: str,
         show_word: bool = True,
         use_colors: bool = True,
-        hide_translations: Set[str] = None,
+        hide_translations: set[str] = None,
     ) -> str:
         """
         Get human-readable representation of the word form.
@@ -133,17 +133,17 @@ class DictionaryItem:
 
     def __init__(self, word: str):
         self.word: str = word
-        self.definitions: List[Form] = []
+        self.definitions: list[Form] = []
 
     def add_definition(self, form: Form):
         """Add word form to dictionary item."""
         self.definitions.append(form)
 
-    def get_links(self) -> Set[str]:
+    def get_links(self) -> set[str]:
         """
         Get keys to other dictionary items this dictionary item is linked to.
         """
-        result: Set[str] = set()
+        result: set[str] = set()
         for definition in self.definitions:
             definition: Form
             for _, link in definition.links:
@@ -155,7 +155,7 @@ class DictionaryItem:
         language: str,
         show_word: bool = True,
         use_colors: bool = True,
-        hide_translations: Set[str] = None,
+        hide_translations: set[str] = None,
     ) -> str:
         """
         Get human-readable representation of the dictionary item.
@@ -181,7 +181,7 @@ class Dictionary:
     """Dictionary of word definitions."""
 
     def __init__(self):
-        self.__items: Dict[str, DictionaryItem] = {}
+        self.__items: dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
         """Add word definition."""
@@ -192,9 +192,9 @@ class Dictionary:
         if word in self.__items:
             return self.__items[word]
 
-    def get_forms(self) -> Dict[str, Set[str]]:
+    def get_forms(self) -> dict[str, set[str]]:
         """Get all possible forms of all words."""
-        result: Dict[str, Set[str]] = {}
+        result: dict[str, set[str]] = {}
         for word in self.__items:  # type: str
             item = self.__items[word]
             for form in item.definitions:
@@ -209,9 +209,9 @@ class Dictionary:
 class Dictionaries:
     """A set of dictionaries for a language."""
 
-    def __init__(self, dictionaries: List[Dictionary] = None):
+    def __init__(self, dictionaries: list[Dictionary] = None):
 
-        self.dictionaries: List[Dictionary]
+        self.dictionaries: list[Dictionary]
         if dictionaries is None:
             self.dictionaries = []
         else:
@@ -226,11 +226,11 @@ class Dictionaries:
         """
         self.dictionaries.append(dictionary)
 
-    def get_items(self, word: str) -> List[DictionaryItem]:
+    def get_items(self, word: str) -> list[DictionaryItem]:
         """
         Get word definition from the first dictionary.
         """
-        items: List[DictionaryItem] = []
+        items: list[DictionaryItem] = []
 
         for dictionary in self.dictionaries:  # type: Dictionary
             item: DictionaryItem = dictionary.get_item(word)

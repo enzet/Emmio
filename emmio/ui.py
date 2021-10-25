@@ -6,7 +6,6 @@ import os
 import sys
 import termios
 import tty
-from typing import Set
 
 from emmio.language import Language
 
@@ -87,7 +86,7 @@ BACKSPACE: int = 127
 
 
 def get_word(
-        right_word: str, alternative_forms: Set[str],
+        right_word: str, alternative_forms: set[str],
         language: Language) -> str:
 
     sys.stdout.write(len(right_word) * "_")

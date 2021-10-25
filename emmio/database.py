@@ -3,7 +3,6 @@ SQLite 3 utility.
 """
 import sqlite3
 from sqlite3.dbapi2 import Connection, Cursor
-from typing import List
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -21,7 +20,7 @@ class Database:
         self.connection: Connection = sqlite3.connect(database_file_name)
         self.cursor: Cursor = self.connection.cursor()
 
-    def get_table_ids(self) -> List[str]:
+    def get_table_ids(self) -> list[str]:
         """Get identifiers of all tables in the database."""
         self.cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table';"

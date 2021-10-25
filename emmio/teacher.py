@@ -5,7 +5,7 @@ import json
 import math
 import random
 from datetime import timedelta
-from typing import List, Optional, Set, Tuple
+from typing import Optional
 
 from emmio.dictionary import Dictionaries, Dictionary
 from emmio.frequency import FrequencyDatabase
@@ -37,7 +37,7 @@ class Teacher:
 
         self.max_for_day: int = learning.ratio
         self.learning: Learning = learning
-        self.dictionaries: List[Dictionary] = get_dictionaries(
+        self.dictionaries: list[Dictionary] = get_dictionaries(
             self.learning_language)
 
         self.lexicon: Lexicon = lexicon
@@ -46,7 +46,7 @@ class Teacher:
             cache_directory_name, sentence_db, self.known_language,
             self.learning_language)
 
-        self.words: List[Tuple[int, str]] = []
+        self.words: list[tuple[int, str]] = []
         log("getting words")
         for frequency_list_id in learning.frequency_list_ids:
             frequency_list_id: str
@@ -117,11 +117,11 @@ class Teacher:
 
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
-        ids_to_skip: Set[int] = set()
+        ids_to_skip: set[int] = set()
         if word in self.exclude_sentences:
             ids_to_skip = set(self.exclude_sentences[word])
 
-        translations: List[Translation] = self.sentences.filter_(
+        translations: list[Translation] = self.sentences.filter_(
             word, ids_to_skip, 120)
         if not translations:
             return "bad question"
@@ -183,8 +183,8 @@ class Teacher:
             f"to repeat: {self.learning.to_repeat()}")
         print(s)
 
-        alternative_forms: Set[str] = set()
-        exclude_translations: Set[str] = set()
+        alternative_forms: set[str] = set()
+        exclude_translations: set[str] = set()
 
         if word in self.exclude_translations:
             exclude_translations = self.exclude_translations[word]
@@ -193,7 +193,7 @@ class Teacher:
             print("\n".join(map(lambda x: x.to_str(
                 self.known_language.get_code(), False,
                 hide_translations=exclude_translations), items)))
-            alternative_forms: Set[str] = items[0].get_links()
+            alternative_forms: set[str] = items[0].get_links()
         else:
             print("No translations.")
 
