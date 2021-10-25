@@ -15,6 +15,7 @@ class UserData:
     """
     Learning data for one user.
     """
+
     def __init__(self):
         self.courses = {}
         self.lexicons = {}
@@ -38,15 +39,17 @@ class UserData:
             user_data.id_ = config["id"]
             user_data.name = config["name"]
             user_data.native_languages = set(
-                Language(x) for x in config["native_languages"])
+                Language(x) for x in config["native_languages"]
+            )
             user_data.lexicon_config = config["lexicon"]
 
         for directory_name in listdir(path):  # type: str
             if directory_name == "learn":
                 for file_name in listdir(
-                        join(path, directory_name)):  # type: str
+                    join(path, directory_name)
+                ):  # type: str
                     if file_name.endswith(".json"):
-                        user_data.course_ids.add(file_name[:-len(".json")])
+                        user_data.course_ids.add(file_name[: -len(".json")])
 
         return user_data
 
@@ -62,7 +65,8 @@ class UserData:
                 if file_name != f"{language.get_code()}.json":
                     continue
                 self.lexicons[language] = Lexicon(
-                    language, join(self.path, "lexicon", file_name))
+                    language, join(self.path, "lexicon", file_name)
+                )
         return self.lexicons[language]
 
     def get_course(self, course_id: str) -> Learning:
@@ -70,7 +74,8 @@ class UserData:
             for file_name in listdir(join(self.path, "learn")):  # type: str
                 if file_name != f"{course_id}.json":
                     continue
-                course_id: str = file_name[:-len(".json")]
+                course_id: str = file_name[: -len(".json")]
                 self.courses[course_id] = Learning(
-                    join(self.path, "learn", file_name), course_id)
+                    join(self.path, "learn", file_name), course_id
+                )
         return self.courses[course_id]

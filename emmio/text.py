@@ -9,6 +9,7 @@ class Text:
     """
     Text processing utility.
     """
+
     def __init__(self, text: str, language: Language):
         """
         :param text: some text to process
@@ -18,7 +19,8 @@ class Text:
         self.language: Language = language
 
     def get_frequency_list(
-            self, ignore_proper_nouns: bool = False) -> FrequencyList:
+        self, ignore_proper_nouns: bool = False
+    ) -> FrequencyList:
         """
         Construct frequency list of the text.
 

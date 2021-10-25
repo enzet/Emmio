@@ -18,6 +18,7 @@ class Sentence:
     Some part of a text written in a single language.  Sometimes it may contain
     two or more sentences or not be complete in itself.
     """
+
     id_: int
     text: str
 
@@ -28,6 +29,7 @@ class Translation:
     Some part of a text written in a single language and its translations to
     other languages.  Some translations may be transitive.
     """
+
     sentence: Sentence
     translations: List[Sentence]
 
@@ -39,6 +41,7 @@ class SentenceDatabase(Database):
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
     """
+
     def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
         """
         Get sentence by identifier.
@@ -48,11 +51,12 @@ class SentenceDatabase(Database):
         """
         table_id: str = f"{language.get_code()}_sentences"
         id_, text = self.cursor.execute(
-            f"SELECT * FROM {table_id} WHERE id=?", (sentence_id, )).fetchone()
+            f"SELECT * FROM {table_id} WHERE id=?", (sentence_id,)
+        ).fetchone()
         return Sentence(id_, text)
 
     def get_sentences(self, language: Language) -> Dict[str, Sentence]:
-        """ Get all sentences written in the specified language. """
+        """Get all sentences written in the specified language."""
         result = {}
         table_id: str = f"{language.get_code()}_sentences"
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
@@ -62,19 +66,25 @@ class SentenceDatabase(Database):
 
 
 class Sentences:
-    """ Collection of sentences. """
+    """Collection of sentences."""
+
     def __init__(
-            self, cache_directory_name: str, sentence_db: SentenceDatabase,
-            language_1: Language, language_2: Language):
+        self,
+        cache_directory_name: str,
+        sentence_db: SentenceDatabase,
+        language_1: Language,
+        language_2: Language,
+    ):
 
         self.sentence_db: SentenceDatabase = sentence_db
         self.language_1: Language = language_1
         self.language_2: Language = language_2
 
-        cache_file_name: str = (join(
+        cache_file_name: str = join(
             cache_directory_name,
             f"links_{self.language_1.get_part3()}_"
-            f"{self.language_2.get_part3()}.json"))
+            f"{self.language_2.get_part3()}.json",
+        )
 
         self.links: Dict[int, Set[int]] = {}
 
@@ -93,7 +103,8 @@ class Sentences:
         self.cache: Dict[str, List[int]] = {}
 
         cache_file_name: str = join(
-            cache_directory_name, f"cache_{self.language_2.get_part3()}.json")
+            cache_directory_name, f"cache_{self.language_2.get_part3()}.json"
+        )
         if os.path.isfile(cache_file_name):
             log("reading word cache")
             with open(cache_file_name) as input_file:
@@ -147,7 +158,7 @@ class Sentences:
             self.links = json.load(input_file)
 
     def fill_cache(self, file_name: str) -> None:
-        """ Construct dictionary from words to sentences. """
+        """Construct dictionary from words to sentences."""
         log("fill word cache")
         size = len(self.links)
         for index, id_ in enumerate(self.links.keys()):
@@ -156,7 +167,8 @@ class Sentences:
             word: str = ""
             sentence_words: Set[str] = set()
             sentence: str = self.sentence_db.get_sentence(
-                self.language_2, id_).text
+                self.language_2, id_
+            ).text
             for symbol in sentence.lower():  # type: str
                 if self.language_2.has_symbol(symbol):
                     word += symbol
@@ -176,8 +188,8 @@ class Sentences:
             json.dump(self.cache, output_file)
 
     def filter_(
-            self, word: str, ids_to_skip: Set[int],
-            max_length: int) -> List[Translation]:
+        self, word: str, ids_to_skip: Set[int], max_length: int
+    ) -> List[Translation]:
         """
         Get sentences that contain the specified word and their translations to
         the second language.
@@ -197,14 +209,20 @@ class Sentences:
                 continue
             id_: int
             sentence: Sentence = self.sentence_db.get_sentence(
-                self.language_2, id_)
+                self.language_2, id_
+            )
             if len(sentence.text) > max_length:
                 continue
             index = sentence.text.lower().find(word)
             assert index >= 0
             if str(id_) in self.links:
-                result.append(Translation(
-                    sentence,
-                    [self.sentence_db.get_sentence(self.language_1, x)
-                     for x in self.links[str(id_)]]))
+                result.append(
+                    Translation(
+                        sentence,
+                        [
+                            self.sentence_db.get_sentence(self.language_1, x)
+                            for x in self.links[str(id_)]
+                        ],
+                    )
+                )
         return result

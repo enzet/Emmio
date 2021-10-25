@@ -14,6 +14,7 @@ class Form:
     """
     Word form: noun, verb, etc.
     """
+
     def __init__(self, word: str, part_of_speech: str):
         self.word: str = word
 
@@ -28,11 +29,11 @@ class Form:
         self.is_singular: Optional[bool] = None
 
     def add_transcription(self, transcription: str) -> None:
-        """ Add word form IPA transcription. """
+        """Add word form IPA transcription."""
         self.transcriptions.add(transcription)
 
     def add_translations(self, translations: List[str], language: str) -> None:
-        """ Add word translations. """
+        """Add word translations."""
         for translation in translations:  # type: str
             self.add_translation(translation, language)
 
@@ -58,16 +59,20 @@ class Form:
         self.links.append((link_type, link))
 
     def set_gender(self, gender: str) -> None:
-        """ Set gender of the form if has any. """
+        """Set gender of the form if has any."""
         self.gender = gender
 
     def set_verb_group(self, verb_group: int) -> None:
-        """ Set group if the word is a verb. """
+        """Set group if the word is a verb."""
         self.verb_group = verb_group
 
     def to_str(
-            self, language: str, show_word: bool = True,
-            use_colors: bool = True, hide_translations: Set[str] = None) -> str:
+        self,
+        language: str,
+        show_word: bool = True,
+        use_colors: bool = True,
+        hide_translations: Set[str] = None,
+    ) -> str:
         """
         Get human-readable representation of the word form.
         """
@@ -75,30 +80,38 @@ class Form:
 
         desc = self.part_of_speech
         if show_word and self.transcriptions:
-            desc += " " + ", ".join(map(
-                lambda x: f"/{x}/", self.transcriptions))
+            desc += " " + ", ".join(
+                map(lambda x: f"/{x}/", self.transcriptions)
+            )
 
         if self.translations and language in self.translations:
             translation_words = self.translations[language]
-            translation_words = list(filter(
-                lambda x:
-                (not hide_translations or
-                 x.lower() not in hide_translations) and
-                x.lower() != self.word.lower(),
-                translation_words))
+            translation_words = list(
+                filter(
+                    lambda x: (
+                        not hide_translations
+                        or x.lower() not in hide_translations
+                    )
+                    and x.lower() != self.word.lower(),
+                    translation_words,
+                )
+            )
             if not show_word:
                 translation_words = map(
                     lambda x: x.replace(self.word, "_" * len(self.word)),
-                    translation_words)
+                    translation_words,
+                )
                 translation_words = map(
                     lambda x: re.sub(
-                        " of [^ ]*", " of ?", re.sub("\\([^)]*\\)", "--", x)),
-                    translation_words)
+                        " of [^ ]*", " of ?", re.sub("\\([^)]*\\)", "--", x)
+                    ),
+                    translation_words,
+                )
                 translation_words = list(translation_words)
             if translation_words:
                 delimiter = (
-                    "; " if max(map(len, translation_words)) < 25
-                    else "\n    ")
+                    "; " if max(map(len, translation_words)) < 25 else "\n    "
+                )
                 result += colorize(desc, "grey") if use_colors else desc
                 result += "\n    " + delimiter.join(translation_words) + "\n"
 
@@ -117,12 +130,13 @@ class DictionaryItem:
     """
     Dictionary item: word translations.
     """
+
     def __init__(self, word: str):
         self.word: str = word
         self.definitions: List[Form] = []
 
     def add_definition(self, form: Form):
-        """ Add word form to dictionary item. """
+        """Add word form to dictionary item."""
         self.definitions.append(form)
 
     def get_links(self) -> Set[str]:
@@ -137,8 +151,12 @@ class DictionaryItem:
         return result
 
     def to_str(
-            self, language: str, show_word: bool = True,
-            use_colors: bool = True, hide_translations: Set[str] = None) -> str:
+        self,
+        language: str,
+        show_word: bool = True,
+        use_colors: bool = True,
+        hide_translations: Set[str] = None,
+    ) -> str:
         """
         Get human-readable representation of the dictionary item.
 
@@ -153,27 +171,29 @@ class DictionaryItem:
 
         for definition in self.definitions:  # type: Form
             result += definition.to_str(
-                language, show_word, use_colors, hide_translations)
+                language, show_word, use_colors, hide_translations
+            )
 
         return result
 
 
 class Dictionary:
-    """ Dictionary of word definitions. """
+    """Dictionary of word definitions."""
+
     def __init__(self):
         self.__items: Dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
-        """ Add word definition. """
+        """Add word definition."""
         self.__items[word] = item
 
     def get_item(self, word: str) -> Optional[DictionaryItem]:
-        """ Get word definition. """
+        """Get word definition."""
         if word in self.__items:
             return self.__items[word]
 
     def get_forms(self) -> Dict[str, Set[str]]:
-        """ Get all possible forms of all words. """
+        """Get all possible forms of all words."""
         result: Dict[str, Set[str]] = {}
         for word in self.__items:  # type: str
             item = self.__items[word]
@@ -187,7 +207,8 @@ class Dictionary:
 
 
 class Dictionaries:
-    """ A set of dictionaries for a language. """
+    """A set of dictionaries for a language."""
+
     def __init__(self, dictionaries: List[Dictionary] = None):
 
         self.dictionaries: List[Dictionary]

@@ -22,8 +22,12 @@ last_request_time: datetime = datetime.now()
 
 
 def get_data(
-        address: str, parameters: Dict[str, str], is_secure: bool = False,
-        name: str = None, sleep_time: int = DEFAULT_SLEEP_TIME) -> bytes:
+    address: str,
+    parameters: Dict[str, str],
+    is_secure: bool = False,
+    name: str = None,
+    sleep_time: int = DEFAULT_SLEEP_TIME,
+) -> bytes:
     """
     Construct Internet page URL and get data.
 
@@ -42,7 +46,7 @@ def get_data(
         name = url
 
     # Sleep before the next request.
-    diff: timedelta = (datetime.now() - last_request_time)
+    diff: timedelta = datetime.now() - last_request_time
     last_request_time = datetime.now()
     if diff < timedelta(seconds=sleep_time):
         print(f"Sleeping for {sleep_time} seconds.")
@@ -72,8 +76,9 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
             object_ = json.loads(data.decode("utf-8"))
             if cache_file_name is not None:
                 with open(cache_file_name, "w+") as cached:
-                    cached.write(json.dumps(
-                        object_, indent=4, ensure_ascii=False))
+                    cached.write(
+                        json.dumps(object_, indent=4, ensure_ascii=False)
+                    )
             return object_
         except ValueError:
             return None
@@ -89,9 +94,14 @@ def write_cache(data: bytes, kind: str, cache_file_name: str) -> Any:
 
 
 def get_content(
-        address: str, parameters: Dict[str, str],
-        cache_file_name: Optional[str], kind: str, is_secure: bool,
-        name: str = None, update_cache: bool = False) -> Any:
+    address: str,
+    parameters: Dict[str, str],
+    cache_file_name: Optional[str],
+    kind: str,
+    is_secure: bool,
+    name: str = None,
+    update_cache: bool = False,
+) -> Any:
     """
     Read content from URL or from cached file.
 
@@ -109,8 +119,11 @@ def get_content(
 
     # Read from the cache file.
 
-    if (cache_file_name is not None and not update_cache and
-            os.path.isfile(cache_file_name)):
+    if (
+        cache_file_name is not None
+        and not update_cache
+        and os.path.isfile(cache_file_name)
+    ):
         with open(cache_file_name) as cache_file:
             if kind == "json":
                 try:
@@ -126,7 +139,8 @@ def get_content(
 
     try:
         data: bytes = get_data(
-            address, parameters, is_secure=is_secure, name=name)
+            address, parameters, is_secure=is_secure, name=name
+        )
         if cache_file_name is not None:
             return write_cache(data, kind, cache_file_name)
     except Exception as e:
@@ -137,12 +151,12 @@ def get_content(
 
 
 def get_file(path: str) -> Optional[str]:
-    """ Get file content from the network. """
+    """Get file content from the network."""
     if path.startswith("https://"):
-        path = path[len("https://"):]
+        path = path[len("https://") :]
         is_secure = True
     elif path.startswith("http://"):
-        path = path[len("http://"):]
+        path = path[len("http://") :]
         is_secure = False
     else:
         return None
