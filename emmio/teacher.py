@@ -1,7 +1,5 @@
 """
 Teacher.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import json
 import math
@@ -16,6 +14,9 @@ from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase, Sentences, Translation
 from emmio.ui import box, get_word, log
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 

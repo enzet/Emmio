@@ -1,12 +1,13 @@
 """
 Dictionary.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import re
 from typing import Dict, List, Optional, Set
 
 from emmio.ui import colorize
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 
 class Form:

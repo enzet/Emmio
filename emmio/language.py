@@ -1,13 +1,14 @@
 """
 Language and font specifics.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import re
 from typing import Dict, Optional
 
 from iso639 import languages as iso_languages
 from iso639.iso639 import _Language as ISOLanguage
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 DEFAULT_COLOR: str = "#000000"
 

@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional, Set
 from emmio.language import Language
 from emmio.ui import log
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 

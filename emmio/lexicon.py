@@ -10,6 +10,9 @@ from emmio.frequency import FrequencyList
 from emmio.language import Language
 from emmio.ui import get_char, log, one_button, write
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
 

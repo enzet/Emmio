@@ -2,8 +2,6 @@
 Emmio.
 
 Utility for network connections using urllib3.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import json
 import os
@@ -14,6 +12,9 @@ from typing import Any, Dict, Optional
 import urllib3
 
 from emmio.ui import error, network
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 DEFAULT_SLEEP_TIME: int = 2
 

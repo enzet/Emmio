@@ -7,6 +7,9 @@ from emmio.language import Language
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 
 class UserData:
     """

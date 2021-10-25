@@ -8,6 +8,9 @@ from emmio.database import Database
 from emmio.language import Language
 from emmio.ui import log, progress_bar
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 
 @dataclass
 class Sentence:

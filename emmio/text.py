@@ -1,6 +1,9 @@
 from emmio.frequency import FrequencyList
 from emmio.language import Language
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 
 class Text:
     """

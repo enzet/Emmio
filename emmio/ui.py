@@ -1,7 +1,5 @@
 """
 Emmio console user interface.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 
 import os
@@ -11,6 +9,9 @@ import tty
 from typing import Set
 
 from emmio.language import Language
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 colors = {
     "grey": "2",

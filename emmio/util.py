@@ -2,10 +2,11 @@
 Emmio.
 
 Utility functions.
-
-Author: Sergey Vartanov.
 """
 from datetime import datetime, timedelta
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 
 def day_start(point: datetime) -> datetime:

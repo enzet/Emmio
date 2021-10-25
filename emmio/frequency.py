@@ -1,7 +1,5 @@
 """
 Frequency list utility.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import json
 import random
@@ -13,6 +11,9 @@ import yaml
 
 from emmio.database import Database
 from emmio.ui import log, progress_bar
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 
 @dataclass

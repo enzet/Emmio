@@ -11,6 +11,9 @@ from emmio.learning import Knowledge, Record, ResponseType
 from emmio.lexicon import Lexicon
 from emmio.util import first_day_of_week, year_end, year_start
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 colors = [
     "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
     "#b7c183", "#74c183", "#3e8a83", "#3e5583",

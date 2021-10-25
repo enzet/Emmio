@@ -1,11 +1,12 @@
 """
 SQLite 3 utility.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import sqlite3
 from sqlite3.dbapi2 import Connection, Cursor
 from typing import List
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 
 class Database:
