@@ -23,6 +23,7 @@ class EnglishWiktionary(Dictionary):
 
     See https://en.wiktionary.org.
     """
+
     def __init__(self, cache_directory: str, from_language: Language):
         """
         Target language.
@@ -43,8 +44,8 @@ class EnglishWiktionary(Dictionary):
         :returns: parsed item
         """
         path: str = os.path.join(
-            self.cache_directory, "en_wiktionary",
-            self.from_language.get_code())
+            self.cache_directory, "en_wiktionary", self.from_language.get_code()
+        )
         os.makedirs(path, exist_ok=True)
         path: str = os.path.join(path, f"{word}.json")
 
@@ -54,7 +55,8 @@ class EnglishWiktionary(Dictionary):
         else:
             network(f"getting English Wiktionary item")
             content: Optional[Dict[str, Dict[str, Any]]] = self.parser.fetch(
-                word, self.from_language.get_name())
+                word, self.from_language.get_name()
+            )
             with open(path, "w+") as output_file:
                 json.dump(content, output_file)
 
@@ -71,7 +73,8 @@ class EnglishWiktionary(Dictionary):
                 for text in texts:  # type: str
                     text = text.strip()
                     matcher: Optional[re.Match] = re.match(
-                        "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text)
+                        "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text
+                    )
                     if matcher:
                         link: str = matcher.group("link")
                         link = self.from_language.decode_text(link)
@@ -89,15 +92,20 @@ class EnglishWiktionary(Dictionary):
             return item
 
     def get(
-            self, word: str, language: str, show_word: bool = True,
-            hide_translations: List[str] = None,
-            use_colors: bool = False) -> Optional[str]:
+        self,
+        word: str,
+        language: str,
+        show_word: bool = True,
+        hide_translations: List[str] = None,
+        use_colors: bool = False,
+    ) -> Optional[str]:
 
         item: Optional[DictionaryItem] = self.get_item(word)
         if item:
             return item.to_str(
-                language, show_word, use_colors, hide_translations)
+                language, show_word, use_colors, hide_translations
+            )
 
     def get_name(self) -> str:
-        """ Return dictionary name. """
+        """Return dictionary name."""
         return "English Wiktionary"

@@ -10,6 +10,7 @@ class TableParser(HTMLParser):
     Simple parser that extracts tables from the HTML file and stores them as the
     list of lists of lists of strings.
     """
+
     def __init__(self):
         super().__init__()
         self.tables: List[List[List[str]]] = []
@@ -65,8 +66,13 @@ def parse_date(date_string: str) -> Optional[datetime]:
 
 class MemriseDataRecord:
     def __init__(
-            self, course_name: str, date_from: datetime, date_to: datetime,
-            num_tests: int, score: float):
+        self,
+        course_name: str,
+        date_from: datetime,
+        date_to: datetime,
+        num_tests: int,
+        score: float,
+    ):
         """
         :param course_name: the title of the course. E.g. "Manuel De Français"
             or "Icelandic 1".
@@ -88,6 +94,7 @@ class MemriseData:
     should go to https://www.memrise.com/settings/ and click "Download personal
     data".  The result HTML file will be sent to user's email.
     """
+
     def __init__(self, file_name: str):
         """
         :param file_name: HTML input file name.
@@ -104,8 +111,14 @@ class MemriseData:
         table: List[List[str]] = parser.tables[4]
 
         for row in table:  # type: List[str]
-            course_name, _, string_date_from, string_date_to, num_tests, \
-                score = row
+            (
+                course_name,
+                _,
+                string_date_from,
+                string_date_to,
+                num_tests,
+                score,
+            ) = row
 
             if not num_tests or not string_date_from or not string_date_to:
                 continue
@@ -115,6 +128,12 @@ class MemriseData:
 
             if date_from and date_to:
                 self.all_tests += int(num_tests)
-                self.data.append(MemriseDataRecord(
-                    course_name, date_from, date_to, int(num_tests),
-                    float(score)))
+                self.data.append(
+                    MemriseDataRecord(
+                        course_name,
+                        date_from,
+                        date_to,
+                        int(num_tests),
+                        float(score),
+                    )
+                )

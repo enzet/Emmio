@@ -17,9 +17,13 @@ class Language:
     """
     Natural language description.
     """
+
     def __init__(
-            self, code: str, symbols: Optional[str] = None,
-            color: Optional[str] = None):
+        self,
+        code: str,
+        symbols: Optional[str] = None,
+        color: Optional[str] = None,
+    ):
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: Optional[str] = symbols
         self.color: Optional[str] = color
@@ -50,7 +54,7 @@ class Language:
         return symbol in self.symbols
 
     def has_symbols(self) -> bool:
-        """ Check whether language knows its allowed symbols. """
+        """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
     def decode_text(self, text: str) -> str:
@@ -87,26 +91,32 @@ LATIN_LIGATURES: Dict[str, str] = {
 ARABIC: Language = Language("ar", color="#FF8800")
 CHINESE: Language = Language("zh", color="#444400")
 ENGLISH: Language = Language(
-    "en", LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
-    color="#021A67")
+    "en",
+    LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
+    color="#021A67",
+)
 ESPERANTO: Language = Language(
-    "eo", EO_UPPER.lower() + EO_UPPER, color="#009900")
+    "eo", EO_UPPER.lower() + EO_UPPER, color="#009900"
+)
 FRENCH: Language = Language(
     "fr",
     LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
-    color="#16ACEC")
+    color="#16ACEC",
+)
 GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#FED12E")
 ICELANDIC: Language = Language("is", color="#008844")
 ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
 JAPANESE: Language = Language("ja", color="#CC2200")
 KOREAN: Language = Language("ko", color="#880088")
 LATIN: Language = Language(
-    "la", LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ", color="#666666")
+    "la", LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ", color="#666666"
+)
 MODERN_GREEK: Language = Language("el", color="#444444")
 PORTUGUESE: Language = Language("pt", color="#00AA00")
 RUSSIAN: Language = Language("ru", RU_UPPER + RU_UPPER.lower(), color="#AAAAAA")
 SPANISH: Language = Language(
-    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#C61323")
+    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#C61323"
+)
 SWEDISH: Language = Language("sv", color="#004488")
 UKRAINIAN: Language = Language("uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS)
 
