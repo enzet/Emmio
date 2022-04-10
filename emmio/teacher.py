@@ -189,6 +189,10 @@ class Teacher:
         if word in self.exclude_translations:
             exclude_translations = self.exclude_translations[word]
         items = dictionaries.get_items(word)
+
+        if not items and self.learning_language == GERMAN:
+            items = dictionaries.get_items(word[0].upper() + word[1:])
+
         if items:
             print("\n".join(map(lambda x: x.to_str(
                 self.known_language.get_code(), False,
