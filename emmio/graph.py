@@ -1,14 +1,17 @@
 import random
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Callable
 
 import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.transforms as mtransforms
 from matplotlib import pyplot as plt
+from svgwrite import Drawing
 
 from emmio.learning import Knowledge, Record, ResponseType
 from emmio.lexicon import Lexicon
+from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
 
 __author__ = "Sergey Vartanov"
@@ -224,22 +227,39 @@ class Visualizer:
         plt.ylim(ymin=0)
         plt.show()
 
-    @staticmethod
-    def graph_lexicon(
-            lexicons: list, show_text: bool = False, margin: float = 0.0,
-            plot_precise_values: bool = False, precision: int = 100):
+
+@dataclass
+class LexiconVisualizer:
+
+    # Plot marker for each user response.
+    plot_precise_values: bool = False
+
+    # How many wrong answers is needed to construct data point.
+    precision: int = 100
+
+    # Function to compute starting point in time based on the minimal point in
+    # time from data.
+    first_point: Callable = first_day_of_week
+
+    # Function to compute next point in time.
+    next_point: Callable = lambda x: x + timedelta(days=7)
+
+    impulses: bool = True
+
+    def graph_with_matplot(
+        self,
+        lexicons: list[Lexicon],
+        show_text: bool = False,
+        margin: float = 0.0,
+    ):
         """
         Plot lexicon rate change through time.
 
         :param lexicons: list of lexicons
         :param show_text: show labels on the current rate
         :param margin: do not show languages that never had rate over the margin
-        :param plot_precise_values: plot marker for each user response
         """
-        from matplotlib import pyplot as plt
-        import matplotlib.dates as mdates
-
-        font = {"size": 8}
+        font: dict[str, float] = {"size": 8.0}
         matplotlib.rc("font", **font)
 
         fig, ax = plt.subplots()
@@ -247,51 +267,83 @@ class Visualizer:
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
 
-        x_min, x_max = None, None
+        x_min, x_max, data = self.construct_lexicon_data(
+            lexicons, margin
+        )
 
-        for lexicon in lexicons:  # type: Lexicon
-            dates, rates = lexicon.construct_precise(precision)
+        for xs, ys, color, title in data:
+            plt.plot(xs, ys, color=color, linewidth=1, label=title)
 
-            if not rates or max(rates) < margin:
-                continue
-
-            x_min = min(x_min, min(dates)) if x_min else min(dates)
-            x_max = max(x_max, max(dates)) if x_max else max(dates)
-
+        for lexicon in lexicons:
+            dates, rates = lexicon.construct_precise(self.precision)
             language_name: str = lexicon.language.get_name()
 
-            if plot_precise_values:
+            if self.plot_precise_values:
                 plt.plot(
                     dates, rates, "o", alpha=0.01,
-                    markersize=0.5, color=lexicon.language.get_color())
+                    markersize=0.5, color=lexicon.language.get_color()
+                )
 
-            trans_offset = mtransforms.offset_copy(
-                ax.transData, fig=fig, x=0.1, y=0)
             if show_text:
+                trans_offset = mtransforms.offset_copy(
+                    ax.transData, fig=fig, x=0.1, y=0
+                )
                 plt.text(
-                    dates[-1], rates[-1],
-                    language_name, transform=trans_offset)
-
-            xs: list[datetime] = []
-            ys: list[float] = []
-            last: Optional[float] = None
-
-            point = first_day_of_week(min(dates))
-            for index, p in enumerate(dates):
-                while p > point:
-                    if last is not None:
-                        xs.append(point)
-                        ys.append(last)
-                    xs.append(point)
-                    ys.append(rates[index])
-                    last = rates[index]
-                    point += timedelta(days=7)
-            plt.plot(
-                xs, ys, color=lexicon.language.get_color(),
-                linewidth=1, label=language_name)
+                    dates[-1], rates[-1], language_name, transform=trans_offset
+                )
 
         plt.legend(bbox_to_anchor=(1.05, 0.5), loc="center left", frameon=False)
         plt.ylim(ymin=margin)
         plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
         plt.tight_layout()
         plt.show()
+
+    def graph_with_svg(self, lexicons, margin: float = 0.0):
+        x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
+        graph = Graph(data, x_min, x_max)
+        graph.plot(Drawing("lexicon.svg", (800.0, 600.0)))
+
+    def construct_lexicon_data(self, lexicons, margin):
+        x_min: Optional[datetime] = None
+        data = []
+
+        for lexicon in lexicons:
+
+            lexicon: Lexicon
+            dates, rates = lexicon.construct_precise(self.precision)
+
+            if not rates or max(rates) < margin:
+                continue
+
+            language_name: str = lexicon.language.get_name()
+
+            xs: list[datetime] = []
+            ys: list[float] = []
+            last: Optional[float] = None
+
+            point: datetime = self.first_point(min(dates))
+            x_min = min(point, x_min) if x_min else point
+
+            index: int = 0
+            for index, current_point in enumerate(dates):
+                while current_point > point:
+                    if self.impulses and last is not None:
+                        xs.append(point)
+                        ys.append(last)
+                    xs.append(point)
+                    ys.append(rates[index])
+                    last = rates[index]
+                    point = self.next_point(point)
+
+            if self.impulses and last is not None:
+                xs.append(point)
+                ys.append(last)
+            if index < len(rates):
+                xs.append(point)
+                ys.append(rates[index])
+
+            data.append(
+                (xs, ys, lexicon.language.get_color(), language_name)
+            )
+
+        return x_min, point, sorted(data, key=lambda x: -x[1][-1])
