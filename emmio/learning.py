@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Optional
 
-from emmio.language import Language
+from emmio.language import Language, construct_language
 from emmio.ui import log
 
 __author__ = "Sergey Vartanov"
@@ -127,7 +127,7 @@ class Learning:
         if "ratio" in self.config:
             self.ratio = self.config["ratio"]
         if "language" in self.config:
-            self.language = Language(self.config["language"])
+            self.language: Language = construct_language(self.config["language"])
         if "subject" in self.config:
             self.subject = self.config["subject"]
         if "check_lexicon" in self.config:

@@ -9,7 +9,7 @@ from typing import Optional
 
 from emmio.dictionary import Dictionaries, Dictionary
 from emmio.frequency import FrequencyDatabase
-from emmio.language import Language
+from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase, Sentences, Translation
@@ -31,7 +31,7 @@ class Teacher:
 
         self.learning_language: Language
         try:
-            self.learning_language = Language(learning.subject)
+            self.learning_language = construct_language(learning.subject)
         except KeyError:
             self.learning_language = None
 

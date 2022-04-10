@@ -12,6 +12,25 @@ __email__ = "me@enzet.ru"
 
 DEFAULT_COLOR: str = "#000000"
 
+# COLORS: dict[str, str] = {
+#     "ar": "#FF8800",
+#     "zh": "#444400",
+#     "en": "#021A67",
+#     "eo": "#009900",
+#     "fr": "#16ACEC",
+#     "de": "#FED12E",
+#     "is": "#008844",
+#     "it": "#008888",
+#     "ja": "#CC2200",
+#     "ko": "#880088",
+#     "la": "#666666",
+#     "el": "#444444",
+#     "pt": "#00AA00",
+#     "ru": "#AAAAAA",
+#     "es": "#C61323",
+#     "sv": "#004488",
+# }
+
 
 class Language:
     """
@@ -24,11 +43,13 @@ class Language:
         symbols: Optional[str] = None,
         color: Optional[str] = None,
     ):
+        assert color
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: Optional[str] = symbols
         self.color: Optional[str] = color
 
     def __eq__(self, other: "Language"):
+        assert isinstance(other, Language)
         return self.language == other.language
 
     def __hash__(self):
@@ -57,12 +78,15 @@ class Language:
         """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
+    def get_symbols(self):
+        return self.symbols
+
     def decode_text(self, text: str) -> str:
-        if self.language == ESPERANTO:
+        if self == ESPERANTO:
             return decode_esperanto(text)
-        if self.language == UKRAINIAN:
+        if self == UKRAINIAN:
             return decode_ukrainian(text)
-        if self.language == LATIN:
+        if self == LATIN:
             return decode_latin(text)
         return text
 
@@ -93,7 +117,7 @@ CHINESE: Language = Language("zh", color="#444400")
 ENGLISH: Language = Language(
     "en",
     LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
-    color="#021A67",
+    color="#2F2FC5",  # #021A67
 )
 ESPERANTO: Language = Language(
     "eo", EO_UPPER.lower() + EO_UPPER, color="#009900"
@@ -101,9 +125,9 @@ ESPERANTO: Language = Language(
 FRENCH: Language = Language(
     "fr",
     LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
-    color="#16ACEC",
+    color="#4DA9CC",  # #16ACEC
 )
-GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#FED12E")
+GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656")  # #FED12E
 ICELANDIC: Language = Language("is", color="#008844")
 ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
 JAPANESE: Language = Language("ja", color="#CC2200")
@@ -113,13 +137,34 @@ LATIN: Language = Language(
 )
 MODERN_GREEK: Language = Language("el", color="#444444")
 PORTUGUESE: Language = Language("pt", color="#00AA00")
+POLISH: Language = Language("pl", color="#00AA00")
 RUSSIAN: Language = Language("ru", RU_UPPER + RU_UPPER.lower(), color="#AAAAAA")
 SPANISH: Language = Language(
-    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#C61323"
+    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#CB3636"  # "C61323"
 )
 SWEDISH: Language = Language("sv", color="#004488")
-UKRAINIAN: Language = Language("uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS)
+UKRAINIAN: Language = Language("uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS, color="#E5D144")
 
+known_languages = [
+    ARABIC,
+    CHINESE,
+    ENGLISH,
+    ESPERANTO,
+    FRENCH,
+    GERMAN,
+    ICELANDIC,
+    ITALIAN,
+    JAPANESE,
+    KOREAN,
+    LATIN,
+    MODERN_GREEK,
+    PORTUGUESE,
+    POLISH,
+    RUSSIAN,
+    SPANISH,
+    SWEDISH,
+    UKRAINIAN,
+]
 
 def decode_ukrainian(text: str) -> str:
     return text.replace("i", "і")  # i to U+0456
@@ -142,3 +187,11 @@ def decode_esperanto(text: str) -> str:
 
 def decode_latin(text: str) -> str:
     return text.replace("ā", "a").replace("ō", "o")
+
+
+def construct_language(code: str) -> Language:
+    for language in known_languages:
+        if code == language.get_code():
+            return language
+
+    return Language(code)

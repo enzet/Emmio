@@ -3,7 +3,7 @@ from os import listdir
 from os.path import join
 from typing import Any, Iterator, Optional
 
-from emmio.language import Language
+from emmio.language import Language, construct_language
 from emmio.learning import Learning
 from emmio.lexicon import Lexicon
 
@@ -39,7 +39,7 @@ class UserData:
             user_data.id_ = config["id"]
             user_data.name = config["name"]
             user_data.native_languages = set(
-                Language(x) for x in config["native_languages"]
+                construct_language(x) for x in config["native_languages"]
             )
             user_data.lexicon_config = config["lexicon"]
 
@@ -57,7 +57,7 @@ class UserData:
         return self.lexicon_config[language.get_code()]
 
     def get_lexicon_languages(self) -> Iterator[Language]:
-        return map(Language, self.lexicon_config.keys())
+        return map(construct_language, self.lexicon_config.keys())
 
     def get_lexicon(self, language: Language) -> Lexicon:
         if language not in self.lexicons:
