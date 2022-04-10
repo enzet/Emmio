@@ -54,11 +54,15 @@ class EnglishWiktionary(Dictionary):
                 content = json.load(input_file)
         else:
             network(f"getting English Wiktionary item")
-            content: Optional[Dict[str, Dict[str, Any]]] = self.parser.fetch(
-                word, self.from_language.get_name()
-            )
-            with open(path, "w+") as output_file:
-                json.dump(content, output_file)
+            try:
+                content: Optional[dict[str, dict[str, any]]] = self.parser.fetch(
+                    word, self.from_language.get_name()
+                )
+                with open(path, "w+") as output_file:
+                    json.dump(content, output_file)
+            except (KeyError, AttributeError):
+                error("malformed HTML")
+                content = None
 
         if not content:
             return None
