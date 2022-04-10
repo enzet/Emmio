@@ -18,18 +18,18 @@ Emmio is a tool box for learning. It contains:
 ## Installation ##
 
 ```shell script
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Teacher ##
 
-Is a flashcard learning system based on Leitner's algorithm.
+Run
 
 ```shell script
-python3 emmio.py teacher ${OPTIONS}
+emmio ${DATA_DIRECTORY} ${USER_NAME}
 ```
 
-## Lexicon ##
+### Lexicon ###
 
 The algorithm will randomly (based on frequency) offer you words of the target
 language. For each word you have to decide 
@@ -72,14 +72,14 @@ Arguments:
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
 
-## Frequency ##
+### Frequency ###
 
 There are full and stripped frequency lists. Stripped list uses only top part of
 the full list. Some algorithms require full lists.
 
 There are a lot of projects with frequency lists.
 
-### FrequencyWords (Opensubtitles) ###
+#### FrequencyWords (Opensubtitles) ####
 
 There is [Hermit Dave](https://github.com/hermitdave)'s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
@@ -92,13 +92,13 @@ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/
     --output-document=${LANGUAGE_CODE}_opensubtitles_2018.txt
 ```
 
-### Wiktionary ###
+#### Wiktionary ####
 
 Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
 
-## Text analysis ##
+### Text analysis ###
 
 Create frequency list from the text.
 
@@ -109,15 +109,15 @@ python3 emmio.py text \
     --output   ${OUTPUT_JSON_FREQUENCY_FILE_NAME}
 ```
 
-## Memrise ##
+### Memrise ###
 
 Memrise allows one to download user data in the HTML format.  To do so, one
 should go to [Memrise settings](https://www.memrise.com/settings/) and click
 "Download personal data".  The result HTML file will be sent to user's email.
 
-## Examples ##
+### Examples ###
 
-### Check vocabulary ###
+#### Check vocabulary ####
 
 Check German vocabulary test based on Opensubtitles frequency list:
 
