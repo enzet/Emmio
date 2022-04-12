@@ -2,6 +2,7 @@
 SQLite 3 utility.
 """
 import sqlite3
+from pathlib import Path
 from sqlite3.dbapi2 import Connection, Cursor
 
 __author__ = "Sergey Vartanov"
@@ -13,11 +14,11 @@ class Database:
     Pretty simple wrapper for SQLite database.
     """
 
-    def __init__(self, database_file_name: str):
+    def __init__(self, database_file_path: Path):
         """
-        :param database_file_name: SQLite database file name
+        :param database_file_path: path to SQLite database file
         """
-        self.connection: Connection = sqlite3.connect(database_file_name)
+        self.connection: Connection = sqlite3.connect(database_file_path)
         self.cursor: Cursor = self.connection.cursor()
 
     def get_table_ids(self) -> list[str]:
