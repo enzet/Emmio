@@ -1,12 +1,15 @@
+import bz2
 import json
 import os
 from dataclasses import dataclass
 from os.path import join
+from pathlib import Path
 from typing import Dict, List, Set
 
 from emmio.database import Database
 from emmio.language import Language
 from emmio.ui import log, progress_bar
+from emmio.util import download
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -41,6 +44,38 @@ class SentenceDatabase(Database):
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
     """
+
+    def create(self, language: Language, cache_path: Path):
+        table_id: str = f"{language.language.part1}_sentences"
+        file_path = cache_path / f"{language.get_part3()}_sentences.tsv"
+
+        if not file_path.exists():
+            zip_path: Path = cache_path / f"{language.get_part3()}_sentences.tsv.bz2"
+            # FIXME: remove zip file.
+            if not zip_path.is_file():
+                download(
+                    f"https://downloads.tatoeba.org/exports/per_language/"
+                    f"{language.get_part3()}/{language.get_part3()}"
+                    f"_sentences.tsv.bz2",
+                    zip_path,
+                )
+            with bz2.open(zip_path) as zip_file:
+                with file_path.open("wb+") as cache_file:
+                    log(f"unzipping sentences for {language.get_name()}")
+                    cache_file.write(zip_file.read())
+
+        self.cursor.execute(
+            f"CREATE TABLE {table_id} (id integer primary key, sentence text)"
+        )
+        print(f"Reading {table_id}...")
+        with file_path.open() as input_file:
+            for line in input_file.readlines():
+                id_, _, sentence = line[:-1].split("\t")
+                self.cursor.execute(
+                    f"INSERT INTO {table_id} VALUES (?,?)",
+                    (id_, sentence)
+                )
+        self.connection.commit()
 
     def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
         """
