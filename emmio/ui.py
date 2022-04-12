@@ -40,6 +40,54 @@ def colorize(text: str, color: str):
         return text
 
 
+class Interface:
+    def print(self, message: str) -> None:
+        raise NotImplementedError()
+
+    def input(self, prompt: str) -> str:
+        raise NotImplementedError()
+
+    def get_word(
+        self, right_word: str, alternative_forms: set[str], language: Language
+    ) -> str:
+        raise NotImplementedError()
+
+    def colorize(self, text: str, color: str):
+        return text
+
+    def box(self, message: str) -> None:
+        self.print(message)
+
+    def run(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+
+class TerminalInterface(Interface):
+    def run(self) -> None:
+        pass
+
+    def print(self, message: str) -> None:
+        print(message)
+
+    def input(self, prompt: str) -> str:
+        return input(prompt)
+
+    def box(self, text: str) -> str:
+        s = "┌─" + "─" * len(text) + "─┐\n"
+        s += f"│ {text} │\n"
+        s += "└─" + "─" * len(text) + "─┘"
+        self.print(s)
+
+    def colorize(self, text: str, color: str):
+        if color in colors:
+            return f"\033[{colors[color]}m{text}\033[0m"
+        else:
+            return text
+
+
 def get_char() -> str:
     """
     Read character from user input.
