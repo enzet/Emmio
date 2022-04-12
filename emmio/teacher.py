@@ -73,6 +73,7 @@ class Teacher:
     def start(self) -> bool:
         while True:
             word: Optional[str] = self.learning.get_next(self.skip)
+
             if word:
                 code: str = self.learn(
                     word, self.learning.knowledges[word].interval, 0)

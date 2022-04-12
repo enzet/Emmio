@@ -137,17 +137,14 @@ class Logger:
     """
     Log messages writer.
     """
-    BOXES = [" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+    BOXES: str = " ▏▎▍▌▋▊▉"
 
     def __init__(self):
         pass
 
     def write(self, message: str, color: str = None) -> None:
         """ Write text to the screen. """
-        if color:
-            print(colorize(message, color))
-        else:
-            print(message)
+        print(TerminalInterface().colorize(message, color) if color else message)
 
     def log(self, message: str) -> None:
         """ Write log message. """

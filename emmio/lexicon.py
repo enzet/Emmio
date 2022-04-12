@@ -68,9 +68,7 @@ class WordKnowledge:
         self.to_skip: Optional[bool] = to_skip
 
     def to_structure(self) -> dict[str, Any]:
-        """
-        Serialize to structure.
-        """
+        """Serialize to structure."""
         structure: dict[str, Any] = {"knowing": str(self.knowing)}
         if self.to_skip is not None:
             structure["to_skip"] = self.to_skip
@@ -182,7 +180,7 @@ class LexiconLog:
         structure["selection"] = self.selection
         structure["id"] = self.id_
         structure["log"] = []
-        for record in self.records:  # type: LogRecord
+        for record in self.records:
             structure["log"].append(record.to_structure())
 
         return structure
@@ -249,7 +247,7 @@ class Lexicon:
 
         structure: list[dict[str, Any]] = []
 
-        for lexicon_log_id in self.logs:  # type: str
+        for lexicon_log_id in self.logs:
             structure.append(self.logs[lexicon_log_id].to_structure())
 
         with open(self.file_name, "w+") as output:
@@ -311,7 +309,7 @@ class Lexicon:
 
     def get_statistics(self) -> float:
         count: list[int] = [0, 0]
-        for record in self.logs["log"].records:  # type: LogRecord
+        for record in self.logs["log"].records:
             if record.response == LexiconResponse.KNOW:
                 count[0] += 1
             elif record.response == LexiconResponse.DO_NOT_KNOW:
@@ -415,7 +413,7 @@ class Lexicon:
                 rates.append(
                     rate((length - knowns) / length if length else 0.0))
 
-        return (dates, rates)
+        return dates, rates
 
     def get_last_rate(self, precision: int = 100) -> float:
         dates, rates = self.construct_precise(precision)
@@ -680,6 +678,7 @@ class Lexicon:
                 answer_type = AnswerType.PROPAGATE__SKIP
 
                 print("[propagate.skip] " + picked_word)
+
                 response: LexiconResponse = self.get(picked_word)
                 to_skip: bool = self.words[picked_word].to_skip
                 self.register(

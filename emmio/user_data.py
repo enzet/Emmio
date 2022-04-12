@@ -30,7 +30,7 @@ class UserData:
         """
         :param path: path to the user data directory
         """
-        user_data = cls()
+        user_data: "UserData" = cls()
 
         user_data.path = path
 

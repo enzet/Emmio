@@ -23,7 +23,7 @@ colors = [
     "#3e0083", "#380073", "#300063", "#280053",
     "#200043", "#180033", "#100023", "#080013",
     "#000003", "#000000", "#000000", "#000000",
-]
+]  # fmt: skip
 
 
 class Visualizer:
@@ -36,7 +36,9 @@ class Visualizer:
             "depth", "depth by time", "graph 2", "actions", "actions per day",
             "response time", "next question time"}
 
-    def process_command(self, command, records, knowledges) -> bool:
+    def process_command(
+        self, command: str, records: list[Record], knowledges
+    ) -> bool:
         if command == "depth":
             self.depth(records)
         if command == "depth by time":

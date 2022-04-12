@@ -159,23 +159,31 @@ class Sentences:
 
         for index, line in enumerate(lines):
             progress_bar(index, size)
-            id_1, id_2 = map(int, line[:-1].split("\t"))
+
+            try:
+                id_1, id_2 = map(int, line[:-1].split("\t"))
+            except ValueError:
+                continue
+
             if id_1 not in links and id_2 not in links:
                 set_ = {id_1, id_2}
                 links[id_1] = set_
                 links[id_2] = set_
+
             if id_1 in links:
                 set_ = links[id_1]
                 set_.add(id_2)
                 links[id_2] = set_
+
             if id_2 in links:
                 set_ = links[id_2]
                 set_.add(id_1)
                 links[id_1] = set_
+
         progress_bar(-1, size)
 
-        sentences_1 = self.sentence_db.get_sentences(self.language_1)
-        sentences_2 = self.sentence_db.get_sentences(self.language_2)
+        sentences_1: dict[str, Sentence] = self.sentence_db.get_sentences(self.language_1, cache_path)
+        sentences_2: dict[str, Sentence] = self.sentence_db.get_sentences(self.language_2, cache_path)
 
         for id_1 in sentences_2:
             assert isinstance(id_1, int)
@@ -204,7 +212,7 @@ class Sentences:
             sentence: str = self.sentence_db.get_sentence(
                 self.language_2, id_
             ).text
-            for symbol in sentence.lower():  # type: str
+            for symbol in sentence.lower():
                 if self.language_2.has_symbol(symbol):
                     word += symbol
                 else:
@@ -213,7 +221,7 @@ class Sentences:
                     word = ""
             if word:
                 sentence_words.add(word)
-            for word in sentence_words:  # type: str
+            for word in sentence_words:
                 if word not in self.cache:
                     self.cache[word] = []
                 self.cache[word].append(id_)
