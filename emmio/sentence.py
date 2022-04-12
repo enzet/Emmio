@@ -90,10 +90,14 @@ class SentenceDatabase(Database):
         ).fetchone()
         return Sentence(id_, text)
 
-    def get_sentences(self, language: Language) -> Dict[str, Sentence]:
+    def get_sentences(
+        self, language: Language, cache_path: Path
+    ) -> dict[str, Sentence]:
         """Get all sentences written in the specified language."""
         result = {}
         table_id: str = f"{language.get_code()}_sentences"
+        if not self.has_table(table_id):
+            self.create(language, cache_path)
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
             id_, text = row
             result[id_] = Sentence(id_, text)
@@ -105,7 +109,7 @@ class Sentences:
 
     def __init__(
         self,
-        cache_directory_name: str,
+        cache_path: Path,
         sentence_db: SentenceDatabase,
         language_1: Language,
         language_2: Language,
@@ -115,20 +119,20 @@ class Sentences:
         self.language_1: Language = language_1
         self.language_2: Language = language_2
 
-        cache_file_name: str = join(
-            cache_directory_name,
+        links_cache_path: Path = (
+            cache_path /
             f"links_{self.language_1.get_part3()}_"
-            f"{self.language_2.get_part3()}.json",
+            f"{self.language_2.get_part3()}.json"
         )
 
         self.links: Dict[int, Set[int]] = {}
 
-        if os.path.isfile(cache_file_name):
-            self.read_link_sets(cache_file_name)
+        if links_cache_path.is_file():
+            self.read_link_sets(links_cache_path)
         else:
-            self.read_links(join(cache_directory_name, "links.csv"))
+            self.read_links(cache_path)
             log("writing link cache")
-            with open(cache_file_name, "w+") as output_file:
+            with open(links_cache_path, "w+") as output_file:
                 content = {}
                 for key in self.links:
                     assert isinstance(key, int)
@@ -137,26 +141,47 @@ class Sentences:
 
         self.cache: Dict[str, List[int]] = {}
 
-        cache_file_name: str = join(
-            cache_directory_name, f"cache_{self.language_2.get_part3()}.json"
+        links_cache_path: str = join(
+            cache_path, f"cache_{self.language_2.get_part3()}.json"
         )
-        if os.path.isfile(cache_file_name):
+        # FIXME: remove cache file.
+
+        if os.path.isfile(links_cache_path):
             log("reading word cache")
-            with open(cache_file_name) as input_file:
+            with open(links_cache_path) as input_file:
                 self.cache = json.load(input_file)
         else:
-            self.fill_cache(cache_file_name)
+            self.fill_cache(links_cache_path)
 
-    def read_links(self, file_name: str):
+    def read_links(self, cache_path: Path):
+
+        file_path: Path = cache_path / "links.csv"
+
+        if not file_path.exists():
+            zip_path: Path = cache_path / "links.tar.bz2"
+            # FIXME: remove zip file.
+            if not zip_path.exists():
+                download(
+                    "https://downloads.tatoeba.org/exports/links.tar.bz2",
+                    Path("links.tar.bz2"),
+                )
+            with bz2.open(zip_path) as zip_file:
+                with file_path.open("wb+") as cache_file:
+                    log("unzipping links")
+                    cache_file.write(zip_file.read())
 
         log("reading links")
-        with open(file_name) as input_1:
+        with file_path.open() as input_1:
             lines = input_1.readlines()
 
         links: Dict[int, Set[int]] = {}
 
         size = len(lines)
 
+        log(
+            f"construct cache links for {self.language_1.get_name()} and "
+            f"{self.language_2.get_name()}"
+        )
         for index, line in enumerate(lines):
             progress_bar(index, size)
 
@@ -195,9 +220,10 @@ class Sentences:
             if not self.links[id_1]:
                 self.links.pop(id_1)
 
-    def read_link_sets(self, file_name: str):
+    def read_link_sets(self, file_name: Path):
+
         log("reading link cache")
-        with open(file_name) as input_file:
+        with file_name.open() as input_file:
             self.links = json.load(input_file)
 
     def fill_cache(self, file_name: str) -> None:
