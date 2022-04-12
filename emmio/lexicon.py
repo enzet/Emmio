@@ -8,7 +8,7 @@ from typing import Any, Iterator, Optional
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyList
 from emmio.language import Language
-from emmio.ui import get_char, log, one_button, write
+from emmio.ui import get_char, log, one_button, write, Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -477,7 +477,7 @@ class Lexicon:
         return result
 
     def ask(
-            self, word: str, word_list: list[str],
+            self, interface: Interface, word: str, word_list: list[str],
             dictionaries: list[Dictionary], skip_known: bool = False,
             skip_unknown: bool = False, log_name: str = "log") -> (
             bool, LexiconResponse, Optional[Dictionary]):
@@ -503,7 +503,7 @@ class Lexicon:
 
         if items:
             one_button("Show translation")
-            print("\n".join(map(lambda x: x.to_str("ru"), items)))
+            print("\n".join(map(lambda x: x.to_str("ru", interface), items)))
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
         answer = get_char()
@@ -548,8 +548,11 @@ class Lexicon:
         return skip_in_future, response, None
 
     def binary_search(
-            self, frequency_list: FrequencyList,
-            dictionaries: list[Dictionary]):
+        self,
+        interface: Interface,
+        frequency_list: FrequencyList,
+        dictionaries: list[Dictionary],
+    ):
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
             print(left_border, right_border)
@@ -558,7 +561,12 @@ class Lexicon:
                 frequency_list.get_word_by_index(index))
             print(occurrences)
             to_skip, response, dictionary = self.ask(
-                picked_word, [], dictionaries, log_name="log_binary_search")
+                interface,
+                picked_word,
+                [],
+                dictionaries,
+                log_name="log_binary_search"
+            )
             if not response:
                 break
             if response == LexiconResponse.KNOW:
@@ -578,7 +586,8 @@ class Lexicon:
 
 
     def check(
-            self, frequency_list: FrequencyList, stop_at: Optional[int],
+            self, interface: Interface,
+            frequency_list: FrequencyList, stop_at: Optional[int],
             dictionaries: list[Dictionary], log_type: str,
             skip_known: bool, skip_unknown: bool,
             stop_at_wrong: Optional[int],
@@ -627,8 +636,8 @@ class Lexicon:
                 continue
 
             to_skip, response, dictionary = self.ask(
-                picked_word, word_list, dictionaries, skip_known, skip_unknown,
-                log_name=log_name)
+                interface, picked_word, word_list, dictionaries, skip_known,
+                skip_unknown, log_name=log_name)
             actions += 1
             if response == LexiconResponse.DO_NOT_KNOW:
                 wrong_answers += 1

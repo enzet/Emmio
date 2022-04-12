@@ -4,7 +4,7 @@ Dictionary.
 import re
 from typing import Optional
 
-from emmio.ui import colorize
+from emmio.ui import Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -69,8 +69,8 @@ class Form:
     def to_str(
         self,
         language: str,
+        interface: Interface,
         show_word: bool = True,
-        use_colors: bool = True,
         hide_translations: set[str] = None,
     ) -> str:
         """
@@ -112,12 +112,12 @@ class Form:
                 delimiter = (
                     "; " if max(map(len, translation_words)) < 25 else "\n    "
                 )
-                result += colorize(desc, "grey") if use_colors else desc
+                result += interface.colorize(desc, "grey")
                 result += "\n    " + delimiter.join(translation_words) + "\n"
 
         if self.links:
             for link_type, link in self.links:
-                result += colorize(desc, "grey") if use_colors else desc
+                result += interface.colorize(desc, "grey")
                 if show_word:
                     result += f"\n    -> {link_type} of {link}\n"
                 else:
@@ -153,8 +153,8 @@ class DictionaryItem:
     def to_str(
         self,
         language: str,
+        interface: Interface,
         show_word: bool = True,
-        use_colors: bool = True,
         hide_translations: set[str] = None,
     ) -> str:
         """
@@ -163,15 +163,17 @@ class DictionaryItem:
         :param language: the language of translation
         :param show_word: if false, hide word transcription and word occurrences
             in examples
-        :param use_colors: use colors to highlight different parts of dictionary
-            item
+        :param interface: user interface provider
         :param hide_translations: list of translations that should be hidden
         """
         result: str = ""
 
-        for definition in self.definitions:  # type: Form
+        if show_word:
+            result += self.word + "\n"
+
+        for definition in self.definitions:
             result += definition.to_str(
-                language, show_word, use_colors, hide_translations
+                language, interface, show_word, hide_translations
             )
 
         return result

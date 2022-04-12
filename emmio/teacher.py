@@ -5,6 +5,7 @@ import json
 import math
 import random
 from datetime import timedelta
+from pathlib import Path
 from typing import Optional
 
 from emmio.dictionary import Dictionaries, Dictionary
@@ -13,7 +14,7 @@ from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase, Sentences, Translation
-from emmio.ui import box, get_word, log
+from emmio.ui import log, Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -23,9 +24,16 @@ SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 class Teacher:
     def __init__(
-            self, cache_directory_name: str, sentence_db: SentenceDatabase,
-            frequency_db: FrequencyDatabase, learning: Learning,
-            lexicon: Lexicon, get_dictionaries=None):
+        self,
+        cache_directory_name: Path,
+        interface: Interface,
+        sentence_db: SentenceDatabase,
+        frequency_db: FrequencyDatabase,
+        learning: Learning,
+        lexicon: Lexicon,
+        get_dictionaries=None,
+    ):
+        self.interface = interface
 
         self.known_language: Language = learning.language
 
@@ -163,10 +171,11 @@ class Teacher:
                     result += char
                     w = ""
 
-            print(result)
             for i in range(max_translations):
                 if len(translations[index].translations) > i:
-                    print(translations[index].translations[i].text)
+                    result += "\n" + translations[index].translations[i].text
+
+            self.interface.print(result)
 
         def log_(interval):
             if interval.total_seconds() == 0:
@@ -174,15 +183,15 @@ class Teacher:
             return int(math.log(interval.total_seconds() / 60 / 60 / 24, 2)) + 1
 
         index: int = 0
-        s = ""
+
+        statistics: str = ""
         if interval.total_seconds() > 0:
-            s += f"{'◕ ' * log_(interval)} "
+            statistics += f"{'◕ ' * log_(interval)} "
         else:
-            s += f"frequency index: {word_index}  "
-        s += (
+            statistics += f"frequency index: {word_index}  "
+        statistics += (
             f"new today: {self.learning.new_today()}  "
             f"to repeat: {self.learning.to_repeat()}")
-        print(s)
 
         alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
@@ -195,17 +204,28 @@ class Teacher:
             items = dictionaries.get_items(word[0].upper() + word[1:])
 
         if items:
-            print("\n".join(map(lambda x: x.to_str(
-                self.known_language.get_code(), False,
-                hide_translations=exclude_translations), items)))
+            translation_list = [
+                x.to_str(
+                    self.known_language.get_code(),
+                    self.interface,
+                    False,
+                    hide_translations=exclude_translations,
+                )
+                for x in items
+            ]
+            self.interface.print(
+                statistics + "\n" + "\n".join(translation_list)
+            )
             alternative_forms: set[str] = items[0].get_links()
         else:
-            print("No translations.")
+            self.interface.print(statistics + "\n" + "No translations.")
 
         print_sentence()
 
         while True:
-            answer: str = get_word(word, alternative_forms, self.learning_language)
+            answer: str = self.interface.get_word(
+                word, alternative_forms, self.learning_language
+            )
 
             # Preprocess answer.
             answer = self.learning_language.decode_text(answer)
@@ -215,16 +235,17 @@ class Teacher:
                     ResponseType.RIGHT, translations[index].sentence.id_, word,
                     interval * 2)
                 if items:
-                    print("\n".join(map(
-                        lambda x: x.to_str(self.known_language.get_code()), items)))
-                new_answer = input(">>> ")
+                    self.interface.print(
+                        "\n".join([x.to_str(self.known_language.get_code(), self.interface) for x in items])
+                    )
+                new_answer = self.interface.input(">>> ")
                 while new_answer:
                     if new_answer == "s":
                         self.learning.register(
                             ResponseType.SKIP, translations[index].sentence.id_,
                             word, timedelta())
                         break
-                    new_answer = input(">>> ")
+                    new_answer = self.interface.input(">>> ")
                 return "ok"
 
             if answer in ["s", "/skip"]:
@@ -260,11 +281,11 @@ class Teacher:
                         json.dump(self.exclude_translations, output_file)
                     continue
             if answer == "n":
-                print(box(word))
+                self.interface.box(word)
                 if items:
-                    print("\n".join(map(
-                        lambda x: x.to_str(self.known_language.get_code()), items)))
-                new_answer = input("Learn word? ")
+                    self.interface.print("\n".join(map(
+                        lambda x: x.to_str(self.known_language.get_code(), self.interface), items)))
+                new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
                         ResponseType.WRONG, translations[index].sentence.id_,
@@ -277,7 +298,7 @@ class Teacher:
             if answer == "":
                 index += 1
                 if index >= len(translations):
-                    print("No more sentences.")
+                    self.interface.print("No more sentences.")
                     index -= 1
                 else:
                     print_sentence()
