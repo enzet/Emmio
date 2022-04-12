@@ -61,12 +61,12 @@ class UserData:
 
     def get_lexicon(self, language: Language) -> Lexicon:
         if language not in self.lexicons:
-            for file_name in listdir(join(self.path, "lexicon")):  # type: str
-                if file_name != f"{language.get_code()}.json":
-                    continue
-                self.lexicons[language] = Lexicon(
-                    language, join(self.path, "lexicon", file_name)
-                )
+            file_path: Path = (
+                self.path / self.id_ / "lexicon" / f"{language.get_code()}.json"
+            )
+            if file_path.is_file():
+                self.lexicons[language] = Lexicon(language, file_path)
+
         return self.lexicons[language]
 
     def get_course(self, course_id: str) -> Learning:
