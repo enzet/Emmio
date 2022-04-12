@@ -90,8 +90,26 @@ class Language:
             return decode_latin(text)
         return text
 
+    def __repr__(self):
+        return self.get_code()
+
 
 languages = ["de", "en", "fr", "ru"]
+
+
+def letter_range(start: str, stop: str) -> str:
+    return "".join(chr(x) for x in range(ord(start), ord(stop) + 1))
+
+
+KATAKANA: str = letter_range("゠", "ヿ")
+HIRAGANA: str = letter_range("ぁ", "ゟ")
+KANJI: str = (
+    letter_range("㐀", "䶵")
+    + letter_range("一", "鿋")
+    + letter_range("豈", "頻")
+)
+
+JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 
 LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
@@ -130,7 +148,7 @@ FRENCH: Language = Language(
 GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656")  # #FED12E
 ICELANDIC: Language = Language("is", color="#008844")
 ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
-JAPANESE: Language = Language("ja", color="#CC2200")
+JAPANESE: Language = Language("ja", JAPANESE_LETTERS, color="#CC2200")
 KOREAN: Language = Language("ko", color="#880088")
 LATIN: Language = Language(
     "la", LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ", color="#666666"
@@ -165,6 +183,7 @@ known_languages = [
     SWEDISH,
     UKRAINIAN,
 ]
+
 
 def decode_ukrainian(text: str) -> str:
     return text.replace("i", "і")  # i to U+0456
