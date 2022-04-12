@@ -3,13 +3,17 @@ Frequency list utility.
 """
 import json
 import random
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from sqlite3 import Cursor
 
+import urllib3
 import yaml
+from urllib3 import HTTPResponse
 
 from emmio.database import Database
-from emmio.ui import log, progress_bar
+from emmio.ui import progress_bar
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -24,6 +28,11 @@ class WordOccurrences:
     occurrences: int
 
 
+@dataclass
+class MalformedFile(Exception):
+    path: Path
+
+
 class FrequencyList:
     """
     Frequency list of some text.
@@ -36,88 +45,162 @@ class FrequencyList:
     def __len__(self) -> int:
         return len(self.data)
 
-    def read(self, file_name: str, file_format: str) -> None:
+    @classmethod
+    def from_structure(
+        cls, structure: dict[str, str], directory: Path
+    ) -> "FrequencyList":
+        """Construct frequency list from description."""
+
+        cache_path: Path = directory / f'{structure["id"]}.json'
+
+        if cache_path.exists():
+            return cls.from_json_file(cache_path)
+
+        temp_path: Path = directory / f'{structure["id"]}.tmp'
+
+        if "url" in structure:
+            pool_manager = urllib3.PoolManager()
+            result: HTTPResponse = pool_manager.request(
+                "GET", structure["url"], preload_content=False
+            )
+            pool_manager.clear()
+            data: bytearray = bytearray()
+            sys.stdout.write("Downloading: ")
+            while True:
+                buffer = result.read(400_000)
+                sys.stdout.write("█")
+                sys.stdout.flush()
+                if not buffer:
+                    break
+                data.extend(buffer)
+            sys.stdout.write("\n")
+
+            with temp_path.open("wb+") as temp_file:
+                temp_file.write(data)
+
+            (frequency_list := cls.from_file(
+                temp_path, structure
+            )).write_json(cache_path)
+
+            return frequency_list
+
+    @classmethod
+    def from_file(cls, file_path: Path, structure: dict[str, str]) -> "FrequencyList":
         """
         Read frequency list from the file.
 
-        :param file_name: input file name.
+        :param file_path: input file name.
         :param file_format: file format (`yaml`, `text`, or `json`).
         """
-        if file_format == "yaml":
-            self.read_yaml(file_name)
-        elif file_format == "text":
-            self.read_list(file_name)
-        elif file_format == "json":
-            self.read_json(file_name)
+        if structure["format"] == "yaml":
+            return cls.from_yaml_file(file_path)
+        elif structure["format"] == "list":
+            return cls.from_list_file(
+                file_path, delimiter=structure["delimiter"]
+            )
+        elif structure["format"] == "csv":
+            return cls.from_csv_file(
+                file_path,
+                header=structure["header"],
+                delimiter=structure["delimiter"],
+            )
+        elif structure["format"] == "json":
+            return cls.from_json_file(file_path)
         else:
             raise Exception("unknown file format")
 
-    def read_yaml(self, file_name: str) -> None:
+    @classmethod
+    def from_yaml_file(cls, file_path: Path) -> "FrequencyList":
         """
         Read file with frequency in the format:
         `<word>: <number of occurrences>`.
 
-        :param file_name: input YAML file name.
+        :param file_path: input YAML file name.
         """
-        log(f"Reading YAML frequency list from {file_name}...")
-
         try:
-            self.read_list(file_name, ": ")
+            return cls.from_list_file(file_path, ": ")
         except Exception:
-            structure = yaml.load(open(file_name), Loader=yaml.FullLoader)
+            frequency_list = cls()
+
+            structure = yaml.load(open(file_path), Loader=yaml.FullLoader)
 
             for word in structure:
-                self.data[word] = structure[word]
+                frequency_list.data[word] = structure[word]
 
-        self.sort()
+        frequency_list.sort()
 
-    def read_json(self, file_name: str) -> None:
+        return frequency_list
+
+    @classmethod
+    def from_json_file(cls, file_path: Path) -> "FrequencyList":
         """
         Read file with frequency in the JSON format:
         `[["<word>", <number of occurrences>], ...]`.
 
-        :param file_name: input JSON file name.
+        :param file_path: input JSON file name.
         """
-        log(f"Reading JSON frequency list from {file_name}...")
-
-        with open(file_name) as input_file:
+        with file_path.open() as input_file:
             structure: list[(str, int)] = json.load(input_file)
+
+        frequency_list = cls()
 
         for word, occurrences in structure:
             word: str
             occurrences: int
-            self.data[word] = int(occurrences)
-            self.occurrences += occurrences
+            frequency_list.data[word] = int(occurrences)
+            frequency_list.occurrences += occurrences
 
-        self.sort()
+        frequency_list.sort()
 
-    def read_list(self, file_name: str, delimiter: str = " ") -> None:
+        return frequency_list
+
+    @classmethod
+    def from_csv_file(cls, file_path: Path, header: list[str], delimiter: str = ",") -> "FrequencyList":
+        frequency_list: "FrequencyList" = cls()
+
+        count_index = header.index("count")
+        word_index = header.index("word")
+
+        with file_path.open() as input_file:
+            for line in input_file.readlines()[1:]:
+                parts = line.split(delimiter)
+                frequency_list.add(parts[word_index], int(parts[count_index]))
+
+        return frequency_list
+
+    @classmethod
+    def from_list_file(cls, file_path: Path, delimiter: str = " ") -> "FrequencyList":
         """
         Read file with frequency in the format:
         `<word><delimiter><number of occurrences>`.
 
-        :param file_name: input text file name.
+        :param file_path: input text file name.
         :param delimiter: delimiter between word and its number of occurrences.
         """
-        log(f"reading frequency list from {file_name}")
-
-        lines: list[str] = open(file_name).readlines()
+        lines: list[str] = file_path.open().readlines()
         lines_number: int = len(lines)
         length: int = len(delimiter)
+
+        frequency_list = cls()
 
         for index, line in enumerate(lines):
             index: int
             line: str
             progress_bar(index, lines_number)
-            position: int = line.find(delimiter)
-            word: str = line[:position]
-            occurrences: int = int(line[position + length:])
-            self.data[word] = occurrences
-            self.occurrences += occurrences
+            try:
+                position: int = line.find(delimiter)
+                word: str = line[:position]
+                occurrences: int = int(line[position + length:])
+            except ValueError:
+                raise MalformedFile(file_path)
+            frequency_list.data[word] = occurrences
+            frequency_list.occurrences += occurrences
 
         progress_bar(-1, 0)
 
-        self.sort()
+        frequency_list.sort()
+
+        return frequency_list
 
     def write_list(self, file_name: str, delimiter: str = " ") -> None:
         """
@@ -131,19 +214,19 @@ class FrequencyList:
             for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
                 output_file.write(f"{word}{delimiter}{self.data[word]}\n")
 
-    def write_json(self, file_name: str) -> None:
+    def write_json(self, output_path: Path) -> None:
         """
         Write frequency list in the JSON format:
         `[["<word>", <number of occurrences>], ...]`.
 
-        :param file_name: output JSON file name.
+        :param output_path: path to output JSON file.
         """
         structure: list = []
         for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
             word: str
             structure.append([word, self.data[word]])
-        with open(file_name, 'w+') as output:
-            json.dump(structure, output, indent=4, ensure_ascii=False)
+        with output_path.open('w+') as output_file:
+            json.dump(structure, output_file, indent=4, ensure_ascii=False)
 
     def add(self, word: str, occurrences: int = 1) -> None:
         """ Add word and its occurrences in some text. """
@@ -239,6 +322,12 @@ class FrequencyList:
                 return word, self.data[word]
 
         return "", 0
+
+    def get_index(self, word: str):
+        if word in self.sorted_keys:
+            return self.sorted_keys.index(word)
+        else:
+            return -1
 
 
 class FrequencyDatabase(Database):
