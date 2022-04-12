@@ -71,11 +71,10 @@ class UserData:
 
     def get_course(self, course_id: str) -> Learning:
         if course_id not in self.courses:
-            for file_name in listdir(join(self.path, "learn")):  # type: str
-                if file_name != f"{course_id}.json":
-                    continue
-                course_id: str = file_name[: -len(".json")]
-                self.courses[course_id] = Learning(
-                    join(self.path, "learn", file_name), course_id
-                )
+            file_path: Path = self.path / self.id_ / "learn" / f"{course_id}.json"
+            if file_path.is_file():
+                course_id: str = file_path.name[: -len(".json")]
+                config = self.learn_config[course_id]
+                self.courses[course_id] = Learning(file_path, config, course_id)
+
         return self.courses[course_id]
