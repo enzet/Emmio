@@ -2,10 +2,10 @@
 The learning process.
 """
 import json
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional
 
 from emmio.language import Language, construct_language
@@ -33,13 +33,14 @@ class Record:
     sentence_id: int
     time: datetime
     interval: timedelta
+    course_id: str
 
     def is_learning(self) -> bool:
         """ Is the question should be repeated in the future. """
         return self.interval.total_seconds() != 0
 
     @classmethod
-    def from_structure(cls, structure: dict[str, Any]) -> "Record":
+    def from_structure(cls, structure: dict[str, Any], course_id: str) -> "Record":
         """ Parse learning record from the dictionary. """
         interval = SMALLEST_INTERVAL
         if "interval" in structure:
@@ -47,15 +48,18 @@ class Record:
         return cls(
             structure["word"], ResponseType(structure["answer"]),
             structure["sentence_id"],
-            datetime.strptime(structure["time"], FORMAT), interval)
+            datetime.strptime(structure["time"], FORMAT), interval,
+            course_id)
 
     def to_structure(self) -> dict[str, Any]:
         """ Export learning record as a dictionary. """
         return {
-            "word": self.question_id, "answer": self.answer.value,
+            "word": self.question_id,
+            "answer": self.answer.value,
             "sentence_id": self.sentence_id,
             "time": self.time.strftime(FORMAT),
-            "interval": self.interval.total_seconds()}
+            "interval": self.interval.total_seconds(),
+        }
 
 
 @dataclass
@@ -98,24 +102,24 @@ class Knowledge:
 
 class Learning:
     """ Learning process. """
-    def __init__(self, file_name: str, course_id: str):
-        self.file_name: str = file_name
+    def __init__(
+        self, file_path: Path, config: dict[str, any], course_id: str
+    ) -> None:
+        self.file_path: Path = file_path
         self.records: list[Record] = []
         self.knowledges: dict[str, Knowledge] = {}
-        self.config = {"frequency_lists": []}
+        self.config: dict[str, str] = config
+        self.course_id: str = course_id
 
         # Create learning file if it doesn't exist.
-        if not os.path.isfile(self.file_name):
+        if not self.file_path.is_file():
             self.write()
 
-        with open(self.file_name) as log_file:
+        with self.file_path.open() as log_file:
             content = json.load(log_file)
             records = content["log"]
-            self.config = content["config"]
 
-        log(f"loading learning process from {file_name}")
-
-        self.frequency_list_ids: list[str] = self.config["frequency_lists"]
+        self.frequency_list_ids: list[str] = config["frequency_lists"]
 
         # Config defaults.
         self.ratio = 10
@@ -136,7 +140,7 @@ class Learning:
             self.name = self.config["name"]
 
         for record_structure in records:
-            record = Record.from_structure(record_structure)
+            record = Record.from_structure(record_structure, self.course_id)
             self.records.append(record)
             self._update_knowledge(record)
 
@@ -160,7 +164,7 @@ class Learning:
         :param interval: repeat interval
         """
         record: Record = Record(
-            question_id, answer, sentence_id, datetime.now(), interval)
+            question_id, answer, sentence_id, datetime.now(), interval, self.course_id)
         self.records.append(record)
         self._update_knowledge(record)
 
@@ -219,9 +223,9 @@ class Learning:
 
     def write(self) -> None:
         """ Serialize learning process to a file. """
-        log(f"saving learning process to {self.file_name}")
+        log(f"saving learning process to {self.file_path}")
         structure = {"log": [], "config": self.config}
         for record in self.records:
             structure["log"].append(record.to_structure())
-        with open(self.file_name, "w+") as output_file:
+        with self.file_path.open("w+") as output_file:
             json.dump(structure, output_file, ensure_ascii=False, indent=4)
