@@ -1,8 +1,10 @@
 import json
 import math
-import os
+import random
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
@@ -78,68 +80,50 @@ class WordKnowledge:
         return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
-class LogRecord:
+@dataclass
+class LexiconLogRecord:
     """
     Record of user's answer.
     """
-    def __init__(
-            self, date: datetime, words: list[str],
-            response: LexiconResponse,
-            answer_type: AnswerType = AnswerType.UNKNOWN,
-            to_skip: Optional[bool] = None):
-        """
-        :param date: time of the answer.
-        :param words: list of words under question.
-        :param response: the result.
-        :param answer_type: is it was a user answer or the previous answer was
-            used.
-        :param to_skip: skip this word in the future
-        """
-        self.date: datetime = date
-        self.words: list[str] = words
-        self.response: LexiconResponse = response
-        self.answer_type: AnswerType = answer_type
-        self.to_skip: Optional[bool] = to_skip
 
-        # FIXME: remove when all lexicons are updated
-        if self.answer_type == AnswerType.PROPAGATE__SKIP:
-            self.to_skip = True
+    date: datetime
+    word: str
+    response: LexiconResponse
+    answer_type: Optional[AnswerType] = None
+    to_skip: Optional[bool] = None
 
     @classmethod
-    def from_structure(cls, structure: Any) -> "LogRecord":
+    def from_structure(cls, structure: Any) -> "LexiconLogRecord":
         """
         Parse log record from structure.
         """
-        if isinstance(structure, list):
-            date_string, word, response = structure  # type: (str, str, str)
-            date = datetime.strptime(date_string, DATE_FORMAT)
-            return cls(date, [word], LexiconResponse(response))
-        elif isinstance(structure, dict):
-            answer_type: AnswerType = AnswerType.UNKNOWN
-            if "answer_type" in structure:
-                answer_type = AnswerType(structure["answer_type"])
-            to_skip: Optional[bool] = None
-            if "to_skip" in structure:
-                to_skip = structure["to_skip"]
-            if "word" in structure:
-                words = [structure["word"]]
-            else:  # "words" in structure
-                words = structure["words"]
-            return cls(
-                datetime.strptime(structure["date"], DATE_FORMAT),
-                words, LexiconResponse(structure["response"]), answer_type,
-                to_skip)
+        if "words" in structure:
+            word = random.choice(structure["words"])
+        else:
+            word: str = structure["word"]
+
+        answer_type: AnswerType = AnswerType.UNKNOWN
+        if "answer_type" in structure:
+            answer_type = AnswerType(structure["answer_type"])
+
+        to_skip: Optional[bool] = None
+        if "to_skip" in structure:
+            to_skip = structure["to_skip"]
+
+        return cls(
+            datetime.strptime(structure["date"], DATE_FORMAT),
+            word, LexiconResponse(structure["response"]), answer_type,
+            to_skip)
 
     def to_structure(self) -> dict[str, Any]:
         """
         Serialize to structure.
         """
-        structure = {"date": self.date.strftime(DATE_FORMAT)}
-        if len(self.words) == 1:
-            structure["word"] = self.words[0]
-        else:
-            structure["words"] = self.words
-        structure["response"] = self.response.value
+        structure = {
+            "date": self.date.strftime(DATE_FORMAT),
+            "word": self.word,
+            "response": self.response.value
+        }
         if self.answer_type != AnswerType.UNKNOWN:
             structure["answer_type"] = self.answer_type.value
         if self.to_skip is not None:
@@ -169,9 +153,11 @@ class LexiconLog:
 
         self.selection: str = structure["selection"]
 
-        self.records: list[LogRecord] = []
+        self.records: list[LexiconLogRecord] = []
         for record_structure in structure["log"]:  # type: dict[str, str]
-            self.records.append(LogRecord.from_structure(record_structure))
+            self.records.append(
+                LexiconLogRecord.from_structure(record_structure)
+            )
 
     def to_structure(self) -> dict[str, Any]:
         structure: dict[str, Any] = {}
@@ -190,16 +176,16 @@ class Lexicon:
     """
     Tracking of lexicon for one particular language through time.
     """
-    def __init__(self, language: Language, file_name: str):
+    def __init__(self, language: Language, file_path: Path):
 
         self.language: Language = language
-        self.file_name: str = file_name
+        self.file_path: Path = file_path
 
-        self.words: dict[str, WordKnowledge] = {}
         self.logs: dict[str, LexiconLog] = {}
 
         # Temporary data.
 
+        self.words: dict[str, WordKnowledge] = {}
         self.dates: list[datetime] = []
         self.responses: list[int] = []
         self.start: Optional[datetime] = None
@@ -207,27 +193,25 @@ class Lexicon:
 
         # Read data from file.
 
-        log(f"reading lexicon from {self.file_name}")
-
-        if not os.path.isfile(self.file_name):
+        if not self.file_path.is_file():
             return
 
-        with open(self.file_name) as input_file:
+        with self.file_path.open() as input_file:
             data = json.load(input_file)
 
-        for log_structure in data:  # type: dict[str, Any]
+        for log_structure in data:
             self.logs[log_structure["id"]] = LexiconLog(log_structure)
 
             for log_id in self.logs:
                 lexicon_log: LexiconLog = self.logs[log_id]
-                for record in lexicon_log.records:  # type: LogRecord
-                    for word in record.words:
-                        self.words[word] = WordKnowledge(
-                            record.response, record.to_skip)
+                for record in lexicon_log.records:
+                    self.words[record.word] = WordKnowledge(
+                        record.response, record.to_skip
+                    )
 
         # Fill data.
 
-        for record in self.logs["log"].records:  # type: LogRecord
+        for record in self.logs["log"].records:
             if record.response in [
                     LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
                 self.dates.append(record.date)
@@ -243,14 +227,14 @@ class Lexicon:
         Write lexicon to a JSON file using string writing. Should be faster than
         `write_json` but less accurate.
         """
-        log(f"writing lexicon to {self.file_name}")
+        log(f"writing lexicon to {self.file_path}")
 
         structure: list[dict[str, Any]] = []
 
         for lexicon_log_id in self.logs:
             structure.append(self.logs[lexicon_log_id].to_structure())
 
-        with open(self.file_name, "w+") as output:
+        with self.file_path.open("w+") as output:
             json.dump(structure, output, indent=4, ensure_ascii=False)
 
     def know(self, word: str) -> bool:
@@ -266,20 +250,22 @@ class Lexicon:
         """
         return self.words[word].knowing == LexiconResponse.DO_NOT_KNOW
 
-    def get_last_answer(self, word: str, log_name: str) -> Optional[LogRecord]:
-        for record in reversed(self.logs[log_name].records):  # type: LogRecord
-            if word in record.words:
+    def get_last_answer(
+        self, word: str, log_name: str
+    ) -> Optional[LexiconLogRecord]:
+        for record in reversed(self.logs[log_name].records):
+            if word == record.word:
                 return record
 
     def register(
-            self, words: list[str], response: LexiconResponse,
+            self, word: str, response: LexiconResponse,
             to_skip: Optional[bool], date: Optional[datetime] = None,
             log_name: str = "log",
             answer_type: AnswerType = AnswerType.UNKNOWN) -> None:
         """
         Register user's response.
 
-        :param words: list of words that user was responded to.
+        :param word: word that user was responded to.
         :param response: response type.
         :param to_skip: skip this word in the future.
         :param date: time of response.
@@ -290,13 +276,12 @@ class Lexicon:
         if not date:
             date = datetime.now()
 
-        for word in words:
-            self.words[word] = WordKnowledge(response, to_skip)
+        self.words[word] = WordKnowledge(response, to_skip)
 
         if log_name not in self.logs:
             self.logs[log_name] = LexiconLog()
         self.logs[log_name].records.append(
-            LogRecord(date, words, response, answer_type))
+            LexiconLogRecord(date, word, response, answer_type, to_skip))
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DO_NOT_KNOW]:
             self.dates.append(date)
@@ -339,7 +324,7 @@ class Lexicon:
         """
         Return the number of UNKNOWN answers.
         """
-        records: Iterator[LogRecord] = filter(
+        records: Iterator[LexiconLogRecord] = filter(
             lambda record: not point_1 or point_1 <= record.date <= point_2,
             self.logs[log_name].records)
         return [x.response for x in records].count(
@@ -415,11 +400,17 @@ class Lexicon:
 
         return dates, rates
 
-    def get_last_rate(self, precision: int = 100) -> float:
+    def get_last_rate(self, precision: int = 100) -> Optional[float]:
         dates, rates = self.construct_precise(precision)
         if rates:
             return rates[-1]
-        return 0
+        return None
+
+    def get_last_rate_number(self, precision: int = 100) -> float:
+        value: Optional[float] = self.get_last_rate(precision)
+        if value is None:
+            return 0
+        return value
 
     def construct_by_frequency(self, frequency_list: FrequencyList):
         response = None
@@ -542,7 +533,7 @@ class Lexicon:
                 skip_in_future = skip_unknown
 
         self.register(
-            [word], response, skip_in_future, log_name=log_name,
+            word, response, skip_in_future, log_name=log_name,
             answer_type=AnswerType.USER_ANSWER)
 
         return skip_in_future, response, None
@@ -652,7 +643,7 @@ class Lexicon:
                 print(f"Rate so far is: {rate_string}")
             else:
                 print(f"Precision: {precision * 100:.2f}")
-                print(f"Rate is: {rate_string}")
+                print(f"Current rate is: {self.get_last_rate_number():.2f}")
             print(f"Words: {len(self.words):d}")
 
             if not response:
@@ -675,7 +666,9 @@ class Lexicon:
             self, picked_word: str, skip_known: bool, skip_unknown: bool,
             log_name: str) -> bool:
 
-        last_record: LogRecord = self.get_last_answer(picked_word, log_name)
+        last_record: LexiconLogRecord = self.get_last_answer(
+            picked_word, log_name
+        )
 
         if last_record is not None:
             if (self.words[picked_word].to_skip or
@@ -684,31 +677,29 @@ class Lexicon:
                     (skip_unknown and
                      self.get(picked_word) == LexiconResponse.DO_NOT_KNOW)):
 
-                answer_type = AnswerType.PROPAGATE__SKIP
-
                 print("[propagate.skip] " + picked_word)
 
                 response: LexiconResponse = self.get(picked_word)
                 to_skip: bool = self.words[picked_word].to_skip
                 self.register(
-                    [picked_word], response, to_skip, log_name=log_name,
-                    answer_type=answer_type)
+                    picked_word, response, to_skip, log_name=log_name,
+                    answer_type=AnswerType.PROPAGATE__SKIP)
                 return True
 
             if self.get(picked_word) == LexiconResponse.NOT_A_WORD:
                 answer_type = AnswerType.PROPAGATE__NOT_A_WORD
                 self.register(
-                    [picked_word], LexiconResponse.NOT_A_WORD, None,
+                    picked_word, LexiconResponse.NOT_A_WORD, None,
                     log_name=log_name, answer_type=answer_type)
                 return True
 
             was_user_answer: bool = False
 
-            for record in reversed(self.logs[log_name].records):  # type: LogRecord
+            for record in reversed(self.logs[log_name].records):
                 delta = record.date - datetime.now()
                 if delta.days > 30:
                     break
-                if picked_word in record.words and \
+                if picked_word == record.word and \
                         record.answer_type == AnswerType.USER_ANSWER:
                     was_user_answer = True
                     break
@@ -716,7 +707,7 @@ class Lexicon:
             if was_user_answer:
                 print("[propagate.time] " + picked_word)
                 self.register(
-                    [picked_word], last_record.response, None,
+                    picked_word, last_record.response, None,
                     log_name=log_name,
                     answer_type=AnswerType.PROPAGATE__TIME)
                 return True
@@ -734,7 +725,7 @@ class Lexicon:
         if foreign:
             print("[assume.not_a_word] " + picked_word)
             self.register(
-                [picked_word], LexiconResponse.NOT_A_WORD, None,
+                picked_word, LexiconResponse.NOT_A_WORD, None,
                 log_name=log_name,
                 answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET)
             return True
