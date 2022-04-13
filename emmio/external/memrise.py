@@ -110,7 +110,7 @@ class MemriseData:
 
         table: List[List[str]] = parser.tables[4]
 
-        for row in table:  # type: List[str]
+        for row in table:
             (
                 course_name,
                 _,

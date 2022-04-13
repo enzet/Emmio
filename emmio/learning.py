@@ -174,7 +174,7 @@ class Learning:
 
         :param skip: question identifiers to skip
         """
-        for question_id in self.knowledges:  # type: str
+        for question_id in self.knowledges:
             if (
                     question_id not in skip and
                     self.knowledges[question_id].is_learning() != 0 and
@@ -196,7 +196,7 @@ class Learning:
         now = datetime.now()
         today_start = datetime(year=now.year, month=now.month, day=now.day)
         count = 0
-        for record in self.records:  # type: Record
+        for record in self.records:
             if (
                     record.question_id not in seen and
                     record.is_learning() and record.time > today_start):

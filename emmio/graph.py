@@ -78,7 +78,7 @@ class Visualizer:
 
         count = 0
 
-        for index, record in enumerate(records):  # type: (int, Record)
+        for index, record in enumerate(records):
             if record.question_id in knowledges:
                 data[idn(record)] -= 1
                 # / (2 ** knowledges[record.question_id].get_depth())
@@ -147,7 +147,7 @@ class Visualizer:
     def actions(self, records: list[Record]):
         x, y = [], []
         count_learning: int = 0
-        for record in records:  # type: Record
+        for record in records:
             if record.is_learning():
                 count_learning += 1
             x.append(record.time)
@@ -158,7 +158,7 @@ class Visualizer:
 
     def cumulative_actions(self, records: list[Record]):
         data = {}
-        for record in records:  # type: Record
+        for record in records:
             if not record.is_learning():
                 continue
             time = datetime(
@@ -175,7 +175,7 @@ class Visualizer:
     def graph_2(self, records: list[Record]):
         x = []
         count: int = 0
-        for record in records:  # type: Record
+        for record in records:
             if record.time + record.interval > datetime.now():
                 count += 1
                 x.append(record.time + record.interval)
@@ -186,7 +186,7 @@ class Visualizer:
 
     def next_question_time(self, last_records: dict[str, Knowledge]):
         data = {}
-        for word in last_records:  # type: str
+        for word in last_records:
             record = last_records[word]
             if record.interval.total_seconds() != 0:
                 time = record.get_next_time()
@@ -213,7 +213,7 @@ class Visualizer:
 
         last_record: Optional[Record] = records[0] if records else None
 
-        for record in records:  # type: Record
+        for record in records:
             interval: timedelta = record.time - last_record.time
             diff: int = int(interval.total_seconds() * steps)
             if interval.microseconds != 0 and diff / steps <= max_:

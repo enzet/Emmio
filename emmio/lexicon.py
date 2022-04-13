@@ -154,7 +154,7 @@ class LexiconLog:
         self.selection: str = structure["selection"]
 
         self.records: list[LexiconLogRecord] = []
-        for record_structure in structure["log"]:  # type: dict[str, str]
+        for record_structure in structure["log"]:
             self.records.append(
                 LexiconLogRecord.from_structure(record_structure)
             )
@@ -367,7 +367,7 @@ class Lexicon:
     def get_data(self, start: datetime, finish: datetime) -> (int, int):
         length: int = 0
         data: int = 0
-        for index in range(len(self.dates)):  # type: int
+        for index in range(len(self.dates)):
             if start <= self.dates[index] < finish:
                 length += 1
                 data += self.responses[index]

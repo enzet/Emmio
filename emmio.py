@@ -250,7 +250,7 @@ class Emmio:
                 self.user_data.get_course(x).learning() /
                 self.user_data.get_course(x).ratio))
 
-        for course_id in sorted_ids:  # type: str
+        for course_id in sorted_ids:
             learning = self.user_data.get_course(course_id)
             lexicon: Lexicon = self.user_data.get_lexicon(
                 Language(learning.subject))

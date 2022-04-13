@@ -70,11 +70,11 @@ class EnglishWiktionary(Dictionary):
         item: DictionaryItem = DictionaryItem(word)
         added: bool = False
 
-        for element in content:  # type: Dict[str, Dict[str, Any]]
-            for definition in element["definitions"]:  # type: Dict[str, Any]
+        for element in content:
+            for definition in element["definitions"]:
                 form: Form = Form(word, definition["partOfSpeech"])
                 texts: List[str] = definition["text"]
-                for text in texts:  # type: str
+                for text in texts:
                     text = text.strip()
                     matcher: Optional[re.Match] = re.match(
                         "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text

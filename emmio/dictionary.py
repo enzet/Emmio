@@ -34,7 +34,7 @@ class Form:
 
     def add_translations(self, translations: list[str], language: str) -> None:
         """Add word translations."""
-        for translation in translations:  # type: str
+        for translation in translations:
             self.add_translation(translation, language)
 
     def add_translation(self, translation: str, language: str) -> None:
@@ -197,7 +197,7 @@ class Dictionary:
     def get_forms(self) -> dict[str, set[str]]:
         """Get all possible forms of all words."""
         result: dict[str, set[str]] = {}
-        for word in self.__items:  # type: str
+        for word in self.__items:
             item = self.__items[word]
             for form in item.definitions:
                 for link_type, link in form.links:
@@ -234,14 +234,14 @@ class Dictionaries:
         """
         items: list[DictionaryItem] = []
 
-        for dictionary in self.dictionaries:  # type: Dictionary
+        for dictionary in self.dictionaries:
             item: DictionaryItem = dictionary.get_item(word)
             if item:
                 items.append(item)
                 links = set()
                 for definition in item.definitions:
                     links |= set([x[1] for x in definition.links])
-                for link in links:  # type: str
+                for link in links:
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
                         items.append(link_item)
