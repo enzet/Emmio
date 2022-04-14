@@ -55,9 +55,9 @@ class EnglishWiktionary(Dictionary):
         else:
             network(f"getting English Wiktionary item")
             try:
-                content: Optional[dict[str, dict[str, any]]] = self.parser.fetch(
-                    word, self.from_language.get_name()
-                )
+                content: Optional[
+                    dict[str, dict[str, any]]
+                ] = self.parser.fetch(word, self.from_language.get_name())
                 with open(path, "w+") as output_file:
                     json.dump(content, output_file)
             except (KeyError, AttributeError):

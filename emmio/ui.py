@@ -134,8 +134,8 @@ BACKSPACE: int = 127
 
 
 def get_word(
-        right_word: str, alternative_forms: set[str],
-        language: Language) -> str:
+    right_word: str, alternative_forms: set[str], language: Language
+) -> str:
 
     sys.stdout.write(len(right_word) * "_")
     sys.stdout.write("\r")
@@ -185,34 +185,37 @@ class Logger:
     """
     Log messages writer.
     """
+
     BOXES: str = " ▏▎▍▌▋▊▉"
 
     def __init__(self):
         pass
 
     def write(self, message: str, color: str = None) -> None:
-        """ Write text to the screen. """
-        print(TerminalInterface().colorize(message, color) if color else message)
+        """Write text to the screen."""
+        print(
+            TerminalInterface().colorize(message, color) if color else message
+        )
 
     def log(self, message: str) -> None:
-        """ Write log message. """
+        """Write log message."""
         write(f"Info: {str(message)}.")
 
     def error(self, message) -> None:
-        """ Write error message. """
+        """Write error message."""
         write(f"Error: {str(message)}.", "red")
 
     def warning(self, message) -> None:
-        """ Write warning. """
+        """Write warning."""
         write(f"Warning: {str(message)}.", "yellow")
 
     def network(self, message) -> None:
-        """ Write network operation message. """
+        """Write network operation message."""
         write(f"Network: {str(message)}.", "blue")
 
     def progress_bar(
-            self, number: int, total: int, length: int = 20,
-            step: int = 1000) -> None:
+        self, number: int, total: int, length: int = 20, step: int = 1000
+    ) -> None:
 
         if number == -1:
             print("%3s" % "100" + " % " + (length * "█") + "▏")
@@ -222,13 +225,19 @@ class Logger:
             l = int(p * parts)
             fl = int(l / 8)
             pr = int(l - fl * 8)
-            print("%3s" % str(int(int(p * 1000) / 10)) + " % " + (fl * "█") +
-                  self.BOXES[pr] + int(length - fl - 1) * " " + "▏")
+            print(
+                "%3s" % str(int(int(p * 1000) / 10))
+                + " % "
+                + (fl * "█")
+                + self.BOXES[pr]
+                + int(length - fl - 1) * " "
+                + "▏"
+            )
             sys.stdout.write("\033[F")
 
 
 class SilentLogger(Logger):
-    """ Log that write normal messages and network operation messages. """
+    """Log that write normal messages and network operation messages."""
 
     def __init__(self):
         super().__init__()
@@ -249,8 +258,8 @@ class SilentLogger(Logger):
         super().network(message)
 
     def progress_bar(
-            self, number: int, total: int, length: int = 20,
-            step: int = 1000) -> None:
+        self, number: int, total: int, length: int = 20, step: int = 1000
+    ) -> None:
         pass
 
 
@@ -258,7 +267,7 @@ logger = SilentLogger()
 
 
 def write(message: str, color: str = None) -> None:
-    """ Write message. """
+    """Write message."""
     logger.write(message, color)
 
 
@@ -293,11 +302,14 @@ def get_terminal_size() -> (int, int):
 
     :return: height (lines), width (symbols)
     """
+
     def ioctl_GWINSZ(fd):
         try:
             import fcntl, termios, struct, os
+
             cr = struct.unpack(
-                "hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234"))
+                "hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234")
+            )
         except:
             return
         return cr

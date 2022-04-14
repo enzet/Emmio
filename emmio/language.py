@@ -85,9 +85,7 @@ def letter_range(start: str, stop: str) -> str:
 KATAKANA: str = letter_range("゠", "ヿ")
 HIRAGANA: str = letter_range("ぁ", "ゟ")
 KANJI: str = (
-    letter_range("㐀", "䶵")
-    + letter_range("一", "鿋")
-    + letter_range("豈", "頻")
+    letter_range("㐀", "䶵") + letter_range("一", "鿋") + letter_range("豈", "頻")
 )
 
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
@@ -126,7 +124,9 @@ FRENCH: Language = Language(
     LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
     color="#4DA9CC",  # #16ACEC
 )
-GERMAN: Language = Language("de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656")  # #FED12E
+GERMAN: Language = Language(
+    "de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656"
+)  # #FED12E
 ICELANDIC: Language = Language("is", color="#008844")
 ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
 JAPANESE: Language = Language("ja", JAPANESE_LETTERS, color="#CC2200")
@@ -142,7 +142,9 @@ SPANISH: Language = Language(
     "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#CB3636"  # "C61323"
 )
 SWEDISH: Language = Language("sv", color="#004488")
-UKRAINIAN: Language = Language("uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS, color="#E5D144")
+UKRAINIAN: Language = Language(
+    "uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS, color="#E5D144"
+)
 
 known_languages = [
     ARABIC,

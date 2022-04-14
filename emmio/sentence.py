@@ -50,7 +50,9 @@ class SentenceDatabase(Database):
         file_path = cache_path / f"{language.get_part3()}_sentences.tsv"
 
         if not file_path.exists():
-            zip_path: Path = cache_path / f"{language.get_part3()}_sentences.tsv.bz2"
+            zip_path: Path = (
+                cache_path / f"{language.get_part3()}_sentences.tsv.bz2"
+            )
             # FIXME: remove zip file.
             if not zip_path.is_file():
                 download(
@@ -72,8 +74,7 @@ class SentenceDatabase(Database):
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
                 self.cursor.execute(
-                    f"INSERT INTO {table_id} VALUES (?,?)",
-                    (id_, sentence)
+                    f"INSERT INTO {table_id} VALUES (?,?)", (id_, sentence)
                 )
         self.connection.commit()
 
@@ -120,8 +121,7 @@ class Sentences:
         self.language_2: Language = language_2
 
         links_cache_path: Path = (
-            cache_path /
-            f"links_{self.language_1.get_part3()}_"
+            cache_path / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"
         )
 
@@ -207,8 +207,12 @@ class Sentences:
 
         progress_bar(-1, size)
 
-        sentences_1: dict[str, Sentence] = self.sentence_db.get_sentences(self.language_1, cache_path)
-        sentences_2: dict[str, Sentence] = self.sentence_db.get_sentences(self.language_2, cache_path)
+        sentences_1: dict[str, Sentence] = self.sentence_db.get_sentences(
+            self.language_1, cache_path
+        )
+        sentences_2: dict[str, Sentence] = self.sentence_db.get_sentences(
+            self.language_2, cache_path
+        )
 
         for id_1 in sentences_2:
             assert isinstance(id_1, int)

@@ -53,10 +53,10 @@ class UserData:
 
         return user_data
 
-    def get_frequency_list_for_lexicon(self, language: Language) -> FrequencyList:
-        return self.get_frequency_list(
-            self.lexicon_config[language.get_code()]
-        )
+    def get_frequency_list_for_lexicon(
+        self, language: Language
+    ) -> FrequencyList:
+        return self.get_frequency_list(self.lexicon_config[language.get_code()])
 
     def get_frequency_list_structure(
         self, frequency_list_id: str
@@ -92,7 +92,9 @@ class UserData:
 
     def get_course(self, course_id: str) -> Learning:
         if course_id not in self.courses:
-            file_path: Path = self.path / self.id_ / "learn" / f"{course_id}.json"
+            file_path: Path = (
+                self.path / self.id_ / "learn" / f"{course_id}.json"
+            )
             if file_path.is_file():
                 course_id: str = file_path.name[: -len(".json")]
                 config = self.learn_config[course_id]

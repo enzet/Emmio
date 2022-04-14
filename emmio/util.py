@@ -49,9 +49,7 @@ def first_day_of_week(point: datetime) -> datetime:
 
 
 def download(
-    address: str,
-    cache_path: Path,
-    buffer_size: int = 400_000
+    address: str, cache_path: Path, buffer_size: int = 400_000
 ) -> bytes:
 
     sys.stdout.write(f"Downloading {address}: ")
@@ -76,4 +74,3 @@ def download(
         temp_file.write(data)
 
     return data
-

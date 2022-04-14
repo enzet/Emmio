@@ -140,9 +140,7 @@ class Learning:
         if "ratio" in self.config:
             self.ratio = self.config["ratio"]
         if "language" in self.config:
-            self.language = construct_language(
-                self.config["language"]
-            )
+            self.language = construct_language(self.config["language"])
         if "subject" in self.config:
             self.subject = self.config["subject"]
         if "check_lexicon" in self.config:

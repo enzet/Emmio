@@ -85,7 +85,9 @@ class Graph:
 
             assert len(xs) == len(ys)
 
-            xs_second: list[float] = [(x - self.min_x).total_seconds() for x in xs]
+            xs_second: list[float] = [
+                (x - self.min_x).total_seconds() for x in xs
+            ]
             points = []
 
             for index, x in enumerate(xs_second):
@@ -141,7 +143,9 @@ class Graph:
                 stroke="#DDDDDD",
                 stroke_width=2,
             )
-            self.text(svg, (mapped_1[0] - 28, mapped_1[1] + 18), str(index), "#DDDDDD")
+            self.text(
+                svg, (mapped_1[0] - 28, mapped_1[1] + 18), str(index), "#DDDDDD"
+            )
             svg.add(line)
 
     @staticmethod
