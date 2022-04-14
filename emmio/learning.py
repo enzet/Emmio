@@ -19,7 +19,8 @@ SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 
 class ResponseType(Enum):
-    """ Possible user responses. """
+    """Possible user responses."""
+
     RIGHT = "y"
     WRONG = "n"
     SKIP = "s"
@@ -27,7 +28,8 @@ class ResponseType(Enum):
 
 @dataclass
 class Record:
-    """ Learning record for a question. """
+    """Learning record for a question."""
+
     question_id: str
     answer: ResponseType
     sentence_id: int
@@ -36,23 +38,28 @@ class Record:
     course_id: str
 
     def is_learning(self) -> bool:
-        """ Is the question should be repeated in the future. """
+        """Is the question should be repeated in the future."""
         return self.interval.total_seconds() != 0
 
     @classmethod
-    def from_structure(cls, structure: dict[str, Any], course_id: str) -> "Record":
-        """ Parse learning record from the dictionary. """
+    def from_structure(
+        cls, structure: dict[str, Any], course_id: str
+    ) -> "Record":
+        """Parse learning record from the dictionary."""
         interval = SMALLEST_INTERVAL
         if "interval" in structure:
             interval = timedelta(seconds=structure["interval"])
         return cls(
-            structure["word"], ResponseType(structure["answer"]),
+            structure["word"],
+            ResponseType(structure["answer"]),
             structure["sentence_id"],
-            datetime.strptime(structure["time"], FORMAT), interval,
-            course_id)
+            datetime.strptime(structure["time"], FORMAT),
+            interval,
+            course_id,
+        )
 
     def to_structure(self) -> dict[str, Any]:
-        """ Export learning record as a dictionary. """
+        """Export learning record as a dictionary."""
         return {
             "word": self.question_id,
             "answer": self.answer.value,
@@ -64,14 +71,15 @@ class Record:
 
 @dataclass
 class Knowledge:
-    """ Knowledge of the question. """
+    """Knowledge of the question."""
+
     question_id: str
     responses: list[ResponseType]
     last_record_time: datetime
     interval: timedelta
 
     def is_learning(self) -> bool:
-        """ Is the question should be repeated in the future. """
+        """Is the question should be repeated in the future."""
         return self.interval.total_seconds() != 0
 
     def get_depth(self) -> int:
@@ -84,24 +92,25 @@ class Knowledge:
             return len(self.responses)
 
     def get_last_answer(self) -> ResponseType:
-        """ Get last answer for the word. """
+        """Get last answer for the word."""
         return self.responses[-1]
 
     def get_returns(self) -> int:
-        """ Get number of times learning interval was set to minimal. """
+        """Get number of times learning interval was set to minimal."""
         return self.responses.count(ResponseType.WRONG)
 
     def get_answers_number(self) -> int:
-        """ Get number of answers. """
+        """Get number of answers."""
         return len(self.responses)
 
     def get_next_time(self) -> datetime:
-        """ Get next point in time question should be repeated. """
+        """Get next point in time question should be repeated."""
         return self.last_record_time + self.interval
 
 
 class Learning:
-    """ Learning process. """
+    """Learning process."""
+
     def __init__(
         self, file_path: Path, config: dict[str, any], course_id: str
     ) -> None:
@@ -122,8 +131,8 @@ class Learning:
         self.frequency_list_ids: list[str] = config["frequency_lists"]
 
         # Config defaults.
-        self.ratio = 10
-        self.language = None
+        self.ratio: int = 10
+        self.language: Optional[Language] = None
         self.subject: Optional[str] = None
         self.check_lexicon = True
         self.name: str = "Unknown"
@@ -131,7 +140,9 @@ class Learning:
         if "ratio" in self.config:
             self.ratio = self.config["ratio"]
         if "language" in self.config:
-            self.language: Language = construct_language(self.config["language"])
+            self.language = construct_language(
+                self.config["language"]
+            )
         if "subject" in self.config:
             self.subject = self.config["subject"]
         if "check_lexicon" in self.config:
@@ -140,21 +151,30 @@ class Learning:
             self.name = self.config["name"]
 
         for record_structure in records:
-            record = Record.from_structure(record_structure, self.course_id)
+            record: Record = Record.from_structure(
+                record_structure, self.course_id
+            )
             self.records.append(record)
             self._update_knowledge(record)
 
-    def _update_knowledge(self, record: Record):
+    def _update_knowledge(self, record: Record) -> None:
         last_answers: list[ResponseType] = []
         if record.question_id in self.knowledges:
             last_answers = self.knowledges[record.question_id].responses
         self.knowledges[record.question_id] = Knowledge(
-            record.question_id, last_answers + [record.answer], record.time,
-            record.interval)
+            record.question_id,
+            last_answers + [record.answer],
+            record.time,
+            record.interval,
+        )
 
     def register(
-            self, answer: ResponseType, sentence_id: int, question_id: str,
-            interval: timedelta) -> None:
+        self,
+        answer: ResponseType,
+        sentence_id: int,
+        question_id: str,
+        interval: timedelta,
+    ) -> None:
         """
         Register student answer.
 
@@ -164,7 +184,13 @@ class Learning:
         :param interval: repeat interval
         """
         record: Record = Record(
-            question_id, answer, sentence_id, datetime.now(), interval, self.course_id)
+            question_id,
+            answer,
+            sentence_id,
+            datetime.now(),
+            interval,
+            self.course_id,
+        )
         self.records.append(record)
         self._update_knowledge(record)
 
@@ -176,45 +202,54 @@ class Learning:
         """
         for question_id in self.knowledges:
             if (
-                    question_id not in skip and
-                    self.knowledges[question_id].is_learning() != 0 and
-                    datetime.now() > self.knowledges[
-                        question_id].get_next_time()):
+                question_id not in skip
+                and self.knowledges[question_id].is_learning() != 0
+                and datetime.now()
+                > self.knowledges[question_id].get_next_time()
+            ):
                 return question_id
 
     def has(self, word: str) -> bool:
         return word in self.knowledges
 
     def get_nearest(self) -> Optional[datetime]:
-        """ Get nearest repetition time. """
-        return min([
-            self.knowledges[word].get_next_time() for word in self.knowledges
-            if self.knowledges[word].is_learning()])
+        """Get nearest repetition time."""
+        return min(
+            [
+                self.knowledges[word].get_next_time()
+                for word in self.knowledges
+                if self.knowledges[word].is_learning()
+            ]
+        )
 
-    def new_today(self):
-        seen = set()
-        now = datetime.now()
-        today_start = datetime(year=now.year, month=now.month, day=now.day)
-        count = 0
+    def new_today(self) -> int:
+        seen: set[str] = set()
+        now: datetime = datetime.now()
+        today_start: datetime = datetime(
+            year=now.year, month=now.month, day=now.day
+        )
+        count: int = 0
         for record in self.records:
             if (
-                    record.question_id not in seen and
-                    record.is_learning() and record.time > today_start):
+                record.question_id not in seen
+                and record.is_learning()
+                and record.time > today_start
+            ):
                 count += 1
             seen.add(record.question_id)
         return count
 
-    def to_repeat(self):
-        count = 0
-        now = datetime.now()
+    def to_repeat(self) -> int:
+        count: int = 0
+        now: datetime = datetime.now()
         for word in self.knowledges:
             record: Knowledge = self.knowledges[word]
             if record.is_learning() and record.get_next_time() < now:
                 count += 1
         return count
 
-    def learning(self):
-        count = 0
+    def learning(self) -> int:
+        count: int = 0
         for word in self.knowledges:
             record: Knowledge = self.knowledges[word]
             if record.is_learning():
@@ -222,7 +257,7 @@ class Learning:
         return count
 
     def write(self) -> None:
-        """ Serialize learning process to a file. """
+        """Serialize learning process to a file."""
         log(f"saving learning process to {self.file_path}")
         structure = {"log": [], "config": self.config}
         for record in self.records:

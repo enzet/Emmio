@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from sqlite3 import Cursor
+from typing import Any
 
 import urllib3
 import yaml
@@ -85,12 +86,12 @@ class FrequencyList:
             return frequency_list
 
     @classmethod
-    def from_file(cls, file_path: Path, structure: dict[str, str]) -> "FrequencyList":
+    def from_file(cls, file_path: Path, structure: dict[str, Any]) -> "FrequencyList":
         """
         Read frequency list from the file.
 
         :param file_path: input file name.
-        :param file_format: file format (`yaml`, `text`, or `json`).
+        :param structure: structure describing file format.
         """
         if structure["format"] == "yaml":
             return cls.from_yaml_file(file_path)
