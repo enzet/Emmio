@@ -32,12 +32,11 @@ class Teacher:
         learning: Learning,
         lexicon: Lexicon,
         get_dictionaries=None,
-    ):
-        self.interface = interface
-
+    ) -> None:
+        self.interface: Interface = interface
         self.known_language: Language = learning.language
 
-        self.learning_language: Language
+        self.learning_language: Optional[Language]
         try:
             self.learning_language = construct_language(learning.subject)
         except KeyError:
@@ -46,13 +45,17 @@ class Teacher:
         self.max_for_day: int = learning.ratio
         self.learning: Learning = learning
         self.dictionaries: list[Dictionary] = get_dictionaries(
-            self.learning_language)
+            self.learning_language
+        )
 
         self.lexicon: Lexicon = lexicon
 
         self.sentences: Sentences = Sentences(
-            cache_directory_name, sentence_db, self.known_language,
-            self.learning_language)
+            cache_directory_name,
+            sentence_db,
+            self.known_language,
+            self.learning_language,
+        )
 
         self.words: list[tuple[int, str]] = []
         log("getting words")
@@ -61,11 +64,12 @@ class Teacher:
             for index, word, _ in frequency_db.get_words(frequency_list_id):
                 index: int
                 word: str
-                if (word in self.sentences.cache
-                        and (not self.learning.check_lexicon or
-                             not self.lexicon or
-                             not self.lexicon.has(word) or
-                             self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW)):
+                if word in self.sentences.cache and (
+                    not self.learning.check_lexicon
+                    or not self.lexicon
+                    or not self.lexicon.has(word)
+                    or self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW
+                ):
                     for id_ in self.sentences.cache[word]:
                         if str(id_) in self.sentences.links:
                             self.words.append((index, word))
@@ -84,7 +88,8 @@ class Teacher:
 
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledges[word].interval, 0)
+                    word, self.learning.knowledges[word].interval, 0
+                )
                 self.learning.write()
                 if code == "stop":
                     return False
@@ -111,7 +116,8 @@ class Teacher:
             word = self.learning.get_next(self.skip)
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledges[word].interval, 0)
+                    word, self.learning.knowledges[word].interval, 0
+                )
                 if code == "bad question":
                     self.skip.add(word)
                 else:
@@ -131,17 +137,19 @@ class Teacher:
             ids_to_skip = set(self.exclude_sentences[word])
 
         translations: list[Translation] = self.sentences.filter_(
-            word, ids_to_skip, 120)
+            word, ids_to_skip, 120
+        )
         if not translations:
             return "bad question"
 
         if interval.total_seconds() == 0:
             translations = sorted(
-                translations, key=lambda x: len(x.sentence.text))
+                translations, key=lambda x: len(x.sentence.text)
+            )
         else:
             random.shuffle(translations)
 
-        dictionaries = Dictionaries(self.dictionaries)
+        dictionaries: Dictionaries = Dictionaries(self.dictionaries)
 
         def print_sentence(show_index: bool = False, max_translations: int = 3):
             """
@@ -191,7 +199,8 @@ class Teacher:
             statistics += f"frequency index: {word_index}  "
         statistics += (
             f"new today: {self.learning.new_today()}  "
-            f"to repeat: {self.learning.to_repeat()}")
+            f"to repeat: {self.learning.to_repeat()}"
+        )
 
         alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
@@ -228,22 +237,30 @@ class Teacher:
             )
 
             # Preprocess answer.
-            answer = self.learning_language.decode_text(answer)
+            answer: str = self.learning_language.decode_text(answer)
 
             if answer == word:
                 self.learning.register(
-                    ResponseType.RIGHT, translations[index].sentence.id_, word,
-                    interval * 2)
+                    ResponseType.RIGHT,
+                    translations[index].sentence.id_,
+                    word,
+                    interval * 2,
+                )
                 if items:
-                    self.interface.print(
-                        "\n".join([x.to_str(self.known_language.get_code(), self.interface) for x in items])
-                    )
+                    string_items: list[str] = [
+                        x.to_str(self.known_language.get_code(), self.interface)
+                        for x in items
+                    ]
+                    self.interface.print("\n".join(string_items))
                 new_answer = self.interface.input(">>> ")
                 while new_answer:
                     if new_answer == "s":
                         self.learning.register(
-                            ResponseType.SKIP, translations[index].sentence.id_,
-                            word, timedelta())
+                            ResponseType.SKIP,
+                            translations[index].sentence.id_,
+                            word,
+                            timedelta(),
+                        )
                         break
                     new_answer = self.interface.input(">>> ")
                 return "ok"
@@ -258,7 +275,8 @@ class Teacher:
                     if word not in self.exclude_sentences:
                         self.exclude_sentences[word] = []
                     self.exclude_sentences[word].append(
-                        translations[index].sentence.id_)
+                        translations[index].sentence.id_
+                    )
                     with open("exclude_sentences.json", "w+") as output_file:
                         json.dump(self.exclude_sentences, output_file)
                     self.skip.add(word)
@@ -283,17 +301,26 @@ class Teacher:
             if answer == "n":
                 self.interface.box(word)
                 if items:
-                    self.interface.print("\n".join(map(
-                        lambda x: x.to_str(self.known_language.get_code(), self.interface), items)))
+                    string_items: list[str] = [
+                        x.to_str(self.known_language.get_code(), self.interface)
+                        for x in items
+                    ]
+                    self.interface.print("\n".join(string_items))
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
-                        ResponseType.WRONG, translations[index].sentence.id_,
-                        word, SMALLEST_INTERVAL)
+                        ResponseType.WRONG,
+                        translations[index].sentence.id_,
+                        word,
+                        SMALLEST_INTERVAL,
+                    )
                 else:
                     self.learning.register(
-                        ResponseType.SKIP, translations[index].sentence.id_,
-                        word, timedelta())
+                        ResponseType.SKIP,
+                        translations[index].sentence.id_,
+                        word,
+                        timedelta(),
+                    )
                 return "ok"
             if answer == "":
                 index += 1
