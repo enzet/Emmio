@@ -25,6 +25,7 @@ class WordOccurrences:
     """
     Unique word and number of its occurrences in some text.
     """
+
     word: str
     occurrences: int
 
@@ -38,6 +39,7 @@ class FrequencyList:
     """
     Frequency list of some text.
     """
+
     def __init__(self):
         self.data: dict[str, int] = {}
         self.occurrences: int = 0
@@ -79,14 +81,16 @@ class FrequencyList:
             with temp_path.open("wb+") as temp_file:
                 temp_file.write(data)
 
-            (frequency_list := cls.from_file(
-                temp_path, structure
-            )).write_json(cache_path)
+            (frequency_list := cls.from_file(temp_path, structure)).write_json(
+                cache_path
+            )
 
             return frequency_list
 
     @classmethod
-    def from_file(cls, file_path: Path, structure: dict[str, Any]) -> "FrequencyList":
+    def from_file(
+        cls, file_path: Path, structure: dict[str, Any]
+    ) -> "FrequencyList":
         """
         Read frequency list from the file.
 
@@ -156,7 +160,9 @@ class FrequencyList:
         return frequency_list
 
     @classmethod
-    def from_csv_file(cls, file_path: Path, header: list[str], delimiter: str = ",") -> "FrequencyList":
+    def from_csv_file(
+        cls, file_path: Path, header: list[str], delimiter: str = ","
+    ) -> "FrequencyList":
         frequency_list: "FrequencyList" = cls()
 
         count_index = header.index("count")
@@ -170,7 +176,9 @@ class FrequencyList:
         return frequency_list
 
     @classmethod
-    def from_list_file(cls, file_path: Path, delimiter: str = " ") -> "FrequencyList":
+    def from_list_file(
+        cls, file_path: Path, delimiter: str = " "
+    ) -> "FrequencyList":
         """
         Read file with frequency in the format:
         `<word><delimiter><number of occurrences>`.
@@ -191,7 +199,7 @@ class FrequencyList:
             try:
                 position: int = line.find(delimiter)
                 word: str = line[:position]
-                occurrences: int = int(line[position + length:])
+                occurrences: int = int(line[position + length :])
             except ValueError:
                 raise MalformedFile(file_path)
             frequency_list.data[word] = occurrences
@@ -226,11 +234,11 @@ class FrequencyList:
         for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
             word: str
             structure.append([word, self.data[word]])
-        with output_path.open('w+') as output_file:
+        with output_path.open("w+") as output_file:
             json.dump(structure, output_file, indent=4, ensure_ascii=False)
 
     def add(self, word: str, occurrences: int = 1) -> None:
-        """ Add word and its occurrences in some text. """
+        """Add word and its occurrences in some text."""
         if word not in self.data:
             self.data[word] = 0
 
@@ -239,7 +247,7 @@ class FrequencyList:
         self.sorted_keys = None
 
     def ignore_proper_nouns(self) -> None:
-        """ Make frequency list case-insensitive. """
+        """Make frequency list case-insensitive."""
         for word in self.data.keys():
             word: str
             if word.lower() != word:
@@ -249,11 +257,11 @@ class FrequencyList:
         self.sort()
 
     def has(self, word: str) -> bool:
-        """ Check whether frequency list contains word. """
+        """Check whether frequency list contains word."""
         return word in self.data
 
     def get_occurrences(self, word: str) -> int:
-        """ Get number of word occurrences in text. """
+        """Get number of word occurrences in text."""
         if word in self.data:
             return self.data[word]
         return 0
@@ -268,11 +276,11 @@ class FrequencyList:
         return -1
 
     def get_all_occurrences(self) -> int:
-        """ Get number of all words in the text. """
+        """Get number of all words in the text."""
         return self.occurrences
 
-    def get_words(self):
-        """ Get all unique words. """
+    def get_words(self) -> list[str]:
+        """Get all unique words."""
         return sorted(self.data.keys(), key=lambda x: -self.data[x])
 
     def get_random_word(self) -> (str, int):
@@ -296,12 +304,12 @@ class FrequencyList:
                 return word, self.data[word]
 
     def get_word_by_index(self, index: int) -> (str, int):
-        """ Get word of the specified index. """
+        """Get word of the specified index."""
         word: str = self.sorted_keys[index]
         return word, self.data[word]
 
     def sort(self) -> None:
-        """ Sort keys by frequency. """
+        """Sort keys by frequency."""
         self.sorted_keys = sorted(self.data.keys(), key=lambda x: -self.data[x])
 
     def get_random_word_by_frequency(self) -> (str, int):
@@ -339,6 +347,7 @@ class FrequencyDatabase(Database):
         WORD TEXT
         FREQUENCY INTEGER
     """
+
     def get_words(self, frequency_list_id: str) -> Cursor:
         """
         Get all records from the table in the format of (ID, WORD, FREQUENCY).
@@ -364,6 +373,6 @@ class FrequencyDatabase(Database):
             occurrences: int = frequency_list.get_occurrences(word)
             self.cursor.execute(
                 f"INSERT INTO {table_id} VALUES (?,?,?)",
-                (index, word, occurrences)
+                (index, word, occurrences),
             )
         self.connection.commit()
