@@ -2,6 +2,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from emmio import util, ui
 from emmio.dictionary import Dictionary
@@ -99,11 +100,13 @@ class Emmio:
                     construct_language(learning.subject)
                 )
                 for frequency_list_id in learning.frequency_list_ids:
-                    frequency_list = self.user_data.get_frequency_list(frequency_list_id)
+                    frequency_list = self.user_data.get_frequency_list(
+                        frequency_list_id
+                    )
                     if not self.frequency_db.has_table(frequency_list_id):
                         self.frequency_db.add_table(
                             frequency_list_id, frequency_list
-                            )
+                        )
 
                 learner = Teacher(
                     Path("cache"),
@@ -117,8 +120,7 @@ class Emmio:
                 proceed = learner.start()
 
             if command.startswith("lexicon"):
-
-                self.run_lexicon(command[len("lexicon"):])
+                self.run_lexicon(command[len("lexicon") :])
 
             if command == "stat learn":
                 stat = {}
@@ -162,10 +164,12 @@ class Emmio:
                         x
                     ).get_last_rate_number(),
                 ):
-                    lexicon = self.user_data.get_lexicon(language)
-                    now = datetime.now()
-                    rate = lexicon.get_last_rate()
-                    rate_string = f"{rate:5.1f}" if rate is not None else "  N/A"
+                    lexicon: Lexicon = self.user_data.get_lexicon(language)
+                    now: datetime = datetime.now()
+                    rate: Optional[float] = lexicon.get_last_rate()
+                    rate_string: str = (
+                        f"{rate:5.1f}" if rate is not None else "  N/A"
+                    )
                     last_week_precision: int = lexicon.count_unknowns(
                         "log", now - timedelta(days=7), now
                     )
@@ -203,7 +207,7 @@ class Emmio:
                 )
 
             if command == "svg lexicon week":
-                LexiconVisualizer(dots=False).graph_with_svg(
+                LexiconVisualizer().graph_with_svg(
                     [
                         self.user_data.get_lexicon(language)
                         for language in self.user_data.get_lexicon_languages()
@@ -277,9 +281,13 @@ class Emmio:
                 construct_language(learning.subject)
             )
             for frequency_list_id in learning.frequency_list_ids:
-                frequency_list = self.user_data.get_frequency_list(frequency_list_id)
+                frequency_list = self.user_data.get_frequency_list(
+                    frequency_list_id
+                )
                 if not self.frequency_db.has_table(frequency_list_id):
-                    self.frequency_db.add_table(frequency_list_id, frequency_list)
+                    self.frequency_db.add_table(
+                        frequency_list_id, frequency_list
+                    )
 
             if learning.to_repeat() > 0:
                 header(f"Repeat learned for {learning.name}")
@@ -357,7 +365,9 @@ class Emmio:
                 )
                 words[record.question_id]["vector"] += record.answer.value
 
-        lexicon: Lexicon = self.user_data.get_lexicon(construct_language(language))
+        lexicon: Lexicon = self.user_data.get_lexicon(
+            construct_language(language)
+        )
         for word in lexicon.words:
             if word not in words:
                 words[word] = {
@@ -365,21 +375,32 @@ class Emmio:
                     "language": language,
                     "addTime": datetime.now(),
                     "nextQuestionTime": datetime.now(),
-                    "vector": "N" if lexicon.words[word].knowing == LexiconResponse.DO_NOT_KNOW else "Y",
+                    "vector": "N"
+                    if lexicon.words[word].knowing
+                    == LexiconResponse.DO_NOT_KNOW
+                    else "Y",
                     "index": fr.get_index(word),
                 }
 
         min_add_time = min(words[x]["addTime"] for x in words)
         max_add_time = max(words[x]["addTime"] for x in words)
-        min_next_question_time = min(words[x]["nextQuestionTime"] for x in words)
-        max_next_question_time = max(words[x]["nextQuestionTime"] for x in words)
+        min_next_question_time = min(
+            words[x]["nextQuestionTime"] for x in words
+        )
+        max_next_question_time = max(
+            words[x]["nextQuestionTime"] for x in words
+        )
 
         min_time = min(min_add_time, min_next_question_time)
         max_time = max(max_add_time, max_next_question_time)
 
         for word in words:
-            words[word]["addTime"] = (words[word]["addTime"] - min_add_time).total_seconds()
-            words[word]["nextQuestionTime"] = (words[word]["nextQuestionTime"] - min_time).total_seconds()
+            words[word]["addTime"] = (
+                words[word]["addTime"] - min_add_time
+            ).total_seconds()
+            words[word]["nextQuestionTime"] = (
+                words[word]["nextQuestionTime"] - min_time
+            ).total_seconds()
 
         w = []
 
