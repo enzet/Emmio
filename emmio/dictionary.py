@@ -2,12 +2,19 @@
 Dictionary.
 """
 import re
+from dataclasses import dataclass
 from typing import Optional
 
 from emmio.ui import Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+
+@dataclass
+class Link:
+    link_type: str
+    link: str
 
 
 class Form:
@@ -21,7 +28,7 @@ class Form:
         self.part_of_speech: str = part_of_speech
         self.transcriptions: set[str] = set()
         self.translations: dict[str, list[str]] = {}
-        self.links: list[(str, str)] = []
+        self.links: list[Link] = []
 
         # Optional characteristics.
         self.gender: Optional[str] = None
@@ -56,7 +63,7 @@ class Form:
         :param link_type: link description, e.g. verb form
         :param link: other dictionary item key
         """
-        self.links.append((link_type, link))
+        self.links.append(Link(link_type, link))
 
     def set_gender(self, gender: str) -> None:
         """Set gender of the form if has any."""
@@ -229,18 +236,16 @@ class Dictionaries:
         self.dictionaries.append(dictionary)
 
     def get_items(self, word: str) -> list[DictionaryItem]:
-        """
-        Get word definition from the first dictionary.
-        """
+        """Get word definition from the first dictionary."""
         items: list[DictionaryItem] = []
 
         for dictionary in self.dictionaries:
-            item: DictionaryItem = dictionary.get_item(word)
+            item: Optional[DictionaryItem] = dictionary.get_item(word)
             if item:
                 items.append(item)
-                links = set()
+                links: set[str] = set()
                 for definition in item.definitions:
-                    links |= set([x[1] for x in definition.links])
+                    links |= set([x.link for x in definition.links])
                 for link in links:
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
