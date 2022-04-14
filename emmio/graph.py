@@ -16,7 +16,6 @@ from emmio.util import first_day_of_week, year_end, year_start
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
 colors = [
     "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
     "#b7c183", "#74c183", "#3e8a83", "#3e5583",
@@ -33,8 +32,14 @@ class Visualizer:
     @staticmethod
     def get_commands() -> set[str]:
         return {
-            "depth", "depth by time", "graph 2", "actions", "actions per day",
-            "response time", "next question time"}
+            "depth",
+            "depth by time",
+            "graph 2",
+            "actions",
+            "actions per day",
+            "response time",
+            "next question time",
+        }
 
     def process_command(
         self, command: str, records: list[Record], knowledges
@@ -56,8 +61,11 @@ class Visualizer:
         return False
 
     def depth(
-            self, records: list[Record], is_time: bool = False,
-            show_text: bool = False):
+        self,
+        records: list[Record],
+        is_time: bool = False,
+        show_text: bool = False,
+    ):
         """
         Show depth graph.
 
@@ -74,7 +82,8 @@ class Visualizer:
         def idn(record: Record):
             return (
                 f"{knowledges[record.question_id].get_depth()},"
-                f"{knowledges[record.question_id].get_answers_number()}")
+                f"{knowledges[record.question_id].get_answers_number()}"
+            )
 
         count = 0
 
@@ -86,10 +95,15 @@ class Visualizer:
                 continue
             last_answers = (
                 knowledges[record.question_id].responses
-                if record.question_id in knowledges else [])
+                if record.question_id in knowledges
+                else []
+            )
             knowledges[record.question_id] = Knowledge(
-                record.question_id, last_answers + [record.answer], record.time,
-                record.interval)
+                record.question_id,
+                last_answers + [record.answer],
+                record.time,
+                record.interval,
+            )
             if idn(record) not in data:
                 data[idn(record)] = 0
             data[idn(record)] += 1
@@ -119,9 +133,7 @@ class Visualizer:
             # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}
             # {hex(number)[2:]:>02}"
             color = colors[depth + 1]
-            plt.fill_between(
-                x, [0] * (len(x) - len(y[i])) + y[i],
-                color=color)
+            plt.fill_between(x, [0] * (len(x) - len(y[i])) + y[i], color=color)
 
         plt.title("Question depth")
         plt.xlabel("Time" if is_time else "Actions")
@@ -132,14 +144,18 @@ class Visualizer:
 
         if show_text:
             trans_offset = mtransforms.offset_copy(
-                ax.transData, fig=fig, x=0.1, y=0)
+                ax.transData, fig=fig, x=0.1, y=0
+            )
 
             for i in range(7):
                 for j in range(10, 0, -1):
                     if f"{i},{j}" in y:
                         plt.text(
-                            x[-1], y[f"{i},{j}"][-1], f"{2 ** i} days",
-                            transform=trans_offset)
+                            x[-1],
+                            y[f"{i},{j}"][-1],
+                            f"{2 ** i} days",
+                            transform=trans_offset,
+                        )
                         break
 
         plt.show()
@@ -162,14 +178,19 @@ class Visualizer:
             if not record.is_learning():
                 continue
             time = datetime(
-                day=record.time.day, month=record.time.month,
-                year=record.time.year)
+                day=record.time.day,
+                month=record.time.month,
+                year=record.time.year,
+            )
             if time not in data:
                 data[time] = 0
             data[time] += 1
         plt.bar(
-            sorted(data.keys()), [data[x] for x in sorted(data.keys())],
-            color="black", linewidth=1)
+            sorted(data.keys()),
+            [data[x] for x in sorted(data.keys())],
+            color="black",
+            linewidth=1,
+        )
         plt.show()
 
     def graph_2(self, records: list[Record]):
@@ -198,8 +219,8 @@ class Visualizer:
 
     @staticmethod
     def response_time(
-            records: list[Record], steps: int = 10,
-            max_: int = 60) -> None:
+        records: list[Record], steps: int = 10, max_: int = 60
+    ) -> None:
         """
         Draw user response time histogram.
 
@@ -269,9 +290,7 @@ class LexiconVisualizer:
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
 
-        x_min, x_max, data = self.construct_lexicon_data(
-            lexicons, margin
-        )
+        x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
 
         for xs, ys, color, title in data:
             plt.plot(xs, ys, color=color, linewidth=1, label=title)
@@ -282,8 +301,12 @@ class LexiconVisualizer:
 
             if self.plot_precise_values:
                 plt.plot(
-                    dates, rates, "o", alpha=0.01,
-                    markersize=0.5, color=lexicon.language.get_color()
+                    dates,
+                    rates,
+                    "o",
+                    alpha=0.01,
+                    markersize=0.5,
+                    color=lexicon.language.get_color(),
                 )
 
             if show_text:
@@ -344,8 +367,6 @@ class LexiconVisualizer:
                 xs.append(point)
                 ys.append(rates[index])
 
-            data.append(
-                (xs, ys, lexicon.language.get_color(), language_name)
-            )
+            data.append((xs, ys, lexicon.language.get_color(), language_name))
 
         return x_min, point, sorted(data, key=lambda x: -x[1][-1])
