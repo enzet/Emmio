@@ -14,7 +14,16 @@ from wiktionaryparser import WiktionaryParser
 
 from emmio.dictionary import Dictionary, DictionaryItem, Form
 from emmio.language import Language
-from emmio.ui import network
+from emmio.ui import network, error
+
+
+def get_file_name(word: str):
+    """
+    Get file name for cache JSON file for case-insensitive operating systems.
+    """
+    name: str = "".join(f"^{c.lower()}" if c.lower() != c else c for c in word)
+
+    return f"{name}.json"
 
 
 class EnglishWiktionary(Dictionary):
