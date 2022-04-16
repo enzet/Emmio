@@ -299,6 +299,7 @@ class Teacher:
                         json.dump(self.exclude_translations, output_file)
                     continue
             if answer == "n":
+
                 self.interface.box(word)
                 if items:
                     string_items: list[str] = [
@@ -306,6 +307,8 @@ class Teacher:
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
+                self.interface.box(word)
+
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
