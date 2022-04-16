@@ -58,7 +58,9 @@ class EnglishWiktionary(Dictionary):
             return [Link(link_type, link)], text
 
         matcher: Optional[re.Match] = re.match(
-            "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text
+            "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
+            "(?P<extra>, .*)?(?P<extra2> \\(.*\\))?$",
+            text
         )
         if matcher:
             link: str = matcher.group("link")
