@@ -18,6 +18,12 @@ from emmio.language import Language
 from emmio.ui import network, error
 
 
+LINK_PATTERN: re.Pattern = re.compile(
+    "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
+    "(?P<extra>, .*)?(?P<extra2> \\(.*\\))?$"
+)
+
+
 def get_file_name(word: str):
     """
     Get file name for cache JSON file for case-insensitive operating systems.
@@ -57,11 +63,7 @@ class EnglishWiktionary(Dictionary):
             link_type: str = matcher.group("link_type")
             return [Link(link_type, link)], text
 
-        matcher: Optional[re.Match] = re.match(
-            "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
-            "(?P<extra>, .*)?(?P<extra2> \\(.*\\))?$",
-            text
-        )
+        matcher: Optional[re.Match] = LINK_PATTERN.match(text)
         if matcher:
             link: str = matcher.group("link")
             link_type: str = matcher.group("link_type")
