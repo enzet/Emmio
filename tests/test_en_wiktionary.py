@@ -42,3 +42,23 @@ def test_2() -> None:
 
 def __test_3() -> None:
     check("past of nehmen, to take.", ["nehmen"])
+
+
+def test_file_name_lower() -> None:
+    assert get_file_name("rücken") == "rücken.json"
+
+
+def test_file_name_upper() -> None:
+    assert get_file_name("Rücken") == "^rücken.json"
+
+
+def test_file_name_all_upper() -> None:
+    assert get_file_name("ABBA") == "^a^b^b^a.json"
+
+
+def test_file_name_lower_unicode() -> None:
+    assert get_file_name("über") == "über.json"
+
+
+def test_file_name_upper_unicode() -> None:
+    assert get_file_name("Über") == "^über.json"
