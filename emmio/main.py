@@ -134,7 +134,7 @@ class Emmio:
                         if depth not in stat:
                             stat[depth] = 0
                         stat[depth] += 1
-                        total += 1 / (2 ** depth)
+                        total += 1 / (2**depth)
 
                 print()
                 for course_id in self.user_data.course_ids:
@@ -421,7 +421,7 @@ def main() -> None:
 
     data_path: Path = Path(sys.argv[1])
     user_id: str = sys.argv[2]
-    interface = ui.TerminalInterface()
+    interface: Interface = ui.TerminalInterface()
 
     interface.run()
 
