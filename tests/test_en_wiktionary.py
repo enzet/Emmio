@@ -22,3 +22,23 @@ def test_process_definition2() -> None:
     assert len(links) == 1
     assert links[0] == Link("present participle", "tease")
     assert text == "present participle of tease"
+
+
+def check(text: str, links: list[str]) -> None:
+    dictionary: EnglishWiktionary = EnglishWiktionary(
+        Path("cache"), construct_language("eo")
+    )
+    parsed_links, _ = dictionary.process_definition(text)
+    assert parsed_links == links
+
+
+def __test_1() -> None:
+    check("(dated) genitive of er", ["er"])
+
+
+def test_2() -> None:
+    check("in the process of (followed by an infinitive clause)", [])
+
+
+def __test_3() -> None:
+    check("past of nehmen, to take.", ["nehmen"])
