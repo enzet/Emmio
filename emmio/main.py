@@ -68,7 +68,7 @@ class Emmio:
     def get_dictionaries(self, language: Language) -> list[Dictionary]:
         dictionaries: list[Dictionary] = []
 
-        wiktionary = EnglishWiktionary("cache", language)
+        wiktionary = EnglishWiktionary(Path("cache"), language)
         dictionaries.append(wiktionary)
 
         return dictionaries

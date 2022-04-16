@@ -8,7 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
-from emmio.dictionary import Dictionaries, Dictionary
+from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
@@ -207,10 +207,19 @@ class Teacher:
 
         if word in self.exclude_translations:
             exclude_translations = self.exclude_translations[word]
-        items = dictionaries.get_items(word)
 
-        if not items and self.learning_language == GERMAN:
-            items = dictionaries.get_items(word[0].upper() + word[1:])
+        items: list[DictionaryItem] = dictionaries.get_items(word)
+
+        if self.learning_language == GERMAN:
+            for item in dictionaries.get_items(word[0].upper() + word[1:]):
+                if item not in items:
+                    items.append(item)
+
+        words_to_hide: set[str] = set()
+        for item in items:
+            words_to_hide.add(item.word)
+            for link in item.get_links():
+                words_to_hide.add(link)
 
         if items:
             translation_list = [
@@ -218,6 +227,7 @@ class Teacher:
                     self.known_language.get_code(),
                     self.interface,
                     False,
+                    words_to_hide=words_to_hide,
                     hide_translations=exclude_translations,
                 )
                 for x in items

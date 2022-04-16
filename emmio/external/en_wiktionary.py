@@ -8,11 +8,12 @@ Author: Sergey Vartanov (me@enzet.ru).
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Optional
 
 from wiktionaryparser import WiktionaryParser
 
-from emmio.dictionary import Dictionary, DictionaryItem, Form
+from emmio.dictionary import Dictionary, DictionaryItem, Form, Link
 from emmio.language import Language
 from emmio.ui import network, error
 
@@ -33,7 +34,7 @@ class EnglishWiktionary(Dictionary):
     See https://en.wiktionary.org.
     """
 
-    def __init__(self, cache_directory: str, from_language: Language):
+    def __init__(self, cache_directory: Path, from_language: Language):
         """
         Target language.
 
@@ -42,8 +43,45 @@ class EnglishWiktionary(Dictionary):
         """
         super().__init__()
         self.from_language: Language = from_language
-        self.cache_directory: str = cache_directory
+        self.cache_directory: Path = cache_directory
         self.parser: WiktionaryParser = WiktionaryParser()
+
+    def process_definition(self, text: str) -> tuple[list[Link], str]:
+        text = text.strip()
+
+        matcher: Optional[re.Match] = re.match(
+            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)[.:]?$", text
+        )
+        if matcher:
+            link: str = matcher.group("link")
+            link_type: str = matcher.group("link_type")
+            return [Link(link_type, link)], text
+
+        matcher: Optional[re.Match] = re.match(
+            "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text
+        )
+        if matcher:
+            link: str = matcher.group("link")
+            link_type: str = matcher.group("link_type")
+            if link_type in [
+                "first-person singular present indicative",
+                "first-person singular present subjunctive",
+                "first-person singular present",
+                "first/third-person singular preterite",
+                "inflection",
+                "past participle",
+                "past",
+                "present participle",
+                "pronominal adverb",
+                "second-person singular imperative",
+                "singular imperative",
+                "third-person singular present indicative",
+                "third-person singular present subjunctive",
+                "third-person singular present",
+            ]:
+                return [Link(link_type, link)], text
+
+        return [], text
 
     def get_item(self, word: str) -> Optional[DictionaryItem]:
         """
@@ -52,11 +90,14 @@ class EnglishWiktionary(Dictionary):
         :param word: dictionary term
         :returns: parsed item
         """
-        path: str = os.path.join(
-            self.cache_directory, "en_wiktionary", self.from_language.get_code()
+        directory: Path = (
+            self.cache_directory
+            / "en_wiktionary"
+            / self.from_language.get_code()
         )
-        os.makedirs(path, exist_ok=True)
-        path: str = os.path.join(path, f"{word}.json")
+        os.makedirs(directory, exist_ok=True)
+
+        path: Path = directory / get_file_name(word)
 
         if os.path.isfile(path):
             with open(path) as input_file:
@@ -82,19 +123,17 @@ class EnglishWiktionary(Dictionary):
         for element in content:
             for definition in element["definitions"]:
                 form: Form = Form(word, definition["partOfSpeech"])
-                texts: List[str] = definition["text"]
+                texts: list[str] = definition["text"]
+
                 for text in texts:
-                    text = text.strip()
-                    matcher: Optional[re.Match] = re.match(
-                        "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?$", text
-                    )
-                    if matcher:
-                        link: str = matcher.group("link")
-                        link = self.from_language.decode_text(link)
-                        form.add_link(matcher.group("link_type"), link)
+                    links, text = self.process_definition(text)
+                    if links:
+                        for link in links:
+                            form.add_link(link)
                     else:
                         # FIXME: should be "en"
                         form.add_translation(text, "ru")
+
                 if "pronunciations" in element:
                     for pronunciation in element["pronunciations"]["text"]:
                         form.add_transcription(pronunciation.strip())
@@ -109,7 +148,7 @@ class EnglishWiktionary(Dictionary):
         word: str,
         language: str,
         show_word: bool = True,
-        hide_translations: List[str] = None,
+        hide_translations: list[str] = None,
         use_colors: bool = False,
     ) -> Optional[str]:
 

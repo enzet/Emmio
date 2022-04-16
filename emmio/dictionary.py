@@ -2,6 +2,7 @@
 Dictionary.
 """
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
 
@@ -56,14 +57,13 @@ class Form:
             self.translations[language] = []
         self.translations[language].append(translation)
 
-    def add_link(self, link_type: str, link: str) -> None:
+    def add_link(self, link: Link) -> None:
         """
         Add link to another dictionary item if the word is a form of other word.
 
-        :param link_type: link description, e.g. verb form
-        :param link: other dictionary item key
+        :param link: link to another dictionary item
         """
-        self.links.append(Link(link_type, link))
+        self.links.append(link)
 
     def set_gender(self, gender: str) -> None:
         """Set gender of the form if has any."""
@@ -78,11 +78,10 @@ class Form:
         language: str,
         interface: Interface,
         show_word: bool = True,
+        words_to_hide: set[str] = None,
         hide_translations: set[str] = None,
     ) -> str:
-        """
-        Get human-readable representation of the word form.
-        """
+        """Get human-readable representation of the word form."""
         result: str = ""
 
         desc = self.part_of_speech
@@ -92,43 +91,45 @@ class Form:
             )
 
         if self.translations and language in self.translations:
-            translation_words = self.translations[language]
-            translation_words = list(
-                filter(
-                    lambda x: (
-                        not hide_translations
-                        or x.lower() not in hide_translations
-                    )
-                    and x.lower() != self.word.lower(),
-                    translation_words,
-                )
-            )
+            translations: list[str] = self.translations[language]
+            translations = [
+                x
+                for x in translations
+                if (not hide_translations or x.lower() not in hide_translations)
+                and x.lower() != self.word.lower()
+            ]
+
+            # Hides words to hide.
+
+            if not show_word and words_to_hide:
+                for word in words_to_hide:
+                    translations = [
+                        x.replace(word, "_" * len(word)) for x in translations
+                    ]
+
+            # Hide possible word forms.
+
             if not show_word:
-                translation_words = map(
-                    lambda x: x.replace(self.word, "_" * len(self.word)),
-                    translation_words,
-                )
-                translation_words = map(
-                    lambda x: re.sub(
-                        " of [^ ]*", " of ?", re.sub("\\([^)]*\\)", "--", x)
-                    ),
-                    translation_words,
-                )
-                translation_words = list(translation_words)
-            if translation_words:
+                translations = [
+                    re.sub(
+                        " of [^ ]*", " of ░", re.sub("\\([^)]*\\)", "(░)", x)
+                    )
+                    for x in translations
+                ]
+            if translations:
                 delimiter = (
-                    "; " if max(map(len, translation_words)) < 25 else "\n    "
+                    "; " if max(map(len, translations)) < 25 else "\n    "
                 )
                 result += interface.colorize(desc, "grey")
-                result += "\n    " + delimiter.join(translation_words) + "\n"
+                result += "\n    " + delimiter.join(translations) + "\n"
 
         if self.links:
-            for link_type, link in self.links:
+            for link in self.links:
                 result += interface.colorize(desc, "grey")
                 if show_word:
-                    result += f"\n    -> {link_type} of {link}\n"
+                    result += f"\n    -> {link.link_type} of {link.link}\n"
                 else:
-                    result += f"\n    -> {link_type}\n"
+                    result += f"\n    -> {link.link_type}\n"
 
         return result
 
@@ -153,8 +154,8 @@ class DictionaryItem:
         result: set[str] = set()
         for definition in self.definitions:
             definition: Form
-            for _, link in definition.links:
-                result.add(link)
+            for link in definition.links:
+                result.add(link.link)
         return result
 
     def to_str(
@@ -162,15 +163,17 @@ class DictionaryItem:
         language: str,
         interface: Interface,
         show_word: bool = True,
-        hide_translations: set[str] = None,
+        words_to_hide: Optional[set[str]] = None,
+        hide_translations: Optional[set[str]] = None,
     ) -> str:
         """
         Get human-readable representation of the dictionary item.
 
         :param language: the language of translation
+        :param interface: user interface provider
         :param show_word: if false, hide word transcription and word occurrences
             in examples
-        :param interface: user interface provider
+        :param words_to_hide: set of words to be hidden from the output
         :param hide_translations: list of translations that should be hidden
         """
         result: str = ""
@@ -180,7 +183,7 @@ class DictionaryItem:
 
         for definition in self.definitions:
             result += definition.to_str(
-                language, interface, show_word, hide_translations
+                language, interface, show_word, words_to_hide, hide_translations
             )
 
         return result
@@ -189,7 +192,7 @@ class DictionaryItem:
 class Dictionary:
     """Dictionary of word definitions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__items: dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
@@ -198,33 +201,32 @@ class Dictionary:
 
     def get_item(self, word: str) -> Optional[DictionaryItem]:
         """Get word definition."""
+
         if word in self.__items:
             return self.__items[word]
 
+        return None
+
     def get_forms(self) -> dict[str, set[str]]:
         """Get all possible forms of all words."""
-        result: dict[str, set[str]] = {}
-        for word in self.__items:
-            item = self.__items[word]
+
+        forms: dict[str, set[str]] = defaultdict(set)
+
+        for word, item in self.__items.items():
             for form in item.definitions:
                 for link_type, link in form.links:
-                    if link not in result:
-                        result[link] = set()
-                    result[link].add(word)
+                    forms[link].add(word)
 
-        return result
+        return forms
 
 
 class Dictionaries:
     """A set of dictionaries for a language."""
 
-    def __init__(self, dictionaries: list[Dictionary] = None):
-
-        self.dictionaries: list[Dictionary]
-        if dictionaries is None:
-            self.dictionaries = []
-        else:
-            self.dictionaries = dictionaries
+    def __init__(self, dictionaries: Optional[list[Dictionary]] = None) -> None:
+        self.dictionaries: list[Dictionary] = (
+            [] if dictionaries is None else dictionaries
+        )
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
         """
@@ -251,3 +253,5 @@ class Dictionaries:
                     if link_item:
                         items.append(link_item)
                 return items
+
+        return []
