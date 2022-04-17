@@ -1,7 +1,6 @@
-PyYAML>=4.2b1
+PyYAML
 iso-639
-iso639
 matplotlib
 svgwrite
-urllib3>=1.25.6
+urllib3
 wiktionaryparser
