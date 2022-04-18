@@ -111,10 +111,7 @@ class Form:
 
             if not show_word:
                 translations = [
-                    re.sub(
-                        " of [^ ]*", " of ░", re.sub("\\([^)]*\\)", "(░)", x)
-                    )
-                    for x in translations
+                    re.sub("\\([^)]*\\)", "(░)", x) for x in translations
                 ]
             if translations:
                 delimiter = (
