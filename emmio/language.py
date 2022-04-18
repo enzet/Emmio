@@ -37,9 +37,7 @@ class Language:
         return hash(self.language.part1)
 
     def get_name(self) -> str:
-        result: str = self.language.name
-        result = re.sub(" \\(.*\\)", "", result)
-        return result
+        return re.sub(" \\(.*\\)", "", self.language.name)
 
     def get_color(self) -> str:
         if self.color is not None:
