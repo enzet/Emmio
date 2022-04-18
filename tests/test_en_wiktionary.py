@@ -47,6 +47,29 @@ def test_3() -> None:
     check("past of nehmen, to take.", ["nehmen"])
 
 
+def test_4() -> None:
+    check(
+        "third-person singular present of vermessen "
+        "(“to measure, or to measure wrong”)",
+        ["vermessen"],
+    )
+
+
+def test_5() -> None:
+    check(
+        "strong/mixed nominative/accusative neuter singular of letzter",
+        ["letzter"],
+    )
+
+
+def test_uppercase() -> None:
+    check("Masculine singular past participle of hacer.", ["hacer"])
+
+
+def test_zh() -> None:
+    check("† Alternative form of 邀 (“to invite”).", ["邀"])
+
+
 def test_file_name_lower() -> None:
     assert get_file_name("rücken") == "rücken.json"
 
