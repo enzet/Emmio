@@ -18,9 +18,51 @@ from emmio.language import Language
 from emmio.ui import network, error
 
 
+FORMS: set[str] = {
+    "accusative",
+    "adverb",
+    "comparative",
+    "conditional",
+    "dative",
+    "degree",
+    "feminine",
+    "first",
+    "first-person",
+    "future",
+    "genitive",
+    "gerund",
+    "imperative",
+    "imperfect",
+    "indicative",
+    "indefinite",
+    "inflection",
+    "masculine",
+    "mixed",
+    "neuter",
+    "nominative",
+    "participle",
+    "past",
+    "plural",
+    "present",
+    "preterite",
+    "pronominal",
+    "second-person",
+    "simple",
+    "singular",
+    "strong",
+    "subjunctive",
+    "superlative",
+    "tense",
+    "third-person",
+    "i",
+    "ii",
+    "iii",
+}
+
+
 LINK_PATTERN: re.Pattern = re.compile(
-    "^(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
-    "(?P<extra>, .*)?(?P<extra2> \\(.*\\))?$"
+    "^(?P<preffix>\\(.*\\) )?(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
+    "(?P<suffix1>[,;] .*)?(?P<suffix2> \\(.*\\))?$"
 )
 
 
@@ -66,23 +108,13 @@ class EnglishWiktionary(Dictionary):
         matcher: Optional[re.Match] = LINK_PATTERN.match(text)
         if matcher:
             link: str = matcher.group("link")
-            link_type: str = matcher.group("link_type")
-            if link_type in [
-                "first-person singular present indicative",
-                "first-person singular present subjunctive",
-                "first-person singular present",
-                "first/third-person singular preterite",
-                "inflection",
-                "past participle",
-                "past",
-                "present participle",
-                "pronominal adverb",
-                "second-person singular imperative",
-                "singular imperative",
-                "third-person singular present indicative",
-                "third-person singular present subjunctive",
-                "third-person singular present",
-            ]:
+            link_type: str = (
+                matcher.group("link_type")
+                .replace("/", " ")
+                .replace(" and ", " ")
+                .lower()
+            )
+            if all(not x or x in FORMS for x in link_type.split(" ")):
                 return [Link(link_type, link)], text
 
         return [], text
