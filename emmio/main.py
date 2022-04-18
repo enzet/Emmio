@@ -37,7 +37,7 @@ Learning
 
 learn / {Enter}     start learning process
 stat learn          print learning statistics
-depth               show depth graph
+plot learn          show depth graph
 response time       show response time graph
 next question time  show next question time graph
 actions [per day]   show actions graph
@@ -181,12 +181,7 @@ class Emmio:
                 print()
 
             if command == "plot lexicon":
-                LexiconVisualizer(
-                    # first_point=util.year_start,
-                    # next_point=lambda x: x + timedelta(days=365.25),
-                    # impulses=False,
-                    plot_precise_values=True,
-                ).graph_with_matplot(
+                LexiconVisualizer().graph_with_matplot(
                     [
                         self.user_data.get_lexicon(language)
                         for language in self.user_data.get_lexicon_languages()

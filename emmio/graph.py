@@ -32,8 +32,8 @@ class Visualizer:
     @staticmethod
     def get_commands() -> set[str]:
         return {
-            "depth",
-            "depth by time",
+            "plot learn",
+            "plot learn by time",
             "graph 2",
             "actions",
             "actions per day",
@@ -44,9 +44,9 @@ class Visualizer:
     def process_command(
         self, command: str, records: list[Record], knowledges
     ) -> bool:
-        if command == "depth":
+        if command == "plot learn":
             self.depth(records)
-        if command == "depth by time":
+        if command == "plot learn by time":
             self.depth(records, is_time=True)
         if command == "graph 2":
             self.graph_2(records)
