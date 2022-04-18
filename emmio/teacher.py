@@ -83,6 +83,7 @@ class Teacher:
         self.skip = set()
 
     def start(self) -> bool:
+
         while True:
             word: Optional[str] = self.learning.get_next(self.skip)
 
@@ -93,20 +94,50 @@ class Teacher:
                 self.learning.write()
                 if code == "stop":
                     return False
-            else:
-                if self.learning.new_today() >= self.max_for_day:
-                    return True
-                has_new_word = False
-                for index, word in self.words:
-                    if not self.learning.has(word) and word not in self.skip:
-                        has_new_word = True
-                        code: str = self.learn(word, timedelta(), index)
-                        self.learning.write()
-                        if code == "stop":
-                            return False
-                        break
-                if not has_new_word:
-                    break
+
+                continue
+
+            if self.learning.new_today() >= self.max_for_day:
+                return True
+
+            has_new_word: bool = False
+
+            for index, word in self.words:
+                if self.learning.has(word):
+                    continue
+                if word in self.skip:
+                    continue
+
+                if (
+                    self.learning.check_lexicon
+                    and self.lexicon.has(word)
+                    and self.lexicon.get(word) != LexiconResponse.DO_NOT_KNOW
+                ):
+                    continue
+
+                print(f"[{index}]")
+                has_new_word = True
+
+                if self.learning.ask_lexicon:
+                    _, response, _ = self.lexicon.ask(
+                        self.interface,
+                        word,
+                        [],
+                        self.dictionaries,
+                        log_name="log_ex",
+                    )
+                    self.lexicon.write()
+                    if response != LexiconResponse.DO_NOT_KNOW:
+                        continue
+
+                code: str = self.learn(word, timedelta(), index)
+                self.learning.write()
+                if code == "stop":
+                    return False
+                break
+
+            if not has_new_word:
+                break
 
         return True
 

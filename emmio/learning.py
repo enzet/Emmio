@@ -135,6 +135,7 @@ class Learning:
         self.language: Optional[Language] = None
         self.subject: Optional[str] = None
         self.check_lexicon = True
+        self.ask_lexicon = False
         self.name: str = "Unknown"
 
         if "ratio" in self.config:
@@ -145,6 +146,8 @@ class Learning:
             self.subject = self.config["subject"]
         if "check_lexicon" in self.config:
             self.check_lexicon = self.config["check_lexicon"]
+        if "ask_lexicon" in self.config:
+            self.ask_lexicon = self.config["ask_lexicon"]
         if "name" in self.config:
             self.name = self.config["name"]
 
