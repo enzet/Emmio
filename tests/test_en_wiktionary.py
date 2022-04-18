@@ -29,10 +29,13 @@ def check(text: str, links: list[str]) -> None:
         Path("cache"), construct_language("eo")
     )
     parsed_links, _ = dictionary.process_definition(text)
-    assert parsed_links == links
+
+    assert len(links) == len(parsed_links)
+    for index, link in enumerate(parsed_links):
+        assert link.link == links[index]
 
 
-def __test_1() -> None:
+def test_1() -> None:
     check("(dated) genitive of er", ["er"])
 
 
@@ -40,7 +43,7 @@ def test_2() -> None:
     check("in the process of (followed by an infinitive clause)", [])
 
 
-def __test_3() -> None:
+def test_3() -> None:
     check("past of nehmen, to take.", ["nehmen"])
 
 
