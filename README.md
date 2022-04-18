@@ -1,6 +1,6 @@
 <img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo.png" />
 
-Emmio is a tool box for learning. It contains:
+__Emmio__ is a tool box for learning. It contains:
 
   * _Teacher_:
     [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
@@ -8,28 +8,22 @@ Emmio is a tool box for learning. It contains:
   * _Lexicon_: vocabulary test.
   * _Text_ analysis.
 
-[![Build Status](https://travis-ci.org/enzet/Emmio.svg?branch=master)](https://travis-ci.org/enzet/Emmio)
-
-## Requirements ##
-
-  * Python 3.9,
-  * See `requirements.txt`.
-
 ## Installation ##
 
+Requires __Python 3.9__.
+
 ```shell script
+pip install -r requirements.txt
 pip install .
 ```
 
-## Teacher ##
-
-Run
+## Run ##
 
 ```shell script
 emmio ${DATA_DIRECTORY} ${USER_NAME}
 ```
 
-### Lexicon ###
+## Lexicon ##
 
 The algorithm will randomly (based on frequency) offer you words of the target
 language. For each word you have to decide 
@@ -55,31 +49,29 @@ compare vocabulary of different people using one frequency list.
 | near 7      | Advanced, proficient             |
 | more than 9 | Native                           |
 
-```shell script
-python3 emmio.py lexicon \
-    --language  ${LANGUAGE_CODE} \
-    --lexicon   ${LEXICON_JSON_FILE_NAME} \
-    --frequency ${FULL_FREQUENCY_FILE_NAME}    
+Lexicon configuration:
+
+```
+"lexicon": {
+    "<language>": "<frequency list id>",
+    ...
+}
 ```
 
-Arguments:
-
-  * `${LANGUAGE_CODE}` is 2-letters ISO 639-1 language code (e.g. `en` for
+  * `language` is 2-letters ISO 639-1 language code (e.g. `en` for
     English and `ru` for Russian).
-  * `${LEXICON_JSON_FILE_NAME}` is a name of file with lexicon (e.g.
-    `lexicon_john_de.json`). If file doesn't exist, it will be created.
-  * `${FREQUENCY_FILE_NAME}` is a name of [full frequency file](#frequency). 
+  * `frequency list id` is an idenrifier of [full frequency file](#frequency). 
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
 
-### Frequency ###
+## Frequency ##
 
 There are full and stripped frequency lists. Stripped list uses only top part of
 the full list. Some algorithms require full lists.
 
 There are a lot of projects with frequency lists.
 
-#### FrequencyWords (Opensubtitles) ####
+### FrequencyWords (Opensubtitles) ###
 
 There is [Hermit Dave](https://github.com/hermitdave)'s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
@@ -92,13 +84,13 @@ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/
     --output-document=${LANGUAGE_CODE}_opensubtitles_2018.txt
 ```
 
-#### Wiktionary ####
+### Wiktionary ###
 
 Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
 
-### Text analysis ###
+## Text analysis ##
 
 Create frequency list from the text.
 
@@ -109,15 +101,15 @@ python3 emmio.py text \
     --output   ${OUTPUT_JSON_FREQUENCY_FILE_NAME}
 ```
 
-### Memrise ###
+## Memrise ##
 
 Memrise allows one to download user data in the HTML format.  To do so, one
 should go to [Memrise settings](https://www.memrise.com/settings/) and click
 "Download personal data".  The result HTML file will be sent to user's email.
 
-### Examples ###
+## Examples ##
 
-#### Check vocabulary ####
+### Check vocabulary ###
 
 Check German vocabulary test based on Opensubtitles frequency list:
 
