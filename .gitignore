@@ -1,7 +1,11 @@
-.idea
-__pycache__
 *.pyc
+.idea
+Emmio.egg-info
+__pycache__
 cache
+data
 out
-venv
 test
+venv
+web
+work
