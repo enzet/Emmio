@@ -98,7 +98,9 @@ class EnglishWiktionary(Dictionary):
         text = text.strip()
 
         matcher: Optional[re.Match] = re.match(
-            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)[.:]?$", text
+            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)"
+            "(\\s*\\(.*\\))?[.:]?$",
+            text,
         )
         if matcher:
             link: str = matcher.group("link")
