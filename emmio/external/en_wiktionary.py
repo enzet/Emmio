@@ -67,7 +67,7 @@ FORMS: set[str] = {
 
 LINK_PATTERN: re.Pattern = re.compile(
     "^(?P<preffix>\\(.*\\) )?(?P<link_type>.*) of (?P<link>[^:;,. ]*)[.:]?"
-    "(?P<suffix1>[,;] .*)?(?P<suffix2> \\(.*\\))?$"
+    '(?P<suffix1>[,;] .*)?(?P<suffix2> \\(.*\\))?(?P<suffix3> ".*")?$'
 )
 
 
