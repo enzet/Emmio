@@ -89,33 +89,3 @@ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/
 Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
-
-## Text analysis ##
-
-Create frequency list from the text.
-
-```shell script
-python3 emmio.py text \
-    --language ${LANGUAGE_CODE} \
-    --input    ${INPUT_TEXT_FILE_NAME} \
-    --output   ${OUTPUT_JSON_FREQUENCY_FILE_NAME}
-```
-
-## Memrise ##
-
-Memrise allows one to download user data in the HTML format.  To do so, one
-should go to [Memrise settings](https://www.memrise.com/settings/) and click
-"Download personal data".  The result HTML file will be sent to user's email.
-
-## Examples ##
-
-### Check vocabulary ###
-
-Check German vocabulary test based on Opensubtitles frequency list:
-
-```shell script
-wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_full.txt \
-    --output-document=de_opensubtitles_2018.txt
-python3 emmio.py lexicon --language de --lexicon lexicon_de.json \
-    --frequency de_opensubtitles_2018.txt
-```
