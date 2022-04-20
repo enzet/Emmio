@@ -200,7 +200,3 @@ class EnglishWiktionary(Dictionary):
             return item.to_str(
                 language, show_word, use_colors, hide_translations
             )
-
-    def get_name(self) -> str:
-        """Return dictionary name."""
-        return "English Wiktionary"
