@@ -75,9 +75,9 @@ class Teacher:
                             self.words.append((index, word))
                             break
 
-        with open("exclude_sentences.json") as input_file:
+        with (Path("cache") / "exclude_sentences.json").open() as input_file:
             self.exclude_sentences = json.load(input_file)
-        with open("exclude_translations.json") as input_file:
+        with (Path("cache") / "exclude_translations.json").open() as input_file:
             self.exclude_translations = json.load(input_file)
 
         self.skip = set()
@@ -318,7 +318,9 @@ class Teacher:
                     self.exclude_sentences[word].append(
                         translations[index].sentence.id_
                     )
-                    with open("exclude_sentences.json", "w+") as output_file:
+                    with (Path("cache") / "exclude_sentences.json").open(
+                        "w+"
+                    ) as output_file:
                         json.dump(self.exclude_sentences, output_file)
                     self.skip.add(word)
                     return "ok"
@@ -327,7 +329,9 @@ class Teacher:
                         self.exclude_translations[word] = []
                     _, t = answer.split(" ")
                     self.exclude_translations[word].append(t)
-                    with open("exclude_translations.json", "w+") as output_file:
+                    with (Path("cache") / "exclude_translations.json").open(
+                        "w+"
+                    ) as output_file:
                         json.dump(self.exclude_translations, output_file)
                     self.skip.add(word)
                     return "ok"
