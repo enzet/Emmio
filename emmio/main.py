@@ -94,31 +94,6 @@ class Emmio:
             if not command or command == "learn":
                 self.learn()
 
-            if command == "learn ja":
-                learning: Learning = self.user_data.get_course("ru_ja")
-                lexicon: Lexicon = self.user_data.get_lexicon(
-                    construct_language(learning.subject)
-                )
-                for frequency_list_id in learning.frequency_list_ids:
-                    frequency_list = self.user_data.get_frequency_list(
-                        frequency_list_id
-                    )
-                    if not self.frequency_db.has_table(frequency_list_id):
-                        self.frequency_db.add_table(
-                            frequency_list_id, frequency_list
-                        )
-
-                learner = Teacher(
-                    Path("cache"),
-                    self.interface,
-                    self.sentence_db,
-                    self.frequency_db,
-                    learning,
-                    lexicon,
-                    get_dictionaries=self.get_dictionaries,
-                )
-                proceed = learner.start()
-
             if command.startswith("lexicon"):
                 self.run_lexicon(command[len("lexicon") :])
 
