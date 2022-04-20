@@ -123,15 +123,6 @@ class Emmio:
                 print()
 
             if command == "stat lexicon":
-                from matplotlib import pyplot as plt
-                import matplotlib.dates as mdates
-
-                _, ax = plt.subplots()
-                locator = mdates.AutoDateLocator()
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(
-                    mdates.ConciseDateFormatter(locator)
-                )
                 print()
                 for language in sorted(
                     self.user_data.get_lexicon_languages(),
