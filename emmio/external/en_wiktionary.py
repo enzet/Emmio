@@ -179,6 +179,13 @@ class EnglishWiktionary(Dictionary):
 
                 if "pronunciations" in element:
                     for pronunciation in element["pronunciations"]["text"]:
+                        pronunciation = pronunciation.strip()
+                        if pronunciation.startswith("IPA: "):
+                            pronunciation = pronunciation[6:-1]
+                        if pronunciation.startswith(
+                            "Rhymes: "
+                        ) or pronunciation.startswith("Syllabification: "):
+                            continue
                         form.add_transcription(pronunciation.strip())
                 item.add_definition(form)
                 added = True
