@@ -51,6 +51,10 @@ plot lexicon        draw lexicon graph
 
 
 class Emmio:
+    """
+    Emmio entry point.
+    """
+
     def __init__(self, user_data: UserData, path: Path, interface: Interface):
         self.user_data: UserData = user_data
         self.path: Path = path
@@ -85,9 +89,12 @@ class Emmio:
         )
 
         while True:
+
             command: str = input("> ")
+
             if command in ["q", "quit", "exit"]:
                 return
+
             if command == "help":
                 print(HELP)
 
@@ -235,7 +242,7 @@ class Emmio:
             )
             break
 
-    def learn(self):
+    def learn(self) -> None:
         for course_id in self.user_data.course_ids:
             learning: Learning = self.user_data.get_course(course_id)
             lexicon: Lexicon = self.user_data.get_lexicon(
@@ -305,7 +312,7 @@ class Emmio:
             print(f"    New question in {time_to_new}.")
         print()
 
-    def fill_data(self, language, fl):
+    def fill_data(self, language, fl) -> None:
         fr = self.user_data.get_frequency_list(fl)
 
         words = {}

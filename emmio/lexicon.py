@@ -94,9 +94,8 @@ class LexiconLogRecord:
 
     @classmethod
     def from_structure(cls, structure: Any) -> "LexiconLogRecord":
-        """
-        Parse log record from structure.
-        """
+        """Parse log record from structure."""
+
         if "words" in structure:
             word = random.choice(structure["words"])
         else:
@@ -119,9 +118,8 @@ class LexiconLogRecord:
         )
 
     def to_structure(self) -> dict[str, Any]:
-        """
-        Serialize to structure.
-        """
+        """Serialize to structure."""
+
         structure: dict[str, Any] = {
             "date": self.date.strftime(DATE_FORMAT),
             "word": self.word,
@@ -722,7 +720,6 @@ class Lexicon:
                     and self.get(picked_word) == LexiconResponse.DO_NOT_KNOW
                 )
             ):
-
                 print("[propagate.skip] " + picked_word)
 
                 response: LexiconResponse = self.get(picked_word)
