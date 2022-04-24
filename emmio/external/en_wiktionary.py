@@ -192,18 +192,3 @@ class EnglishWiktionary(Dictionary):
 
         if added:
             return item
-
-    def get(
-        self,
-        word: str,
-        language: str,
-        show_word: bool = True,
-        hide_translations: list[str] = None,
-        use_colors: bool = False,
-    ) -> Optional[str]:
-
-        item: Optional[DictionaryItem] = self.get_item(word)
-        if item:
-            return item.to_str(
-                language, show_word, use_colors, hide_translations
-            )
