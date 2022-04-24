@@ -1,5 +1,6 @@
 import json
 import sys
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -105,16 +106,14 @@ class Emmio:
                 self.run_lexicon(command[len("lexicon") :])
 
             if command == "stat learn":
-                stat = {}
-                total = 0
+                stat: dict[int, int] = defaultdict(int)
+                total: int = 0
                 for course_id in self.user_data.course_ids:
                     k = self.user_data.get_course(course_id).knowledges
                     for word in k:
                         if k[word].interval.total_seconds() == 0:
                             continue
                         depth = k[word].get_depth()
-                        if depth not in stat:
-                            stat[depth] = 0
                         stat[depth] += 1
                         total += 1 / (2**depth)
 
