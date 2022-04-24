@@ -182,9 +182,12 @@ class EnglishWiktionary(Dictionary):
                         pronunciation = pronunciation.strip()
                         if pronunciation.startswith("IPA: "):
                             pronunciation = pronunciation[6:-1]
-                        if pronunciation.startswith(
-                            "Rhymes: "
-                        ) or pronunciation.startswith("Syllabification: "):
+                        if (
+                            pronunciation.startswith("Rhymes: ")
+                            or pronunciation.startswith("Syllabification: ")
+                            or pronunciation.startswith("Hyphenation: ")
+                            or pronunciation.startswith("Homophone: ")
+                        ):
                             continue
                         form.add_transcription(pronunciation.strip())
                 item.add_definition(form)
