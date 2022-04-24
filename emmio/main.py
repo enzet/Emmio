@@ -377,8 +377,8 @@ class Emmio:
 
         w = list(sorted(w, key=lambda x: x["index"]))
 
-        with Path("data.js").open("w") as output_file:
-            output_file.write("data = ")
+        with (Path("web") / f"{language}.js").open("w") as output_file:
+            output_file.write(f"{language} = ")
             json.dump(w, output_file)
             output_file.write(";")
 
