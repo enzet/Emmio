@@ -237,7 +237,7 @@ class Teacher:
         exclude_translations: set[str] = set()
 
         if word in self.exclude_translations:
-            exclude_translations = self.exclude_translations[word]
+            exclude_translations = set(self.exclude_translations[word])
 
         items: list[DictionaryItem] = dictionaries.get_items(word)
 
@@ -258,7 +258,7 @@ class Teacher:
                     self.known_language.get_code(),
                     self.interface,
                     False,
-                    words_to_hide=words_to_hide,
+                    words_to_hide=words_to_hide | exclude_translations,
                     hide_translations=exclude_translations,
                 )
                 for x in items
