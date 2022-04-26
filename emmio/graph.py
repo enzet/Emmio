@@ -81,8 +81,8 @@ class Visualizer:
 
         def idn(record: Record):
             return (
-                f"{knowledges[record.question_id].get_depth()},"
-                f"{knowledges[record.question_id].get_answers_number()}"
+                f"{knowledges[record.question_id].get_depth():05},"
+                f"{knowledges[record.question_id].get_answers_number():05}"
             )
 
         count = 0
