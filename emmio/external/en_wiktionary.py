@@ -20,6 +20,7 @@ from emmio.ui import network, error
 
 FORMS: set[str] = {
     "accusative",
+    "active",
     "affirmative",
     "adverb",
     "comparative",
@@ -43,8 +44,10 @@ FORMS: set[str] = {
     "mixed",
     "neuter",
     "nominative",
+    "nominal",
     "participle",
     "past",
+    "passive",
     "plural",
     "present",
     "preterite",
