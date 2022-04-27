@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
@@ -13,45 +14,44 @@ __email__ = "me@enzet.ru"
 from emmio.ui import error
 
 
+@dataclass
 class UserData:
     """
     Learning data for one user.
     """
 
-    def __init__(self):
-        self.courses = {}
-        self.lexicons: dict[Language, Lexicon] = {}
-        self.frequency_lists: dict[str, FrequencyList] = {}
-        self.path: Optional[Path] = None
+    id_: str
+    name: str
+    path: Path
+    native_languages: set[Language]
+    course_ids: set[str]
 
-        self.course_ids: set[str] = set()
+    lexicon_config: dict[str, str]
+    frequency_list_config: dict[str, dict[str, str]]
+    learn_config: dict[str, dict[str, str]]
 
-        self.lexicon_config: dict[str, str] = {}
-        self.frequency_list_config: dict[str, dict[str, str]] = {}
-        self.learn_config: dict[str, dict[str, str]] = {}
+    courses: dict = field(default_factory=dict)
+    lexicons: dict[Language, Lexicon] = field(default_factory=dict)
+    frequency_lists: dict[str, FrequencyList] = field(default_factory=dict)
 
     @classmethod
     def from_directory(cls, path: Path, user_id: str):
         """
         :param path: path to the user data directory
         """
-        user_data: "UserData" = cls()
-
-        user_data.path = path
-
         with (path / user_id / "config.json").open() as config_file:
             config: dict[str, Any] = json.load(config_file)
-            user_data.id_ = user_id
-            user_data.name = config["name"]
-            user_data.native_languages = set(
-                construct_language(x) for x in config["native_languages"]
-            )
-            user_data.lexicon_config = config["lexicon"]
-            user_data.learn_config = config["learn"]
-            user_data.frequency_list_config = config["priority"]
-            user_data.course_ids = set(config["learn"].keys())
 
-        return user_data
+            return cls(
+                user_id,
+                config["name"],
+                path,
+                set(construct_language(x) for x in config["native_languages"]),
+                set(config["learn"].keys()),
+                config["lexicon"],
+                config["priority"],
+                config["learn"],
+            )
 
     def get_frequency_list_for_lexicon(
         self, language: Language
@@ -63,7 +63,9 @@ class UserData:
     ) -> dict[str, str]:
         return self.frequency_list_config[frequency_list_id]
 
-    def get_frequency_list(self, frequency_list_id: str) -> FrequencyList:
+    def get_frequency_list(
+        self, frequency_list_id: str
+    ) -> Optional[FrequencyList]:
         if frequency_list_id not in self.frequency_lists:
             try:
                 frequency_list: FrequencyList = FrequencyList.from_structure(
