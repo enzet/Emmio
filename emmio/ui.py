@@ -145,32 +145,6 @@ def get_char() -> str:
     return character
 
 
-def show(words, status=None, color=None, is_center=False):
-    """
-    Show text in the center of the screen.
-    """
-    words = words.split("\n")
-    (width, height) = get_terminal_size()
-    s = ""
-    if status:
-        s += status
-        s += "\n"
-    if is_center:
-        s += int((height - len(words)) / 2 - 1) * "\n"
-    max_word = max(words, key=lambda x: len(x))
-    for word in words:
-        if is_center:
-            s += int((width / 2) - len(max_word) / 2) * " "
-        if color:
-            s += "\033[" + str(color) + "m"
-        s += word + "\n"
-        if color:
-            s += "\033[0m"
-    if is_center:
-        s += int((height - len(words)) / 2 - 1) * "\n"
-    sys.stdout.write(s)
-
-
 ENTER: int = 13
 ESCAPE: int = 27
 BACKSPACE: int = 127
@@ -339,40 +313,6 @@ def set_log(class_):
     logger = class_()
 
 
-def get_terminal_size() -> (int, int):
-    """
-    Get size of the terminal in symbols and lines.
-
-    :return: height (lines), width (symbols)
-    """
-
-    def ioctl_GWINSZ(fd):
-        try:
-            import fcntl, termios, struct, os
-
-            cr = struct.unpack(
-                "hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234")
-            )
-        except:
-            return
-        return cr
-
-    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
-
-    if not cr:
-        try:
-            fd = os.open(os.ctermid(), os.O_RDONLY)
-            cr = ioctl_GWINSZ(fd)
-            os.close(fd)
-        except:
-            pass
-
-    if not cr:
-        cr = (os.environ.get("LINES", 25), os.environ.get("COLUMNS", 80))
-
-    return int(cr[1]), int(cr[0])
-
-
 def one_button(text: str) -> None:
     input(f"[{text}] ")
 
@@ -383,10 +323,3 @@ def header(text: str) -> None:
     print("    " + text)
     print("    " + "─" * len(text))
     print()
-
-
-def box(text) -> str:
-    s = "┌─" + "─" * len(text) + "─┐\n"
-    s += f"│ {text} │\n"
-    s += "└─" + "─" * len(text) + "─┘"
-    return s
