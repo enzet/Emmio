@@ -390,36 +390,3 @@ def box(text) -> str:
     s += f"│ {text} │\n"
     s += "└─" + "─" * len(text) + "─┘"
     return s
-
-
-class InputOutput:
-    def __init__(self):
-        pass
-
-    def get(self) -> str:
-        pass
-
-    def put(self, message: str) -> None:
-        pass
-
-
-class TelegramIO(InputOutput):
-    def __init__(self):
-        super().__init__()
-
-    def get(self) -> str:
-        pass
-
-    def put(self, message: str) -> None:
-        pass
-
-
-class TerminalIO(InputOutput):
-    def __init__(self):
-        super().__init__()
-
-    def get(self) -> str:
-        return input()
-
-    def put(self, message: str) -> None:
-        print(message)
