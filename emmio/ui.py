@@ -149,54 +149,6 @@ ESCAPE: int = 27
 BACKSPACE: int = 127
 
 
-def get_word(
-    right_word: str, alternative_forms: set[str], language: Language
-) -> str:
-
-    sys.stdout.write(len(right_word) * "_")
-    sys.stdout.write("\r")
-    sys.stdout.flush()
-
-    word: str = ""
-
-    def is_right(word: str) -> bool:
-        return word == right_word
-
-    while True:
-        char: str = get_char()
-
-        if ord(char) == BACKSPACE:
-            word = word[:-1]
-        elif ord(char) == ESCAPE:
-            word = ""
-        elif ord(char) == ENTER:
-            sys.stdout.write("\n")
-            return word
-        else:
-            word += char
-
-        sys.stdout.write("\r")
-        sys.stdout.write("                    ")
-        sys.stdout.write("\r")
-
-        word = language.decode_text(word)
-
-        sys.stdout.write(word + (len(right_word) - len(word)) * "_")
-        sys.stdout.write("\r")
-        if is_right(word):
-            sys.stdout.write("\033[32m")
-        if word in alternative_forms:
-            sys.stdout.write("\033[33m")
-        sys.stdout.write(word)
-        if is_right(word) or word in alternative_forms:
-            sys.stdout.write("\033[0m")
-        sys.stdout.flush()
-
-        if is_right(word):
-            sys.stdout.write("\n")
-            return word
-
-
 class Logger:
     """
     Log messages writer.
