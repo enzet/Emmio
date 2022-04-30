@@ -15,7 +15,7 @@ from emmio.learning import Learning, Record
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase
 from emmio.teacher import Teacher
-from emmio.ui import Logger, header, set_log, Interface
+from emmio.ui import Logger, set_log, Interface, progress
 from emmio.user_data import UserData
 
 """
@@ -73,7 +73,7 @@ class Emmio:
     def get_dictionaries(self, language: Language) -> list[Dictionary]:
         dictionaries: list[Dictionary] = []
 
-        wiktionary = EnglishWiktionary(Path("cache"), language)
+        wiktionary: Dictionary = EnglishWiktionary(Path("cache"), language)
         dictionaries.append(wiktionary)
 
         return dictionaries
@@ -117,16 +117,23 @@ class Emmio:
                         stat[depth] += 1
                         total += 1 / (2**depth)
 
-                print()
+                rows = []
+
                 for course_id in self.user_data.course_ids:
-                    learning = self.user_data.get_course(course_id)
-                    print(
-                        f"{learning.name:<50} "
-                        f"{learning.to_repeat():4d} / {learning.learning():4d} "
-                        f"{learning.new_today():2d} / {learning.ratio:2d}"
+                    learning: Learning = self.user_data.get_course(course_id)
+                    rows.append(
+                        [
+                            learning.name,
+                            progress(learning.to_repeat()),
+                            # f"{learning.learning()}",
+                            progress(learning.ratio - learning.new_today()),
+                            # f"{learning.ratio}",
+                        ]
                     )
-                print(f"Pressure: {total:.2f}")
-                print()
+
+                self.interface.print(f"Pressure: {total:.2f}")
+
+                self.interface.table(["Course", "Repeat", "New"], rows)
 
             if command == "stat lexicon":
                 print()
