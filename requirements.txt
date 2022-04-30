@@ -1,6 +1,7 @@
 PyYAML
 iso-639
 matplotlib
+rich~=12.3.0
 svgwrite
 urllib3
 wiktionaryparser

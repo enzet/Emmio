@@ -6,6 +6,11 @@ import sys
 import termios
 import tty
 
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
 from emmio.language import Language
 
 __author__ = "Sergey Vartanov"
@@ -40,7 +45,14 @@ def colorize(text: str, color: str):
 
 
 class Interface:
+    """
+    User input/output interface.
+    """
+
     def print(self, message: str) -> None:
+        raise NotImplementedError()
+
+    def header(self, message: str) -> None:
         raise NotImplementedError()
 
     def input(self, prompt: str) -> str:
@@ -130,10 +142,30 @@ class TerminalInterface(Interface):
                 return word
 
 
+class RichInterface(TerminalInterface):
+    def __init__(self):
+        self.console = Console()
+
+    def print(self, text: str) -> None:
+        print(text)
+
+    def header(self, text: str) -> None:
+        self.console.print(Panel(text))
+
+    def box(self, text: str) -> None:
+        self.console.print(Panel(text, expand=False))
+
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        table: Table = Table(box=box.ROUNDED)
+        for column in columns:
+            table.add_column(column)
+        for row in rows:
+            table.add_row(*row)
+        self.console.print(table)
+
+
 def get_char() -> str:
-    """
-    Read character from user input.
-    """
+    """Read character from user input."""
     file_descriptor = sys.stdin.fileno()
     settings = termios.tcgetattr(sys.stdin.fileno())
     try:
@@ -142,6 +174,13 @@ def get_char() -> str:
     finally:
         termios.tcsetattr(file_descriptor, termios.TCSADRAIN, settings)
     return character
+
+
+BOXES: str = " ▏▎▍▌▋▊▉"
+
+
+def progress(a: int) -> str:
+    return ((a // 8) * "█") + BOXES[a % 8]
 
 
 ENTER: int = 13
@@ -153,8 +192,6 @@ class Logger:
     """
     Log messages writer.
     """
-
-    BOXES: str = " ▏▎▍▌▋▊▉"
 
     def __init__(self):
         pass
