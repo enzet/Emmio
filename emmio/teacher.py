@@ -327,8 +327,8 @@ class Teacher:
                 elif answer.startswith("/bt "):
                     if word not in self.exclude_translations:
                         self.exclude_translations[word] = []
-                    _, t = answer.split(" ")
-                    self.exclude_translations[word].append(t)
+                    parts = answer.split(" ")
+                    self.exclude_translations[word].append(" ".join(parts[1:]))
                     with (Path("cache") / "exclude_translations.json").open(
                         "w+"
                     ) as output_file:
