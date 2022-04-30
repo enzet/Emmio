@@ -227,7 +227,7 @@ class Emmio:
             if need <= 0:
                 continue
 
-            header(f"Lexicon for {language.get_name()}")
+            self.interface.header(f"Lexicon for {language.get_name()}")
 
             lexicon.check(
                 self.interface,
@@ -257,7 +257,7 @@ class Emmio:
                     )
 
             if learning.to_repeat() > 0:
-                header(f"Repeat learned for {learning.name}")
+                self.interface.header(f"Repeat learned for {learning.name}")
                 teacher: Teacher = Teacher(
                     Path("cache"),
                     self.interface,
@@ -284,7 +284,9 @@ class Emmio:
                 construct_language(learning.subject)
             )
             if learning.ratio > learning.new_today():
-                header(f"Learn new and repeat for {learning.name}")
+                self.interface.header(
+                    f"Learn new and repeat for {learning.name}"
+                )
                 learner = Teacher(
                     Path("cache"),
                     self.interface,
