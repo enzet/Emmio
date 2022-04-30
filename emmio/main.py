@@ -390,7 +390,7 @@ def main() -> None:
 
     data_path: Path = Path(sys.argv[1])
     user_id: str = sys.argv[2]
-    interface: Interface = ui.TerminalInterface()
+    interface: Interface = ui.RichInterface()
 
     interface.run()
 
