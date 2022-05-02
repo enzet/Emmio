@@ -38,6 +38,7 @@ class UserData:
     def from_directory(cls, path: Path, user_id: str):
         """
         :param path: path to the user data directory
+        :param user_id: unique string user identifier
         """
         with (path / user_id / "config.json").open() as config_file:
             config: dict[str, Any] = json.load(config_file)
