@@ -79,7 +79,7 @@ class Visualizer:
 
         knowledges = {}
 
-        def idn(record: Record):
+        def idn():
             return (
                 f"{knowledges[record.question_id].get_depth():05},"
                 f"{knowledges[record.question_id].get_answers_number():05}"
