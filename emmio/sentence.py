@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from os.path import join
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 
 from emmio.database import Database
 from emmio.language import Language
@@ -261,7 +261,11 @@ class Sentences:
             json.dump(self.cache, output_file)
 
     def filter_(
-        self, word: str, ids_to_skip: Set[int], max_length: int
+        self,
+        word: str,
+        ids_to_skip: Set[int],
+        max_length: int,
+        max_number: Optional[int] = 1000,
     ) -> List[Translation]:
         """
         Get sentences that contain the specified word and their translations to
@@ -271,16 +275,21 @@ class Sentences:
         :param ids_to_skip: identifiers of sentences that should not be added to
             the result
         :param max_length: maximum sentence length
+        :param max_number: maximum number of sentences to check
         """
         result: List[Translation] = []
 
         if word not in self.cache:
             return result
 
-        for id_ in self.cache[word][:1000]:
+        ids_to_check: list[int] = (
+            self.cache[word]
+            if max_number is None
+            else self.cache[word][:max_number]
+        )
+        for id_ in ids_to_check:
             if id_ in ids_to_skip:
                 continue
-            id_: int
             sentence: Sentence = self.sentence_db.get_sentence(
                 self.language_2, id_
             )
