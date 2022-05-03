@@ -82,6 +82,8 @@ class Teacher:
 
         self.skip = set()
 
+        self.stop_after_answer: bool = False
+
     def start(self) -> bool:
 
         while True:
@@ -293,17 +295,20 @@ class Teacher:
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
-                new_answer = self.interface.input(">>> ")
-                while new_answer:
-                    if new_answer == "s":
-                        self.learning.register(
-                            ResponseType.SKIP,
-                            translations[index].sentence.id_,
-                            word,
-                            timedelta(),
-                        )
-                        break
+
+                if self.stop_after_answer:
                     new_answer = self.interface.input(">>> ")
+                    while new_answer:
+                        if new_answer == "s":
+                            self.learning.register(
+                                ResponseType.SKIP,
+                                translations[index].sentence.id_,
+                                word,
+                                timedelta(),
+                            )
+                            break
+                        new_answer = self.interface.input(">>> ")
+
                 return "ok"
 
             if answer in ["s", "/skip"]:
