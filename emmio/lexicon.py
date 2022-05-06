@@ -513,7 +513,8 @@ class Lexicon:
         items: list[DictionaryItem] = Dictionaries(dictionaries).get_items(word)
 
         if items:
-            one_button("Show translation")
+            print("[Show translation]")
+            get_char()
             print("\n".join(map(lambda x: x.to_str("ru", interface), items)))
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
