@@ -119,21 +119,37 @@ class Emmio:
 
                 rows = []
 
+                total_to_repeat: int = 0
+                total_new: int = 0
+                total_all: int = 0
+
                 for course_id in self.user_data.course_ids:
                     learning: Learning = self.user_data.get_course(course_id)
-                    rows.append(
-                        [
-                            learning.name,
-                            progress(learning.to_repeat()),
-                            # f"{learning.learning()}",
-                            progress(learning.ratio - learning.new_today()),
-                            # f"{learning.ratio}",
-                        ]
-                    )
+                    row = [
+                        learning.name,
+                        progress((to_repeat := learning.to_repeat())),
+                        progress(
+                            (new := learning.ratio - learning.new_today())
+                        ),
+                        str((all_ := learning.learning())),
+                    ]
+                    rows.append(row)
+                    total_to_repeat += to_repeat
+                    total_new += new
+                    total_all += all_
+
+                if total_to_repeat or total_new:
+                    footer = [
+                        "Total",
+                        str(total_to_repeat),
+                        str(total_new),
+                        str(total_all),
+                    ]
+                    rows.append(footer)
 
                 self.interface.print(f"Pressure: {total:.2f}")
 
-                self.interface.table(["Course", "Repeat", "New"], rows)
+                self.interface.table(["Course", "Repeat", "New", "All"], rows)
 
             if command == "stat lexicon":
                 print()
