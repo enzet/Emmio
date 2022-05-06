@@ -34,6 +34,7 @@ FORMS: set[str] = {
     "future",
     "genitive",
     "gerund",
+    "historic",
     "imperative",
     "imperfect",
     "indicative",
