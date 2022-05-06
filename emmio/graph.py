@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional, Callable
@@ -34,6 +35,7 @@ class Visualizer:
         return {
             "plot learn",
             "plot learn by time",
+            "plot learn by depth",
             "graph 2",
             "actions",
             "actions per day",
@@ -48,6 +50,8 @@ class Visualizer:
             self.depth(records)
         if command == "plot learn by time":
             self.depth(records, is_time=True)
+        if command == "plot learn by depth":
+            self.depth(records, count_by_depth=True)
         if command == "graph 2":
             self.graph_2(records)
         if command == "actions":
@@ -65,6 +69,7 @@ class Visualizer:
         records: list[Record],
         is_time: bool = False,
         show_text: bool = False,
+        count_by_depth: bool = False,
     ):
         """
         Show depth graph.
@@ -73,7 +78,7 @@ class Visualizer:
         :param is_time: if true, use time as x-axis, otherwise use actions count
         :param show_text: show depth labels
         """
-        data = {}
+        data = defaultdict(float)
         y = {}
         x = []
 
@@ -89,25 +94,31 @@ class Visualizer:
 
         for index, record in enumerate(records):
             if record.question_id in knowledges:
-                data[idn(record)] -= 1
-                # / (2 ** knowledges[record.question_id].get_depth())
+                data[idn()] -= (
+                    1 / (2 ** knowledges[record.question_id].get_depth())
+                    if count_by_depth
+                    else 1
+                )
             if not record.is_learning():
                 continue
-            last_answers = (
-                knowledges[record.question_id].responses
-                if record.question_id in knowledges
-                else []
-            )
-            knowledges[record.question_id] = Knowledge(
-                record.question_id,
-                last_answers + [record.answer],
-                record.time,
-                record.interval,
-            )
-            if idn(record) not in data:
-                data[idn(record)] = 0
-            data[idn(record)] += 1
-            # / (2 ** knowledges[record.question_id].get_depth())
+                data["00010,00001"] += 1
+            else:
+                last_answers = (
+                    knowledges[record.question_id].responses
+                    if record.question_id in knowledges
+                    else []
+                )
+                knowledges[record.question_id] = Knowledge(
+                    record.question_id,
+                    last_answers + [record.answer],
+                    record.time,
+                    record.interval,
+                )
+                data[idn()] += (
+                    1 / (2 ** knowledges[record.question_id].get_depth())
+                    if count_by_depth
+                    else 1
+                )
             x.append(record.time if is_time else count)
             count += 1
             s = 0
