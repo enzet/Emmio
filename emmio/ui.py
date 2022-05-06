@@ -49,13 +49,16 @@ class Interface:
     User input/output interface.
     """
 
-    def print(self, message: str) -> None:
+    def print(self, text: str) -> None:
+        """Simply print text message."""
         raise NotImplementedError()
 
-    def header(self, message: str) -> None:
+    def header(self, text: str) -> None:
+        """Print header."""
         raise NotImplementedError()
 
     def input(self, prompt: str) -> str:
+        """Return user input."""
         raise NotImplementedError()
 
     def get_word(
@@ -63,7 +66,14 @@ class Interface:
     ) -> str:
         raise NotImplementedError()
 
-    def colorize(self, text: str, color: str):
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        """
+        Add table.  Length of `columns` should be equal of length of each
+        element of `rows`.
+        """
+        raise NotImplementedError()
+
+    def colorize(self, text: str, color: str) -> str:
         return text
 
     def box(self, message: str) -> None:
@@ -77,6 +87,9 @@ class Interface:
 
 
 class TerminalInterface(Interface):
+    def header(self, message: str) -> None:
+        pass
+
     def run(self) -> None:
         pass
 
@@ -91,6 +104,18 @@ class TerminalInterface(Interface):
         s += f"│ {text} │\n"
         s += "└─" + "─" * len(text) + "─┘"
         self.print(s)
+
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        lengths: list[int] = [
+            max(len(row[i]) for row in rows) for i in range(len(columns))
+        ]
+        self.print(
+            " ".join(columns[i].ljust(lengths[i]) for i in range(len(columns)))
+        )
+        for row in rows:
+            self.print(
+                " ".join(row[i].ljust(lengths[i]) for i in range(len(columns)))
+            )
 
     def colorize(self, text: str, color: str):
         if color in colors:
@@ -156,11 +181,17 @@ class RichInterface(TerminalInterface):
         self.console.print(Panel(text, expand=False))
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        table: Table = Table(box=box.ROUNDED)
-        for column in columns:
-            table.add_column(column)
-        for row in rows:
+
+        show_footer: bool = rows[-1][0] == "Total"
+
+        table: Table = Table(box=box.ROUNDED, show_footer=show_footer)
+        for index, column in enumerate(columns):
+            table.add_column(
+                column, footer=rows[-1][index] if show_footer else ""
+            )
+        for row in rows[:-1] if show_footer else rows:
             table.add_row(*row)
+
         self.console.print(table)
 
 
