@@ -10,7 +10,7 @@ from typing import Any, Iterator, Optional
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyList
 from emmio.language import Language
-from emmio.ui import get_char, log, one_button, write, Interface
+from emmio.ui import get_char, log, write, Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

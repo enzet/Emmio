@@ -332,10 +332,6 @@ def set_log(class_):
     logger = class_()
 
 
-def one_button(text: str) -> None:
-    input(f"[{text}] ")
-
-
 def header(text: str) -> None:
     print()
     print("    " + "─" * len(text))
