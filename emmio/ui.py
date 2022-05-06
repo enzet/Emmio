@@ -132,7 +132,7 @@ class TerminalInterface(Interface):
 
         word: str = ""
 
-        def is_right(word: str) -> bool:
+        def is_right() -> bool:
             return word == right_word
 
         while True:
@@ -153,16 +153,16 @@ class TerminalInterface(Interface):
             word = language.decode_text(word)
 
             sys.stdout.write(word + (len(right_word) - len(word)) * "_" + "\r")
-            if is_right(word):
+            if is_right():
                 sys.stdout.write("\033[32m")
             if word in alternative_forms:
                 sys.stdout.write("\033[33m")
             sys.stdout.write(word)
-            if is_right(word) or word in alternative_forms:
+            if is_right() or word in alternative_forms:
                 sys.stdout.write("\033[0m")
             sys.stdout.flush()
 
-            if is_right(word):
+            if is_right():
                 sys.stdout.write("\n")
                 return word
 
@@ -256,16 +256,13 @@ class Logger:
         if number == -1:
             print("%3s" % "100" + " % " + (length * "█") + "▏")
         elif number % step == 0:
-            parts = length * 8
             p = number / float(total)
-            l = int(p * parts)
+            l = int(p * length * 8)
             fl = int(l / 8)
-            pr = int(l - fl * 8)
             print(
-                "%3s" % str(int(int(p * 1000) / 10))
-                + " % "
+                f"{str(int(int(p * 1000) / 10)):>3} % "
                 + (fl * "█")
-                + self.BOXES[pr]
+                + BOXES[int(l - fl * 8)]
                 + int(length - fl - 1) * " "
                 + "▏"
             )
@@ -299,7 +296,9 @@ class SilentLogger(Logger):
         pass
 
 
-logger = SilentLogger()
+# Logging
+
+logger: Logger = SilentLogger()
 
 
 def write(message: str, color: str = None) -> None:
@@ -323,18 +322,12 @@ def error(message: str) -> None:
     logger.error(message)
 
 
-def progress_bar(number, total, length: int = 20, step: int = 1000) -> None:
+def progress_bar(
+    number: int, total: int, length: int = 20, step: int = 1000
+) -> None:
     logger.progress_bar(number, total, length, step)
 
 
 def set_log(class_):
     global logger
     logger = class_()
-
-
-def header(text: str) -> None:
-    print()
-    print("    " + "─" * len(text))
-    print("    " + text)
-    print("    " + "─" * len(text))
-    print()
