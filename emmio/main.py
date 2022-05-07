@@ -90,139 +90,140 @@ class Emmio:
         )
 
         while True:
-
             command: str = input("> ")
 
             if command in ["q", "quit", "exit"]:
                 return
 
-            if command == "help":
-                print(HELP)
+            self.process_command(command)
 
-            if not command or command == "learn":
-                self.learn()
+    def process_command(self, command: str, interactive: bool = True) -> None:
 
-            if command.startswith("lexicon"):
-                self.run_lexicon(command[len("lexicon") :])
+        if command == "help":
+            print(HELP)
 
-            if command == "stat learn":
-                stat: dict[int, int] = defaultdict(int)
-                total: int = 0
-                for course_id in self.user_data.course_ids:
-                    k = self.user_data.get_course(course_id).knowledges
-                    for word in k:
-                        if k[word].interval.total_seconds() == 0:
-                            continue
-                        depth = k[word].get_depth()
-                        stat[depth] += 1
-                        total += 1 / (2**depth)
+        if not command or command == "learn":
+            self.learn()
 
-                rows = []
+        if command.startswith("lexicon"):
+            self.run_lexicon(command[len("lexicon") :])
 
-                total_to_repeat: int = 0
-                total_new: int = 0
-                total_all: int = 0
+        if command == "stat learn":
+            stat: dict[int, int] = defaultdict(int)
+            total: int = 0
+            for course_id in self.user_data.course_ids:
+                k = self.user_data.get_course(course_id).knowledges
+                for word in k:
+                    if k[word].interval.total_seconds() == 0:
+                        continue
+                    depth = k[word].get_depth()
+                    stat[depth] += 1
+                    total += 1 / (2**depth)
 
-                for course_id in self.user_data.course_ids:
-                    learning: Learning = self.user_data.get_course(course_id)
-                    row = [
-                        learning.name,
-                        progress((to_repeat := learning.to_repeat())),
-                        progress(
-                            (new := learning.ratio - learning.new_today())
-                        ),
-                        str((all_ := learning.learning())),
-                    ]
-                    rows.append(row)
-                    total_to_repeat += to_repeat
-                    total_new += new
-                    total_all += all_
+            rows = []
 
-                if total_to_repeat or total_new:
-                    footer = [
-                        "Total",
-                        str(total_to_repeat),
-                        str(total_new),
-                        str(total_all),
-                    ]
-                    rows.append(footer)
+            total_to_repeat: int = 0
+            total_new: int = 0
+            total_all: int = 0
 
-                self.interface.print(f"Pressure: {total:.2f}")
+            for course_id in self.user_data.course_ids:
+                learning: Learning = self.user_data.get_course(course_id)
+                row = [
+                    learning.name,
+                    progress((to_repeat := learning.to_repeat())),
+                    progress((new := learning.ratio - learning.new_today())),
+                    str((all_ := learning.learning())),
+                ]
+                rows.append(row)
+                total_to_repeat += to_repeat
+                total_new += new
+                total_all += all_
 
-                self.interface.table(["Course", "Repeat", "New", "All"], rows)
+            if total_to_repeat or total_new:
+                footer = [
+                    "Total",
+                    str(total_to_repeat),
+                    str(total_new),
+                    str(total_all),
+                ]
+                rows.append(footer)
 
-            if command == "stat lexicon":
-                print()
-                for language in sorted(
-                    self.user_data.get_lexicon_languages(),
-                    key=lambda x: -self.user_data.get_lexicon(
-                        x
-                    ).get_last_rate_number(),
-                ):
-                    lexicon: Lexicon = self.user_data.get_lexicon(language)
-                    now: datetime = datetime.now()
-                    rate: Optional[float] = lexicon.get_last_rate()
-                    rate_string: str = (
-                        f"{rate:5.1f}" if rate is not None else "  N/A"
-                    )
-                    last_week_precision: int = lexicon.count_unknowns(
-                        "log", now - timedelta(days=7), now
-                    )
-                    print(
-                        f"{language.get_name():<20}  "
-                        f"{last_week_precision:3d} "
-                        f"{rate_string}"
-                    )
-                print()
+            self.interface.print(f"Pressure: {total:.2f}")
 
-            if command == "plot lexicon":
-                LexiconVisualizer().graph_with_matplot(
-                    [
-                        self.user_data.get_lexicon(language)
-                        for language in self.user_data.get_lexicon_languages()
-                    ]
+            self.interface.table(["Course", "Repeat", "New", "All"], rows)
+
+        if command == "stat lexicon":
+            print()
+            for language in sorted(
+                self.user_data.get_lexicon_languages(),
+                key=lambda x: -self.user_data.get_lexicon(
+                    x
+                ).get_last_rate_number(),
+            ):
+                lexicon: Lexicon = self.user_data.get_lexicon(language)
+                now: datetime = datetime.now()
+                rate: Optional[float] = lexicon.get_last_rate()
+                rate_string: str = (
+                    f"{rate:5.1f}" if rate is not None else "  N/A"
                 )
-
-            if command == "svg lexicon":
-                LexiconVisualizer(
-                    first_point=util.year_start,
-                    next_point=lambda x: x + timedelta(days=365.25),
-                    impulses=False,
-                ).graph_with_svg(
-                    [
-                        self.user_data.get_lexicon(language)
-                        for language in self.user_data.get_lexicon_languages()
-                    ],
-                    1.5,
+                last_week_precision: int = lexicon.count_unknowns(
+                    "log", now - timedelta(days=7), now
                 )
-
-            if command == "svg lexicon week":
-                LexiconVisualizer().graph_with_svg(
-                    [
-                        self.user_data.get_lexicon(language)
-                        for language in self.user_data.get_lexicon_languages()
-                    ],
+                print(
+                    f"{language.get_name():<20}  "
+                    f"{last_week_precision:3d} "
+                    f"{rate_string}"
                 )
+            print()
 
-            if command == "data":
-                self.fill_data("en", "en_opensubtitles_2016")
+        if command == "plot lexicon":
+            LexiconVisualizer(interactive=interactive).graph_with_matplot(
+                [
+                    self.user_data.get_lexicon(language)
+                    for language in self.user_data.get_lexicon_languages()
+                ]
+            )
 
-            if command in Visualizer.get_commands():
-                ratios = 0
-                learning_words = 0
-                records: list[Record] = []
-                knowledges = {}
-                for course_id in self.user_data.course_ids:
-                    learning = self.user_data.get_course(course_id)
-                    ratios += learning.ratio
-                    learning_words += learning.learning()
-                    records += learning.records
-                    knowledges |= learning.knowledges
+        if command == "svg lexicon":
+            LexiconVisualizer(
+                first_point=util.year_start,
+                next_point=lambda x: x + timedelta(days=365.25),
+                impulses=False,
+            ).graph_with_svg(
+                [
+                    self.user_data.get_lexicon(language)
+                    for language in self.user_data.get_lexicon_languages()
+                ],
+                1.5,
+            )
 
-                visualizer = Visualizer()
-                records = sorted(records, key=lambda x: x.time)
+        if command == "svg lexicon week":
+            LexiconVisualizer().graph_with_svg(
+                [
+                    self.user_data.get_lexicon(language)
+                    for language in self.user_data.get_lexicon_languages()
+                ],
+            )
 
-                visualizer.process_command(command, records, knowledges)
+        if command == "data":
+            self.fill_data("en", "en_opensubtitles_2016")
+
+        if command in Visualizer.get_commands():
+            ratios = 0
+            learning_words = 0
+            records: list[Record] = []
+            knowledges = {}
+            for course_id in self.user_data.course_ids:
+                learning = self.user_data.get_course(course_id)
+                ratios += learning.ratio
+                learning_words += learning.learning()
+                records += learning.records
+                knowledges |= learning.knowledges
+
+            visualizer = Visualizer(interactive=interactive)
+            records = sorted(records, key=lambda x: x.time)
+
+            visualizer.process_command(command, records, knowledges)
 
     def run_lexicon(self, code: str) -> None:
         """Check all user lexicons."""
@@ -422,7 +423,12 @@ def main() -> None:
         data_path,
         interface,
     )
-    emmio.run()
+
+    if len(sys.argv) > 3:
+        command = " ".join(sys.argv[3:])
+        emmio.process_command(command, interactive=False)
+    else:
+        emmio.run()
 
     interface.stop()
 
