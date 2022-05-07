@@ -278,10 +278,10 @@ class LexiconVisualizer:
 
     # Function to compute starting point in time based on the minimal point in
     # time from data.
-    first_point: Callable = first_day_of_week
+    first_point: Callable[[datetime], datetime] = first_day_of_week
 
     # Function to compute next point in time.
-    next_point: Callable = lambda x: x + timedelta(days=7)
+    next_point: Callable[[datetime], datetime] = lambda x: x + timedelta(days=7)
 
     impulses: bool = True
     interactive: bool = True
