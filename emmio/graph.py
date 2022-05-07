@@ -27,8 +27,8 @@ colors = [
 
 
 class Visualizer:
-    def __init__(self):
-        pass
+    def __init__(self, interactive: bool = True):
+        self.interactive: bool = interactive
 
     @staticmethod
     def get_commands() -> set[str]:
@@ -169,7 +169,13 @@ class Visualizer:
                         )
                         break
 
-        plt.show()
+        self.plot()
+
+    def plot(self):
+        if self.interactive:
+            plt.show()
+        else:
+            plt.savefig("out/graph.svg")
 
     def actions(self, records: list[Record]):
         x, y = [], []
@@ -181,7 +187,7 @@ class Visualizer:
             y.append(count_learning)
         plt.plot(x, range(len(x)), color="grey", linewidth=1)
         plt.plot(x, y, color="black", linewidth=1)
-        plt.show()
+        self.plot()
 
     def cumulative_actions(self, records: list[Record]):
         data = {}
@@ -202,7 +208,7 @@ class Visualizer:
             color="black",
             linewidth=1,
         )
-        plt.show()
+        self.plot()
 
     def graph_2(self, records: list[Record]):
         x = []
@@ -214,7 +220,7 @@ class Visualizer:
         x = sorted(x)
         y = range(len(x))
         plt.plot(x, y)
-        plt.show()
+        self.plot()
 
     def next_question_time(self, last_records: dict[str, Knowledge]):
         data = {}
@@ -226,11 +232,10 @@ class Visualizer:
         x = sorted(data.keys())
         y = list(map(lambda z: data[z], x))
         plt.plot(x, y, "o", color="black", markersize=0.5)
-        plt.show()
+        self.plot()
 
-    @staticmethod
     def response_time(
-        records: list[Record], steps: int = 10, max_: int = 60
+        self, records: list[Record], steps: int = 10, max_: int = 60
     ) -> None:
         """
         Draw user response time histogram.
@@ -259,7 +264,7 @@ class Visualizer:
         plt.plot(x, y_n, color="red", linewidth=1)
         plt.xlim(xmin=0, xmax=max_)
         plt.ylim(ymin=0)
-        plt.show()
+        self.plot()
 
 
 @dataclass
@@ -279,6 +284,7 @@ class LexiconVisualizer:
     next_point: Callable = lambda x: x + timedelta(days=7)
 
     impulses: bool = True
+    interactive: bool = True
 
     def graph_with_matplot(
         self,
@@ -332,7 +338,11 @@ class LexiconVisualizer:
         plt.ylim(ymin=margin)
         plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
         plt.tight_layout()
-        plt.show()
+
+        if self.interactive:
+            plt.show()
+        else:
+            plt.savefig("out/graph.svg")
 
     def graph_with_svg(self, lexicons, margin: float = 0.0):
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
