@@ -90,7 +90,6 @@ class Teacher:
                 code: str = self.learn(
                     word, self.learning.knowledges[word].interval, 0
                 )
-                self.learning.write()
                 if code == "stop":
                     return False
 
@@ -124,7 +123,10 @@ class Teacher:
                 print(f"[{index}]")
                 has_new_word = True
 
-                if self.learning.ask_lexicon:
+                if self.learning.ask_lexicon and not self.lexicon.has(word):
+
+                    self.lexicon.write()
+
                     _, response, _ = self.lexicon.ask(
                         self.interface,
                         word,
@@ -132,12 +134,14 @@ class Teacher:
                         self.dictionaries,
                         log_name="log_ex",
                     )
-                    self.lexicon.write()
+
+                    if response is None:
+                        return False
+
                     if response != LexiconResponse.DO_NOT_KNOW:
                         continue
 
                 code: str = self.learn(word, timedelta(), index)
-                self.learning.write()
                 if code == "stop":
                     return False
                 break
