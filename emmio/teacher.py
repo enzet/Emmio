@@ -12,7 +12,7 @@ from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
-from emmio.lexicon import Lexicon, LexiconResponse
+from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog
 from emmio.sentence import SentenceDatabase, Sentences, Translation
 from emmio.ui import log, Interface
 
@@ -177,18 +177,13 @@ class Teacher:
         if word in self.exclude_sentences:
             ids_to_skip = set(self.exclude_sentences[word])
 
-        translations: list[Translation] = self.sentences.filter_(
+        sentences: list[Translation] = self.sentences.filter_(
             word, ids_to_skip, 120
         )
-        if not translations:
-            return "bad question"
-
         if interval.total_seconds() == 0:
-            translations = sorted(
-                translations, key=lambda x: len(x.sentence.text)
-            )
+            sentences = sorted(sentences, key=lambda x: len(x.sentence.text))
         else:
-            random.shuffle(translations)
+            random.shuffle(sentences)
 
         dictionaries: Dictionaries = Dictionaries(self.dictionaries)
 
@@ -199,9 +194,9 @@ class Teacher:
             :param show_index: show current sentence index
             :param max_translations: maximum number of translations to show
             """
-            text: str = translations[index].sentence.text
+            text: str = sentences[index].sentence.text
             if show_index:
-                text += f" ({index + 1}/{len(translations)})"
+                text += f" ({index + 1}/{len(sentences)})"
 
             result: str = ""
 
@@ -221,8 +216,8 @@ class Teacher:
                     w = ""
 
             for i in range(max_translations):
-                if len(translations[index].translations) > i:
-                    result += "\n" + translations[index].translations[i].text
+                if len(sentences[index].translations) > i:
+                    result += "\n" + sentences[index].translations[i].text
 
             self.interface.print(result)
 
@@ -288,16 +283,16 @@ class Teacher:
             answer: str = self.interface.get_word(
                 word, alternative_forms, self.learning_language
             )
+            sentence_id: int = (
+                sentences[index].sentence.id_ if index < len(sentences) else 0
+            )
 
             # Preprocess answer.
             answer: str = self.learning_language.decode_text(answer)
 
             if answer == word:
                 self.learning.register(
-                    ResponseType.RIGHT,
-                    translations[index].sentence.id_,
-                    word,
-                    interval * 2,
+                    ResponseType.RIGHT, sentence_id, word, interval * 2
                 )
                 if items:
                     string_items: list[str] = [
@@ -312,7 +307,7 @@ class Teacher:
                         if new_answer == "s":
                             self.learning.register(
                                 ResponseType.SKIP,
-                                translations[index].sentence.id_,
+                                sentence_id,
                                 word,
                                 timedelta(),
                             )
@@ -324,15 +319,15 @@ class Teacher:
             if answer in ["s", "/skip"]:
                 self.skip.add(word)
                 return "ok"
+
             if answer == "/stop":
                 return "stop"
+
             if answer.startswith("/b"):
                 if answer == "/bs":
                     if word not in self.exclude_sentences:
                         self.exclude_sentences[word] = []
-                    self.exclude_sentences[word].append(
-                        translations[index].sentence.id_
-                    )
+                    self.exclude_sentences[word].append(sentence_id)
                     with (Path("cache") / "exclude_sentences.json").open(
                         "w+"
                     ) as output_file:
@@ -358,6 +353,7 @@ class Teacher:
                     with open("exclude_translations.json", "w+") as output_file:
                         json.dump(self.exclude_translations, output_file)
                     continue
+
             if answer == "n":
 
                 self.interface.box(word)
@@ -372,23 +368,17 @@ class Teacher:
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
-                        ResponseType.WRONG,
-                        translations[index].sentence.id_,
-                        word,
-                        SMALLEST_INTERVAL,
+                        ResponseType.WRONG, sentence_id, word, SMALLEST_INTERVAL
                     )
                 else:
                     self.learning.register(
-                        ResponseType.SKIP,
-                        translations[index].sentence.id_,
-                        word,
-                        timedelta(),
+                        ResponseType.SKIP, sentence_id, word, timedelta()
                     )
                 return "ok"
+
             if answer == "":
                 index += 1
-                if index >= len(translations):
-                    self.interface.print("No more sentences.")
-                    index -= 1
-                else:
+                if index < len(sentences):
                     print_sentence()
+                elif index == len(sentences):
+                    self.interface.print("No more sentences.")
