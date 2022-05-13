@@ -252,7 +252,7 @@ class Teacher:
         for item in items:
             words_to_hide.add(item.word)
             for link in item.get_links():
-                words_to_hide.add(link)
+                words_to_hide.add(link.link)
 
         if items:
             translation_list = [
@@ -268,7 +268,9 @@ class Teacher:
             self.interface.print(
                 statistics + "\n" + "\n".join(translation_list)
             )
-            alternative_forms: set[str] = items[0].get_links()
+            alternative_forms: set[str] = set(
+                x.link for x in items[0].get_links()
+            )
         else:
             self.interface.print(statistics + "\n" + "No translations.")
 

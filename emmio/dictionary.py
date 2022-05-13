@@ -145,15 +145,15 @@ class DictionaryItem:
         """Add word form to dictionary item."""
         self.definitions.append(form)
 
-    def get_links(self) -> set[str]:
+    def get_links(self) -> set[Link]:
         """
         Get keys to other dictionary items this dictionary item is linked to.
         """
-        result: set[str] = set()
+        result: set[Link] = set()
         for definition in self.definitions:
             definition: Form
             for link in definition.links:
-                result.add(link.link)
+                result.add(link)
         return result
 
     def to_str(
