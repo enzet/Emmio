@@ -314,6 +314,8 @@ class Teacher:
                             break
                         new_answer = self.interface.input(">>> ")
 
+                self.learning.write()
+
                 return "ok"
 
             if answer in ["s", "/skip"]:
@@ -374,6 +376,9 @@ class Teacher:
                     self.learning.register(
                         ResponseType.SKIP, sentence_id, word, timedelta()
                     )
+
+                self.learning.write()
+
                 return "ok"
 
             if answer == "":
