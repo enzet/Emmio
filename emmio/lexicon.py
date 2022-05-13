@@ -285,8 +285,6 @@ class Lexicon:
 
         self.words[word] = WordKnowledge(response, to_skip)
 
-        if log_name not in self.logs:
-            self.logs[log_name] = LexiconLog()
         self.logs[log_name].records.append(
             LexiconLogRecord(date, word, response, answer_type, to_skip)
         )
@@ -637,9 +635,6 @@ class Lexicon:
         else:
             print("ERROR: unknown log type")
             return "error"
-
-        if log_name not in self.logs:
-            self.logs[log_name] = []
 
         exit_code: str = "quit"
 
