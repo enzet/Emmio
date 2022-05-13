@@ -64,16 +64,13 @@ class Teacher:
             for index, word, _ in frequency_db.get_words(frequency_list_id):
                 index: int
                 word: str
-                if word in self.sentences.cache and (
+                if (
                     not self.learning.check_lexicon
                     or not self.lexicon
                     or not self.lexicon.has(word)
                     or self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW
                 ):
-                    for id_ in self.sentences.cache[word]:
-                        if str(id_) in self.sentences.links:
-                            self.words.append((index, word))
-                            break
+                    self.words.append((index, word))
 
         with (Path("cache") / "exclude_sentences.json").open() as input_file:
             self.exclude_sentences = json.load(input_file)
