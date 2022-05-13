@@ -277,7 +277,8 @@ class Teacher:
         else:
             self.interface.print(statistics + "\n" + "No translations.")
 
-        print_sentence()
+        if index < len(sentences):
+            print_sentence()
 
         while True:
             answer: str = self.interface.get_word(
