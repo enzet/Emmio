@@ -17,6 +17,9 @@ class Link:
     link_type: str
     link: str
 
+    def __hash__(self):
+        return hash(f"{self.link_type}_{self.link}")
+
 
 class Form:
     """
