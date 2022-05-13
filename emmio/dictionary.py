@@ -21,6 +21,12 @@ class Link:
         return hash(f"{self.link_type}_{self.link}")
 
 
+def hide(text: str, words_to_hide: list[str]) -> str:
+    for word in words_to_hide:
+        text = text.replace(word, "_" * len(word))
+    return text
+
+
 class Form:
     """
     Word form: noun, verb, etc.
@@ -103,10 +109,9 @@ class Form:
             # Hides words to hide.
 
             if not show_word and words_to_hide:
-                for word in words_to_hide:
-                    translations = [
-                        x.replace(word, "_" * len(word)) for x in translations
-                    ]
+                translations = [
+                    hide(x, list(words_to_hide)) for x in translations
+                ]
 
             # Hide possible word forms.
 
