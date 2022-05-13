@@ -107,12 +107,19 @@ class Teacher:
                 if word in self.skip:
                     continue
 
-                if (
-                    self.learning.check_lexicon
-                    and self.lexicon.has(word)
-                    and self.lexicon.get(word) != LexiconResponse.DO_NOT_KNOW
-                ):
-                    continue
+                if self.learning.check_lexicon and self.lexicon.has(word):
+                    if self.lexicon.get(word) != LexiconResponse.DO_NOT_KNOW:
+                        continue
+                    # TODO: else start learning
+
+                if "log_ex" not in self.lexicon.logs:
+                    self.lexicon.logs["log_ex"] = LexiconLog(
+                        {
+                            "id": "log_ex",
+                            "selection": "top",
+                            "log": [],
+                        }
+                    )
 
                 print(f"[{index}]")
                 has_new_word = True
