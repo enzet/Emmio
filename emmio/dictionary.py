@@ -197,7 +197,9 @@ class Dictionary:
         """Add word definition."""
         self.__items[word] = item
 
-    def get_item(self, word: str) -> Optional[DictionaryItem]:
+    def get_item(
+        self, word: str, cache_only: bool = False
+    ) -> Optional[DictionaryItem]:
         """Get word definition."""
 
         if word in self.__items:
