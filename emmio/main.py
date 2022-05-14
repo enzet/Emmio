@@ -153,7 +153,9 @@ class Emmio:
             self.interface.table(["Course", "Repeat", "New", "All"], rows)
 
         if command == "stat lexicon":
-            print()
+
+            rows = []
+
             for language in sorted(
                 self.user_data.get_lexicon_languages(),
                 key=lambda x: -self.user_data.get_lexicon(
@@ -163,18 +165,20 @@ class Emmio:
                 lexicon: Lexicon = self.user_data.get_lexicon(language)
                 now: datetime = datetime.now()
                 rate: Optional[float] = lexicon.get_last_rate()
-                rate_string: str = (
-                    f"{rate:5.1f}" if rate is not None else "  N/A"
-                )
                 last_week_precision: int = lexicon.count_unknowns(
                     "log", now - timedelta(days=7), now
                 )
-                print(
-                    f"{language.get_name():<20}  "
-                    f"{last_week_precision:3d} "
-                    f"{rate_string}"
+                rows.append(
+                    [
+                        language.get_name(),
+                        progress(max(0, 5 - last_week_precision)),
+                        f"{abs(rate):.1f}  " + progress(int(rate * 10))
+                        if rate is not None
+                        else "N/A",
+                    ]
                 )
-            print()
+
+            self.interface.table(["Language", "Need", "Rate"], rows)
 
         if command == "plot lexicon":
             LexiconVisualizer(interactive=interactive).graph_with_matplot(
