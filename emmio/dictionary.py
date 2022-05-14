@@ -23,6 +23,15 @@ class Link:
 
 def hide(text: str, words_to_hide: list[str]) -> str:
     for word in words_to_hide:
+        if "́" in text:
+            if word in text.replace("́", ""):
+                start: int = text.replace("́", "").find(word)
+                text = (
+                    text[:start]
+                    + "_" * len(word)
+                    + text[start + len(word) + 1 :]
+                )
+
         text = text.replace(word, "_" * len(word))
 
         while word.lower() in text.lower():
