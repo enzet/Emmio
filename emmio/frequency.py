@@ -103,6 +103,8 @@ class FrequencyList:
             return cls.from_list_file(
                 file_path, delimiter=structure["delimiter"]
             )
+        elif structure["format"] == "word_list":
+            return cls.from_word_list_file(file_path)
         elif structure["format"] == "csv":
             return cls.from_csv_file(
                 file_path,
@@ -208,6 +210,16 @@ class FrequencyList:
         progress_bar(-1, 0)
 
         frequency_list.sort()
+
+        return frequency_list
+
+    @classmethod
+    def from_word_list_file(cls, file_path: Path) -> "FrequencyList":
+
+        frequency_list: "FrequencyList" = cls()
+        with file_path.open() as input_file:
+            for line in input_file.readlines():
+                frequency_list.add(line[:-1], 1)
 
         return frequency_list
 
