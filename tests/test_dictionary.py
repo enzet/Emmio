@@ -6,11 +6,7 @@ def check(sentence: str, hidden: str, words_to_hide: list[str]) -> None:
 
 
 def test_word() -> None:
-    check(
-        "I want an apple.",
-        "I want an _____.",
-        ["apple"],
-    )
+    check("I want an apple.", "I want an _____.", ["apple"])
 
 
 def test_two_words() -> None:
@@ -22,8 +18,16 @@ def test_two_words() -> None:
 
 
 def test_uppercase() -> None:
-    check(
-        "I want an Apple.",
-        "I want an _____.",
-        ["apple"],
-    )
+    check("I want an Apple.", "I want an _____.", ["apple"])
+
+
+def test_russian() -> None:
+    check("зима́ – холодное время года", "____ – холодное время года", ["зима"])
+
+
+def test_russian_middle_accent() -> None:
+    check("ма́рт – третий месяц", "____ – третий месяц", ["март"])
+
+
+def test_ukrainian() -> None:
+    check("яки́й", "____", ["який"])
