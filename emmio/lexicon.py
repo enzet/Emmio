@@ -1,7 +1,7 @@
 import json
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -93,7 +93,7 @@ class LexiconLogRecord:
     to_skip: Optional[bool] = None
 
     @classmethod
-    def from_structure(cls, structure: Any) -> "LexiconLogRecord":
+    def deserialize(cls, structure: Any) -> "LexiconLogRecord":
         """Parse log record from structure."""
 
         if "words" in structure:
@@ -117,7 +117,7 @@ class LexiconLogRecord:
             to_skip,
         )
 
-    def to_structure(self) -> dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         """Serialize to structure."""
 
         structure: dict[str, Any] = {
@@ -133,7 +133,7 @@ class LexiconLogRecord:
         return structure
 
     def to_json_str(self) -> str:
-        return json.dumps(self.to_structure(), ensure_ascii=False)
+        return json.dumps(self.serialize(), ensure_ascii=False)
 
 
 def rate(ratio: float) -> Optional[float]:
@@ -142,33 +142,41 @@ def rate(ratio: float) -> Optional[float]:
     return -math.log(ratio, 2)
 
 
+class WordSelection(Enum):
+    ARBITRARY = "arbitrary"
+    RANDOM_WORD_FROM_LIST = "random"
+    FREQUENCY = "frequency"
+    UNKNOWN = "unknown"
+    TOP = "top"
+
+
+@dataclass
 class LexiconLog:
-    def __init__(self, structure: dict[str, Any]):
-        self.id_: str = structure["id"]
+    id_: str
+    selection: WordSelection
+    records: list[LexiconLogRecord] = field(default_factory=list)
+    frequency_list_id: Optional[str] = None
 
-        self.frequency_list_id: Optional[str]
-        if "frequency_list" in structure:
-            self.frequency_list_id = structure["frequency_list"]
-        else:
-            self.frequency_list_id = None
+    @classmethod
+    def deserialize(cls, structure: dict[str, Any]):
+        return cls(
+            structure["id"],
+            WordSelection(structure["selection"]),
+            [LexiconLogRecord.deserialize(x) for x in structure["log"]],
+            structure["frequency_list"]
+            if "frequency_list" in structure
+            else None,
+        )
 
-        self.selection: str = structure["selection"]
-
-        self.records: list[LexiconLogRecord] = []
-        for record_structure in structure["log"]:
-            self.records.append(
-                LexiconLogRecord.from_structure(record_structure)
-            )
-
-    def to_structure(self) -> dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         structure: dict[str, Any] = {}
         if self.frequency_list_id is not None:
             structure["frequency_list"] = self.frequency_list_id
-        structure["selection"] = self.selection
+        structure["selection"] = self.selection.value
         structure["id"] = self.id_
         structure["log"] = []
         for record in self.records:
-            structure["log"].append(record.to_structure())
+            structure["log"].append(record.serialize())
 
         return structure
 
@@ -202,7 +210,9 @@ class Lexicon:
             data = json.load(input_file)
 
         for log_structure in data:
-            self.logs[log_structure["id"]] = LexiconLog(log_structure)
+            self.logs[log_structure["id"]] = LexiconLog.deserialize(
+                log_structure
+            )
 
             for log_id in self.logs:
                 lexicon_log: LexiconLog = self.logs[log_id]
@@ -226,6 +236,13 @@ class Lexicon:
                 if self.start is None:
                     self.start = record.date
                 self.finish = record.date
+
+    def has_log(self, log_id: str):
+        return log_id in self.logs
+
+    def add_log(self, log: LexiconLog):
+        assert log.id_ not in self.logs
+        self.logs[log.id_] = log
 
     def write(self) -> None:
         """
