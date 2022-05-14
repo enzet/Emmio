@@ -254,7 +254,7 @@ class Lexicon:
         structure: list[dict[str, Any]] = []
 
         for lexicon_log_id in self.logs:
-            structure.append(self.logs[lexicon_log_id].to_structure())
+            structure.append(self.logs[lexicon_log_id].serialize())
 
         with self.file_path.open("w+") as output:
             json.dump(structure, output, indent=4, ensure_ascii=False)
