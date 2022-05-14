@@ -187,12 +187,13 @@ class EnglishWiktionary(Dictionary):
                     for pronunciation in element["pronunciations"]["text"]:
                         pronunciation = pronunciation.strip()
                         if pronunciation.startswith("IPA: "):
-                            pronunciation = pronunciation[6:-1]
+                            pronunciation = pronunciation[5:]
                         if (
                             pronunciation.startswith("Rhymes: ")
                             or pronunciation.startswith("Syllabification: ")
                             or pronunciation.startswith("Hyphenation: ")
                             or pronunciation.startswith("Homophone: ")
+                            or pronunciation.startswith("Homophones: ")
                         ):
                             continue
                         form.add_transcription(pronunciation.strip())
