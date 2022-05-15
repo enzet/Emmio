@@ -12,7 +12,7 @@ from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
-from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog
+from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog, WordSelection
 from emmio.sentence import SentenceDatabase, Sentences, Translation
 from emmio.ui import log, Interface
 
@@ -111,13 +111,9 @@ class Teacher:
                         continue
                     # TODO: else start learning
 
-                if "log_ex" not in self.lexicon.logs:
-                    self.lexicon.logs["log_ex"] = LexiconLog(
-                        {
-                            "id": "log_ex",
-                            "selection": "top",
-                            "log": [],
-                        }
+                if not self.lexicon.has_log("log_ex"):
+                    self.lexicon.add_log(
+                        LexiconLog("log_ex", WordSelection("top"))
                     )
 
                 print(f"[{index}]")
