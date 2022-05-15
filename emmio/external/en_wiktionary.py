@@ -132,11 +132,14 @@ class EnglishWiktionary(Dictionary):
 
         return [], text
 
-    def get_item(self, word: str) -> Optional[DictionaryItem]:
+    def get_item(
+        self, word: str, cache_only: bool = False
+    ) -> Optional[DictionaryItem]:
         """
         Parse dictionary item from English Wiktionary.
 
         :param word: dictionary term
+        :param cache_only: return dictionary term only if it is in cache
         :returns: parsed item
         """
         directory: Path = (
@@ -152,6 +155,9 @@ class EnglishWiktionary(Dictionary):
             with open(path) as input_file:
                 content = json.load(input_file)
         else:
+            if cache_only:
+                return None
+
             network(f"getting English Wiktionary item")
             try:
                 content: Optional[list[dict[str, Any]]] = self.parser.fetch(
