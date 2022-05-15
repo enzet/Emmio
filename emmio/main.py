@@ -8,7 +8,7 @@ from typing import Optional
 from emmio import util, ui
 from emmio.dictionary import Dictionary
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.frequency import FrequencyDatabase
+from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer, LexiconVisualizer
 from emmio.language import Language, construct_language
 from emmio.learning import Learning, Record
@@ -276,9 +276,15 @@ class Emmio:
                 construct_language(learning.subject)
             )
             for frequency_list_id in learning.frequency_list_ids:
-                frequency_list = self.user_data.get_frequency_list(
+                frequency_list: Optional[
+                    FrequencyList
+                ] = self.user_data.get_frequency_list(frequency_list_id)
+
+                if frequency_list.update and self.frequency_db.has_table(
                     frequency_list_id
-                )
+                ):
+                    self.frequency_db.drop_table(frequency_list_id)
+
                 if not self.frequency_db.has_table(frequency_list_id):
                     self.frequency_db.add_table(
                         frequency_list_id, frequency_list
