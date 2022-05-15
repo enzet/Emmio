@@ -36,6 +36,7 @@ class Visualizer:
             "plot learn",
             "plot learn by time",
             "plot learn by depth",
+            "plot learn by time by depth",
             "graph 2",
             "actions",
             "actions per day",
@@ -52,6 +53,8 @@ class Visualizer:
             self.depth(records, is_time=True)
         if command == "plot learn by depth":
             self.depth(records, count_by_depth=True)
+        if command == "plot learn by time by depth":
+            self.depth(records, is_time=True, count_by_depth=True)
         if command == "graph 2":
             self.graph_2(records)
         if command == "actions":
