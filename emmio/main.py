@@ -30,25 +30,19 @@ from emmio.user_data import UserData
 <q>             exit
 """
 
-HELP: str = """
-help                print this message
-exit / quit         close Emmio
-
-Learning
-
-learn / {Enter}     start learning process
-stat learn          print learning statistics
-plot learn          show depth graph
-response time       show response time graph
-next question time  show next question time graph
-actions [per day]   show actions graph
-
-Lexicon
-
-lexicon             check lexicons
-stat lexicon        print lexicon statistics
-plot lexicon        draw lexicon graph
-"""
+HELP: list[list[str]] = [
+    ["help", "print this message"],
+    ["exit / quit", "close Emmio"],
+    ["learn / <Enter>", "start learning process"],
+    ["stat learn", "print learning statistics"],
+    ["plot learn [by time] [by depth]", "plot graph of the learning process"],
+    ["response time", "show response time graph"],
+    ["next question time", "show next question time graph"],
+    ["actions [per day]", "show actions graph"],
+    ["lexicon", "check lexicons"],
+    ["stat lexicon", "print lexicon statistics"],
+    ["plot lexicon", "draw lexicon graph"],
+]
 
 
 class Emmio:
@@ -100,7 +94,7 @@ class Emmio:
     def process_command(self, command: str, interactive: bool = True) -> None:
 
         if command == "help":
-            print(HELP)
+            self.interface.table(["Command", "Description"], HELP)
 
         if not command or command == "learn":
             self.learn()
