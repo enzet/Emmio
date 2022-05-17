@@ -86,7 +86,7 @@ class LexiconLogRecord:
     Record of user's answer.
     """
 
-    date: datetime
+    time: datetime
     word: str
     response: LexiconResponse
     answer_type: Optional[AnswerType] = None
@@ -121,7 +121,7 @@ class LexiconLogRecord:
         """Serialize to structure."""
 
         structure: dict[str, Any] = {
-            "date": self.date.strftime(DATE_FORMAT),
+            "date": self.time.strftime(DATE_FORMAT),
             "word": self.word,
             "response": self.response.value,
         }
@@ -228,14 +228,14 @@ class Lexicon:
                 LexiconResponse.KNOW,
                 LexiconResponse.DO_NOT_KNOW,
             ]:
-                self.dates.append(record.date)
+                self.dates.append(record.time)
                 self.responses.append(
                     1 if record.response == LexiconResponse.KNOW else 0
                 )
 
                 if self.start is None:
-                    self.start = record.date
-                self.finish = record.date
+                    self.start = record.time
+                self.finish = record.time
 
     def has_log(self, log_id: str):
         return log_id in self.logs
@@ -348,7 +348,7 @@ class Lexicon:
         Return the number of UNKNOWN answers.
         """
         records: Iterator[LexiconLogRecord] = filter(
-            lambda record: not point_1 or point_1 <= record.date <= point_2,
+            lambda record: not point_1 or point_1 <= record.time <= point_2,
             self.logs[log_name].records,
         )
         return [x.response for x in records].count(LexiconResponse.DO_NOT_KNOW)
@@ -760,7 +760,7 @@ class Lexicon:
             was_user_answer: bool = False
 
             for record in reversed(self.logs[log_name].records):
-                delta = record.date - datetime.now()
+                delta = record.time - datetime.now()
                 if delta.days > 30:
                     break
                 if (
