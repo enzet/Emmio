@@ -23,11 +23,13 @@ class Language:
         code: str,
         symbols: Optional[str] = None,
         color: Optional[str] = None,
+        self_name: str = None,
     ):
         assert color
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: Optional[str] = symbols
         self.color: Optional[str] = color
+        self.self_name: str = self_name
 
     def __eq__(self, other: "Language"):
         assert isinstance(other, Language)
@@ -38,6 +40,11 @@ class Language:
 
     def get_name(self) -> str:
         return re.sub(" \\(.*\\)", "", self.language.name)
+
+    def get_self_name(self) -> str:
+        if self.self_name:
+            return self.self_name
+        return self.get_name()
 
     def get_color(self) -> str:
         if self.color is not None:
@@ -108,7 +115,7 @@ LATIN_LIGATURES: dict[str, str] = {
 }
 
 ARABIC: Language = Language("ar", color="#FF8800")
-CHINESE: Language = Language("zh", color="#444400")
+CHINESE: Language = Language("zh", color="#444400", self_name="中文")
 ENGLISH: Language = Language(
     "en",
     LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
@@ -121,27 +128,43 @@ FRENCH: Language = Language(
     "fr",
     LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
     color="#4DA9CC",  # #16ACEC
+    self_name="français",
 )
 GERMAN: Language = Language(
-    "de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656"
+    "de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656", self_name="deutsch"
 )  # #FED12E
-ICELANDIC: Language = Language("is", color="#008844")
-ITALIAN: Language = Language("it", LATIN_LETTERS, color="#008888")
-JAPANESE: Language = Language("ja", JAPANESE_LETTERS, color="#CC2200")
-KOREAN: Language = Language("ko", color="#880088")
+ICELANDIC: Language = Language("is", color="#008844", self_name="íslenska")
+ITALIAN: Language = Language(
+    "it", LATIN_LETTERS, color="#008888", self_name="italiano"
+)
+JAPANESE: Language = Language(
+    "ja", JAPANESE_LETTERS, color="#CC2200", self_name="日本語"
+)
+KOREAN: Language = Language("ko", color="#880088", self_name="한국어")
 LATIN: Language = Language(
-    "la", LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ", color="#666666"
+    "la",
+    LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
+    color="#666666",
+    self_name="latīna",
 )
-MODERN_GREEK: Language = Language("el", color="#444444")
-PORTUGUESE: Language = Language("pt", color="#00AA00")
-POLISH: Language = Language("pl", color="#00AA00")
-RUSSIAN: Language = Language("ru", RU_UPPER + RU_UPPER.lower(), color="#AAAAAA")
+MODERN_GREEK: Language = Language("el", color="#444444", self_name="ελληνικά")
+PORTUGUESE: Language = Language("pt", color="#00AA00", self_name="português")
+POLISH: Language = Language("pl", color="#00AA00", self_name="polski")
+RUSSIAN: Language = Language(
+    "ru", RU_UPPER + RU_UPPER.lower(), color="#AAAAAA", self_name="русский"
+)
 SPANISH: Language = Language(
-    "es", LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü", color="#CB3636"  # "C61323"
+    "es",
+    LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü",
+    color="#CB3636",  # "C61323"
+    self_name="español",
 )
-SWEDISH: Language = Language("sv", color="#004488")
+SWEDISH: Language = Language("sv", color="#004488", self_name="svenska")
 UKRAINIAN: Language = Language(
-    "uk", UK_UPPER.lower() + UK_UPPER + SKIPPERS, color="#E5D144"
+    "uk",
+    UK_UPPER.lower() + UK_UPPER + SKIPPERS,
+    color="#E5D144",
+    self_name="українська",
 )
 
 known_languages = [
