@@ -2,6 +2,7 @@
 Language and font specifics.
 """
 import re
+from colour import Color
 from typing import Optional
 
 from iso639 import languages as iso_languages
@@ -24,12 +25,14 @@ class Language:
         symbols: Optional[str] = None,
         color: Optional[str] = None,
         self_name: str = None,
+        tone: Optional[Color] = None,
     ):
         assert color
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: Optional[str] = symbols
         self.color: Optional[str] = color
         self.self_name: str = self_name
+        self.tone: Optional[Color] = tone
 
     def __eq__(self, other: "Language"):
         assert isinstance(other, Language)
@@ -47,6 +50,12 @@ class Language:
         return self.get_name()
 
     def get_color(self) -> str:
+        if self.tone is not None:
+            c = Color()
+            c.set_hue(self.tone.get_hue())
+            c.set_saturation(0.5)
+            c.set_luminance(0.4)
+            return c.hex
         if self.color is not None:
             return self.color
         return DEFAULT_COLOR
@@ -120,18 +129,27 @@ ENGLISH: Language = Language(
     "en",
     LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
     color="#2F2FC5",  # #021A67
+    tone=Color("#0B2065"),
 )
 ESPERANTO: Language = Language(
-    "eo", EO_UPPER.lower() + EO_UPPER, color="#009900"
+    "eo",
+    EO_UPPER.lower() + EO_UPPER,
+    color="#009900",
+    tone=Color("#43972A"),
 )
 FRENCH: Language = Language(
     "fr",
     LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
     color="#4DA9CC",  # #16ACEC
+    tone=Color("#4192C1"),
     self_name="français",
 )
 GERMAN: Language = Language(
-    "de", LATIN_LETTERS + "ÄäÖöÜüß", color="#C3A656", self_name="deutsch"
+    "de",
+    LATIN_LETTERS + "ÄäÖöÜüß",
+    color="#C3A656",
+    self_name="deutsch",
+    tone=Color("#F7D046"),
 )  # #FED12E
 ICELANDIC: Language = Language("is", color="#008844", self_name="íslenska")
 ITALIAN: Language = Language(
@@ -158,6 +176,7 @@ SPANISH: Language = Language(
     LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü",
     color="#CB3636",  # "C61323"
     self_name="español",
+    tone=Color("#9E2823"),
 )
 SWEDISH: Language = Language("sv", color="#004488", self_name="svenska")
 UKRAINIAN: Language = Language(
@@ -165,6 +184,7 @@ UKRAINIAN: Language = Language(
     UK_UPPER.lower() + UK_UPPER + SKIPPERS,
     color="#E5D144",
     self_name="українська",
+    tone=Color("#F8D648"),
 )
 
 known_languages = [
