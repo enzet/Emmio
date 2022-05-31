@@ -10,6 +10,7 @@ import matplotlib.transforms as mtransforms
 from matplotlib import pyplot as plt
 from svgwrite import Drawing
 
+from emmio import util
 from emmio.learning import Knowledge, Record, ResponseType
 from emmio.lexicon import Lexicon
 from emmio.plot import Graph
@@ -40,6 +41,9 @@ class Visualizer:
             "graph 2",
             "actions",
             "actions per day",
+            "actions per week",
+            "actions per month",
+            "actions per year",
             "response time",
             "next question time",
         }
@@ -60,7 +64,17 @@ class Visualizer:
         if command == "actions":
             self.actions(records)
         if command == "actions per day":
-            self.cumulative_actions(records)
+            self.cumulative_actions(
+                records,
+                lambda x: datetime(day=x.day, month=x.month, year=x.year),
+                1,
+            )
+        if command == "actions per week":
+            self.cumulative_actions(records, util.first_day_of_week, 7)
+        if command == "actions per month":
+            self.cumulative_actions(records, util.first_day_of_month, 28)
+        if command == "actions per year":
+            self.cumulative_actions(records, util.year_start, 365)
         if command == "response time":
             self.response_time(records)
         if command == "next question time":
@@ -192,24 +206,19 @@ class Visualizer:
         plt.plot(x, y, color="black", linewidth=1)
         self.plot()
 
-    def cumulative_actions(self, records: list[Record]):
-        data = {}
+    def cumulative_actions(
+        self, records: list[Record], point: Callable, width: float
+    ):
+        data = defaultdict(int)
         for record in records:
-            if not record.is_learning():
-                continue
-            time = datetime(
-                day=record.time.day,
-                month=record.time.month,
-                year=record.time.year,
-            )
-            if time not in data:
-                data[time] = 0
-            data[time] += 1
+            if record.is_learning():
+                data[point(record.time)] += 1
         plt.bar(
             sorted(data.keys()),
             [data[x] for x in sorted(data.keys())],
             color="black",
-            linewidth=1,
+            linewidth=0,
+            width=width * 0.8,
         )
         self.plot()
 
