@@ -1,3 +1,4 @@
+colour~=0.1.5
 PyYAML
 iso-639
 matplotlib
