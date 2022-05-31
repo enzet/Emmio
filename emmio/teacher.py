@@ -322,8 +322,8 @@ class Teacher:
             if answer == "/stop":
                 return "stop"
 
-            if answer.startswith("/b"):
-                if answer == "/bs":
+            if answer.startswith("/"):
+                if answer == "/exclude":
                     if word not in self.exclude_sentences:
                         self.exclude_sentences[word] = []
                     self.exclude_sentences[word].append(sentence_id)
@@ -333,7 +333,7 @@ class Teacher:
                         json.dump(self.exclude_sentences, output_file)
                     self.skip.add(word)
                     return "ok"
-                elif answer.startswith("/bt "):
+                elif answer.startswith("/hide "):
                     if word not in self.exclude_translations:
                         self.exclude_translations[word] = []
                     parts = answer.split(" ")
