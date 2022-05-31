@@ -103,9 +103,13 @@ class Emmio:
             self.run_lexicon(command[len("lexicon") :])
 
         if command == "stat learn":
+            sorted_ids: list[str] = sorted(
+                self.user_data.course_ids,
+                key=lambda x: -self.user_data.get_course(x).to_repeat(),
+            )
             stat: dict[int, int] = defaultdict(int)
             total: int = 0
-            for course_id in self.user_data.course_ids:
+            for course_id in sorted_ids:
                 k = self.user_data.get_course(course_id).knowledges
                 for word in k:
                     if k[word].interval.total_seconds() == 0:
@@ -120,7 +124,7 @@ class Emmio:
             total_new: int = 0
             total_all: int = 0
 
-            for course_id in self.user_data.course_ids:
+            for course_id in sorted_ids:
                 learning: Learning = self.user_data.get_course(course_id)
                 row = [
                     learning.name,
@@ -264,7 +268,11 @@ class Emmio:
             break
 
     def learn(self) -> None:
-        for course_id in self.user_data.course_ids:
+        sorted_ids: list[str] = sorted(
+            self.user_data.course_ids,
+            key=lambda x: -self.user_data.get_course(x).to_repeat(),
+        )
+        for course_id in sorted_ids:
             learning: Learning = self.user_data.get_course(course_id)
             lexicon: Lexicon = self.user_data.get_lexicon(
                 construct_language(learning.subject)
@@ -305,7 +313,6 @@ class Emmio:
                 / self.user_data.get_course(x).ratio
             ),
         )
-
         for course_id in sorted_ids:
             learning = self.user_data.get_course(course_id)
             lexicon: Lexicon = self.user_data.get_lexicon(
