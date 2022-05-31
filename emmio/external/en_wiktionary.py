@@ -106,7 +106,10 @@ class EnglishWiktionary(Dictionary):
         self.cache_directory: Path = cache_directory
         self.parser: WiktionaryParser = WiktionaryParser()
 
-    def process_definition(self, text: str) -> tuple[list[Link], str]:
+        self.add_obsolete: bool = False
+
+    @staticmethod
+    def process_definition(text: str) -> tuple[list[Link], str]:
         text = text.strip()
 
         matcher: Optional[re.Match] = re.match(
@@ -117,6 +120,10 @@ class EnglishWiktionary(Dictionary):
         if matcher:
             link: str = matcher.group("link")
             link_type: str = matcher.group("link_type")
+
+            if link_type.lower() == "obsolete":
+                return [], ""
+
             return [Link(link_type, link)], text
 
         matcher: Optional[re.Match] = LINK_PATTERN.match(text)
@@ -187,7 +194,7 @@ class EnglishWiktionary(Dictionary):
                     if links:
                         for link in links:
                             form.add_link(link)
-                    else:
+                    elif text:
                         # FIXME: should be "en"
                         form.add_translation(text, "ru")
 
