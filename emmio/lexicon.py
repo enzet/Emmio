@@ -19,10 +19,21 @@ DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
 
 class LexiconResponse(Enum):
+
+    # User knows at least one meaning of the word.
     KNOW = "know"
+
+    # User doesn't know any meaning of the word.
     DO_NOT_KNOW = "dont"
+
+    # User knows at least one meaning of the word or the string is not a word.
     KNOW_OR_NOT_A_WORD = "know_or_not_a_word"
+
+    # User doesn't know the word, but it is often used as a proper noun.
     DO_NOT_BUT_PROPER_NOUN_TOO = "dont_but_proper_noun_too"
+
+    # The string is not a dictionary word (misspelling, non-dictionary
+    # onomatopoeic word, foreign word).
     NOT_A_WORD = "not_a_word"
 
     def get_message(self) -> str:
