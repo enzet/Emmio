@@ -350,7 +350,7 @@ class LexiconVisualizer:
     def graph_with_svg(self, lexicons, margin: float = 0.0):
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
         graph = Graph(data, x_min, x_max)
-        graph.plot(Drawing("lexicon.svg", (800.0, 600.0)))
+        graph.plot(Drawing("lexicon.svg", graph.canvas.size, fill="#101010"))
 
     def construct_lexicon_data(self, lexicons, margin):
         x_min: Optional[datetime] = None
