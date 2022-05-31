@@ -9,6 +9,7 @@ import json
 import os
 import re
 from pathlib import Path
+from time import sleep
 from typing import Optional, Any
 
 from wiktionaryparser import WiktionaryParser
@@ -159,6 +160,7 @@ class EnglishWiktionary(Dictionary):
                 return None
 
             network(f"getting English Wiktionary item")
+            sleep(1)
             try:
                 content: Optional[list[dict[str, Any]]] = self.parser.fetch(
                     word, self.from_language.get_name()
