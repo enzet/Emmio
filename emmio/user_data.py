@@ -117,8 +117,11 @@ class UserData:
                     self.path / "priority",
                 )
                 self.frequency_lists[frequency_list_id] = frequency_list
-            except MalformedFile:
-                error("cannot construct frequency list")
+            except MalformedFile as e:
+                error(
+                    f"cannot construct frequency list: file {e.path} is "
+                    "malformed"
+                )
                 return None
 
         return self.frequency_lists[frequency_list_id]
