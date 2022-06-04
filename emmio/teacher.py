@@ -1,7 +1,6 @@
 """
 Teacher.
 """
-import json
 import math
 import random
 from datetime import timedelta
@@ -19,6 +18,8 @@ from emmio.ui import log, Interface
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+from emmio.user_data import UserData
+
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 
@@ -27,6 +28,7 @@ class Teacher:
         self,
         cache_directory_name: Path,
         interface: Interface,
+        user_data: UserData,
         sentence_db: SentenceDatabase,
         frequency_db: FrequencyDatabase,
         learning: Learning,
@@ -34,6 +36,7 @@ class Teacher:
         get_dictionaries=None,
     ) -> None:
         self.interface: Interface = interface
+        self.user_data: UserData = user_data
         self.known_language: Language = learning.language
 
         self.learning_language: Optional[Language]
@@ -71,11 +74,6 @@ class Teacher:
                     or self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW
                 ):
                     self.words.append((index, word))
-
-        with (Path("cache") / "exclude_sentences.json").open() as input_file:
-            self.exclude_sentences = json.load(input_file)
-        with (Path("cache") / "exclude_translations.json").open() as input_file:
-            self.exclude_translations = json.load(input_file)
 
         self.skip = set()
 
@@ -170,8 +168,8 @@ class Teacher:
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
         ids_to_skip: set[int] = set()
-        if word in self.exclude_sentences:
-            ids_to_skip = set(self.exclude_sentences[word])
+        if word in self.user_data.exclude_sentences:
+            ids_to_skip = set(self.user_data.exclude_sentences[word])
 
         sentences: list[Translation] = self.sentences.filter_(
             word, ids_to_skip, 120
@@ -237,8 +235,10 @@ class Teacher:
         alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
 
-        if word in self.exclude_translations:
-            exclude_translations = set(self.exclude_translations[word])
+        if word in self.user_data.exclude_translations:
+            exclude_translations = set(
+                self.user_data.exclude_translations[word]
+            )
 
         items: list[DictionaryItem] = dictionaries.get_items(word)
 
@@ -324,33 +324,19 @@ class Teacher:
 
             if answer.startswith("/"):
                 if answer == "/exclude":
-                    if word not in self.exclude_sentences:
-                        self.exclude_sentences[word] = []
-                    self.exclude_sentences[word].append(sentence_id)
-                    with (Path("cache") / "exclude_sentences.json").open(
-                        "w+"
-                    ) as output_file:
-                        json.dump(self.exclude_sentences, output_file)
+                    self.user_data.exclude_sentence(word, sentence_id)
                     self.skip.add(word)
                     return "ok"
                 elif answer.startswith("/hide "):
-                    if word not in self.exclude_translations:
-                        self.exclude_translations[word] = []
                     parts = answer.split(" ")
-                    self.exclude_translations[word].append(" ".join(parts[1:]))
-                    with (Path("cache") / "exclude_translations.json").open(
-                        "w+"
-                    ) as output_file:
-                        json.dump(self.exclude_translations, output_file)
+                    self.user_data.exclude_translation(
+                        word, " ".join(parts[1:])
+                    )
                     self.skip.add(word)
                     return "ok"
                 elif answer.startswith("/btt "):
                     _, w, t = answer.split(" ")
-                    if w not in self.exclude_translations:
-                        self.exclude_translations[w] = []
-                    self.exclude_translations[w].append(t)
-                    with open("exclude_translations.json", "w+") as output_file:
-                        json.dump(self.exclude_translations, output_file)
+                    self.user_data.exclude_translation(w, t)
                     continue
 
             if answer == "n":

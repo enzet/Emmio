@@ -297,6 +297,7 @@ class Emmio:
                 teacher: Teacher = Teacher(
                     Path("cache"),
                     self.interface,
+                    self.user_data,
                     self.sentence_db,
                     self.frequency_db,
                     learning,
@@ -325,6 +326,7 @@ class Emmio:
                 learner = Teacher(
                     Path("cache"),
                     self.interface,
+                    self.user_data,
                     self.sentence_db,
                     self.frequency_db,
                     learning,
