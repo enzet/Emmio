@@ -41,8 +41,8 @@ class Canvas:
 
     size: np.ndarray = np.array((800.0, 600.0))
     workspace: tuple[np.ndarray, np.ndarray] = (
-        np.array((100.0, 0.0)),
-        np.array((300.0, 600.0)),
+        np.array((100.0, 50.0)),
+        np.array((250.0, 550.0)),
     )
 
 
