@@ -1,10 +1,27 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
+from colour import Color
 from svgwrite import Drawing
+from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
+
+GRADIENT = [
+    Color("#00D45E"),
+    Color("#83E507"),
+    Color("#EDF013"),
+    Color("#E77809"),
+    Color("#E20000"),
+]
+GRADIENT_2 = [
+    Color("#00D45E"),
+    Color("#83E507"),
+    Color("#EDF013"),
+    Color("#E77809"),
+    Color("#E20000"),
+]
 
 
 def map_(value, current_min, current_max, target_min, target_max):
@@ -57,6 +74,9 @@ class Graph:
         min_x,
         max_x,
         canvas: Canvas = Canvas(),
+        color: Union[Color, list[Color], str] = Color("black"),
+        background_color: Color = Color("white"),
+        grid_color: Color = Color("#DDDDDD"),
     ):
         self.data = data
         self.min_x = min_x
@@ -65,6 +85,9 @@ class Graph:
         self.min_y, self.max_y = 0, 7  # min(ys), max(ys)
         self.min_x_second = 0
         self.max_x_second = (max_x - min_x).total_seconds()
+        self.color: Union[Color, list[Color], str] = color
+        self.background_color: Color = background_color
+        self.grid_color: Color = grid_color
 
     def map_(self, point):
         """Map point into the canvas."""
@@ -78,10 +101,41 @@ class Graph:
 
     def plot(self, svg: Drawing) -> None:
 
+        recolor: Optional[str] = None
+
+        if isinstance(self.color, list):
+            linear_gradient: LinearGradient = svg.linearGradient(
+                self.map_((0, self.max_y)),
+                self.map_((0, 1)),
+                gradientUnits="userSpaceOnUse",
+            )
+            for index, color in enumerate(self.color):
+                linear_gradient.add_stop_color(
+                    index / (len(self.color) - 1), color.hex
+                )
+
+            gradient: LinearGradient = svg.defs.add(linear_gradient)
+            recolor = gradient.get_funciri()
+
+        if isinstance(self.color, Color):
+            recolor = self.color.hex
+
+        svg.add(
+            svg.rect(
+                insert=(0, 0),
+                size=("100%", "100%"),
+                rx=None,
+                ry=None,
+                fill=self.background_color.hex,
+            )
+        )
         self.draw_grid(svg)
         last_text_y = 0
 
         for xs, ys, color, title in self.data:
+
+            if recolor:
+                color = recolor
 
             assert len(xs) == len(ys)
 
@@ -107,7 +161,7 @@ class Graph:
                     line: Line = svg.line(
                         (previous_point[0], previous_point[1]),
                         (point[0], point[1]),
-                        stroke="#FFFFFF",
+                        stroke=self.background_color.hex,
                         stroke_width=6,
                     )
                     svg.add(line)
@@ -121,11 +175,17 @@ class Graph:
                 previous_point = point
 
             for point in points:
-                svg.add(svg.circle((point[0], point[1]), 5.5, fill="white"))
+                svg.add(
+                    svg.circle(
+                        (point[0], point[1]),
+                        5.5,
+                        fill=self.background_color.hex,
+                    )
+                )
                 svg.add(svg.circle((point[0], point[1]), 3.5, fill=color))
 
             title: str
-            text_y = max(last_text_y + 15, point[1] + 6)
+            text_y = max(last_text_y + 20, point[1] + 6)
             self.text(svg, (point[0] + 15, text_y), title.upper(), color)
             last_text_y = text_y
 
@@ -138,18 +198,39 @@ class Graph:
             mapped_1: np.ndarray = self.map_((0, index))
             mapped_2: np.ndarray = self.map_((self.max_x_second, index))
             line: Line = svg.line(
-                (mapped_1[0] - 50, mapped_1[1]),
+                (mapped_1[0] - 30, mapped_1[1]),
                 (mapped_2[0], mapped_2[1]),
-                stroke="#DDDDDD",
+                stroke=self.grid_color.hex,
                 stroke_width=2,
             )
-            self.text(
-                svg, (mapped_1[0] - 28, mapped_1[1] + 18), str(index), "#DDDDDD"
-            )
+            if index != 0:
+                self.text(
+                    svg,
+                    (mapped_1[0] - 30, mapped_1[1] + 18),
+                    str(index),
+                    self.grid_color.hex,
+                )
             svg.add(line)
 
+        mapped_1: np.ndarray = self.map_((self.min_x_second, 0))
+        self.text(
+            svg,
+            (mapped_1[0], mapped_1[1] - 6),
+            self.min_x.year - 1,
+            self.grid_color.hex,
+        )
+
+        mapped_1: np.ndarray = self.map_((self.max_x_second, 0))
+        self.text(
+            svg,
+            (mapped_1[0], mapped_1[1] - 6),
+            self.max_x.year - 1,
+            self.grid_color.hex,
+            anchor="end",
+        )
+
     @staticmethod
-    def text(svg, point, text, color) -> None:
+    def text(svg, point, text, color, anchor: str = "start") -> None:
         """Draw text"""
         text = svg.text(
             text,
@@ -158,5 +239,6 @@ class Graph:
             font_weight=600,
             letter_spacing=1,
             fill=color,
+            text_anchor=anchor,
         )
         svg.add(text)
