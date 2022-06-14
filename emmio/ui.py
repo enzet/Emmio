@@ -264,8 +264,8 @@ class Logger:
         :param number: current value
         :param total: maximum value
         :param length: progress bar length.
-        :param step: frequency of progress bar updating (assuming that numbers go
-            subsequently)
+        :param step: frequency of progress bar updating (assuming that numbers
+            go subsequently)
         :param text: short description
         """
         if number == -1:
@@ -344,3 +344,22 @@ def progress_bar(
 def set_log(class_):
     global logger
     logger = class_()
+
+
+class TelegramInterface(Interface):
+    def print(self, text: str) -> None:
+        pass
+
+    def header(self, text: str) -> None:
+        pass
+
+    def input(self, prompt: str) -> str:
+        pass
+
+    def get_word(
+        self, right_word: str, alternative_forms: set[str], language: Language
+    ) -> str:
+        pass
+
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        pass
