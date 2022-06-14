@@ -232,7 +232,7 @@ class FrequencyList:
         frequency_list: "FrequencyList" = cls(update)
         with file_path.open() as input_file:
             for line in input_file.readlines():
-                frequency_list.add(line[:-1], 1)
+                frequency_list.add(line[:-1])
 
         return frequency_list
 
