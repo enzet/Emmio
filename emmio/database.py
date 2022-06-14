@@ -18,7 +18,9 @@ class Database:
         """
         :param database_file_path: path to SQLite database file
         """
-        self.connection: Connection = sqlite3.connect(database_file_path)
+        self.connection: Connection = sqlite3.connect(
+            database_file_path, check_same_thread=False
+        )
         self.cursor: Cursor = self.connection.cursor()
 
     def get_table_ids(self) -> list[str]:
