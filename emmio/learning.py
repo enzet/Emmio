@@ -213,13 +213,14 @@ class Learning:
     def has(self, word: str) -> bool:
         return word in self.knowledges
 
-    def get_nearest(self) -> Optional[datetime]:
+    def get_nearest(self, skip: set[str] = None) -> Optional[datetime]:
         """Get nearest repetition time."""
         return min(
             [
                 self.knowledges[word].get_next_time()
                 for word in self.knowledges
                 if self.knowledges[word].is_learning()
+                and (not skip or word not in skip)
             ]
         )
 
@@ -240,12 +241,16 @@ class Learning:
             seen.add(record.question_id)
         return count
 
-    def to_repeat(self) -> int:
+    def to_repeat(self, skip: set[str] = None) -> int:
         count: int = 0
         now: datetime = datetime.now()
         for word in self.knowledges:
             record: Knowledge = self.knowledges[word]
-            if record.is_learning() and record.get_next_time() < now:
+            if (
+                record.is_learning()
+                and record.get_next_time() < now
+                and (not skip or word not in skip)
+            ):
                 count += 1
         return count
 
