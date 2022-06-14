@@ -1,8 +1,11 @@
+PyYAML~=6.0
 colour~=0.1.5
-PyYAML
 iso-639
-matplotlib
+matplotlib~=3.5.2
+numpy~=1.22.3
+pyTelegramBotAPI
 rich~=12.3.0
-svgwrite
-urllib3
-wiktionaryparser
+setuptools~=60.5.0
+svgwrite~=1.4.2
+urllib3~=1.26.9
+wiktionaryparser~=0.0.97
