@@ -322,7 +322,7 @@ class LexiconVisualizer:
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
 
         for xs, ys, color, title in data:
-            plt.plot(xs, ys, color=color, linewidth=1, label=title)
+            plt.plot(xs, ys, color=color.hex, linewidth=1, label=title)
 
         for lexicon in lexicons:
             dates, rates = lexicon.construct_precise(self.precision)
