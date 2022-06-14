@@ -1,6 +1,4 @@
-"""
-Language and font specifics.
-"""
+"""Language and font specifics."""
 import re
 from colour import Color
 from typing import Optional
@@ -13,11 +11,18 @@ __email__ = "me@enzet.ru"
 
 DEFAULT_COLOR: Color = Color("black")
 
+ESPERANTO_DIGRAPHS: dict[str, str] = {
+    "cx": "ĉ",
+    "gx": "ĝ",
+    "hx": "ĥ",
+    "jx": "ĵ",
+    "sx": "ŝ",
+    "ux": "ŭ",
+}
+
 
 class Language:
-    """
-    Natural language description.
-    """
+    """Natural language description."""
 
     def __init__(
         self,
@@ -88,9 +93,6 @@ class Language:
         return self.get_code()
 
 
-languages = ["de", "en", "fr", "ru"]
-
-
 def letter_range(start: str, stop: str) -> str:
     return "".join(chr(x) for x in range(ord(start), ord(stop) + 1))
 
@@ -100,7 +102,6 @@ HIRAGANA: str = letter_range("ぁ", "ゟ")
 KANJI: str = (
     letter_range("㐀", "䶵") + letter_range("一", "鿋") + letter_range("豈", "頻")
 )
-
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 
 LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -139,7 +140,10 @@ ESPERANTO: Language = Language(
 FRENCH: Language = Language(
     "fr",
     Color("#4DA9CC"),  # #16ACEC
-    LATIN_LETTERS + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœﬁﬂﬀﬃﬄﬆﬅ" + SKIPPERS,
+    LATIN_LETTERS
+    + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœ"
+    + "".join(LATIN_LIGATURES.keys())
+    + SKIPPERS,
     tone=Color("#4192C1"),
     self_name="français",
 )
@@ -209,20 +213,22 @@ known_languages = [
 
 
 def decode_ukrainian(text: str) -> str:
-    return text.replace("i", "і")  # i to U+0456
+    """
+    Decode text in Ukrainian.
+
+    Merely replace ASCII "i" symbol with Unicode U+0456.
+    """
+    return text.replace("i", "і")
 
 
 def decode_esperanto(text: str) -> str:
-    digraphs = {
-        "cx": "ĉ",
-        "gx": "ĝ",
-        "hx": "ĥ",
-        "jx": "ĵ",
-        "sx": "ŝ",
-        "ux": "ŭ",
-    }
-    for digraph in digraphs:
-        text = text.replace(digraph, digraphs[digraph])
+    """
+    Decode text in Esperanto from possible x-convention.
+
+    H-convention is not used since it may be ambiguous.
+    """
+    for digraph in ESPERANTO_DIGRAPHS:
+        text = text.replace(digraph, ESPERANTO_DIGRAPHS[digraph])
 
     return text
 
