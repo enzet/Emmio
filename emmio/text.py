@@ -28,7 +28,7 @@ class Text:
         """
         print("Construct frequency list...")
 
-        frequency_list: FrequencyList = FrequencyList()
+        frequency_list: FrequencyList = FrequencyList(update=False)
 
         for line in self.text.split("\n"):
             line: str
