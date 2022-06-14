@@ -138,9 +138,6 @@ class EnglishWiktionary(Dictionary):
             if all(not x or x in FORMS for x in link_type.split(" ")):
                 return [Link(link_type, link)], text
 
-        text = text.replace("(", "\033[2m(")
-        text = text.replace(")", ")\033[0m")
-
         return [], text
 
     def get_item(
