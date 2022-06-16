@@ -3,6 +3,7 @@ import random
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
+from time import sleep
 from typing import Optional
 
 import telebot
@@ -393,22 +394,26 @@ class TelegramServer(Server):
 
         if self.state == ServerState.NOTHING:
 
-            if self.learnings and (
-                (nearest := sorted(self.learnings)[0]).is_ready()
-            ):
-                self.worker = nearest
-                self.send(nearest.get_greatings())
-                self.state = ServerState.WORKER
-                self.step()
-            elif self.learnings and (
-                (nearest := sorted(self.learnings)[0]).is_ready()
-            ):
-                self.worker = nearest
-                self.send(nearest.get_greatings())
-                self.state = ServerState.WORKER
-                self.step()
-            else:
-                self.send("Nothing to do.")
+            while True:
+                if self.learnings and (
+                    (nearest := sorted(self.learnings)[0]).is_ready()
+                ):
+                    self.worker = nearest
+                    self.send(nearest.get_greatings())
+                    self.state = ServerState.WORKER
+                    self.step()
+                    break
+                elif self.lexicons and (
+                    (nearest := sorted(self.lexicons)[0]).is_ready()
+                ):
+                    self.worker = nearest
+                    self.send(nearest.get_greatings())
+                    self.state = ServerState.WORKER
+                    self.step()
+                    break
+                else:
+                    print(f"{datetime.now()} Waiting...")
+                    sleep(60)
 
         elif self.state == ServerState.WORKER:
             if self.worker.is_ready():
