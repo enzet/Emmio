@@ -96,7 +96,9 @@ class LearningWorker(Worker):
     def is_ready(self) -> bool:
         return self.learning.is_ready(self.skip)
 
-    def get_sentence(self, show_index: bool = False, max_translations: int = 3):
+    def get_sentence(
+        self, show_index: bool = False, max_translations: int = 3
+    ) -> str:
         """
         Print sentence and its translations.
 
@@ -382,8 +384,13 @@ class TelegramServer(Server):
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
 
-    def send(self, message: str):
-        self.bot.send_message(self.id_, message)
+    def start(self, message):
+        self.id_ = message.chat.id
+        self.step(message.text)
+        self.bot.register_next_step_handler(message, self.receive_message)
+
+    def send(self, message: str, markup=None):
+        self.bot.send_message(self.id_, message, reply_markup=markup)
 
     def receive_message(self, message: Message):
         self.id_ = message.chat.id
