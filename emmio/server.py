@@ -49,7 +49,6 @@ class LearningWorker(Worker):
     ):
         self.user_data: UserData = user_data
         self.learning: Learning = learning
-        self.skip: set[str] = set()
 
         self.known_language: Language = learning.language
         self.learning_language: Optional[Language]
@@ -69,6 +68,8 @@ class LearningWorker(Worker):
             self.known_language,
             self.learning_language,
         )
+
+        self.skip: set[str] = set()
 
         # Current word status.
         self.word: Optional[str] = None
@@ -257,7 +258,7 @@ class LearningWorker(Worker):
         elif answer in self.alternative_forms:
             return "Right form."
 
-        elif answer == "/skip":
+        elif answer in ["/skip", "Skip"]:
             self.skip.add(self.word)
             self.index = 0
             return "Skipped for this session."
