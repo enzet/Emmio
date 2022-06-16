@@ -79,6 +79,13 @@ class LearningWorker(Worker):
         self.current_sentences: list[Translation] = []
         self.items: list[DictionaryItem] = []
 
+    def print_state(self):
+        print(
+            f"sent.: {self.index}/{len(self.current_sentences)}, "
+            f"skip: {len(self.skip)}, "
+            f"to repeat: {self.learning.to_repeat(self.skip)}"
+        )
+
     def __lt__(self, other: "LearningWorker") -> bool:
         return self.learning.get_nearest(
             self.skip
@@ -128,6 +135,9 @@ class LearningWorker(Worker):
         return r
 
     def get_next_question(self) -> str:
+
+        print("get_next_question()")
+        self.print_state()
 
         if self.index > 0:
             if self.index < len(self.current_sentences):
@@ -212,9 +222,14 @@ class LearningWorker(Worker):
         if index < len(self.current_sentences):
             result += "\n\n" + self.get_sentence(max_translations=1)
 
+        self.print_state()
+
         return result
 
     def process_answer(self, message):
+
+        print("process_answer()")
+        self.print_state()
 
         answer: str = message
 
@@ -245,6 +260,7 @@ class LearningWorker(Worker):
 
             self.learning.write()
 
+            self.print_state()
             return (
                 "Right"
                 + (
@@ -256,11 +272,13 @@ class LearningWorker(Worker):
             )
 
         elif answer in self.alternative_forms:
+            self.print_state()
             return "Right form."
 
         elif answer in ["/skip", "Skip"]:
             self.skip.add(self.word)
             self.index = 0
+            self.print_state()
             return "Skipped for this session."
 
         elif answer == "/stop":
@@ -293,20 +311,24 @@ class LearningWorker(Worker):
             self.learning.write()
             self.index = 0
 
+            self.print_state()
             return f"Right answer: {self.word}."
 
         elif answer == "/exclude":
             self.user_data.exclude_sentence(self.word, sentence_id)
             self.skip.add(self.word)
+            self.print_state()
             return "Sentence was excluded."
 
         elif answer.startswith("/hide "):
             parts = answer.split(" ")
             self.user_data.exclude_translation(self.word, " ".join(parts[1:]))
             self.skip.add(self.word)
+            self.print_state()
             return "Translation was hidden."
 
         else:
+            self.print_state()
             return "No."
 
     def get_greatings(self) -> str:
