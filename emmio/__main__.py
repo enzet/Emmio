@@ -25,17 +25,27 @@ def main():
     user_data: UserData = UserData.from_directory(data_path, user_id)
     bot: telebot.TeleBot = telebot.TeleBot(token)
     server: TelegramServer = TelegramServer(user_data, bot)
-    print(threading.get_ident())
 
     @bot.message_handler(commands=["start"])
     def start(message: Message):
         """Start Emmio process."""
-        bot.send_message(message.chat.id, "Welcome to Emmio.")
-        bot.register_next_step_handler(message, server.receive_message)
-        server.id_ = message.chat.id
-        server.step()
+        server.start(message)
 
-    bot.polling(none_stop=True)
+    @bot.message_handler(commands=["status"])
+    def status(message: Message):
+        """Start Emmio process."""
+        server.status()
+
+    @bot.message_handler(commands=["stat"])
+    def stat(message: Message):
+        """Start Emmio process."""
+        server.statistics(message)
+
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print(e)
+        main()
 
 
 if __name__ == "__main__":
