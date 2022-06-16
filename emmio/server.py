@@ -93,6 +93,9 @@ class LearningWorker(Worker):
         :param show_index: show current sentence index
         :param max_translations: maximum number of translations to show
         """
+        if self.index >= len(self.current_sentences):
+            return ""
+
         text: str = self.current_sentences[self.index].sentence.text
         if show_index:
             text += f" ({self.index + 1}/{len(self.current_sentences)})"
