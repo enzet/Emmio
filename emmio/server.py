@@ -1,6 +1,6 @@
 import math
 import random
-from datetime import timedelta
+from datetime import timedelta, datetime
 from enum import Enum
 from pathlib import Path
 from time import sleep
@@ -11,7 +11,7 @@ import telebot.apihelper
 from telebot import types
 from telebot.types import Message
 
-from emmio import ui
+from emmio import ui, util
 from emmio.dictionary import Dictionaries, DictionaryItem, Dictionary
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.language import GERMAN, Language, construct_language
@@ -389,6 +389,29 @@ class TelegramServer(Server):
         self.id_ = message.chat.id
         self.step(message.text)
         self.bot.register_next_step_handler(message, self.receive_message)
+
+    def status(self) -> None:
+        if not self.id_:
+            return
+        if self.state == ServerState.ASKING:
+            self.send("Waiting for answer.")
+        elif self.state == ServerState.NOTHING:
+            now = datetime.now()
+            time_to_repetition: timedelta = (
+                min(x.get_nearest() for x in self.user_data.courses.values())
+                - now
+            )
+            time_to_new: timedelta = util.day_end(now) - now
+
+            if time_to_repetition < time_to_new:
+                self.send(f"Repetition in {time_to_repetition}.")
+            else:
+                self.send(f"New question in {time_to_new}.")
+        else:
+            self.send("Alive.")
+
+    def statistics(self, message: Message):
+        self.send(message.text)
 
     def step(self, message: Optional[str] = None):
 
