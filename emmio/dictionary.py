@@ -3,7 +3,7 @@ Dictionary.
 """
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from emmio.ui import Interface
@@ -41,23 +41,37 @@ def hide(text: str, words_to_hide: list[str]) -> str:
     return text
 
 
+@dataclass
+class DefinitionValue:
+
+    value: str
+    description: str = ""
+
+
+@dataclass
+class Definition:
+
+    values: list[DefinitionValue]
+    descriptors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Form:
     """
     Word form: noun, verb, etc.
     """
 
-    def __init__(self, word: str, part_of_speech: str):
-        self.word: str = word
+    word: str
 
-        self.part_of_speech: str = part_of_speech
-        self.transcriptions: set[str] = set()
-        self.translations: dict[str, list[str]] = {}
-        self.links: list[Link] = []
+    part_of_speech: str
+    transcriptions: set[str] = field(default_factory=set)
+    translations: dict[str, list[str]] = field(default_factory=dict)
+    links: list[Link] = field(default_factory=list)
 
-        # Optional characteristics.
-        self.gender: Optional[str] = None
-        self.verb_group: Optional[int] = None
-        self.is_singular: Optional[bool] = None
+    # Optional characteristics.
+    gender: Optional[str] = None
+    verb_group: Optional[int] = None
+    is_singular: Optional[bool] = None
 
     def add_transcription(self, transcription: str) -> None:
         """Add word form IPA transcription."""
