@@ -458,6 +458,10 @@ class TelegramServer(Server):
             respond: str = self.worker.process_answer(message)
             if respond:
                 self.send(respond)
+                if respond.startswith("Right answer"):
+                    sleep(1.5)
+                elif respond.startswith("Right"):
+                    sleep(0.4)
 
             self.state = ServerState.WORKER
             self.step()
