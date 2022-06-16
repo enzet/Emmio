@@ -363,7 +363,7 @@ class Server:
 
 class TelegramServer(Server):
     def __init__(self, user_data: UserData, bot) -> None:
-        print(user_data.path)
+        self.user_data: UserData = user_data
         sentence_db: SentenceDatabase = SentenceDatabase(
             user_data.path / "sentence.db"
         )
