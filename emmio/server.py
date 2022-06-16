@@ -7,6 +7,7 @@ from typing import Optional
 
 import telebot
 import telebot.apihelper
+from telebot import types
 from telebot.types import Message
 
 from emmio import ui
@@ -284,7 +285,7 @@ class LearningWorker(Worker):
         elif answer == "/stop":
             return "Stop."
 
-        elif answer == "/no":
+        elif answer in ["/no", "Don't know"]:
 
             self.interface.box(self.word)
             if self.items:
@@ -411,6 +412,13 @@ class TelegramServer(Server):
 
         elif self.state == ServerState.WORKER:
             if self.worker.is_ready():
+                markup = types.ReplyKeyboardMarkup(
+                    row_width=2, resize_keyboard=False
+                )
+                markup.add(
+                    types.KeyboardButton("Skip"),
+                    types.KeyboardButton("Don't know"),
+                )
                 self.send(self.worker.get_next_question())
                 self.state = ServerState.ASKING
             else:
