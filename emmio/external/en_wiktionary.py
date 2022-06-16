@@ -10,11 +10,18 @@ import os
 import re
 from pathlib import Path
 from time import sleep
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 from wiktionaryparser import WiktionaryParser
 
-from emmio.dictionary import Dictionary, DictionaryItem, Form, Link
+from emmio.dictionary import (
+    Dictionary,
+    DictionaryItem,
+    Form,
+    Link,
+    Definition,
+    DefinitionValue,
+)
 from emmio.language import Language
 from emmio.ui import network, error
 
@@ -140,6 +147,29 @@ class EnglishWiktionary(Dictionary):
 
         return [], text
 
+    def parse_form(
+        self,
+        word: str,
+        definition: dict[str, Any],
+        pronunciations: list[str],
+    ) -> Form:
+
+        form: Form = Form(word, definition["partOfSpeech"])
+
+        for text in definition["text"]:
+            links, text = self.process_definition(text)
+            if links:
+                for link in links:
+                    form.add_link(link)
+            elif text:
+                # FIXME: should be "en"
+                form.add_translation(text, "ru")
+
+        for pronunciation in pronunciations:
+            form.add_transcription(pronunciation)
+
+        return form
+
     def get_item(
         self, word: str, cache_only: bool = False
     ) -> Optional[DictionaryItem]:
@@ -182,38 +212,30 @@ class EnglishWiktionary(Dictionary):
             return None
 
         item: DictionaryItem = DictionaryItem(word)
-        added: bool = False
 
         for element in content:
+
+            pronunciations: list[str] = []
+
+            if "pronunciations" in element:
+                for pronunciation in element["pronunciations"]["text"]:
+                    pronunciation = pronunciation.strip()
+                    if pronunciation.startswith("IPA: "):
+                        pronunciation = pronunciation[5:]
+                    if (
+                        pronunciation.startswith("Rhymes: ")
+                        or pronunciation.startswith("Syllabification: ")
+                        or pronunciation.startswith("Hyphenation: ")
+                        or pronunciation.startswith("Homophone: ")
+                        or pronunciation.startswith("Homophones: ")
+                    ):
+                        continue
+                    pronunciations.append(pronunciation.strip())
+
             for definition in element["definitions"]:
-                form: Form = Form(word, definition["partOfSpeech"])
-                texts: list[str] = definition["text"]
+                item.add_definition(
+                    self.parse_form(word, definition, pronunciations)
+                )
 
-                for text in texts:
-                    links, text = self.process_definition(text)
-                    if links:
-                        for link in links:
-                            form.add_link(link)
-                    elif text:
-                        # FIXME: should be "en"
-                        form.add_translation(text, "ru")
-
-                if "pronunciations" in element:
-                    for pronunciation in element["pronunciations"]["text"]:
-                        pronunciation = pronunciation.strip()
-                        if pronunciation.startswith("IPA: "):
-                            pronunciation = pronunciation[5:]
-                        if (
-                            pronunciation.startswith("Rhymes: ")
-                            or pronunciation.startswith("Syllabification: ")
-                            or pronunciation.startswith("Hyphenation: ")
-                            or pronunciation.startswith("Homophone: ")
-                            or pronunciation.startswith("Homophones: ")
-                        ):
-                            continue
-                        form.add_transcription(pronunciation.strip())
-                item.add_definition(form)
-                added = True
-
-        if added:
+        if item.has_definitions():
             return item

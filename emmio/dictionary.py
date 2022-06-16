@@ -205,6 +205,10 @@ class DictionaryItem:
 
         return result
 
+    def has_definitions(self) -> bool:
+        """Check whether the dictionary item has at least one definition."""
+        return len(self.definitions) > 0
+
 
 class Dictionary:
     """Dictionary of word definitions."""
