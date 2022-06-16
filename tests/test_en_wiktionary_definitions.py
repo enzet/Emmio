@@ -18,6 +18,10 @@ def check_parse_definition(text: str, value: tuple) -> None:
     assert dictionary.process_definition_2(text) == definition
 
 
+def check_parse_link(text: str, link_type: str, link_value: str) -> None:
+    assert dictionary.process_definition_2(text) == Link(link_type, link_value)
+
+
 def test_parse_definition_1() -> None:
     check_parse_definition("above", ([], [["above"]]))
 
@@ -39,3 +43,11 @@ def test_parse_definition_4() -> None:
         "(colloquial) you know, like, y'know.",
         (["colloquial"], [["you know"], ["like"], ["y'know"]]),
     )
+
+
+def test_parse_definition_5() -> None:
+    check_parse_link("plural of média", "plural", "média")
+
+
+def test_parse_definition_6() -> None:
+    check_parse_definition("lecture; talk", ([], [["lecture"], ["talk"]]))
