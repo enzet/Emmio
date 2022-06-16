@@ -116,6 +116,58 @@ class EnglishWiktionary(Dictionary):
         self.add_obsolete: bool = False
 
     @staticmethod
+    def process_definition_2(text: str) -> Union[Link, Definition]:
+
+        # Preparsing.
+        text = text.strip()
+        if text.endswith("."):
+            text = text[:-1]
+
+        matcher: Optional[re.Match] = re.match(
+            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)"
+            "(\\s*\\(.*\\))?[.:]?$",
+            text,
+        )
+        if matcher:
+            link: str = matcher.group("link")
+            link_type: str = matcher.group("link_type")
+
+            if link_type.lower() == "obsolete":
+                return [], ""
+
+            return Link(link_type, link)
+
+        matcher: Optional[re.Match] = LINK_PATTERN.match(text)
+        if matcher:
+            link: str = matcher.group("link")
+            link_type: str = (
+                matcher.group("link_type")
+                .replace("/", " ")
+                .replace(" and ", " ")
+                .lower()
+            )
+            if all(not x or x in FORMS for x in link_type.split(" ")):
+                return Link(link_type, link)
+
+        descriptors: list[str] = []
+
+        matcher = re.match("\\((?P<descriptor>[^()]*)\\) .*", text)
+        if matcher:
+            p = matcher.group("descriptor")
+            descriptors = p.split(", ")
+            text = text[len(p) + 3 :]
+
+        values: list[DefinitionValue]
+        if "; " in text:
+            values = [DefinitionValue(x) for x in text.split("; ")]
+        elif ", " in text:
+            values = [DefinitionValue(x) for x in text.split(", ")]
+        else:
+            values = [DefinitionValue(text)]
+
+        return Definition(values, descriptors)
+
+    @staticmethod
     def process_definition(text: str) -> tuple[list[Link], str]:
         text = text.strip()
 
