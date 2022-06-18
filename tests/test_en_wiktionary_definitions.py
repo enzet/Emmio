@@ -16,12 +16,12 @@ def check_form(text: str, value: tuple) -> None:
         [DefinitionValue(x[0], "" if len(x) == 1 else x[1]) for x in value[1]],
         value[0],
     )
-    assert DICTIONARY.process_definition_2(text) == definition
+    assert DICTIONARY.process_definition(text) == definition
 
 
 def check_link(text: str, link_type: str, link_value: str) -> None:
     """Check whether the link parsing is valid."""
-    assert DICTIONARY.process_definition_2(text) == Link(link_type, link_value)
+    assert DICTIONARY.process_definition(text) == Link(link_type, link_value)
 
 
 def test_definition() -> None:
