@@ -15,10 +15,10 @@ __email__ = "me@enzet.ru"
 @dataclass
 class Link:
     link_type: str
-    link: str
+    link_value: str
 
     def __hash__(self):
-        return hash(f"{self.link_type}_{self.link}")
+        return hash(f"{self.link_type}_{self.link_value}")
 
 
 def hide(text: str, words_to_hide: list[str]) -> str:
@@ -291,7 +291,7 @@ class Dictionaries:
                 items.append(item)
                 links: set[str] = set()
                 for definition in item.definitions:
-                    links |= set([x.link for x in definition.links])
+                    links |= set([x.link_value for x in definition.links])
                 for link in links:
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
