@@ -46,6 +46,7 @@ class Visualizer:
             "actions per year",
             "response time",
             "next question time",
+            "mistakes",
         }
 
     def process_command(
@@ -79,6 +80,8 @@ class Visualizer:
             self.response_time(records)
         if command == "next question time":
             self.next_question_time(knowledges)
+        if command == "mistakes":
+            self.graph_mistakes(records)
         return False
 
     def depth(
@@ -244,6 +247,34 @@ class Visualizer:
         x = sorted(data.keys())
         y = list(map(lambda z: data[z], x))
         plt.plot(x, y, "o", color="black", markersize=0.5)
+        self.plot()
+
+    def graph_mistakes(self, records: list[Record]):
+        size: int = 7
+        xs = range(size)
+        ys = [0] * size
+        ns = [0] * size
+        lasts = defaultdict(int)
+        for record in records:
+            id_: str = f"{record.course_id}_{record.question_id}"
+            if record.answer == ResponseType.RIGHT:
+                if id_ in lasts:
+                    ys[lasts[id_]] += 1
+                lasts[id_] += 1
+            elif record.answer == ResponseType.WRONG:
+                if id_ in lasts:
+                    ns[lasts[id_]] += 1
+                lasts[id_] = 0
+        # plt.plot(xs, [(ns[i] + ys[i]) for i in range(size)])
+        plt.plot(
+            xs,
+            [
+                (ns[i] / (ns[i] + ys[i]) * 100 if (ns[i] + ys[i] > 0) else 0)
+                for i in range(size)
+            ],
+        )
+        plt.ylim(ymin=0)
+        plt.xlim([0, size - 1])
         self.plot()
 
     def response_time(
