@@ -22,7 +22,7 @@ from emmio.dictionary import (
     Definition,
     DefinitionValue,
 )
-from emmio.language import Language
+from emmio.language import Language, RUSSIAN
 from emmio.ui import network, error
 
 
@@ -118,7 +118,7 @@ class EnglishWiktionary(Dictionary):
         self.add_obsolete: bool = False
 
     @staticmethod
-    def process_definition_2(text: str) -> Union[Link, Definition]:
+    def process_definition(text: str) -> Union[Link, Definition]:
 
         # Preparsing.
         text = text.strip()
@@ -133,9 +133,6 @@ class EnglishWiktionary(Dictionary):
         if matcher:
             link: str = matcher.group("link")
             link_type: str = matcher.group("link_type")
-
-            if link_type.lower() == "obsolete":
-                return [], ""
 
             return Link(link_type, link)
 
@@ -161,45 +158,13 @@ class EnglishWiktionary(Dictionary):
 
         values: list[DefinitionValue]
         if "; " in text:
-            values = [DefinitionValue(x) for x in text.split("; ")]
+            values = [DefinitionValue.from_text(x) for x in text.split("; ")]
         elif ", " in text:
-            values = [DefinitionValue(x) for x in text.split(", ")]
+            values = [DefinitionValue.from_text(x) for x in text.split(", ")]
         else:
-            values = [DefinitionValue(text)]
+            values = [DefinitionValue.from_text(text)]
 
         return Definition(values, descriptors)
-
-    @staticmethod
-    def process_definition(text: str) -> tuple[list[Link], str]:
-        text = text.strip()
-
-        matcher: Optional[re.Match] = re.match(
-            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)"
-            "(\\s*\\(.*\\))?[.:]?$",
-            text,
-        )
-        if matcher:
-            link: str = matcher.group("link")
-            link_type: str = matcher.group("link_type")
-
-            if link_type.lower() == "obsolete":
-                return [], ""
-
-            return [Link(link_type, link)], text
-
-        matcher: Optional[re.Match] = LINK_PATTERN.match(text)
-        if matcher:
-            link: str = matcher.group("link")
-            link_type: str = (
-                matcher.group("link_type")
-                .replace("/", " ")
-                .replace(" and ", " ")
-                .lower()
-            )
-            if all(not x or x in FORMS for x in link_type.split(" ")):
-                return [Link(link_type, link)], text
-
-        return [], text
 
     def parse_form(
         self,
@@ -210,14 +175,25 @@ class EnglishWiktionary(Dictionary):
 
         form: Form = Form(word, definition["partOfSpeech"])
 
-        for text in definition["text"]:
-            links, text = self.process_definition(text)
-            if links:
-                for link in links:
-                    form.add_link(link)
-            elif text:
-                # FIXME: should be "en"
-                form.add_translation(text, "ru")
+        first_definition: str = definition["text"][0]
+        if re.split("[  ]", first_definition)[0] == word:
+            definitions = definition["text"][1:]
+        else:
+            definitions = definition["text"]
+
+        first_word: str = first_definition.split(" ")[0]
+        if first_word == f"{word} f":
+            form.gender = "f"
+        elif first_word == f"{word} m":
+            form.gender = "m"
+
+        for text in definitions:
+            element = self.process_definition(text)
+            if isinstance(element, Link):
+                form.add_link(element)
+            elif isinstance(element, Definition):
+                # FIXME: should be `ENGLISH`.
+                form.add_translation(element, RUSSIAN)
 
         for pronunciation in pronunciations:
             form.add_transcription(pronunciation)
