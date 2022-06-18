@@ -7,7 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
-from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
+from emmio.dictionary import Dictionaries, DictionaryItem
 from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
@@ -47,8 +47,8 @@ class Teacher:
 
         self.max_for_day: int = learning.ratio
         self.learning: Learning = learning
-        self.dictionaries: list[Dictionary] = get_dictionaries(
-            self.learning_language
+        self.dictionaries: Dictionaries = Dictionaries(
+            get_dictionaries(self.learning_language)
         )
 
         self.lexicon: Lexicon = lexicon
@@ -179,8 +179,6 @@ class Teacher:
         else:
             random.shuffle(sentences)
 
-        dictionaries: Dictionaries = Dictionaries(self.dictionaries)
-
         def print_sentence(show_index: bool = False, max_translations: int = 3):
             """
             Print sentence and its translations.
@@ -240,10 +238,10 @@ class Teacher:
                 self.user_data.exclude_translations[word]
             )
 
-        items: list[DictionaryItem] = dictionaries.get_items(word)
+        items: list[DictionaryItem] = self.dictionaries.get_items(word)
 
         if self.learning_language == GERMAN:
-            for item in dictionaries.get_items(word[0].upper() + word[1:]):
+            for item in self.dictionaries.get_items(word[0].upper() + word[1:]):
                 if item not in items:
                     items.append(item)
 

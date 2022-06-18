@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from emmio import util, ui
-from emmio.dictionary import Dictionary
+from emmio import util, ui, __main__
+from emmio.dictionary import Dictionary, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer, LexiconVisualizer
@@ -259,7 +259,7 @@ class Emmio:
                 self.interface,
                 self.user_data.get_frequency_list_for_lexicon(language),
                 None,
-                self.get_dictionaries(language),
+                Dictionaries(self.get_dictionaries(language)),
                 "frequency",
                 False,
                 False,
@@ -447,4 +447,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    __main__.main()
