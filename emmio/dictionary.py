@@ -55,12 +55,62 @@ class DefinitionValue:
     value: str
     description: str = ""
 
+    @classmethod
+    def from_text(cls, text: str) -> "DefinitionValue":
+        if matcher := re.match(
+            "(?P<value>.*) \\((?P<description>[^()]*)\\)", text
+        ):
+            return cls(matcher.group("value"), matcher.group("description"))
+
+        return cls(text)
+
+    def to_str(self, to_hide: Optional[list[str]] = None) -> Optional[str]:
+        """Get human-readable form of definition."""
+
+        value: str = self.value
+
+        if to_hide is not None:
+            value = hide(value, to_hide)
+
+        return value + (
+            f" ({self.description})"
+            if self.description and to_hide is None
+            else ""
+        )
+
 
 @dataclass
 class Definition:
 
     values: list[DefinitionValue]
     descriptors: list[str] = field(default_factory=list)
+
+    def is_common(self) -> bool:
+        """
+        Check whether this definition is common.
+
+        Meaning is not
+            - slang, colloquial,
+            - obsolete, etc.
+        """
+        for description in DESCRIPTORS_OF_WORDS_TO_IGNORE:
+            if description in self.descriptors:
+                return False
+        return True
+
+    def to_str(self, to_hide: Optional[list[str]] = None) -> Optional[str]:
+        """Get human-readable form of definition."""
+        if to_hide is not None and not self.is_common():
+            return None
+
+        result: str = ""
+
+        if self.descriptors and to_hide is None:
+            result += "(" + ", ".join(self.descriptors) + ") "
+
+        result += "; ".join(x.to_str(to_hide) for x in self.values)
+
+        return result
 
 
 @dataclass
