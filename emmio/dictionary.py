@@ -41,6 +41,13 @@ def hide(text: str, words_to_hide: list[str]) -> str:
     return text
 
 
+DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
+    "slang",
+    "colloquial",
+    "obsolete",
+]
+
+
 @dataclass
 class DefinitionValue:
 
