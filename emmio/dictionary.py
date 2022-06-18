@@ -162,13 +162,18 @@ class Form:
         """
         self.links.append(link)
 
-    def set_gender(self, gender: str) -> None:
-        """Set gender of the form if has any."""
-        self.gender = gender
+    def has_common_definition(self, language: Language) -> bool:
+        """
+        Check whether the form has at least one common definition.
 
-    def set_verb_group(self, verb_group: int) -> None:
-        """Set group if the word is a verb."""
-        self.verb_group = verb_group
+        Also check if it is not just a form of some another word.
+        """
+        if language in self.translations:
+            for definition in self.translations[language]:
+                if definition.is_common():
+                    return True
+
+        return False
 
     def to_str(
         self,
@@ -179,7 +184,12 @@ class Form:
         hide_translations: set[str] = None,
     ) -> str:
         """Get human-readable representation of the word form."""
-        result: str = ""
+        to_hide: Optional[list[str]] = None
+
+        if not show_word:
+            to_hide = sorted(
+                list(words_to_hide | hide_translations), key=lambda x: -len(x)
+            )
 
         desc = self.part_of_speech
         if show_word and self.transcriptions:
@@ -187,42 +197,28 @@ class Form:
                 desc += f" {self.gender}"
             desc += " " + ", ".join(map(lambda x: f"{x}", self.transcriptions))
 
+        definitions: list[str] = []
+
         if self.translations and language in self.translations:
-            translations: list[str] = self.translations[language]
-            translations = [
-                x
-                for x in translations
-                if (not hide_translations or x.lower() not in hide_translations)
-                and x.lower() != self.word.lower()
-            ]
+            for translation in self.translations[language]:
+                string: Optional[str] = translation.to_str(to_hide)
+                if string is not None and string not in definitions:
+                    definitions.append(string)
 
-            # Hides words to hide.
+        if not definitions and not self.links:
+            return ""
 
-            if not show_word and words_to_hide:
-                translations = [
-                    hide(x, list(words_to_hide)) for x in translations
-                ]
+        result: str = interface.colorize(desc, "grey") + "\n"
 
-            # Hide possible word forms.
-
-            if not show_word:
-                translations = [
-                    re.sub("\\([^)]*\\)", "(░)", x) for x in translations
-                ]
-            if translations:
-                delimiter = (
-                    "; " if max(map(len, translations)) < 25 else "\n    "
-                )
-                result += interface.colorize(desc, "grey")
-                result += "\n    " + delimiter.join(translations) + "\n"
+        if definitions:
+            result += "    " + "\n    ".join(definitions) + "\n"
 
         if self.links:
             for link in self.links:
-                result += interface.colorize(desc, "grey")
                 if show_word:
-                    result += f"\n    -> {link.link_type} of {link.link}\n"
+                    result += f"    -> {link.link_type} of {link.link_value}\n"
                 else:
-                    result += f"\n    -> {link.link_type}\n"
+                    result += f"    -> {link.link_type}\n"
 
         return result
 
@@ -282,6 +278,18 @@ class DictionaryItem:
     def has_definitions(self) -> bool:
         """Check whether the dictionary item has at least one definition."""
         return len(self.definitions) > 0
+
+    def has_common_definition(self, language: Language) -> bool:
+        """
+        Check whether the form has at least one common definition.
+
+        Also check if it is not just a form of some another word.
+        """
+        for definition in self.definitions:
+            if definition.has_common_definition(language):
+                return True
+
+        return False
 
 
 class Dictionary:
