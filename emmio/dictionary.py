@@ -133,6 +133,8 @@ class Form:
 
         desc = self.part_of_speech
         if show_word and self.transcriptions:
+            if self.gender is not None:
+                desc += f" {self.gender}"
             desc += " " + ", ".join(map(lambda x: f"{x}", self.transcriptions))
 
         if self.translations and language in self.translations:
