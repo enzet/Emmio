@@ -64,9 +64,7 @@ class Definition:
 
 @dataclass
 class Form:
-    """
-    Word form: noun, verb, etc.
-    """
+    """Word form: noun, verb, etc."""
 
     word: str
 
@@ -173,9 +171,7 @@ class Form:
 
 
 class DictionaryItem:
-    """
-    Dictionary item: word translations.
-    """
+    """Dictionary item: word translations."""
 
     def __init__(self, word: str):
         self.word: str = word
