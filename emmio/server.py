@@ -199,7 +199,7 @@ class LearningWorker(Worker):
         for item in self.items:
             words_to_hide.add(item.word)
             for link in item.get_links():
-                words_to_hide.add(link.link)
+                words_to_hide.add(link.link_value)
 
         result: str = ""
         if self.interval.total_seconds() > 0:
@@ -208,7 +208,7 @@ class LearningWorker(Worker):
         if self.items:
             translation_list = [
                 x.to_str(
-                    self.known_language.get_code(),
+                    self.known_language,
                     self.interface,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
@@ -218,7 +218,7 @@ class LearningWorker(Worker):
             ]
             result += "\n" + "\n".join(translation_list)
             self.alternative_forms = set(
-                x.link for x in self.items[0].get_links()
+                x.link_value for x in self.items[0].get_links()
             )
         else:
             result += "\nNo translations."
@@ -257,7 +257,7 @@ class LearningWorker(Worker):
             )
             if self.items:
                 string_items: list[str] = [
-                    x.to_str(self.known_language.get_code(), self.interface)
+                    x.to_str(self.known_language, self.interface)
                     for x in self.items
                 ]
                 self.interface.print("\n".join(string_items))
@@ -293,7 +293,7 @@ class LearningWorker(Worker):
             self.interface.box(self.word)
             if self.items:
                 string_items: list[str] = [
-                    x.to_str(self.known_language.get_code(), self.interface)
+                    x.to_str(self.known_language, self.interface)
                     for x in self.items
                 ]
                 self.interface.print("\n".join(string_items))

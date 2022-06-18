@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 
+from emmio.language import Language
 from emmio.ui import Interface
 
 __author__ = "Sergey Vartanov"
@@ -70,7 +71,7 @@ class Form:
 
     part_of_speech: str
     transcriptions: set[str] = field(default_factory=set)
-    translations: dict[str, list[str]] = field(default_factory=dict)
+    translations: dict[Language, list[Definition]] = field(default_factory=dict)
     links: list[Link] = field(default_factory=list)
 
     # Optional characteristics.
@@ -82,12 +83,16 @@ class Form:
         """Add word form IPA transcription."""
         self.transcriptions.add(transcription)
 
-    def add_translations(self, translations: list[str], language: str) -> None:
+    def add_translations(
+        self, translations: list[Definition], language: Language
+    ) -> None:
         """Add word translations."""
         for translation in translations:
             self.add_translation(translation, language)
 
-    def add_translation(self, translation: str, language: str) -> None:
+    def add_translation(
+        self, translation: Definition, language: Language
+    ) -> None:
         """
         Add word translation.  It is assumed that translations are sorted by
         usage frequency.
@@ -117,7 +122,7 @@ class Form:
 
     def to_str(
         self,
-        language: str,
+        language: Language,
         interface: Interface,
         show_word: bool = True,
         words_to_hide: set[str] = None,
@@ -194,7 +199,7 @@ class DictionaryItem:
 
     def to_str(
         self,
-        language: str,
+        language: Language,
         interface: Interface,
         show_word: bool = True,
         words_to_hide: Optional[set[str]] = None,
