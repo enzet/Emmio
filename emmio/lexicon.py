@@ -9,7 +9,7 @@ from typing import Any, Iterator, Optional
 
 from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency import FrequencyList
-from emmio.language import Language
+from emmio.language import Language, RUSSIAN
 from emmio.ui import get_char, log, write, Interface
 
 __author__ = "Sergey Vartanov"
@@ -513,7 +513,7 @@ class Lexicon:
         interface: Interface,
         word: str,
         word_list: list[str],
-        dictionaries: list[Dictionary],
+        dictionaries: Dictionaries,
         skip_known: bool = False,
         skip_unknown: bool = False,
         log_name: str = "log",
@@ -536,12 +536,12 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        items: list[DictionaryItem] = Dictionaries(dictionaries).get_items(word)
+        items: list[DictionaryItem] = dictionaries.get_items(word)
 
         if items:
             print("[Show translation]")
             get_char()
-            print("\n".join(map(lambda x: x.to_str("ru", interface), items)))
+            print("\n".join(map(lambda x: x.to_str(RUSSIAN, interface), items)))
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
 
@@ -592,7 +592,7 @@ class Lexicon:
         self,
         interface: Interface,
         frequency_list: FrequencyList,
-        dictionaries: list[Dictionary],
+        dictionaries: Dictionaries,
     ) -> None:
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
@@ -629,7 +629,7 @@ class Lexicon:
         interface: Interface,
         frequency_list: FrequencyList,
         stop_at: Optional[int],
-        dictionaries: list[Dictionary],
+        dictionaries: Dictionaries,
         log_type: str,
         skip_known: bool,
         skip_unknown: bool,
