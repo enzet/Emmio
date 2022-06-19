@@ -102,6 +102,21 @@ def get_file_name(word: str):
     return f"{name}.json"
 
 
+def check_link_type(link_type: str) -> bool:
+    link_type: str = (
+        link_type.replace("(t\u00fa)", "")
+        .replace("(usted)", "")
+        .replace("(\u00e9l, ella, also used with usted?)", "")
+        .replace("/", " ")
+        .replace("(", "")
+        .replace(")", "")
+        .replace(" and ", " ")
+        .replace("  ", " ")
+        .lower()
+    )
+    return all(not x or x in FORMS for x in link_type.split(" "))
+
+
 class EnglishWiktionary(Dictionary):
     """
     Dictionary that uses English Wiktionary API.
@@ -131,27 +146,11 @@ class EnglishWiktionary(Dictionary):
         if text.endswith("."):
             text = text[:-1]
 
-        matcher: Optional[re.Match] = re.match(
-            "^(?P<link_type>.*) form of (?P<link>[^:;,. ]*)"
-            "(\\s*\\(.*\\))?[.:]?$",
-            text,
-        )
-        if matcher:
-            link: str = matcher.group("link")
-            link_type: str = matcher.group("link_type")
-
-            return Link(link_type, link)
-
         matcher: Optional[re.Match] = LINK_PATTERN.match(text)
         if matcher:
             link: str = matcher.group("link")
-            link_type: str = (
-                matcher.group("link_type")
-                .replace("/", " ")
-                .replace(" and ", " ")
-                .lower()
-            )
-            if all(not x or x in FORMS for x in link_type.split(" ")):
+            link_type: str = matcher.group("link_type")
+            if check_link_type(link_type):
                 return Link(link_type, link)
 
         descriptors: list[str] = []
