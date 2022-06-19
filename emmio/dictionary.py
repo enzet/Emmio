@@ -173,6 +173,9 @@ class Form:
 
         Also check if it is not just a form of some another word.
         """
+        if self.part_of_speech == "letter":
+            return False
+
         if language in self.translations:
             for definition in self.translations[language]:
                 if definition.is_common():
