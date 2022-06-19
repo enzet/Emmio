@@ -84,6 +84,8 @@ FORMS: set[str] = {
     "iii",
     "of",
     "the",
+    "form",
+    "†",
 }
 
 

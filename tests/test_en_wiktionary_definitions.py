@@ -24,6 +24,12 @@ def check_link(text: str, link_type: str, link_value: str) -> None:
     assert DICTIONARY.process_definition(text) == Link(link_type, link_value)
 
 
+def test_japanese_link():
+    check_link(
+        "† Alternative form of 邀 (“to invite”).", "† Alternative form", "邀"
+    )
+
+
 def test_definition() -> None:
     """Test simple definition."""
     check_form("above", ([], [["above"]]))
