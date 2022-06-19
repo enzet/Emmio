@@ -13,7 +13,7 @@ from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog, WordSelection
 from emmio.sentence import SentenceDatabase, Sentences, Translation
-from emmio.ui import log, Interface
+from emmio.ui import log, Interface, debug
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -100,12 +100,26 @@ class Teacher:
 
             for index, word in self.words:
                 if self.learning.has(word):
+                    debug(f"[{index}] already learning")
                     continue
+
                 if word in self.skip:
+                    debug(f"[{index}] skipped")
+                    continue
+
+                # Skip word if current dictionaries has no definitions for it
+                # or the word is solely a form of other words.
+                items: list[DictionaryItem] = self.dictionaries.get_items(word)
+                if not items:
+                    debug(f"[{index}] no definition")
+                    continue
+                if not items[0].has_common_definition(self.learning.language):
+                    debug(f"[{index}] not common")
                     continue
 
                 if self.learning.check_lexicon and self.lexicon.has(word):
                     if self.lexicon.get(word) != LexiconResponse.DO_NOT_KNOW:
+                        debug(f"[{index}] word is known")
                         continue
                     # TODO: else start learning
 
@@ -114,7 +128,6 @@ class Teacher:
                         LexiconLog("log_ex", WordSelection("top"))
                     )
 
-                print(f"[{index}]")
                 has_new_word = True
 
                 if self.learning.ask_lexicon and not self.lexicon.has(word):

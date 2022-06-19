@@ -335,6 +335,10 @@ def error(message: str) -> None:
     logger.error(message)
 
 
+def debug(message: str) -> None:
+    print("\033[33m" + message + "\033[0m")
+
+
 def progress_bar(
     number: int, total: int, length: int = 20, step: int = 1000
 ) -> None:
