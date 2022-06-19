@@ -63,7 +63,7 @@ class DefinitionValue:
     @classmethod
     def from_text(cls, text: str) -> "DefinitionValue":
         if matcher := re.match(
-            "(?P<value>.*) \\((?P<description>[^()]*)\\)", text
+            "(?P<value>[^(]*) \\((?P<description>.*)\\)$", text
         ):
             return cls(matcher.group("value"), matcher.group("description"))
 
