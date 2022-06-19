@@ -50,7 +50,11 @@ class Visualizer:
         }
 
     def process_command(
-        self, command: str, records: list[Record], knowledges
+        self,
+        command: str,
+        records: list[Record],
+        knowledges,
+        lexicons: list[Lexicon],
     ) -> bool:
         if command == "plot learn":
             self.depth(records)
@@ -67,15 +71,22 @@ class Visualizer:
         if command == "actions per day":
             self.cumulative_actions(
                 records,
+                lexicons,
                 lambda x: datetime(day=x.day, month=x.month, year=x.year),
                 1,
             )
         if command == "actions per week":
-            self.cumulative_actions(records, util.first_day_of_week, 7)
+            self.cumulative_actions(
+                records, lexicons, util.first_day_of_week, 7
+            )
         if command == "actions per month":
-            self.cumulative_actions(records, util.first_day_of_month, 28)
+            self.cumulative_actions(
+                records, lexicons, util.first_day_of_month, 31
+            )
         if command == "actions per year":
-            self.cumulative_actions(records, util.year_start, 365)
+            self.cumulative_actions(
+                records, lexicons, util.year_start, 365 * 0.6
+            )
         if command == "response time":
             self.response_time(records)
         if command == "next question time":
@@ -210,19 +221,63 @@ class Visualizer:
         self.plot()
 
     def cumulative_actions(
-        self, records: list[Record], point: Callable, width: float
+        self,
+        records: list[Record],
+        lexicons: list[Lexicon],
+        point: Callable,
+        width: float,
     ):
-        data = defaultdict(int)
+        size: int = 20
+        data: list[dict[str, int]] = []
+
+        for i in range(size):
+            data.append(defaultdict(int))
+
         for record in records:
-            if record.is_learning():
-                data[point(record.time)] += 1
-        plt.bar(
-            sorted(data.keys()),
-            [data[x] for x in sorted(data.keys())],
-            color="black",
-            linewidth=0,
-            width=width * 0.8,
-        )
+            if record.interval:
+                depth = int(
+                    np.log(record.interval.total_seconds() / 60 / 60 / 24, 2)
+                )
+                data[depth + 1 + 2][point(record.time)] += 1
+            else:
+                data[0 + 2][point(record.time)] += 1
+
+        for lexicon in lexicons:
+            for record in lexicon.logs["log"].records:
+                data[0][point(record.time)] += 1
+            if "log_ex" in lexicon.logs:
+                for record in lexicon.logs["log_ex"].records:
+                    data[1][point(record.time)] += 1
+
+        keys = set()
+        for i in range(size):
+            keys |= data[i].keys()
+
+        xs = sorted(keys)
+
+        for i in range(size):
+            if i == 0:  # log
+                color = "#E8F0F8"
+                label = "Checking lexicon"
+            elif i == 1:  # log_ex
+                color = "#D8E0E8"
+                label = "Checking new words"
+            else:
+                color = colors[i + 1 - 2]
+                label = f"Learning level {i + 1 - 2}"
+
+            ys = [sum(data[y][x] for y in range(i, size)) for x in xs]
+
+            if np.any(ys):
+                plt.bar(
+                    xs,
+                    ys,
+                    color=color,
+                    linewidth=0,
+                    width=width,
+                    label=label,
+                )
+        plt.legend(loc="center left", frameon=False)
         self.plot()
 
     def graph_2(self, records: list[Record]):

@@ -225,7 +225,11 @@ class Emmio:
             visualizer = Visualizer(interactive=interactive)
             records = sorted(records, key=lambda x: x.time)
 
-            visualizer.process_command(command, records, knowledges)
+            lexicons = [
+                self.user_data.get_lexicon(language)
+                for language in self.user_data.get_lexicon_languages()
+            ]
+            visualizer.process_command(command, records, knowledges, lexicons)
 
     def run_lexicon(self, code: str) -> None:
         """Check all user lexicons."""
