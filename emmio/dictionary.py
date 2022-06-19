@@ -43,9 +43,14 @@ def hide(text: str, words_to_hide: list[str]) -> str:
 
 
 DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
-    "slang",
+    "archaic",
     "colloquial",
+    "dated",
+    "figuratively",
+    "informal",
     "obsolete",
+    "rare",
+    "slang",
 ]
 
 
