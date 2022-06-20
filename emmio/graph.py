@@ -236,7 +236,7 @@ class Visualizer:
         for record in records:
             if record.interval:
                 depth = int(
-                    np.log(record.interval.total_seconds() / 60 / 60 / 24, 2)
+                    np.log2(record.interval.total_seconds() / 60 / 60 / 24)
                 )
                 data[depth + 1 + 2][point(record.time)] += 1
             else:
