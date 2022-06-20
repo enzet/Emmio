@@ -45,6 +45,22 @@ def test_link_with_parentheses() -> None:
     )
 
 
+def test_link_with_slash() -> None:
+    check_link(
+        "second/third-person singular present of lassen",
+        "second/third-person singular present",
+        "lassen",
+    )
+
+
+def test_link_with_slashes() -> None:
+    check_link(
+        "strong/mixed nominative/accusative neuter singular of letzter",
+        "strong/mixed nominative/accusative neuter singular",
+        "letzter",
+    )
+
+
 def test_japanese_link():
     check_link(
         "† Alternative form of 邀 (“to invite”).", "† Alternative form", "邀"
