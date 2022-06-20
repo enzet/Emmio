@@ -27,14 +27,27 @@ class ResponseType(Enum):
 
 
 @dataclass
-class Record:
+class LearningRecord:
     """Learning record for a question."""
 
+    # Unique string question identifier. For single word learning it should be
+    # a word itself.
     question_id: str
+
+    # Response type: fail or success.
     answer: ResponseType
+
+    # Sentence identifier used to learn the question.
     sentence_id: int
+
+    # Record time.
     time: datetime
+
+    # Time interval for the next question. The question is ready to repeat after
+    # `time` + `interval` point in time.
     interval: timedelta
+
+    # Learning process identifier.
     course_id: str
 
     def is_learning(self) -> bool:
@@ -44,7 +57,7 @@ class Record:
     @classmethod
     def from_structure(
         cls, structure: dict[str, Any], course_id: str
-    ) -> "Record":
+    ) -> "LearningRecord":
         """Parse learning record from the dictionary."""
         interval = SMALLEST_INTERVAL
         if "interval" in structure:
@@ -115,7 +128,7 @@ class Learning:
         self, file_path: Path, config: dict[str, any], course_id: str
     ) -> None:
         self.file_path: Path = file_path
-        self.records: list[Record] = []
+        self.records: list[LearningRecord] = []
         self.knowledges: dict[str, Knowledge] = {}
         self.config: dict[str, str] = config
         self.course_id: str = course_id
@@ -152,13 +165,13 @@ class Learning:
             self.name = self.config["name"]
 
         for record_structure in records:
-            record: Record = Record.from_structure(
+            record: LearningRecord = LearningRecord.from_structure(
                 record_structure, self.course_id
             )
             self.records.append(record)
             self._update_knowledge(record)
 
-    def _update_knowledge(self, record: Record) -> None:
+    def _update_knowledge(self, record: LearningRecord) -> None:
         last_answers: list[ResponseType] = []
         if record.question_id in self.knowledges:
             last_answers = self.knowledges[record.question_id].responses
@@ -184,7 +197,7 @@ class Learning:
         :param question_id: question identifier
         :param interval: repeat interval
         """
-        record: Record = Record(
+        record: LearningRecord = LearningRecord(
             question_id,
             answer,
             sentence_id,
