@@ -270,3 +270,7 @@ class Learning:
             structure["log"].append(record.to_structure())
         with self.file_path.open("w+") as output_file:
             json.dump(structure, output_file, ensure_ascii=False, indent=4)
+
+    def is_ready(self, skip) -> bool:
+        """Check whether the learning is ready for the next word."""
+        return self.get_next(skip) is not None
