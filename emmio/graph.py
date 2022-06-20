@@ -13,7 +13,7 @@ from svgwrite import Drawing
 
 from emmio import util
 from emmio.learning import Knowledge, Record, ResponseType
-from emmio.lexicon import Lexicon
+from emmio.lexicon import Lexicon, AnswerType
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
 
@@ -229,10 +229,7 @@ class Visualizer:
         width: float,
     ):
         size: int = 20
-        data: list[dict[str, int]] = []
-
-        for i in range(size):
-            data.append(defaultdict(int))
+        data: list[dict[str, int]] = [defaultdict(int) for _ in range(size)]
 
         for record in records:
             if record.interval:
@@ -245,10 +242,18 @@ class Visualizer:
 
         for lexicon in lexicons:
             for record in lexicon.logs["log"].records:
-                data[0][point(record.time)] += 1
+                if record.answer_type in [
+                    AnswerType.UNKNOWN,
+                    AnswerType.USER_ANSWER,
+                ]:
+                    data[0][point(record.time)] += 1
             if "log_ex" in lexicon.logs:
                 for record in lexicon.logs["log_ex"].records:
-                    data[1][point(record.time)] += 1
+                    if record.answer_type in [
+                        AnswerType.UNKNOWN,
+                        AnswerType.USER_ANSWER,
+                    ]:
+                        data[1][point(record.time)] += 1
 
         keys = set()
         for i in range(size):
