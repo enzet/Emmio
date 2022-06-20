@@ -24,6 +24,18 @@ def check_link(text: str, link_type: str, link_value: str) -> None:
     assert DICTIONARY.process_definition(text) == Link(link_type, link_value)
 
 
+def test_link_with_dot() -> None:
+    check_link("past of nehmen, to take.", "past", "nehmen")
+
+
+def test_link_with_dot_2() -> None:
+    check_link(
+        "Masculine singular past participle of hacer.",
+        "Masculine singular past participle",
+        "hacer",
+    )
+
+
 def test_japanese_link():
     check_link(
         "† Alternative form of 邀 (“to invite”).", "† Alternative form", "邀"
