@@ -7,6 +7,7 @@ from typing import Optional, Callable
 import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.transforms as mtransforms
+import numpy as np
 from matplotlib import pyplot as plt
 from svgwrite import Drawing
 
