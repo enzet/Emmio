@@ -61,6 +61,14 @@ def test_link_with_slashes() -> None:
     )
 
 
+def test_link_with_colon() -> None:
+    check_link(
+        "comparative form of tough: more tough",
+        "comparative form",
+        "tough",
+    )
+
+
 def test_japanese_link():
     check_link(
         "† Alternative form of 邀 (“to invite”).", "† Alternative form", "邀"
