@@ -36,6 +36,15 @@ def test_link_with_dot_2() -> None:
     )
 
 
+def test_link_with_parentheses() -> None:
+    check_link(
+        "third-person singular present of vermessen "
+        "(“to measure, or to measure wrong”)",
+        "third-person singular present",
+        "vermessen",
+    )
+
+
 def test_japanese_link():
     check_link(
         "† Alternative form of 邀 (“to invite”).", "† Alternative form", "邀"
