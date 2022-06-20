@@ -66,3 +66,8 @@ def test_separated_definitions_with_descriptor() -> None:
 def test_link() -> None:
     """Test link."""
     check_link("plural of média", "plural", "média")
+
+
+def test_link_with_description() -> None:
+    """Test link with simple description before."""
+    check_link("(dated) genitive of er", "genitive", "er")
