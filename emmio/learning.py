@@ -139,7 +139,7 @@ class Learning:
         self.name: str = "Unknown"
 
         if "ratio" in self.config:
-            self.ratio = self.config["ratio"]
+            self.ratio = int(self.config["ratio"])
         if "language" in self.config:
             self.language = construct_language(self.config["language"])
         if "subject" in self.config:
