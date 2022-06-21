@@ -130,6 +130,13 @@ def test_separated_definitions_with_descriptor() -> None:
     )
 
 
+def test_definition_with_double_parentheses() -> None:
+    check_form(
+        "(intransitive) to insist (auf (\u201con\u201d))",
+        (["intransitive"], [["to insist", "auf (\u201con\u201d)"]]),
+    )
+
+
 def test_link() -> None:
     """Test link."""
     check_link("plural of média", "plural", "média")
