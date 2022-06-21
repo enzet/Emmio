@@ -41,11 +41,14 @@ def main():
         """Start Emmio process."""
         server.statistics(message)
 
-    try:
-        bot.polling(none_stop=True)
-    except Exception as e:
-        print(e)
-        main()
+    def run():
+        try:
+            bot.polling(none_stop=True)
+        except Exception as e:
+            print(e)
+            run()
+
+    run()
 
 
 if __name__ == "__main__":
