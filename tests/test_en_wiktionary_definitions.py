@@ -75,6 +75,28 @@ def test_japanese_link():
     )
 
 
+def test_spanish_links() -> None:
+    check_link(
+        "Formal  second-person singular   (usted)  present indicative  form "
+        "of formar.",
+        "Formal  second-person singular   (usted)  present indicative  form",
+        "formar",
+    )
+    check_link(
+        "Informal second-person singular (t\u00fa) affirmative imperative form "
+        "of formar.",
+        "Informal second-person singular (t\u00fa) affirmative imperative form",
+        "formar",
+    )
+    check_link(
+        "Third-person singular   (\u00e9l, ella, also used with usted?)  "
+        "present indicative  form of formar.",
+        "Third-person singular   (\u00e9l, ella, also used with usted?)  "
+        "present indicative  form",
+        "formar",
+    )
+
+
 def test_definition() -> None:
     """Test simple definition."""
     check_form("above", ([], [["above"]]))
