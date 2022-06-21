@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from svgwrite import Drawing
 
 from emmio import util
-from emmio.learning import Knowledge, Record, ResponseType
+from emmio.learning import Knowledge, LearningRecord, ResponseType
 from emmio.lexicon import Lexicon, AnswerType
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
@@ -53,7 +53,7 @@ class Visualizer:
     def process_command(
         self,
         command: str,
-        records: list[Record],
+        records: list[LearningRecord],
         knowledges,
         lexicons: list[Lexicon],
     ) -> bool:
@@ -98,7 +98,7 @@ class Visualizer:
 
     def depth(
         self,
-        records: list[Record],
+        records: list[LearningRecord],
         is_time: bool = False,
         show_text: bool = False,
         count_by_depth: bool = False,
@@ -209,7 +209,7 @@ class Visualizer:
         else:
             plt.savefig("out/graph.svg")
 
-    def actions(self, records: list[Record]):
+    def actions(self, records: list[LearningRecord]):
         x, y = [], []
         count_learning: int = 0
         for record in records:
@@ -223,7 +223,7 @@ class Visualizer:
 
     def cumulative_actions(
         self,
-        records: list[Record],
+        records: list[LearningRecord],
         lexicons: list[Lexicon],
         point: Callable,
         width: float,
@@ -286,7 +286,7 @@ class Visualizer:
         plt.legend(loc="center left", frameon=False)
         self.plot()
 
-    def graph_2(self, records: list[Record]):
+    def graph_2(self, records: list[LearningRecord]):
         x = []
         count: int = 0
         for record in records:
@@ -310,7 +310,7 @@ class Visualizer:
         plt.plot(x, y, "o", color="black", markersize=0.5)
         self.plot()
 
-    def graph_mistakes(self, records: list[Record]):
+    def graph_mistakes(self, records: list[LearningRecord]):
         size: int = 7
         xs = range(size)
         ys = [0] * size
@@ -339,7 +339,7 @@ class Visualizer:
         self.plot()
 
     def response_time(
-        self, records: list[Record], steps: int = 10, max_: int = 60
+        self, records: list[LearningRecord], steps: int = 10, max_: int = 60
     ) -> None:
         """
         Draw user response time histogram.
@@ -352,7 +352,7 @@ class Visualizer:
         y_y: list[float] = [0.0] * (max_ * steps + 1)
         y_n: list[float] = [0.0] * (max_ * steps + 1)
 
-        last_record: Optional[Record] = records[0] if records else None
+        last_record: Optional[LearningRecord] = records[0] if records else None
 
         for record in records:
             interval: timedelta = record.time - last_record.time

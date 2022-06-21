@@ -11,7 +11,7 @@ from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer, LexiconVisualizer
 from emmio.language import Language, construct_language
-from emmio.learning import Learning, Record
+from emmio.learning import Learning, LearningRecord
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence import SentenceDatabase
 from emmio.teacher import Teacher
@@ -213,7 +213,7 @@ class Emmio:
         if command in Visualizer.get_commands():
             ratios = 0
             learning_words = 0
-            records: list[Record] = []
+            records: list[LearningRecord] = []
             knowledges = {}
             for course_id in self.user_data.course_ids:
                 learning = self.user_data.get_course(course_id)
