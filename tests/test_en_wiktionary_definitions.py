@@ -102,6 +102,13 @@ def test_definition() -> None:
     check_form("above", ([], [["above"]]))
 
 
+def test_form_with_parentheses() -> None:
+    check_form(
+        "in the process of (followed by an infinitive clause)",
+        ([], [["in the process of", "followed by an infinitive clause"]]),
+    )
+
+
 def test_definition_separated_by_comma() -> None:
     """Test definitions, separated by comma."""
     check_form("to stay, remain", ([], [["to stay"], ["remain"]]))
