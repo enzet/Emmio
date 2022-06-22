@@ -13,7 +13,7 @@ from emmio.graph import Visualizer, LexiconVisualizer
 from emmio.language import Language, construct_language
 from emmio.learning import Learning, LearningRecord
 from emmio.lexicon import Lexicon, LexiconResponse
-from emmio.sentence import SentenceDatabase
+from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
 from emmio.ui import Logger, set_log, Interface, progress
 from emmio.user_data import UserData

@@ -12,7 +12,8 @@ from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning import Learning, ResponseType
 from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog, WordSelection
-from emmio.sentence import SentenceDatabase, Sentences, Translation
+from emmio.sentence.core import Sentences, Translation
+from emmio.sentence.database import SentenceDatabase
 from emmio.ui import log, Interface, debug
 
 __author__ = "Sergey Vartanov"

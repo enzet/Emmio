@@ -19,7 +19,7 @@ DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
 
 class LexiconResponse(Enum):
-    """User response or propagation of user response or"""
+    """User response or propagation of user response."""
 
     UNKNOWN = 0
 
