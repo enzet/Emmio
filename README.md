@@ -13,8 +13,7 @@ __Emmio__ is a tool box for learning. It contains:
 Requires __Python 3.9__.
 
 ```shell script
-pip install -r requirements.txt
-pip install .
+pip install git+https://github.com/enzet/emmio
 ```
 
 ## Run ##
