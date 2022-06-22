@@ -72,7 +72,7 @@ class Teacher:
                     not self.learning.check_lexicon
                     or not self.lexicon
                     or not self.lexicon.has(word)
-                    or self.lexicon.get(word) == LexiconResponse.DO_NOT_KNOW
+                    or self.lexicon.get(word) == LexiconResponse.DONT
                 ):
                     self.words.append((index, word))
 
@@ -119,7 +119,7 @@ class Teacher:
                     continue
 
                 if self.learning.check_lexicon and self.lexicon.has(word):
-                    if self.lexicon.get(word) != LexiconResponse.DO_NOT_KNOW:
+                    if self.lexicon.get(word) != LexiconResponse.DONT:
                         debug(f"[{index}] word is known")
                         continue
                     # TODO: else start learning
@@ -146,7 +146,7 @@ class Teacher:
                     if response is None:
                         return False
 
-                    if response != LexiconResponse.DO_NOT_KNOW:
+                    if response != LexiconResponse.DONT:
                         continue
 
                 code: str = self.learn(word, timedelta(), index)
