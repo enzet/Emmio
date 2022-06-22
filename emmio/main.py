@@ -234,6 +234,23 @@ class Emmio:
     def run_lexicon(self, code: str) -> None:
         """Check all user lexicons."""
 
+        if code.endswith(" ra"):
+            language_code = code[1:3]
+            language = construct_language(language_code)
+            lexicon = self.user_data.get_lexicon(language)
+            lexicon.check(
+                self.interface,
+                self.user_data.get_frequency_list_for_lexicon(language),
+                None,
+                Dictionaries(self.get_dictionaries(language)),
+                "most frequent",
+                False,
+                False,
+                None,
+                learning=self.user_data.get_course(f"ru_{language_code}"),
+            )
+            return
+
         priority_path: Path = self.path / "priority"
         priority_path.mkdir(parents=True, exist_ok=True)
 

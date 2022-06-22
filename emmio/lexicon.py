@@ -639,6 +639,7 @@ class Lexicon:
         skip_unknown: bool,
         stop_at_wrong: Optional[int],
         word_list: list[str] = None,
+        learning=None,
     ) -> str:
         """
         Check current user vocabulary.
@@ -664,11 +665,15 @@ class Lexicon:
             log_name = "log"
         elif log_type == "random":
             log_name = "log_random"
+        elif log_type == "most frequent":
+            log_name = "log_top"
         else:
             print("ERROR: unknown log type")
             return "error"
 
         exit_code: str = "quit"
+
+        mf_index: int = 0
 
         while True:
             picked_word = None
@@ -679,6 +684,21 @@ class Lexicon:
                 ) = frequency_list.get_random_word_by_frequency()
             elif log_type == "random":
                 picked_word, occurrences = frequency_list.get_random_word()
+            elif log_type == "most frequent":
+                picked_word, occurrences = frequency_list.get_word_by_index(
+                    mf_index
+                )
+                mf_index += 1
+                if self.has(picked_word) or learning.has(picked_word):
+                    continue
+                items: list[DictionaryItem] = dictionaries.get_items(
+                    picked_word
+                )
+                if not items or not items[0].has_common_definition(
+                    learning.language
+                ):
+                    continue
+                print(f"[{mf_index}]")
 
             if self.do_skip(picked_word, skip_known, skip_unknown, log_name):
                 continue
