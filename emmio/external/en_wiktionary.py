@@ -25,7 +25,13 @@ from emmio.dictionary import (
 from emmio.language import Language, RUSSIAN
 from emmio.ui import network, error
 
-
+PRONUNCIATION_PREFIXES: set[str] = {
+    "rhymes",
+    "syllabification",
+    "hyphenation",
+    "homophone",
+    "homophones",
+}
 FORMS: set[str] = {
     "accusative",
     "active",
@@ -264,14 +270,19 @@ class EnglishWiktionary(Dictionary):
                     pronunciation = pronunciation.strip()
                     if pronunciation.startswith("IPA: "):
                         pronunciation = pronunciation[5:]
-                    if (
-                        pronunciation.startswith("Rhymes: ")
-                        or pronunciation.startswith("Syllabification: ")
-                        or pronunciation.startswith("Hyphenation: ")
-                        or pronunciation.startswith("Homophone: ")
-                        or pronunciation.startswith("Homophones: ")
-                    ):
+
+                    found_prefix: bool = False
+
+                    for prefix in PRONUNCIATION_PREFIXES:
+                        if pronunciation.startswith(
+                            prefix[0].upper() + prefix[1:] + ": "
+                        ):
+                            found_prefix = True
+                            break
+
+                    if found_prefix:
                         continue
+
                     pronunciations.append(pronunciation.strip())
 
             for definition in element["definitions"]:
