@@ -16,7 +16,8 @@ from emmio.dictionary import Dictionaries, DictionaryItem, Dictionary
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.language import GERMAN, Language, construct_language
 from emmio.learning import Learning, ResponseType, SMALLEST_INTERVAL
-from emmio.sentence.core import Translation, Sentences
+from emmio.sentence.core import Translation
+from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.user_data import UserData
 

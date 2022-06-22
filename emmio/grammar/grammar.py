@@ -6,7 +6,8 @@ from typing import Any
 from emmio import ui
 from emmio.language import RUSSIAN, FRENCH
 from emmio.sentence.database import SentenceDatabase
-from emmio.sentence.core import Translation, Sentences, Sentence
+from emmio.sentence.core import Translation, Sentence
+from emmio.sentence.sentences import Sentences
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
