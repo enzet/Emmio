@@ -47,7 +47,7 @@ DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
     "colloquial",
     "dated",
     "figuratively",
-    "informal",
+    # "informal",
     "obsolete",
     "rare",
     "slang",
