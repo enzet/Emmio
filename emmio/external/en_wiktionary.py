@@ -109,7 +109,11 @@ def check_link_type(link_type: str) -> bool:
     link_type: str = (
         link_type.replace("(t\u00fa)", "")
         .replace("(usted)", "")
+        .replace("(ustedes)", "")
+        .replace("(yo)", "")
+        .replace("(nosotros, nosotras)", "")
         .replace("(\u00e9l, ella, also used with usted?)", "")
+        .replace("(ellos; ellas; also used with ustedes?)", "")
         .replace("/", " ")
         .replace("(", "")
         .replace(")", "")
