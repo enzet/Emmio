@@ -40,6 +40,7 @@ class Visualizer:
             "plot learn by depth",
             "plot learn by time by depth",
             "graph 2",
+            "graph 3",
             "actions",
             "actions per day",
             "actions per week",
@@ -67,6 +68,8 @@ class Visualizer:
             self.depth(records, is_time=True, count_by_depth=True)
         if command == "graph 2":
             self.graph_2(records)
+        if command == "graph 3":
+            self.graph_3(records)
         if command == "actions":
             self.actions(records)
         if command == "actions per day":
@@ -296,6 +299,52 @@ class Visualizer:
         x = sorted(x)
         y = range(len(x))
         plt.plot(x, y)
+        self.plot()
+
+    def graph_3(self, records: list[LearningRecord]):
+        x_list = [x.time for x in records]
+        min_x = min(x_list)
+        max_x = max(x_list)
+        point = util.day_start(min_x)
+
+        last_records: dict[str, LearningRecord] = {}
+        data: dict[str, float] = {}
+        index: int = 0
+
+        xs = []
+        ys = []
+        ys2 = []
+        ys3 = []
+
+        while point < max_x:
+            while records[index].time < point:
+                id_ = f"{records[index].course_id}_{records[index].question_id}"
+                last_records[id_] = records[index]
+                if records[index].is_learning():
+                    data[id_] = 1.0
+                index += 1
+            xs.append(point)
+            y = 0
+            y2 = 0
+            for record in last_records.values():
+                if record.time + record.interval > point:
+                    y += 1
+                if record.interval.total_seconds() > 0:
+                    y2 += 1 - 0.2 * min(
+                        5, (point - record.time) / record.interval
+                    )
+            y3 = 0
+            for id_ in data:
+                data[id_] *= 0.99
+                y3 += data[id_]
+            ys.append(y)
+            ys2.append(y2)
+            ys3.append(y3)
+            point += timedelta(days=1)
+
+        plt.plot(xs, ys)
+        plt.plot(xs, ys2)
+        plt.plot(xs, ys3)
         self.plot()
 
     def next_question_time(self, last_records: dict[str, Knowledge]):
