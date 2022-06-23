@@ -30,7 +30,7 @@ class Worker:
         pass
 
     @staticmethod
-    def get_greatings() -> str:
+    def get_greetings() -> str:
         return "Hello."
 
     def has_next_question(self):
@@ -337,7 +337,7 @@ class LearningWorker(Worker):
             self.print_state()
             return "No."
 
-    def get_greatings(self) -> str:
+    def get_greetings(self) -> str:
         return self.learning.name
 
 
@@ -431,7 +431,7 @@ class TelegramServer(Server):
                     (nearest := sorted(self.learnings)[0]).is_ready()
                 ):
                     self.worker = nearest
-                    self.send(nearest.get_greatings())
+                    self.send(nearest.get_greetings())
                     self.state = ServerState.WORKER
                     self.step()
                     break
@@ -439,7 +439,7 @@ class TelegramServer(Server):
                     (nearest := sorted(self.lexicons)[0]).is_ready()
                 ):
                     self.worker = nearest
-                    self.send(nearest.get_greatings())
+                    self.send(nearest.get_greetings())
                     self.state = ServerState.WORKER
                     self.step()
                     break
