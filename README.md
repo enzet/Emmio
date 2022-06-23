@@ -1,24 +1,23 @@
 <img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo.png" />
 
-__Emmio__ is a tool box for learning. It contains:
+__Emmio__ is an experimental project on languages and learning. It consists of:
 
-  * _Teacher_:
+  * _Learning_:
     [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
     flashcard learning system.
-  * _Lexicon_: vocabulary test.
-  * _Text_ analysis.
+  * _Lexicon_: check and track vocabulary level.
 
 ## Installation ##
 
 Requires __Python 3.9__.
 
-```shell script
+```shell
 pip install git+https://github.com/enzet/emmio
 ```
 
 ## Run ##
 
-```shell script
+```shell
 emmio ${DATA_DIRECTORY} ${USER_NAME}
 ```
 
