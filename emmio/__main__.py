@@ -1,6 +1,5 @@
 """Emmio entry point."""
 import sys
-import threading
 from pathlib import Path
 
 import telebot

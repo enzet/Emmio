@@ -1,13 +1,9 @@
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from emmio import ui
-from emmio.language import RUSSIAN, FRENCH
-from emmio.sentence.database import SentenceDatabase
-from emmio.sentence.core import Translation, Sentence
-from emmio.sentence.sentences import Sentences
+from emmio.sentence.core import Sentence
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
