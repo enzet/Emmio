@@ -25,74 +25,11 @@ from emmio.dictionary import (
 from emmio.language import Language, RUSSIAN
 from emmio.ui import network, error
 
-PRONUNCIATION_PREFIXES: set[str] = {
-    "rhymes",
-    "syllabification",
-    "hyphenation",
-    "homophone",
-    "homophones",
-}
-FORMS: set[str] = {
-    "accusative",
-    "active",
-    "affirmative",
-    "adverb",
-    "adverbial",
-    "alternative",
-    "apocopic",
-    "comparative",
-    "conditional",
-    "dative",
-    "degree",
-    "dependent",
-    "diminutive",
-    "feminine",
-    "first",
-    "first-person",
-    "formal",
-    "future",
-    "genitive",
-    "gerund",
-    "historic",
-    "imperative",
-    "imperfect",
-    "indicative",
-    "indefinite",
-    "inflection",
-    "informal",
-    "masculine",
-    "mixed",
-    "neuter",
-    "nominative",
-    "nominal",
-    "obsolete",
-    "participle",
-    "past",
-    "passive",
-    "plural",
-    "present",
-    "preterite",
-    "pronominal",
-    "second",
-    "second-person",
-    "simple",
-    "singular",
-    "strong",
-    "spelling",
-    "subjunctive",
-    "superlative",
-    "synonym",
-    "tense",
-    "third",
-    "third-person",
-    "i",
-    "ii",
-    "iii",
-    "of",
-    "the",
-    "form",
-    "†",
-}
+with (Path(__file__).parent / "config.json").open() as input_file:
+    CONFIG = json.load(input_file)
+
+PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
+FORMS: set[str] = set(CONFIG["forms"])
 
 
 LINK_PATTERN: re.Pattern = re.compile(
