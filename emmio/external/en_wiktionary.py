@@ -25,8 +25,8 @@ from emmio.dictionary import (
 from emmio.language import Language, RUSSIAN
 from emmio.ui import network, error
 
-with (Path(__file__).parent / "config.json").open() as input_file:
-    CONFIG = json.load(input_file)
+with (Path(__file__).parent / "config.json").open() as config_file:
+    CONFIG = json.load(config_file)
 
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
