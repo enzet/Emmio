@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio.language import Language, construct_language
-from emmio.learning import Learning
+from emmio.learning.core import Learning
 from emmio.frequency import FrequencyList, MalformedFile
 from emmio.lexicon import Lexicon
 

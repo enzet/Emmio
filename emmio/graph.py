@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from svgwrite import Drawing
 
 from emmio import util
-from emmio.learning import Knowledge, LearningRecord, ResponseType
+from emmio.learning.core import Knowledge, LearningRecord, ResponseType
 from emmio.lexicon import Lexicon, AnswerType
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start

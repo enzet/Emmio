@@ -11,7 +11,7 @@ from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer, LexiconVisualizer
 from emmio.language import Language, construct_language
-from emmio.learning import Learning, LearningRecord
+from emmio.learning.core import Learning, LearningRecord
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
