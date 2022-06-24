@@ -304,7 +304,12 @@ class SilentLogger(Logger):
         super().network(message)
 
     def progress_bar(
-        self, number: int, total: int, length: int = 20, step: int = 1000
+        self,
+        number: int,
+        total: int,
+        length: int = 20,
+        step: int = 1000,
+        text: str = "",
     ) -> None:
         pass
 
