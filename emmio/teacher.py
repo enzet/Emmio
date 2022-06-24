@@ -102,7 +102,10 @@ class Teacher:
 
             for index, word in self.words:
                 if self.learning.has(word):
-                    debug(f"[{index}] already learning")
+                    if self.learning.is_initially_known(word):
+                        debug(f"[{index}] was initially known")
+                    else:
+                        debug(f"[{index}] already learning")
                     continue
 
                 if word in self.skip:
