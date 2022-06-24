@@ -224,7 +224,18 @@ class Learning:
                 return question_id
 
     def has(self, word: str) -> bool:
+        """Check whether the word is in the learning process."""
         return word in self.knowledges
+
+    def is_initially_known(self, word: str) -> bool:
+        """Check whether the word was initially known."""
+        knowledge: Knowledge = self.knowledges[word]
+
+        return (
+            not knowledge.is_learning()
+            and len(knowledge.responses) == 1
+            and knowledge.responses[0] == ResponseType.RIGHT
+        )
 
     def get_nearest(self, skip: set[str] = None) -> Optional[datetime]:
         """Get nearest repetition time."""
