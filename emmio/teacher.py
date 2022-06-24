@@ -109,12 +109,20 @@ class Teacher:
                     debug(f"[{index}] skipped")
                     continue
 
+                items: list[DictionaryItem] = self.dictionaries.get_items(word)
+                if not items and self.learning_language == GERMAN:
+                    for item in self.dictionaries.get_items(
+                        word[0].upper() + word[1:]
+                    ):
+                        if item not in items:
+                            items.append(item)
+
                 # Skip word if current dictionaries has no definitions for it
                 # or the word is solely a form of other words.
-                items: list[DictionaryItem] = self.dictionaries.get_items(word)
                 if not items:
                     debug(f"[{index}] no definition")
                     continue
+
                 if not items[0].has_common_definition(self.learning.language):
                     debug(f"[{index}] not common")
                     continue
