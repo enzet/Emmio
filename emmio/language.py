@@ -242,4 +242,4 @@ def construct_language(code: str) -> Language:
         if code == language.get_code():
             return language
 
-    return Language(code, DEFAULT_COLOR)
+    raise Exception()
