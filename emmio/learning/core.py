@@ -191,6 +191,7 @@ class Learning:
         sentence_id: int,
         question_id: str,
         interval: timedelta,
+        time: datetime = datetime.now(),
     ) -> None:
         """
         Register student answer.
@@ -199,12 +200,13 @@ class Learning:
         :param sentence_id: sentence identifier was used to learn the word
         :param question_id: question identifier
         :param interval: repeat interval
+        :param time: a moment in time what the action was performed
         """
         record: LearningRecord = LearningRecord(
             question_id,
             answer,
             sentence_id,
-            datetime.now(),
+            time,
             interval,
             self.course_id,
         )
