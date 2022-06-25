@@ -13,10 +13,39 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 
+DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
+    "archaic",
+    "colloquial",
+    "dated",
+    "figuratively",
+    # "informal",
+    "obsolete",
+    "rare",
+    "slang",
+    "spelling",
+]
+
+
 @dataclass
 class Link:
     link_type: str
     link_value: str
+
+    def is_common(self) -> bool:
+        """
+        Check whether this link is common.
+
+        Meaning is not
+            - slang, colloquial,
+            - obsolete, etc.
+        """
+        parts = self.link_type.lower().split(" ")
+
+        for descriptor in DESCRIPTORS_OF_WORDS_TO_IGNORE:
+            if descriptor in parts:
+                return False
+
+        return True
 
     def __hash__(self):
         return hash(f"{self.link_type}_{self.link_value}")
@@ -40,18 +69,6 @@ def hide(text: str, words_to_hide: list[str]) -> str:
             text = text[:start] + "_" * len(word) + text[start + len(word) :]
 
     return text
-
-
-DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
-    "archaic",
-    "colloquial",
-    "dated",
-    "figuratively",
-    # "informal",
-    "obsolete",
-    "rare",
-    "slang",
-]
 
 
 @dataclass
@@ -230,6 +247,9 @@ class Form:
 
         return result
 
+    def get_links(self):
+        return [link for link in self.links if link.is_common()]
+
 
 class DictionaryItem:
     """Dictionary item: word translations."""
@@ -246,12 +266,13 @@ class DictionaryItem:
         """
         Get keys to other dictionary items this dictionary item is linked to.
         """
-        result: set[Link] = set()
-        for definition in self.definitions:
-            definition: Form
-            for link in definition.links:
-                result.add(link)
-        return result
+        return set(
+            [
+                link
+                for definition in self.definitions
+                for link in definition.get_links()
+            ]
+        )
 
     def to_str(
         self,
