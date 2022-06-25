@@ -132,6 +132,7 @@ class Learning:
         self.knowledges: dict[str, Knowledge] = {}
         self.config: dict[str, str] = config
         self.course_id: str = course_id
+        self.is_learning: bool = True
 
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
@@ -163,6 +164,8 @@ class Learning:
             self.ask_lexicon = self.config["ask_lexicon"]
         if "name" in self.config:
             self.name = self.config["name"]
+        if "is_learning" in self.config:
+            self.is_learning = self.config["is_learning"]
 
         for record_structure in records:
             record: LearningRecord = LearningRecord.from_structure(

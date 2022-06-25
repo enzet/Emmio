@@ -110,6 +110,8 @@ class Emmio:
             stat: dict[int, int] = defaultdict(int)
             total: int = 0
             for course_id in sorted_ids:
+                if not self.user_data.get_course(course_id).is_learning:
+                    continue
                 k = self.user_data.get_course(course_id).knowledges
                 for word in k:
                     if k[word].interval.total_seconds() == 0:
@@ -126,6 +128,8 @@ class Emmio:
 
             for course_id in sorted_ids:
                 learning: Learning = self.user_data.get_course(course_id)
+                if not learning.is_learning:
+                    continue
                 row = [
                     learning.name,
                     progress((to_repeat := learning.to_repeat())),
@@ -295,9 +299,18 @@ class Emmio:
         )
         for course_id in sorted_ids:
             learning: Learning = self.user_data.get_course(course_id)
-            lexicon: Lexicon = self.user_data.get_lexicon(
-                construct_language(learning.subject)
-            )
+            if not learning.is_learning:
+                continue
+
+            lexicon: Optional[Lexicon]
+
+            try:
+                lexicon = self.user_data.get_lexicon(
+                    construct_language(learning.subject)
+                )
+            except Exception:
+                lexicon = None
+
             for frequency_list_id in learning.frequency_list_ids:
                 frequency_list: Optional[
                     FrequencyList
