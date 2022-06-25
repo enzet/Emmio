@@ -245,12 +245,15 @@ class Visualizer:
                 data[0 + 2][point(record.time)] += 1
 
         for lexicon in lexicons:
+            last_record = lexicon.logs["log"].records[0]
             for record in lexicon.logs["log"].records:
-                if record.answer_type in [
-                    AnswerType.UNKNOWN,
-                    AnswerType.USER_ANSWER,
-                ]:
+                if (
+                    record.answer_type == AnswerType.USER_ANSWER
+                    or record.answer_type == AnswerType.UNKNOWN
+                    and (record.time - last_record.time).total_seconds() > 0
+                ):
                     data[0][point(record.time)] += 1
+                last_record = record
             if "log_ex" in lexicon.logs:
                 for record in lexicon.logs["log_ex"].records:
                     if record.answer_type in [
