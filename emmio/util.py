@@ -4,6 +4,7 @@ Emmio.
 Utility functions.
 """
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 __author__ = "Sergey Vartanov"
@@ -74,3 +75,13 @@ def download(
         temp_file.write(data)
 
     return data
+
+
+@dataclass
+class MalformedFile(Exception):
+    path: Path
+
+
+@dataclass
+class MalformedData(Exception):
+    message: str

@@ -19,6 +19,8 @@ from emmio.ui import progress_bar
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+from emmio.util import MalformedFile
+
 
 @dataclass
 class WordOccurrences:
@@ -28,11 +30,6 @@ class WordOccurrences:
 
     word: str
     occurrences: int
-
-
-@dataclass
-class MalformedFile(Exception):
-    path: Path
 
 
 class FrequencyList:
