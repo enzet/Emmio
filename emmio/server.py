@@ -37,7 +37,7 @@ class Worker:
     def has_next_question(self):
         pass
 
-    def get_next_question(self):
+    def get_next_question(self) -> list[str]:
         pass
 
     def process_answer(self, message):
@@ -141,20 +141,20 @@ class LearningWorker(Worker):
 
         return r
 
-    def get_next_question(self) -> str:
+    def get_next_question(self) -> list[str]:
 
         debug("get_next_question()")
         self.print_state()
 
         if self.index > 0:
             if self.index < len(self.current_sentences):
-                return self.get_sentence(max_translations=1)
+                return [self.get_sentence(max_translations=1)]
             elif self.index == len(self.current_sentences):
-                return "No more sentences."
+                return ["No more sentences."]
 
         self.word = self.learning.get_next(self.skip)
         if not self.word:
-            return "No more words."
+            return ["No more words."]
 
         self.interval = self.learning.knowledges[self.word].interval
 
@@ -204,9 +204,10 @@ class LearningWorker(Worker):
             for link in item.get_links():
                 words_to_hide.add(link.link_value)
 
-        result: str = ""
+        result: list[str] = []
+        statistics: str = ""
         if self.interval.total_seconds() > 0:
-            result += "◕ " * log_(self.interval)
+            statistics += "◕ " * log_(self.interval) + "\n"
 
         if self.items:
             translation_list = [
@@ -219,15 +220,15 @@ class LearningWorker(Worker):
                 )
                 for x in self.items
             ]
-            result += "\n" + "\n".join(translation_list)
+            result.append(statistics + "\n".join(translation_list))
             self.alternative_forms = set(
                 x.link_value for x in self.items[0].get_links()
             )
         else:
-            result += "\nNo translations."
+            result.append("No translations.")
 
         if index < len(self.current_sentences):
-            result += "\n\n" + self.get_sentence(max_translations=1)
+            result.append(self.get_sentence(max_translations=1))
 
         self.print_state()
 
@@ -457,7 +458,8 @@ class TelegramServer(Server):
                     types.KeyboardButton("Skip"),
                     types.KeyboardButton("Don't know"),
                 )
-                self.send(self.worker.get_next_question())
+                for text in self.worker.get_next_question():
+                    self.send(text)
                 self.state = ServerState.ASKING
             else:
                 self.send("No more questions.")
