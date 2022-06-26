@@ -10,7 +10,7 @@ from emmio.dictionary import Dictionary, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer, LexiconVisualizer
-from emmio.language import Language, construct_language
+from emmio.language import Language, construct_language, LanguageNotFound
 from emmio.learning.core import Learning, LearningRecord
 from emmio.lexicon import Lexicon, LexiconResponse
 from emmio.sentence.database import SentenceDatabase
@@ -308,7 +308,7 @@ class Emmio:
                 lexicon = self.user_data.get_lexicon(
                     construct_language(learning.subject)
                 )
-            except Exception:
+            except LanguageNotFound:
                 lexicon = None
 
             for frequency_list_id in learning.frequency_list_ids:
