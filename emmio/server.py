@@ -19,6 +19,7 @@ from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.sentence.core import Translation
 from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase
+from emmio.ui import debug
 from emmio.user_data import UserData
 
 
@@ -84,7 +85,7 @@ class LearningWorker(Worker):
         self.items: list[DictionaryItem] = []
 
     def print_state(self):
-        print(
+        debug(
             f"sent.: {self.index}/{len(self.current_sentences)}, "
             f"skip: {len(self.skip)}, "
             f"to repeat: {self.learning.to_repeat(self.skip)}"
@@ -142,7 +143,7 @@ class LearningWorker(Worker):
 
     def get_next_question(self) -> str:
 
-        print("get_next_question()")
+        debug("get_next_question()")
         self.print_state()
 
         if self.index > 0:
@@ -234,7 +235,7 @@ class LearningWorker(Worker):
 
     def process_answer(self, message):
 
-        print("process_answer()")
+        debug("process_answer()")
         self.print_state()
 
         answer: str = message
@@ -444,7 +445,7 @@ class TelegramServer(Server):
                     self.step()
                     break
                 else:
-                    print(f"{datetime.now()} Waiting...")
+                    debug(f"{datetime.now()} Waiting...")
                     sleep(60)
 
         elif self.state == ServerState.WORKER:
