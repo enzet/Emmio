@@ -29,6 +29,13 @@ colors: list[str] = [
 ]  # fmt: skip
 
 
+def get_depth(interval: timedelta) -> int:
+    if not (seconds := interval.total_seconds()):
+        return 0
+
+    return int(np.log2(seconds / 60.0 / 60.0 / 24.0))
+
+
 class Visualizer:
     def __init__(self, interactive: bool = True):
         self.interactive: bool = interactive
@@ -122,7 +129,7 @@ class Visualizer:
 
         def idn():
             return (
-                f"{knowledges[record.question_id].get_depth():05},"
+                f"{get_depth(knowledges[record.question_id].interval):05},"
                 f"{knowledges[record.question_id].get_answers_number():05}"
             )
 
