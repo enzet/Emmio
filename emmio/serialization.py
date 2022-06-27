@@ -1,8 +1,13 @@
 import io
+from datetime import datetime
 from typing import Optional
 
 
+BOOLEAN_NONE: bytes = b"\x02"
+DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 ENDIAN: str = "little"
+EPOCH: datetime = datetime(1970, 1, 1)
+SAME: int = 255
 
 
 class Encoder:
