@@ -7,14 +7,15 @@ Versions are:
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Union
+from typing import Union, Any
 
 import yaml
 
-from emmio.util import MalformedFile
 from emmio.learning.core import Learning, ResponseType
+from emmio.serialization import Decoder, DATE_FORMAT, EPOCH
+from emmio.util import MalformedFile
 
-EPOCH: datetime = datetime(1970, 1, 1)
+ANSWERS: list[str] = ["y", "n", "s"]
 
 # Learning intervals in minutes, other intervals are 2.5 times previous
 # interval.
@@ -111,6 +112,50 @@ class LearningYAMLDecoder:
             except (ValueError, IndexError):
                 interval *= 2.5
         return interval
+
+
+class LearningBinaryDecoder(Decoder):
+    """
+    Decoder for learning process log.
+    """
+
+    MAGIC: bytes = b"EMMLEA"
+    VERSION_MAJOR: int = 0
+    VERSION_MINOR: int = 1
+
+    def decode(self) -> list[dict[str, Any]]:
+        """Decode learning process log structure from binary format."""
+        self.decode_magic()
+
+        structure: list[dict[str, Any]] = []
+
+        first_time: datetime = EPOCH + timedelta(
+            seconds=self.decode_int(8), microseconds=self.decode_int(4)
+        )
+        last_time: datetime = first_time
+
+        while True:
+            try:
+                element: dict[str, Any] = {}
+                time: datetime = last_time + timedelta(
+                    seconds=self.decode_int(4)
+                )
+                microseconds = self.decode_int(4)
+                element["time"] = (
+                    time.strftime(DATE_FORMAT) + f".{microseconds:06d}"
+                )
+                element["word"] = self.decode_string()
+                element["answer"] = self.decode_enum(ANSWERS)
+                element["sentence_id"] = self.decode_int(4)
+                element["interval"] = float(self.decode_int(4))
+
+                structure.append(element)
+
+                last_time = time
+            except EOFError:
+                break
+
+        return structure
 
 
 if __name__ == "__main__":
