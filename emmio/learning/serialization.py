@@ -1,3 +1,9 @@
+"""
+Learning process readers and writers.
+
+Versions are:
+  - 0.1: old serialization in YAML files.
+"""
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,10 +27,18 @@ INTERVALS = [
 
 
 class LearningYAMLDecoder:
+    """
+    Reader for learning process scheme version 0.1.
+
+    These are YAML files with predefined learning intervals and no precise
+    information on each individual learning record.
+    """
+
     @staticmethod
     def decode(
         id_: str, path: Path, structure: dict[str, dict[str, Union[str, int]]]
     ) -> Learning:
+        """Decode learning process from structure."""
 
         learning: Learning = Learning(
             path,
@@ -45,7 +59,6 @@ class LearningYAMLDecoder:
                 continue
             added: datetime = EPOCH + timedelta(seconds=process["added"] * 60)
             last: datetime = EPOCH + timedelta(seconds=process["last"] * 60)
-            plan: datetime = EPOCH + timedelta(seconds=process["plan"] * 60)
 
             answers: str = process["answers"]
             count: float = 0.0
@@ -81,7 +94,13 @@ class LearningYAMLDecoder:
         return learning
 
     @staticmethod
-    def compute_next_interval(answer, interval):
+    def compute_next_interval(answer: str, interval: float):
+        """
+        Compute next learning interval based on the current interval and answer.
+
+        :param answer: "y" for known and "n" for unknown
+        :param interval: current learning interval in minutes
+        """
         if answer == "n":
             interval = INTERVALS[0]
         elif answer == "y":
