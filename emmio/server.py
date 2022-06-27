@@ -28,6 +28,9 @@ from emmio.ui import debug
 from emmio.user_data import UserData
 
 
+MAXIMUM_MESSAGE_SIZE: int = 512
+
+
 class Worker:
     def __lt__(self, other: "Worker") -> bool:
         raise NotImplementedError()
@@ -400,7 +403,14 @@ class TelegramServer(Server):
         self.bot.register_next_step_handler(message, self.receive_message)
 
     def send(self, message: str, markup=None):
-        self.bot.send_message(self.id_, message, reply_markup=markup)
+
+        if len(message) > MAXIMUM_MESSAGE_SIZE:
+            message = message[:MAXIMUM_MESSAGE_SIZE] + "..."
+
+        try:
+            self.bot.send_message(self.id_, message, reply_markup=markup)
+        except telebot.apihelper.ApiTelegramException:
+            pass
 
     def receive_message(self, message: Message):
         self.id_ = message.chat.id
