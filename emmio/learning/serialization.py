@@ -18,7 +18,7 @@ EPOCH: datetime = datetime(1970, 1, 1)
 
 # Learning intervals in minutes, other intervals are 2.5 times previous
 # interval.
-INTERVALS = [
+INTERVALS: list[float] = [
     5.0,
     12.0,
     30.0 * 24.0,
@@ -57,6 +57,7 @@ class LearningYAMLDecoder:
                 or "answers" not in process
             ):
                 continue
+
             added: datetime = EPOCH + timedelta(seconds=process["added"] * 60)
             last: datetime = EPOCH + timedelta(seconds=process["last"] * 60)
 
@@ -94,7 +95,7 @@ class LearningYAMLDecoder:
         return learning
 
     @staticmethod
-    def compute_next_interval(answer: str, interval: float):
+    def compute_next_interval(answer: str, interval: float) -> float:
         """
         Compute next learning interval based on the current interval and answer.
 
@@ -113,6 +114,11 @@ class LearningYAMLDecoder:
 
 
 if __name__ == "__main__":
+    """
+    Arguments:
+      - path to learning process YAML file version 0.1,
+      - path to directory to store created JSON files.
+    """
 
     path: str = sys.argv[1]
     learning_directory: str = sys.argv[2]
