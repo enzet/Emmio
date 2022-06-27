@@ -12,7 +12,7 @@ from typing import Union, Any
 import yaml
 
 from emmio.learning.core import Learning, ResponseType
-from emmio.serialization import Decoder, DATE_FORMAT, EPOCH
+from emmio.serialization import Decoder, DATE_FORMAT, EPOCH, Encoder
 from emmio.util import MalformedFile
 
 ANSWERS: list[str] = ["y", "n", "s"]
@@ -114,10 +114,51 @@ class LearningYAMLDecoder:
         return interval
 
 
+class LearningEncoder(Encoder):
+    """
+    Encoder for learning process log structure.
+    """
+
+    MAGIC: bytes = b"EMMLEA"
+    VERSION_MAJOR: int = 0
+    VERSION_MINOR: int = 1
+
+    def encode(self, structure: list[dict[str, Any]]) -> None:
+        """
+        Encode learning log structure into the binary format (all integers are
+        encoded with big endian). For the input structure description, see
+        Decoder.decode_learning method.
+
+        - First date in seconds since epoch (1 January 1970), 8-byte floating
+          point.
+        """
+        self.encode_magic()
+
+        assert len(structure)
+
+        first_time: datetime = datetime.strptime(
+            structure[0]["time"][:-7], DATE_FORMAT
+        )
+        last_time: datetime = first_time
+        self.encode_int(int((first_time - EPOCH).total_seconds()), 8)
+        self.encode_int(int(structure[0]["time"][-6:]), 4)
+
+        for element in structure:
+            time: datetime = datetime.strptime(
+                element["time"][:-7], DATE_FORMAT
+            )
+            self.encode_int(int((time - last_time).total_seconds()), 4)
+            self.encode_int(int(element["time"][-6:]), 4)
+            self.encode_string(element["word"])
+            self.encode_enum(element["answer"], ANSWERS)
+            self.encode_int(element["sentence_id"], 4)
+            self.encode_int(int(element["interval"]), 4)
+
+            last_time = time
+
+
 class LearningBinaryDecoder(Decoder):
-    """
-    Decoder for learning process log.
-    """
+    """Decoder for learning process log."""
 
     MAGIC: bytes = b"EMMLEA"
     VERSION_MAJOR: int = 0
