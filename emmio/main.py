@@ -220,7 +220,9 @@ class Emmio:
             records: list[LearningRecord] = []
             knowledges = {}
             for course_id in self.user_data.course_ids:
-                learning = self.user_data.get_course(course_id)
+                learning: Learning = self.user_data.get_course(course_id)
+                if not learning.is_learning:
+                    continue
                 ratios += learning.ratio
                 learning_words += learning.learning()
                 records += learning.records
