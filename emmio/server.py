@@ -14,7 +14,12 @@ from telebot.types import Message
 from emmio import ui, util
 from emmio.dictionary import Dictionaries, DictionaryItem, Dictionary
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.language import GERMAN, Language, construct_language
+from emmio.language import (
+    GERMAN,
+    Language,
+    construct_language,
+    LanguageNotFound,
+)
 from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.sentence.core import Translation
 from emmio.sentence.sentences import Sentences
@@ -59,7 +64,7 @@ class LearningWorker(Worker):
         self.learning_language: Optional[Language]
         try:
             self.learning_language = construct_language(learning.subject)
-        except KeyError:
+        except LanguageNotFound:
             self.learning_language = None
 
         self.interface: ui.Interface = ui.TelegramInterface()
@@ -380,6 +385,7 @@ class TelegramServer(Server):
                 user_data.get_course(x), user_data, Path("cache"), sentence_db
             )
             for x in user_data.course_ids
+            if user_data.get_course(x).is_learning
         ]
         self.lexicons: list[LexiconWorker] = []
         self.bot: telebot.TeleBot = bot
