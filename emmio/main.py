@@ -18,7 +18,7 @@ from emmio.teacher import Teacher
 from emmio.ui import Logger, set_log, Interface, progress
 from emmio.user_data import UserData
 
-"""
+LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word
 <n>             I don’t know any of meanings of the word
 <s>             I know at least one meanings of the word and I’m sure I
