@@ -42,9 +42,6 @@ class Worker:
     def get_greetings() -> str:
         return "Hello."
 
-    def has_next_question(self):
-        pass
-
     def get_next_question(self) -> list[str]:
         pass
 
