@@ -363,7 +363,7 @@ class Teacher:
                     self.user_data.exclude_translation(w, t)
                     continue
 
-            if answer == "n":
+            if answer == "/no":
 
                 self.interface.box(word)
                 if items:
