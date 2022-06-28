@@ -29,6 +29,7 @@ from emmio.user_data import UserData
 
 
 MAXIMUM_MESSAGE_SIZE: int = 512
+HIDE_SYMBOL: str = "░"
 
 
 class Worker:
@@ -137,7 +138,7 @@ class LearningWorker(Worker):
             else:
                 if w:
                     if w.lower() == self.word:
-                        r += "░" * len(self.word)
+                        r += HIDE_SYMBOL * len(self.word)
                     else:
                         r += w
                 r += char
