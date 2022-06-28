@@ -233,7 +233,7 @@ class LearningWorker(Worker):
                 x.link_value for x in self.items[0].get_links()
             )
         else:
-            result.append("No translations.")
+            result.append(statistics + "\nNo translations.")
 
         if index < len(self.current_sentences):
             result.append(self.get_sentence(max_translations=1))
