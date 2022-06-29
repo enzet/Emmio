@@ -31,7 +31,7 @@ def main():
         server.start(message)
 
     @bot.message_handler(commands=["status"])
-    def status(message: Message):
+    def status(_: Message):
         """Start Emmio process."""
         server.status()
 
@@ -42,7 +42,7 @@ def main():
 
     while True:
         try:
-            bot.infinity_polling()
+            bot.polling(non_stop=True)
         except Exception as e:
             print(e)
 
