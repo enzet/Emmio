@@ -7,8 +7,8 @@ from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
 
 from emmio.learning.core import LearningRecord, Knowledge
 
-colors: list[str] = [
-    "#CCCCCC",  # "#ff4444", "#ff8866", "#ffc183",
+DEPTH_COLORS: list[str] = [
+    "#CCCCCC",
     "#b7c183", "#74c183", "#3e8a83", "#3e5583",
     "#400083", "#380073", "#300063", "#280053",
     "#200043", "#180033", "#100023", "#080013",
@@ -106,7 +106,7 @@ class LearningVisualizer:
             # color =
             # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}
             # {hex(number)[2:]:>02}"
-            color = colors[depth + 1]
+            color = DEPTH_COLORS[depth + 1]
             plt.fill_between(x, [0] * (len(x) - len(y[i])) + y[i], color=color)
 
         plt.title("Question depth")

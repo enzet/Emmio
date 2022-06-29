@@ -13,7 +13,7 @@ from svgwrite import Drawing
 
 from emmio import util
 from emmio.learning.core import Knowledge, LearningRecord, ResponseType
-from emmio.learning.visualizer import LearningVisualizer, colors
+from emmio.learning.visualizer import LearningVisualizer, DEPTH_COLORS
 from emmio.lexicon import Lexicon, AnswerType
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
@@ -171,7 +171,7 @@ class Visualizer:
                 color = "#D8E0E8"
                 label = "Checking new words"
             else:
-                color = colors[i + 1 - 2]
+                color = DEPTH_COLORS[i + 1 - 2]
                 label = f"Learning level {i + 1 - 2}"
 
             ys = [sum(data[y][x] for y in range(i, size)) for x in xs]
