@@ -123,10 +123,10 @@ class LearningVisualizer:
 
             for i in range(7):
                 for j in range(10, 0, -1):
-                    if f"{i},{j}" in y:
+                    if f"{i:05},{j:05}" in y:
                         plt.text(
                             x[-1],
-                            y[f"{i},{j}"][-1],
+                            y[f"{i:05},{j:05}"][-1],
                             f"{2 ** i} days",
                             transform=trans_offset,
                         )
