@@ -45,6 +45,8 @@ class LearningVisualizer:
         y = {}
         x = []
 
+        max_depth: int = 0
+
         knowledges = {}
 
         def idn():
@@ -102,6 +104,7 @@ class LearningVisualizer:
             # plt.fill_between(range(len(y[i])), y[i], color=colors[i])
             # ax.fill_between(x, y[i], color=colors[i])
             depth, returns = map(lambda z: int(z) * 1, i.split(","))
+            max_depth = max(max_depth, depth)
             number = max(0, 255 - returns * 0 - depth * 10)
             # color =
             # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}
@@ -121,7 +124,7 @@ class LearningVisualizer:
                 ax.transData, fig=fig, x=0.1, y=0
             )
 
-            for i in range(7):
+            for i in range(max_depth + 1):
                 for j in range(10, 0, -1):
                     if f"{i:05},{j:05}" in y:
                         plt.text(
