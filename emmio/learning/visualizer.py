@@ -37,36 +37,45 @@ class LearningVisualizer:
     show_text: bool = False
 
     count_by_depth: bool = False
+    show_not_learning: bool = False
+    color_mode: str = "depth_colors"
+
     interactive: bool = True
 
     def draw(self):
         """Show depth graph."""
         data = defaultdict(float)
-        y = {}
         x = []
+        y = {}
 
         max_depth: int = 0
 
         knowledges = {}
 
-        def idn():
+        def compute_data_id() -> str:
             return (
                 f"{get_depth(knowledges[record.question_id].interval):05},"
                 f"{knowledges[record.question_id].get_answers_number():05}"
             )
 
+        def parse_data_id() -> list[int]:
+            return [int(z) for z in id_.split(",")]
+
         count = 0
 
-        for index, record in enumerate(self.records):
+        # Compute data for the plot.
+
+        for record in self.records:
             if record.question_id in knowledges:
-                data[idn()] -= (
+                data[compute_data_id()] -= (
                     1 / (2 ** knowledges[record.question_id].get_depth())
                     if self.count_by_depth
                     else 1
                 )
             if not record.is_learning():
+                if self.show_not_learning:
+                    data["00010,00001"] += 1
                 continue
-                data["00010,00001"] += 1
             else:
                 last_answers = (
                     knowledges[record.question_id].responses
@@ -79,7 +88,7 @@ class LearningVisualizer:
                     record.time,
                     record.interval,
                 )
-                data[idn()] += (
+                data[compute_data_id()] += (
                     1 / (2 ** knowledges[record.question_id].get_depth())
                     if self.count_by_depth
                     else 1
@@ -100,21 +109,31 @@ class LearningVisualizer:
             ax.xaxis.set_major_locator(locator)
             ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
 
-        for i in sorted(data.keys()):
-            # plt.fill_between(range(len(y[i])), y[i], color=colors[i])
-            # ax.fill_between(x, y[i], color=colors[i])
-            depth, returns = map(lambda z: int(z) * 1, i.split(","))
+        # Plot data.
+
+        for id_ in sorted(data.keys()):
+            depth, returns = parse_data_id()
             max_depth = max(max_depth, depth)
-            number = max(0, 255 - returns * 0 - depth * 10)
-            # color =
-            # f"#{hex(number)[2:]:>02}{hex(number)[2:]:>02}
-            # {hex(number)[2:]:>02}"
-            color = DEPTH_COLORS[depth + 1]
-            plt.fill_between(x, [0] * (len(x) - len(y[i])) + y[i], color=color)
+
+            color: str
+            if self.color_mode == "return_colors":
+                number: int = max(0, 255 - returns * 0 - depth * 10)
+                color = (
+                    f"#{hex(number)[2:]:>02}"
+                    f"{hex(number)[2:]:>02}"
+                    f"{hex(number)[2:]:>02}"
+                )
+            else:  # Depth colors.
+                color = DEPTH_COLORS[depth + 1]
+
+            plt.fill_between(
+                x, [0] * (len(x) - len(y[id_])) + y[id_], color=color
+            )
 
         plt.title("Question depth")
         plt.xlabel("Time" if self.is_time else "Actions")
         plt.ylabel("Questions")
+
         if not self.is_time:
             plt.xlim(xmin=0)
         plt.ylim(ymin=0)
@@ -124,13 +143,14 @@ class LearningVisualizer:
                 ax.transData, fig=fig, x=0.1, y=0
             )
 
-            for i in range(max_depth + 1):
+            for depth in range(max_depth + 1):
                 for j in range(10, 0, -1):
-                    if f"{i:05},{j:05}" in y:
+                    id_: str = f"{depth:05},{j:05}"
+                    if id_ in y:
                         plt.text(
                             x[-1],
-                            y[f"{i:05},{j:05}"][-1],
-                            f"{2 ** i} days",
+                            y[id_][-1],
+                            f"{2 ** depth} days",
                             transform=trans_offset,
                         )
                         break
