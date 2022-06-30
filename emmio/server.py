@@ -382,6 +382,8 @@ class Server:
 
 
 class EmmioServer(Server):
+    """Server for Emmio learning and testing processes."""
+
     def __init__(self, user_data: UserData):
         self.user_data = user_data
 
@@ -400,33 +402,6 @@ class EmmioServer(Server):
 
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
-
-
-class TelegramServer(EmmioServer):
-    def __init__(self, user_data: UserData, bot) -> None:
-        super().__init__(user_data)
-
-        self.bot: telebot.TeleBot = bot
-
-    def start(self, message):
-        self.id_ = message.chat.id
-        self.step(message.text)
-        self.bot.register_next_step_handler(message, self.receive_message)
-
-    def send(self, message: str, markup=None):
-
-        if len(message) > MAXIMUM_MESSAGE_SIZE:
-            message = message[:MAXIMUM_MESSAGE_SIZE] + "..."
-
-        try:
-            self.bot.send_message(self.id_, message, reply_markup=markup)
-        except telebot.apihelper.ApiTelegramException:
-            pass
-
-    def receive_message(self, message: Message):
-        self.id_ = message.chat.id
-        self.step(message.text)
-        self.bot.register_next_step_handler(message, self.receive_message)
 
     def status(self) -> None:
         if not self.id_:
@@ -447,9 +422,6 @@ class TelegramServer(EmmioServer):
                 self.send(f"New question in {time_to_new}.")
         else:
             self.send("Alive.")
-
-    def statistics(self, message: Message):
-        self.send(message.text)
 
     def step(self, message: Optional[str] = None):
 
@@ -479,7 +451,9 @@ class TelegramServer(EmmioServer):
         elif self.state == ServerState.WORKER:
             if self.worker.is_ready():
                 markup = types.ReplyKeyboardMarkup(
-                    row_width=2, resize_keyboard=False
+                    row_width=2,
+                    resize_keyboard=True,
+                    one_time_keyboard=True,
                 )
                 markup.add(
                     types.KeyboardButton("Skip"),
@@ -504,3 +478,46 @@ class TelegramServer(EmmioServer):
 
             self.state = ServerState.WORKER
             self.step()
+
+
+class TerminalServer(EmmioServer):
+    """Emmio server with command-line interface."""
+
+    def __init__(self, user_data: UserData, interface: ui.Interface):
+        super().__init__(user_data)
+        self.interface: ui.Interface = interface
+
+    def send(self, message: str):
+        self.interface.print(message)
+
+
+class TelegramServer(EmmioServer):
+    """Emmio server for Telegram messenger."""
+
+    def __init__(self, user_data: UserData, bot) -> None:
+        super().__init__(user_data)
+
+        self.bot: telebot.TeleBot = bot
+
+    def start(self, message):
+        self.id_ = message.chat.id
+        self.step(message.text)
+        self.bot.register_next_step_handler(message, self.receive_message)
+
+    def send(self, message: str, markup=None):
+
+        if len(message) > MAXIMUM_MESSAGE_SIZE:
+            message = message[:MAXIMUM_MESSAGE_SIZE] + "..."
+
+        try:
+            self.bot.send_message(self.id_, message, reply_markup=markup)
+        except telebot.apihelper.ApiTelegramException:
+            pass
+
+    def receive_message(self, message: Message):
+        self.id_ = message.chat.id
+        self.step(message.text)
+        self.bot.register_next_step_handler(message, self.receive_message)
+
+    def statistics(self, message: Message):
+        self.send(message.text)
