@@ -381,9 +381,10 @@ class Server:
         pass
 
 
-class TelegramServer(Server):
-    def __init__(self, user_data: UserData, bot) -> None:
-        self.user_data: UserData = user_data
+class EmmioServer(Server):
+    def __init__(self, user_data: UserData):
+        self.user_data = user_data
+
         sentence_db: SentenceDatabase = SentenceDatabase(
             user_data.path / "sentence.db"
         )
@@ -395,11 +396,17 @@ class TelegramServer(Server):
             if user_data.get_course(x).is_learning
         ]
         self.lexicons: list[LexiconWorker] = []
-        self.bot: telebot.TeleBot = bot
         self.id_: int = 0
 
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
+
+
+class TelegramServer(EmmioServer):
+    def __init__(self, user_data: UserData, bot) -> None:
+        super().__init__(user_data)
+
+        self.bot: telebot.TeleBot = bot
 
     def start(self, message):
         self.id_ = message.chat.id
