@@ -403,6 +403,9 @@ class EmmioServer(Server):
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
 
+    def start(self, message):
+        pass
+
     def status(self) -> None:
         if not self.id_:
             return
