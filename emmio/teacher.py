@@ -343,6 +343,17 @@ class Teacher:
                 self.skip.add(word)
                 return "ok"
 
+            if answer.startswith("/skip "):
+                _, word_to_skip = answer.split(" ")
+                self.learning.register(
+                    ResponseType.SKIP,
+                    0,
+                    word_to_skip,
+                    timedelta(),
+                )
+                self.learning.write()
+                return "ok"
+
             if answer == "/stop":
                 return "stop"
 
