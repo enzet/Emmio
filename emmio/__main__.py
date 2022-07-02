@@ -66,6 +66,10 @@ def main():
             except Exception as e:
                 print(e)
 
+    elif arguments.mode == "terminal":
+        server = TerminalServer(user_data, ui.TerminalInterface())
+        server.start("/start")
+
 
 if __name__ == "__main__":
     main()
