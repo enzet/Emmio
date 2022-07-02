@@ -367,10 +367,10 @@ class LexiconWorker(Worker):
 
 
 class ServerState(Enum):
-    NOTHING = "nothing"
-    WORKER = "worker"
-    ASKING = "asking"
-    PROCESSING = "processing"
+    NOTHING = 0
+    WORKER = 1
+    ASKING = 2
+    PROCESSING = 3
 
 
 class Server:
