@@ -753,46 +753,41 @@ class Lexicon:
         log_name: str,
     ) -> bool:
 
-        last_record: LexiconLogRecord = self.get_last_answer(
-            picked_word, log_name
-        )
+        last_response: Optional[LexiconResponse] = None
+        if self.has(picked_word):
+            last_response = self.get(picked_word)
 
-        if last_record is not None:
+        if last_response is not None:
             if (
                 self.words[picked_word].to_skip
-                or (
-                    skip_known and self.get(picked_word) == LexiconResponse.KNOW
-                )
-                or (
-                    skip_unknown
-                    and self.get(picked_word) == LexiconResponse.DONT
-                )
+                or skip_known
+                and last_response == LexiconResponse.KNOW
+                or skip_unknown
+                and last_response == LexiconResponse.DONT
             ):
                 print("[propagate.skip] " + picked_word)
-
-                response: LexiconResponse = self.get(picked_word)
                 to_skip: bool = self.words[picked_word].to_skip
                 self.register(
                     picked_word,
-                    response,
+                    last_response,
                     to_skip,
                     log_name=log_name,
                     answer_type=AnswerType.PROPAGATE__SKIP,
                 )
                 return True
 
-            if self.get(picked_word) == LexiconResponse.NOT_A_WORD:
-                answer_type = AnswerType.PROPAGATE__NOT_A_WORD
+            if last_response == LexiconResponse.NOT_A_WORD:
+                print("[propagate.not_a_word] " + picked_word)
                 self.register(
                     picked_word,
                     LexiconResponse.NOT_A_WORD,
                     None,
                     log_name=log_name,
-                    answer_type=answer_type,
+                    answer_type=AnswerType.PROPAGATE__NOT_A_WORD,
                 )
                 return True
 
-            was_user_answer: bool = False
+            was_answered_recently: bool = False
 
             for record in reversed(self.logs[log_name].records):
                 delta = record.time - datetime.now()
@@ -802,14 +797,14 @@ class Lexicon:
                     picked_word == record.word
                     and record.answer_type == AnswerType.USER_ANSWER
                 ):
-                    was_user_answer = True
+                    was_answered_recently = True
                     break
 
-            if was_user_answer:
+            if was_answered_recently:
                 print("[propagate.time] " + picked_word)
                 self.register(
                     picked_word,
-                    last_record.response,
+                    last_response,
                     None,
                     log_name=log_name,
                     answer_type=AnswerType.PROPAGATE__TIME,
@@ -819,14 +814,14 @@ class Lexicon:
         # Mark word as "not a word" if it contains symbols that do not appear
         # in language.
 
-        foreign = False
+        is_foreign: bool = False
         if self.language.get_symbols():
             for symbol in picked_word:
                 if symbol not in self.language.get_symbols():
-                    foreign = True
+                    is_foreign = True
                     break
 
-        if foreign:
+        if is_foreign:
             print("[assume.not_a_word] " + picked_word)
             self.register(
                 picked_word,
