@@ -207,6 +207,7 @@ class Form:
         show_word: bool = True,
         words_to_hide: set[str] = None,
         hide_translations: set[str] = None,
+        only_common: bool = True,
     ) -> str:
         """Get human-readable representation of the word form."""
         to_hide: Optional[list[str]] = None
@@ -230,7 +231,9 @@ class Form:
                 if string is not None and string not in definitions:
                     definitions.append(string)
 
-        if not definitions and not self.links:
+        links: list[Link] = self.get_links(only_common)
+
+        if not definitions and not links:
             return ""
 
         result: str = interface.colorize(desc, "grey") + "\n"
@@ -238,17 +241,18 @@ class Form:
         if definitions:
             result += "    " + "\n    ".join(definitions) + "\n"
 
-        if self.links:
-            for link in self.links:
-                if show_word:
-                    result += f"    -> {link.link_type} of {link.link_value}\n"
-                else:
-                    result += f"    -> {link.link_type}\n"
+        for link in links:
+            if show_word:
+                result += f"    -> {link.link_type} of {link.link_value}\n"
+            else:
+                result += f"    -> {link.link_type}\n"
 
         return result
 
-    def get_links(self):
-        return [link for link in self.links if link.is_common()]
+    def get_links(self, only_common: bool = True):
+        return [
+            link for link in self.links if not only_common or link.is_common()
+        ]
 
 
 class DictionaryItem:
