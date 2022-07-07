@@ -2,7 +2,12 @@ from datetime import datetime
 from pathlib import Path
 
 from emmio.language import ENGLISH
-from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog, WordSelection
+from emmio.lexicon.core import (
+    Lexicon,
+    LexiconLog,
+    LexiconResponse,
+    WordSelection,
+)
 
 
 def test_lexicon() -> None:
