@@ -345,9 +345,11 @@ class Lexicon:
         return count_ratio
 
     def has(self, word: str) -> bool:
+        """Check whether there is a response in at least one log."""
         return word in self.words
 
     def get(self, word: str) -> LexiconResponse:
+        """Get the most recent response from all logs."""
         return self.words[word].knowing
 
     def get_log_size(self, log_name: str) -> int:
@@ -359,9 +361,7 @@ class Lexicon:
     def count_unknowns(
         self, log_name: str, point_1: datetime = None, point_2: datetime = None
     ) -> int:
-        """
-        Return the number of UNKNOWN answers.
-        """
+        """Return the number of UNKNOWN answers."""
         records: Iterator[LexiconLogRecord] = filter(
             lambda record: not point_1 or point_1 <= record.time <= point_2,
             self.logs[log_name].records,
