@@ -86,8 +86,6 @@ class EnglishWiktionary(Dictionary):
         self.cache_directory: Path = cache_directory
         self.parser: WiktionaryParser = WiktionaryParser()
 
-        self.add_obsolete: bool = False
-
     @staticmethod
     def process_definition(text: str) -> Union[Link, Definition]:
 
