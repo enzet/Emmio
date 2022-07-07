@@ -214,7 +214,12 @@ class Emmio:
             )
 
         if command == "data":
-            self.fill_data("en", "en_opensubtitles_2016")
+            for course_id in self.user_data.course_ids:
+                learning: Learning = self.user_data.get_course(course_id)
+                self.fill_data(
+                    construct_language(learning.subject),
+                    learning.frequency_list_ids[0],
+                )
 
         if command in Visualizer.get_commands():
             ratios = 0
@@ -390,16 +395,16 @@ class Emmio:
             print(f"    New question in {time_to_new}.")
         print()
 
-    def fill_data(self, language, fl) -> None:
+    def fill_data(self, language: Language, fl) -> None:
         fr = self.user_data.get_frequency_list(fl)
 
         words = {}
-        learn: Learning = self.user_data.get_course(f"ru_{language}")
+        learn: Learning = self.user_data.get_course(f"ru_{language.get_code()}")
         for record in learn.records:
             if record.question_id not in words:
                 words[record.question_id] = {
                     "word": record.question_id,
-                    "language": language,
+                    "language": language.get_code(),
                     "addTime": record.time,
                     "nextQuestionTime": record.time + record.interval,
                     "vector": record.answer.value,
@@ -411,14 +416,12 @@ class Emmio:
                 )
                 words[record.question_id]["vector"] += record.answer.value
 
-        lexicon: Lexicon = self.user_data.get_lexicon(
-            construct_language(language)
-        )
+        lexicon: Lexicon = self.user_data.get_lexicon(language)
         for word in lexicon.words:
             if word not in words:
                 words[word] = {
                     "word": word,
-                    "language": language,
+                    "language": language.get_code(),
                     "addTime": datetime.now(),
                     "nextQuestionTime": datetime.now(),
                     "vector": "N"
@@ -454,8 +457,10 @@ class Emmio:
 
         w = list(sorted(w, key=lambda x: x["index"]))
 
-        with (Path("web") / f"{language}.js").open("w") as output_file:
-            output_file.write(f"{language} = ")
+        with (Path("web") / f"{language.get_code()}.js").open(
+            "w"
+        ) as output_file:
+            output_file.write(f"{language.get_code()} = ")
             json.dump(w, output_file)
             output_file.write(";")
 
