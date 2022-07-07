@@ -422,8 +422,7 @@ class Emmio:
                     "addTime": datetime.now(),
                     "nextQuestionTime": datetime.now(),
                     "vector": "N"
-                    if lexicon.words[word].knowing
-                    == LexiconResponse.DO_NOT_KNOW
+                    if lexicon.words[word].knowing == LexiconResponse.DONT
                     else "Y",
                     "index": fr.get_index(word),
                 }
