@@ -133,7 +133,9 @@ class Emmio:
                 row = [
                     learning.name,
                     progress((to_repeat := learning.to_repeat())),
-                    progress((new := learning.ratio - learning.new_today())),
+                    progress(
+                        (new := max(0, learning.ratio - learning.new_today()))
+                    ),
                     str((all_ := learning.learning())),
                 ]
                 rows.append(row)
@@ -346,7 +348,9 @@ class Emmio:
         sorted_ids = sorted(
             self.user_data.course_ids,
             key=lambda x: (
-                self.user_data.get_course(x).learning()
+                0
+                if not self.user_data.get_course(x).ratio
+                else self.user_data.get_course(x).learning()
                 / self.user_data.get_course(x).ratio
             ),
         )
