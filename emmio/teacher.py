@@ -1,6 +1,4 @@
-"""
-Teacher.
-"""
+"""Teacher."""
 import math
 import random
 from datetime import timedelta
@@ -11,7 +9,12 @@ from emmio.dictionary import Dictionaries, DictionaryItem
 from emmio.frequency import FrequencyDatabase
 from emmio.language import Language, construct_language, GERMAN
 from emmio.learning.core import Learning, ResponseType
-from emmio.lexicon import Lexicon, LexiconResponse, LexiconLog, WordSelection
+from emmio.lexicon.core import (
+    Lexicon,
+    LexiconResponse,
+    LexiconLog,
+    WordSelection,
+)
 from emmio.sentence.core import Translation
 from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase

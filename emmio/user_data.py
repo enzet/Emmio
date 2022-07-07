@@ -7,7 +7,7 @@ from emmio.language import Language, construct_language
 from emmio.learning.core import Learning
 from emmio.frequency import FrequencyList
 from emmio.util import MalformedFile
-from emmio.lexicon import Lexicon
+from emmio.lexicon.core import Lexicon
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

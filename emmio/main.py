@@ -9,10 +9,11 @@ from emmio import util, ui, __main__
 from emmio.dictionary import Dictionary, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
-from emmio.graph import Visualizer, LexiconVisualizer
+from emmio.graph import Visualizer
+from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.language import Language, construct_language, LanguageNotFound
 from emmio.learning.core import Learning, LearningRecord
-from emmio.lexicon import Lexicon, LexiconResponse
+from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
 from emmio.ui import Logger, set_log, Interface, progress
@@ -46,9 +47,7 @@ HELP: list[list[str]] = [
 
 
 class Emmio:
-    """
-    Emmio entry point.
-    """
+    """Emmio entry point."""
 
     def __init__(self, user_data: UserData, path: Path, interface: Interface):
         self.user_data: UserData = user_data
@@ -215,10 +214,13 @@ class Emmio:
 
         if command == "data":
             for course_id in self.user_data.course_ids:
+                ui.log(f"construct data for {course_id}")
                 learning: Learning = self.user_data.get_course(course_id)
                 self.fill_data(
                     construct_language(learning.subject),
-                    learning.frequency_list_ids[0],
+                    self.user_data.get_frequency_list(
+                        learning.frequency_list_ids[-1]
+                    ),
                 )
 
         if command in Visualizer.get_commands():
@@ -395,8 +397,9 @@ class Emmio:
             print(f"    New question in {time_to_new}.")
         print()
 
-    def fill_data(self, language: Language, fl) -> None:
-        fr = self.user_data.get_frequency_list(fl)
+    def fill_data(
+        self, language: Language, frequency_list: FrequencyList
+    ) -> None:
 
         words = {}
         learn: Learning = self.user_data.get_course(f"ru_{language.get_code()}")
@@ -408,7 +411,7 @@ class Emmio:
                     "addTime": record.time,
                     "nextQuestionTime": record.time + record.interval,
                     "vector": record.answer.value,
-                    "index": fr.get_index(record.question_id),
+                    "index": frequency_list.get_index(record.question_id),
                 }
             elif record.question_id in words:
                 words[record.question_id]["nextQuestionTime"] = (
@@ -427,7 +430,7 @@ class Emmio:
                     "vector": "N"
                     if lexicon.words[word].knowing == LexiconResponse.DONT
                     else "Y",
-                    "index": fr.get_index(word),
+                    "index": frequency_list.get_index(word),
                 }
 
         min_add_time = min(words[x]["addTime"] for x in words)
