@@ -24,18 +24,14 @@ from emmio.util import MalformedFile
 
 @dataclass
 class WordOccurrences:
-    """
-    Unique word and number of its occurrences in some text.
-    """
+    """Unique word and number of its occurrences in some text."""
 
     word: str
     occurrences: int
 
 
 class FrequencyList:
-    """
-    Frequency list of some text.
-    """
+    """Frequency list of some text."""
 
     def __init__(self, update: bool):
         self.data: dict[str, int] = {}

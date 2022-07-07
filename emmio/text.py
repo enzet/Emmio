@@ -6,9 +6,7 @@ __email__ = "me@enzet.ru"
 
 
 class Text:
-    """
-    Text processing utility.
-    """
+    """Text processing utility."""
 
     def __init__(self, text: str, language: Language):
         """
