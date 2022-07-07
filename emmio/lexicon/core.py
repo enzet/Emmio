@@ -62,14 +62,25 @@ class LexiconResponse(Enum):
 class AnswerType(Enum):
     UNKNOWN = "unknown"
 
-    # First answer.
+    # User answer.
     USER_ANSWER = "user_answer"
+
+    # Assume that the word is not a dictionary word, because it contains symbols
+    # that are not common in the language.
     ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
+
+    # Assume that the word is not a dictionary word, because some selected
+    # dictionary does not have it.
     ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
 
-    # Propagation of a previous answer.
+    # Previous answer was propagated because of a special flag set by the user.
     PROPAGATE__SKIP = "propagate_skip"
+
+    # Previous answer was propagated because it stated that the word is not a
+    # dictionary word.
     PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
+
+    # Not enough time passed since last answer, therefore it was propagated.
     PROPAGATE__TIME = "propagate_time"
 
     def __str__(self) -> str:

@@ -10,9 +10,7 @@ __email__ = "me@enzet.ru"
 
 
 class Database:
-    """
-    Pretty simple wrapper for SQLite database.
-    """
+    """Pretty simple wrapper for SQLite database."""
 
     def __init__(self, database_file_path: Path):
         """
