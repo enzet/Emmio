@@ -1,5 +1,6 @@
 """Language and font specifics."""
 import re
+from dataclasses import dataclass
 
 from colour import Color
 from typing import Optional
@@ -238,8 +239,9 @@ def decode_latin(text: str) -> str:
     return text.replace("ā", "a").replace("ō", "o")
 
 
+@dataclass
 class LanguageNotFound(Exception):
-    pass
+    code: str
 
 
 def construct_language(code: str) -> Language:
@@ -247,4 +249,4 @@ def construct_language(code: str) -> Language:
         if code == language.get_code():
             return language
 
-    raise LanguageNotFound()
+    raise LanguageNotFound(code)
