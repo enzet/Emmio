@@ -26,7 +26,7 @@ from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.ui import debug
 from emmio.user_data import UserData
-
+from emmio.util import format_delta
 
 MAXIMUM_MESSAGE_SIZE: int = 512
 HIDE_SYMBOL: str = "░"
@@ -420,9 +420,9 @@ class EmmioServer(Server):
             time_to_new: timedelta = util.day_end(now) - now
 
             if time_to_repetition < time_to_new:
-                self.send(f"Repetition in {time_to_repetition}.")
+                self.send(f"Repetition in {format_delta(time_to_repetition)}.")
             else:
-                self.send(f"New question in {time_to_new}.")
+                self.send(f"New question in {format_delta(time_to_new)}.")
         else:
             self.send("Alive.")
 

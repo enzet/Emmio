@@ -49,6 +49,18 @@ def first_day_of_week(point: datetime) -> datetime:
     return datetime.combine(day, datetime.min.time())
 
 
+def format_delta(delta: timedelta):
+    if delta < timedelta(hours=1):
+        minutes: int = int(delta.total_seconds() // 60)
+        return f"{minutes} minute" + ("s" if minutes > 1 else "")
+    if delta < timedelta(days=1):
+        hours: int = int(delta.total_seconds() // 60 // 60)
+        return f"{hours} hour" + ("s" if hours > 1 else "")
+
+    days: int = int(delta.total_seconds() // 60 // 60 // 24)
+    return f"{days} day" + ("s" if days > 1 else "")
+
+
 def download(
     address: str, cache_path: Path, buffer_size: int = 400_000
 ) -> bytes:
