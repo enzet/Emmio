@@ -43,22 +43,12 @@ def main():
 
     if arguments.mode == "telegram":
         bot: telebot.TeleBot = telebot.TeleBot(arguments.token)
-        server = TelegramServer(user_data, bot)
+        server: TelegramServer = TelegramServer(user_data, bot)
 
-        @bot.message_handler(commands=["start"])
-        def start(message: Message):
-            """Start Emmio process."""
-            server.start(message)
-
-        @bot.message_handler(commands=["status"])
-        def status(_: Message):
-            """Get current server status."""
-            server.status()
-
-        @bot.message_handler(commands=["stat"])
-        def stat(message: Message):
+        @bot.message_handler()
+        def receive(message: Message):
             """Get current statistics."""
-            server.statistics(message)
+            server.receive_message(message)
 
         while True:
             try:
@@ -67,7 +57,9 @@ def main():
                 print(e)
 
     elif arguments.mode == "terminal":
-        server = TerminalServer(user_data, ui.TerminalInterface())
+        server: TerminalServer = TerminalServer(
+            user_data, ui.TerminalInterface()
+        )
         server.start("/start")
 
 

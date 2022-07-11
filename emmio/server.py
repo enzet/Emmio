@@ -51,7 +51,7 @@ class Worker:
         """Return list of next messages."""
         pass
 
-    def process_answer(self, message):
+    def process_answer(self, message) -> str:
         """Process user response."""
         pass
 
@@ -400,6 +400,8 @@ class EmmioServer(Server):
         self.lexicons: list[LexiconWorker] = []
         self.id_: int = 0
 
+        # Current state.
+
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
 
@@ -412,7 +414,7 @@ class EmmioServer(Server):
         if self.state == ServerState.ASKING:
             self.send("Waiting for answer.")
         elif self.state == ServerState.NOTHING:
-            now = datetime.now()
+            now: datetime = datetime.now()
             time_to_repetition: timedelta = (
                 min(x.get_nearest() for x in self.user_data.courses.values())
                 - now
@@ -426,32 +428,32 @@ class EmmioServer(Server):
         else:
             self.send("Alive.")
 
-    def step(self, message: Optional[str] = None):
+    def step(self, message: Optional[str] = None) -> bool:
 
         if self.state == ServerState.NOTHING:
 
-            while True:
-                if self.learnings and (
-                    (nearest := sorted(self.learnings)[0]).is_ready()
-                ):
-                    self.worker = nearest
-                    self.send(nearest.get_greetings())
-                    self.state = ServerState.WORKER
-                    self.step()
-                    break
-                elif self.lexicons and (
-                    (nearest := sorted(self.lexicons)[0]).is_ready()
-                ):
-                    self.worker = nearest
-                    self.send(nearest.get_greetings())
-                    self.state = ServerState.WORKER
-                    self.step()
-                    break
-                else:
-                    debug(f"{datetime.now()} Waiting...")
-                    sleep(60)
+            if self.learnings and (
+                (nearest := sorted(self.learnings)[0]).is_ready()
+            ):
+                self.worker = nearest
+                self.send(nearest.get_greetings())
+                self.state = ServerState.WORKER
+                return False
 
-        elif self.state == ServerState.WORKER:
+            elif self.lexicons and (
+                (nearest := sorted(self.lexicons)[0]).is_ready()
+            ):
+                self.worker = nearest
+                self.send(nearest.get_greetings())
+                self.state = ServerState.WORKER
+                return False
+
+            else:
+                debug(f"{datetime.now()} Waiting...")
+                sleep(60)
+                return False
+
+        if self.state == ServerState.WORKER:
             if self.worker.is_ready():
                 markup = types.ReplyKeyboardMarkup(
                     row_width=2,
@@ -465,12 +467,14 @@ class EmmioServer(Server):
                 for text in self.worker.get_next_question():
                     self.send(text)
                 self.state = ServerState.ASKING
+                return True
+
             else:
                 self.send("No more questions.")
                 self.state = ServerState.NOTHING
-                self.step()
+                return False
 
-        elif self.state == ServerState.ASKING:
+        if self.state == ServerState.ASKING:
             respond: str = self.worker.process_answer(message)
             if respond:
                 self.send(respond)
@@ -480,7 +484,9 @@ class EmmioServer(Server):
                     sleep(0.4)
 
             self.state = ServerState.WORKER
-            self.step()
+            return False
+
+        assert False, "Unknown server state"
 
 
 class TerminalServer(EmmioServer):
@@ -493,11 +499,18 @@ class TerminalServer(EmmioServer):
     def send(self, message: str):
         self.interface.print(message)
 
+    def start(self, message):
+        while True:
+            is_waiting_for_answer: bool = self.step()
+            if is_waiting_for_answer:
+                a = input("> ")
+                self.receive(a)
+
 
 class TelegramServer(EmmioServer):
     """Emmio server for Telegram messenger."""
 
-    def __init__(self, user_data: UserData, bot) -> None:
+    def __init__(self, user_data: UserData, bot: telebot.TeleBot) -> None:
         super().__init__(user_data)
 
         self.bot: telebot.TeleBot = bot
@@ -519,8 +532,19 @@ class TelegramServer(EmmioServer):
 
     def receive_message(self, message: Message):
         self.id_ = message.chat.id
-        self.step(message.text)
-        self.bot.register_next_step_handler(message, self.receive_message)
+
+        if message.text.startswith("/status"):
+            self.status()
+            return
+
+        if message.text.startswith("/stat"):
+            self.statistics(message)
+            return
+
+        while True:
+            is_waiting_for_answer: bool = self.step(message.text)
+            if is_waiting_for_answer:
+                break
 
     def statistics(self, message: Message):
         self.send(message.text)
