@@ -412,9 +412,6 @@ class EmmioServer(Server):
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
 
-    def start(self, message):
-        pass
-
     def status(self) -> None:
         if not self.id_:
             return
@@ -521,11 +518,6 @@ class TelegramServer(EmmioServer):
         super().__init__(user_data)
 
         self.bot: telebot.TeleBot = bot
-
-    def start(self, message):
-        self.id_ = message.chat.id
-        self.step(message.text)
-        self.bot.register_next_step_handler(message, self.receive_message)
 
     def send(self, message: str, markup=None):
 
