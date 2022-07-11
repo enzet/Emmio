@@ -60,7 +60,7 @@ def main():
         server: TerminalServer = TerminalServer(
             user_data, ui.TerminalInterface()
         )
-        server.start("/start")
+        server.start()
 
 
 if __name__ == "__main__":

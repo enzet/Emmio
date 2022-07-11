@@ -503,7 +503,7 @@ class TerminalServer(EmmioServer):
     def send(self, message: str):
         self.interface.print(message)
 
-    def start(self, message):
+    def start(self):
         while True:
             is_waiting_for_answer: bool = self.step()
             if is_waiting_for_answer:
