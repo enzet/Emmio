@@ -15,7 +15,7 @@ __email__ = "me@enzet.ru"
 
 DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
     "archaic",
-    "colloquial",
+    # "colloquial",
     "dated",
     "figuratively",
     # "informal",
