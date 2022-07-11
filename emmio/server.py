@@ -21,6 +21,7 @@ from emmio.language import (
     LanguageNotFound,
 )
 from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
+from emmio.lexicon.core import Lexicon
 from emmio.sentence.core import Translation
 from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase
@@ -356,6 +357,9 @@ class LearningWorker(Worker):
 
 
 class LexiconWorker(Worker):
+    def __init__(self, lexicon: Lexicon):
+        self.lexicon: Lexicon = lexicon
+
     def __lt__(self, other: "LexiconWorker") -> bool:
         pass
 
@@ -397,7 +401,10 @@ class EmmioServer(Server):
             for x in user_data.course_ids
             if user_data.get_course(x).is_learning
         ]
-        self.lexicons: list[LexiconWorker] = []
+        self.lexicons: list[LexiconWorker] = [
+            LexiconWorker(user_data.get_lexicon(x))
+            for x in user_data.get_lexicon_languages()
+        ]
         self.id_: int = 0
 
         # Current state.
