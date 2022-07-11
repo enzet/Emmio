@@ -243,9 +243,9 @@ class Form:
 
         for link in links:
             if show_word:
-                result += f"    -> {link.link_type} of {link.link_value}\n"
+                result += f"    → {link.link_type} of {link.link_value}\n"
             else:
-                result += f"    -> {link.link_type}\n"
+                result += f"    → {link.link_type}\n"
 
         return result
 
