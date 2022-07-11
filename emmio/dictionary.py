@@ -94,7 +94,7 @@ class DefinitionValue:
         value: str = self.value
 
         if to_hide is not None:
-            value = hide(value, to_hide)
+            value = sanitize(value, to_hide, SANITIZER)
 
         return value + (
             f" ({self.description})"
@@ -219,11 +219,13 @@ class Form:
                 list(words_to_hide | hide_translations), key=lambda x: -len(x)
             )
 
-        desc = self.part_of_speech
+        description: str = self.part_of_speech
         if show_word and self.transcriptions:
             if self.gender is not None:
-                desc += f" {self.gender}"
-            desc += " " + ", ".join(map(lambda x: f"{x}", self.transcriptions))
+                description += f" {self.gender}"
+            description += " " + ", ".join(
+                [f"{x}" for x in self.transcriptions]
+            )
 
         definitions: list[str] = []
 
@@ -238,7 +240,7 @@ class Form:
         if not definitions and not links:
             return ""
 
-        result: str = interface.colorize(desc, "grey") + "\n"
+        result: str = interface.colorize(description, "grey") + "\n"
 
         if definitions:
             result += "    " + "\n    ".join(definitions) + "\n"
