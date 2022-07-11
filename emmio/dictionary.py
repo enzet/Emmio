@@ -13,6 +13,8 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 
+SANITIZER: str = "_"
+
 DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
     "archaic",
     # "colloquial",
@@ -51,22 +53,22 @@ class Link:
         return hash(f"{self.link_type}_{self.link_value}")
 
 
-def hide(text: str, words_to_hide: list[str]) -> str:
+def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
+    """Replace word in text with hiding symbols."""
+
     for word in words_to_hide:
+        sanitized: str = sanitizer * len(word)
+
         if "́" in text:
             if word in text.replace("́", ""):
                 start: int = text.replace("́", "").find(word)
-                text = (
-                    text[:start]
-                    + "_" * len(word)
-                    + text[start + len(word) + 1 :]
-                )
+                text = text[:start] + sanitized + text[start + len(word) + 1 :]
 
-        text = text.replace(word, "_" * len(word))
+        text = text.replace(word, sanitized)
 
         while word.lower() in text.lower():
             start: int = text.lower().find(word.lower())
-            text = text[:start] + "_" * len(word) + text[start + len(word) :]
+            text = text[:start] + sanitized + text[start + len(word) :]
 
     return text
 
