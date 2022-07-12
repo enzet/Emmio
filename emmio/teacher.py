@@ -366,9 +366,8 @@ class Teacher:
                     self.skip.add(word)
                     return "ok"
                 elif answer.startswith("/hide "):
-                    parts = answer.split(" ")
                     self.user_data.exclude_translation(
-                        word, " ".join(parts[1:])
+                        word, " ".join(answer.split(" ")[1:])
                     )
                     self.skip.add(word)
                     return "ok"
