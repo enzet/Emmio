@@ -109,7 +109,6 @@ class Visualizer:
                 count_learning += 1
             x.append(record.time)
             y.append(count_learning)
-        plt.plot(x, range(len(x)), color="grey", linewidth=1)
         plt.plot(x, y, color="black", linewidth=1)
         self.plot()
 
