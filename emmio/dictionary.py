@@ -145,7 +145,7 @@ class Form:
 
     part_of_speech: str
     transcriptions: set[str] = field(default_factory=set)
-    translations: dict[Language, list[Definition]] = field(default_factory=dict)
+    definitions: dict[Language, list[Definition]] = field(default_factory=dict)
     links: list[Link] = field(default_factory=list)
 
     # Optional characteristics.
@@ -174,9 +174,9 @@ class Form:
         :param language: language of translation
         :param translation: word translation
         """
-        if language not in self.translations:
-            self.translations[language] = []
-        self.translations[language].append(translation)
+        if language not in self.definitions:
+            self.definitions[language] = []
+        self.definitions[language].append(translation)
 
     def add_link(self, link: Link) -> None:
         """
@@ -195,8 +195,8 @@ class Form:
         if self.part_of_speech == "letter":
             return False
 
-        if language in self.translations:
-            for definition in self.translations[language]:
+        if language in self.definitions:
+            for definition in self.definitions[language]:
                 if definition.is_common():
                     return True
 
@@ -229,8 +229,8 @@ class Form:
 
         definitions: list[str] = []
 
-        if self.translations and language in self.translations:
-            for translation in self.translations[language]:
+        if self.definitions and language in self.definitions:
+            for translation in self.definitions[language]:
                 string: Optional[str] = translation.to_str(to_hide)
                 if string is not None and string not in definitions:
                     definitions.append(string)
