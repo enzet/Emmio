@@ -10,6 +10,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.text import Text
 
 from emmio.language import Language
 
@@ -193,6 +194,10 @@ class RichInterface(TerminalInterface):
             table.add_row(*row)
 
         self.console.print(table)
+
+    def colorize(self, text: str, color: str):
+        (styled := Text(text)).stylize(color)
+        return styled
 
 
 def get_char() -> str:
