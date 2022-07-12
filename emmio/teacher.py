@@ -72,13 +72,8 @@ class Teacher:
             for index, word, _ in frequency_db.get_words(frequency_list_id):
                 index: int
                 word: str
-                if (
-                    not self.learning.check_lexicon
-                    or not self.lexicon
-                    or not self.lexicon.has(word)
-                    or self.lexicon.get(word) == LexiconResponse.DONT
-                ):
-                    self.words.append((index, word))
+                self.words.append((index, word))
+        self.word_index: int = 0
 
         self.skip = set()
 
@@ -103,12 +98,23 @@ class Teacher:
 
             has_new_word: bool = False
 
-            for index, word in self.words:
+            for index, word in self.words[self.word_index :]:
+                self.word_index += 1
+
                 if self.learning.has(word):
                     if self.learning.is_initially_known(word):
                         debug(f"[{index}] was initially known")
                     else:
                         debug(f"[{index}] already learning")
+                    continue
+
+                if (
+                    self.learning.check_lexicon
+                    and self.lexicon
+                    and self.lexicon.has(word)
+                    and self.lexicon.get(word) != LexiconResponse.DONT
+                ):
+                    debug(f"[{index}] known in lexicon")
                     continue
 
                 if word in self.skip:
