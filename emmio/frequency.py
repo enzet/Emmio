@@ -59,6 +59,12 @@ class FrequencyList:
 
         temp_path: Path = directory / f'{structure["id"]}.tmp'
 
+        if temp_path.exists():
+            (frequency_list := cls.from_file(temp_path, structure)).write_json(
+                cache_path
+            )
+            return frequency_list
+
         if "url" in structure:
             pool_manager = urllib3.PoolManager()
             result: HTTPResponse = pool_manager.request(
