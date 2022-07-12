@@ -264,23 +264,17 @@ class DictionaryItem:
 
     def __init__(self, word: str):
         self.word: str = word
-        self.definitions: list[Form] = []
+        self.forms: list[Form] = []
 
     def add_definition(self, form: Form):
         """Add word form to dictionary item."""
-        self.definitions.append(form)
+        self.forms.append(form)
 
     def get_links(self) -> set[Link]:
         """
         Get keys to other dictionary items this dictionary item is linked to.
         """
-        return set(
-            [
-                link
-                for definition in self.definitions
-                for link in definition.get_links()
-            ]
-        )
+        return set([link for form in self.forms for link in form.get_links()])
 
     def to_str(
         self,
@@ -305,7 +299,7 @@ class DictionaryItem:
         if show_word:
             result += self.word + "\n"
 
-        for definition in self.definitions:
+        for definition in self.forms:
             result += definition.to_str(
                 language, interface, show_word, words_to_hide, hide_translations
             )
@@ -314,7 +308,7 @@ class DictionaryItem:
 
     def has_definitions(self) -> bool:
         """Check whether the dictionary item has at least one definition."""
-        return len(self.definitions) > 0
+        return len(self.forms) > 0
 
     def has_common_definition(self, language: Language) -> bool:
         """
@@ -322,7 +316,7 @@ class DictionaryItem:
 
         Also check if it is not just a form of some another word.
         """
-        for definition in self.definitions:
+        for definition in self.forms:
             if definition.has_common_definition(language):
                 return True
 
@@ -355,7 +349,7 @@ class Dictionary:
         forms: dict[str, set[str]] = defaultdict(set)
 
         for word, item in self.__items.items():
-            for form in item.definitions:
+            for form in item.forms:
                 for link_type, link in form.links:
                     forms[link].add(word)
 
@@ -388,7 +382,7 @@ class Dictionaries:
             if item:
                 items.append(item)
                 links: set[str] = set()
-                for definition in item.definitions:
+                for definition in item.forms:
                     links |= set([x.link_value for x in definition.links])
                 for link in links:
                     link_item: DictionaryItem = dictionary.get_item(link)
