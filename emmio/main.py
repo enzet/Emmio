@@ -153,7 +153,7 @@ class Emmio:
 
             self.interface.print(f"Pressure: {total:.2f}")
 
-            self.interface.table(["Course", "Repeat", "New", "All"], rows)
+            self.interface.table(["Course", "Repeat", "Add", "All"], rows)
 
         if command == "stat lexicon":
 
