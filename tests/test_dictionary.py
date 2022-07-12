@@ -2,7 +2,7 @@ from emmio.dictionary import sanitize
 
 
 def check(sentence: str, hidden: str, words_to_hide: list[str]) -> None:
-    assert sanitize(sentence, words_to_hide) == hidden
+    assert sanitize(sentence, words_to_hide, "_") == hidden
 
 
 def test_word() -> None:
