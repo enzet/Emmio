@@ -97,3 +97,19 @@ class MalformedFile(Exception):
 @dataclass
 class MalformedData(Exception):
     message: str
+
+
+def remove_parenthesis(text: str) -> str:
+    depth: int = 0
+    result: str = ""
+
+    for character in text:
+        if character == "(":
+            depth += 1
+        if character == ")":
+            depth -= 1
+            continue
+        if depth == 0:
+            result += character
+
+    return result.strip()
