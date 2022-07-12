@@ -327,12 +327,20 @@ class Emmio:
                     FrequencyList
                 ] = self.user_data.get_frequency_list(frequency_list_id)
 
+                if frequency_list is None:
+                    error(
+                        f"frequency list for {frequency_list_id} was not "
+                        f"constructed"
+                    )
+                    return
+
                 if frequency_list.update and self.frequency_db.has_table(
                     frequency_list_id
                 ):
                     self.frequency_db.drop_table(frequency_list_id)
 
                 if not self.frequency_db.has_table(frequency_list_id):
+                    info(f"adding frequency database table {frequency_list_id}")
                     self.frequency_db.add_table(
                         frequency_list_id, frequency_list
                     )
