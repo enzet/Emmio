@@ -26,6 +26,8 @@ DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
     "rare",
     "slang",
     "spelling",
+    "US",
+    "Philippines",
 ]
 
 
