@@ -8,6 +8,7 @@ from typing import Optional
 
 from emmio.language import Language
 from emmio.ui import Interface
+from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -321,6 +322,43 @@ class DictionaryItem:
                 return True
 
         return False
+
+    def get_short(self, language: Language, limit: int = 80) -> tuple[str, str]:
+        """
+        Try to get word definition that is shorter than the selected limit.
+
+        This method is trying to remove values, remove definitions and
+        eventually remove forms to fit the specified limit.  It assumes that
+        values, definitions and forms are ordered by its usage frequency or
+        some kind of importance, so it is not trying to use second definition
+        instead of first if it is shorter.
+
+        If the first value of the first form of the first definition is longer
+        than the limit, it will return it as is.
+        """
+        # Forms, definitions, values.
+        texts: list[list[list[str]]] = []
+        transcription = ""
+
+        for form in self.forms:
+            if language in form.definitions:
+                definitions: list[list[str]] = []
+
+                for link in form.get_links():
+                    definitions.append(["→ " + link.link_value])
+                for definition in form.definitions[language]:
+                    definitions.append(
+                        [value.value for value in definition.values]
+                    )
+                texts.append(definitions)
+                if not transcription and form.transcriptions:
+                    transcription = list(form.transcriptions)[0]
+
+        for limit_1, limit_2, limit_3 in (2, 2, 2), (2, 2, 1), (2, 1, 1):
+            if len(text := flatten(texts, limit_1, limit_2, limit_3)) < limit:
+                return transcription, text
+
+        return transcription, flatten(texts, 1, 1, 1)
 
 
 class Dictionary:
