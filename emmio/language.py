@@ -87,6 +87,8 @@ class Language:
             return decode_esperanto(text)
         if self == FRENCH:
             return decode_french(text)
+        if self == GERMAN:
+            return decode_german(text)
         if self == UKRAINIAN:
             return decode_ukrainian(text)
         if self == LATIN:
@@ -255,6 +257,18 @@ def decode_french(text: str) -> str:
         'y"': "ÿ",
         "ae_": "æ",
         "oe_": "œ",
+    }
+    for digraph in digraphs:
+        text = text.replace(digraph, digraphs[digraph])
+
+    return text
+
+
+def decode_german(text: str) -> str:
+    digraphs = {
+        'a"': "ä",
+        'o"': "ö",
+        'u"': "ü",
     }
     for digraph in digraphs:
         text = text.replace(digraph, digraphs[digraph])
