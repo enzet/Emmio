@@ -113,3 +113,16 @@ def remove_parenthesis(text: str) -> str:
             result += character
 
     return result.strip()
+
+
+def flatten(
+    array: list[list[list[str]]],
+    limit_1: int,
+    limit_2: int,
+    limit_3: int,
+) -> str:
+    result: str = ""
+    for i in array[:limit_1]:
+        for j in i[:limit_2]:
+            result += ("; " if result else "") + ", ".join(j[:limit_3])
+    return result
