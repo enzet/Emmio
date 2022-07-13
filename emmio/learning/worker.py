@@ -14,7 +14,7 @@ from emmio.language import (
     GERMAN,
 )
 from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
-from emmio.sentence.core import Translation
+from emmio.sentence.core import Translation, Sentence
 from emmio.sentence.sentences import Sentences
 from emmio.server import Worker, HIDE_SYMBOL
 from emmio.ui import debug
@@ -92,31 +92,32 @@ class LearningWorker(Worker):
         if show_index:
             text += f" ({self.index + 1}/{len(self.current_sentences)})"
 
-        r: str = ""
+        result: str = ""
+        word: str = ""
 
-        w = ""
-        for position, char in enumerate(text):
+        for position, character in enumerate(text):
             position: int
-            char: str
-            if self.learning_language.has_symbol(char.lower()):
-                w += char
+            character: str
+            if self.learning_language.has_symbol(character.lower()):
+                word += character
             else:
-                if w:
-                    if w.lower() == self.word:
-                        r += HIDE_SYMBOL * len(self.word)
+                if word:
+                    if word.lower() == self.word:
+                        result += HIDE_SYMBOL * len(self.word)
                     else:
-                        r += w
-                r += char
-                w = ""
+                        result += word
+                result += character
+                word = ""
 
-        for i in range(max_translations):
-            if len(self.current_sentences[self.index].translations) > i:
-                r += (
-                    "\n"
-                    + self.current_sentences[self.index].translations[i].text
-                )
+        translations: list[Sentence] = self.current_sentences[
+            self.index
+        ].translations
 
-        return r
+        for index in range(max_translations):
+            if len(translations) > index:
+                result += "\n" + translations[index].text
+
+        return result
 
     def get_next_question(self) -> list[str]:
 
