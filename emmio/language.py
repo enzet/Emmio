@@ -85,6 +85,8 @@ class Language:
     def decode_text(self, text: str) -> str:
         if self == ESPERANTO:
             return decode_esperanto(text)
+        if self == FRENCH:
+            return decode_french(text)
         if self == UKRAINIAN:
             return decode_ukrainian(text)
         if self == LATIN:
@@ -231,6 +233,31 @@ def decode_esperanto(text: str) -> str:
     """
     for digraph in ESPERANTO_DIGRAPHS:
         text = text.replace(digraph, ESPERANTO_DIGRAPHS[digraph])
+
+    return text
+
+
+def decode_french(text: str) -> str:
+    digraphs = {
+        "a^": "â",
+        "e^": "ê",
+        "i^": "î",
+        "o^": "ô",
+        "u^": "û",
+        "e'": "é",
+        "a`": "à",
+        "e`": "è",
+        "u`": "ù",
+        "c,": "ç",
+        'e"': "ë",
+        'i"': "ï",
+        'u"': "ü",
+        'y"': "ÿ",
+        "ae_": "æ",
+        "oe_": "œ",
+    }
+    for digraph in digraphs:
+        text = text.replace(digraph, digraphs[digraph])
 
     return text
 
