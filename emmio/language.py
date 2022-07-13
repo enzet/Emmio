@@ -89,6 +89,8 @@ class Language:
             return decode_french(text)
         if self == GERMAN:
             return decode_german(text)
+        if self == SPANISH:
+            return decode_spanish(text)
         if self == UKRAINIAN:
             return decode_ukrainian(text)
         if self == LATIN:
@@ -269,6 +271,23 @@ def decode_german(text: str) -> str:
         'a"': "ä",
         'o"': "ö",
         'u"': "ü",
+    }
+    for digraph in digraphs:
+        text = text.replace(digraph, digraphs[digraph])
+
+    return text
+
+
+def decode_spanish(text: str) -> str:
+    digraphs = {
+        "a'": "á",
+        "e'": "é",
+        "i'": "í",
+        "o'": "ó",
+        "u'": "ú",
+        "y'": "ý",
+        'u"': "ü",
+        "n~": "ñ",
     }
     for digraph in digraphs:
         text = text.replace(digraph, digraphs[digraph])
