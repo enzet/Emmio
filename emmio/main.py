@@ -259,7 +259,7 @@ class Emmio:
 
             self.interface.table(["Word", "Translation"], rows)
 
-        if command == "next question":
+        if command == "schedule":
             hours = [0] * 24
             now = datetime.now()
             start = datetime(
