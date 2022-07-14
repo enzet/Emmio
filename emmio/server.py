@@ -10,6 +10,9 @@ from telebot import types
 from telebot.types import Message
 
 from emmio import ui, util
+from emmio.frequency import FrequencyDatabase
+from emmio.language import construct_language
+from emmio.learning.core import Learning
 from emmio.learning.worker import LearningWorker
 from emmio.lexicon.core import Lexicon
 from emmio.sentence.database import SentenceDatabase
@@ -59,12 +62,25 @@ class EmmioServer(Server):
         sentence_db: SentenceDatabase = SentenceDatabase(
             user_data.path / "sentence.db"
         )
-        self.learnings: list[LearningWorker] = [
-            LearningWorker(
-                user_data.get_course(x), user_data, Path("cache"), sentence_db
-            )
+        frequency_db: FrequencyDatabase = FrequencyDatabase(
+            user_data.path / "frequency.db"
+        )
+        learnings: list[Learning] = [
+            user_data.get_course(x)
             for x in user_data.course_ids
             if user_data.get_course(x).is_learning
+        ]
+
+        self.learnings: list[LearningWorker] = [
+            LearningWorker(
+                x,
+                user_data.get_lexicon(construct_language(x.subject)),
+                user_data,
+                Path("cache"),
+                sentence_db,
+                frequency_db,
+            )
+            for x in learnings
         ]
         self.lexicons: list[LexiconWorker] = [
             LexiconWorker(user_data.get_lexicon(x))
@@ -98,6 +114,9 @@ class EmmioServer(Server):
             self.send("Alive.")
 
     def step(self, message: Optional[str] = None) -> bool:
+        """
+        Return true if server is left in awaiting answer status.
+        """
 
         if self.state == ServerState.NOTHING:
 
