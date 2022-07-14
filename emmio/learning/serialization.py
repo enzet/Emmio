@@ -220,7 +220,10 @@ if __name__ == "__main__":
             path: Path = (
                 Path(learning_directory) / f"{course_id.replace('/', '_')}.json"
             )
-            path.unlink()
+            try:
+                path.unlink()
+            except Exception:
+                pass
 
             learning: Learning = LearningYAMLDecoder().decode(
                 course_id, path, course_content
