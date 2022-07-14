@@ -126,3 +126,6 @@ def flatten(
         for j in i[:limit_2]:
             result += ("; " if result else "") + ", ".join(j[:limit_3])
     return result
+
+
+HIDE_SYMBOL: str = "░"

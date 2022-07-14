@@ -16,8 +16,10 @@ from emmio.language import (
 from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.sentence.core import Translation, Sentence
 from emmio.sentence.sentences import Sentences
-from emmio.server import Worker, HIDE_SYMBOL
-from emmio.ui import debug
+from emmio.util import HIDE_SYMBOL
+from emmio.worker import Worker
+from emmio.text import sanitize
+from emmio.ui import debug, log
 from emmio.user_data import UserData
 
 

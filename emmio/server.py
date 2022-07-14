@@ -16,33 +16,9 @@ from emmio.sentence.database import SentenceDatabase
 from emmio.ui import debug
 from emmio.user_data import UserData
 from emmio.util import format_delta
+from emmio.worker import Worker
 
 MAXIMUM_MESSAGE_SIZE: int = 512
-HIDE_SYMBOL: str = "░"
-
-
-class Worker:
-    """Any learning or checking worker."""
-
-    def __lt__(self, other: "Worker") -> bool:
-        raise NotImplementedError()
-
-    def is_ready(self) -> bool:
-        """Check if worker has next message to send."""
-        pass
-
-    @staticmethod
-    def get_greetings() -> str:
-        """Return greetings to tell that worker is ready."""
-        return "Hello."
-
-    def get_next_question(self) -> list[str]:
-        """Return list of next messages."""
-        pass
-
-    def process_answer(self, message) -> str:
-        """Process user response."""
-        pass
 
 
 class LexiconWorker(Worker):
