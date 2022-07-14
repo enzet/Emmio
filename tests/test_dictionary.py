@@ -1,4 +1,4 @@
-from emmio.dictionary import sanitize
+from emmio.text import sanitize
 
 
 def check(sentence: str, hidden: str, words_to_hide: list[str]) -> None:

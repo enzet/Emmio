@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from emmio.language import Language
+from emmio.text import sanitize
 from emmio.ui import Interface
 from emmio.util import flatten
 
@@ -54,26 +55,6 @@ class Link:
 
     def __hash__(self):
         return hash(f"{self.link_type}_{self.link_value}")
-
-
-def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
-    """Replace word in text with hiding symbols."""
-
-    for word in words_to_hide:
-        sanitized: str = sanitizer * len(word)
-
-        if "́" in text:
-            if word in text.replace("́", ""):
-                start: int = text.replace("́", "").find(word)
-                text = text[:start] + sanitized + text[start + len(word) + 1 :]
-
-        text = text.replace(word, sanitized)
-
-        while word.lower() in text.lower():
-            start: int = text.lower().find(word.lower())
-            text = text[:start] + sanitized + text[start + len(word) :]
-
-    return text
 
 
 @dataclass

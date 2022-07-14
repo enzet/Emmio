@@ -47,3 +47,23 @@ class Text:
             frequency_list.ignore_proper_nouns()
 
         return frequency_list
+
+
+def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
+    """Replace word in text with hiding symbols."""
+
+    for word in words_to_hide:
+        sanitized: str = sanitizer * len(word)
+
+        if "́" in text:
+            if word in text.replace("́", ""):
+                start: int = text.replace("́", "").find(word)
+                text = text[:start] + sanitized + text[start + len(word) + 1 :]
+
+        text = text.replace(word, sanitized)
+
+        while word.lower() in text.lower():
+            start: int = text.lower().find(word.lower())
+            text = text[:start] + sanitized + text[start + len(word) :]
+
+    return text
