@@ -2,6 +2,7 @@ import json
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
+from logging import info
 from pathlib import Path
 from typing import Optional
 
@@ -11,12 +12,17 @@ from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer
 from emmio.lexicon.visualizer import LexiconVisualizer
-from emmio.language import Language, construct_language, LanguageNotFound
-from emmio.learning.core import Learning, LearningRecord
+from emmio.language import (
+    Language,
+    construct_language,
+    LanguageNotFound,
+    RUSSIAN,
+)
+from emmio.learning.core import Learning, LearningRecord, ResponseType
 from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
-from emmio.ui import Logger, set_log, Interface, progress
+from emmio.ui import Logger, set_log, Interface, progress, error
 from emmio.user_data import UserData
 
 LEXICON_HELP: str = """
@@ -223,6 +229,35 @@ class Emmio:
                     ),
                 )
 
+        if command == "to learn":
+
+            rows = []
+            for course_id in self.user_data.course_ids:
+                learning = self.user_data.get_course(course_id)
+
+                rows.append([f"== {learning.name} =="])
+                for word, knowledge in learning.knowledges.items():
+                    if knowledge.get_last_answer() == ResponseType.WRONG:
+                        item = self.get_dictionaries(
+                            construct_language(learning.subject)
+                        )[0].get_item(word)
+                        text: Optional[str] = None
+                        if item:
+                            transcription, text = item.get_short(RUSSIAN)
+                            rows.append(
+                                [
+                                    word,
+                                    self.interface.colorize(
+                                        transcription, "yellow"
+                                    )
+                                    + " "
+                                    + text,
+                                ]
+                            )
+                        else:
+                            rows.append([word])
+
+            self.interface.table(["Word", "Translation"], rows)
         if command in Visualizer.get_commands():
             ratios = 0
             learning_words = 0
