@@ -258,6 +258,42 @@ class Emmio:
                             rows.append([word])
 
             self.interface.table(["Word", "Translation"], rows)
+
+        if command == "next question":
+            hours = [0] * 24
+            now = datetime.now()
+            start = datetime(
+                year=now.year, month=now.month, day=now.day, hour=now.hour
+            )
+
+            for course_id in self.user_data.course_ids:
+                learning: Learning = self.user_data.get_course(course_id)
+                for question_id, knowledge in learning.knowledges.items():
+                    if knowledge.is_learning():
+                        if (
+                            start
+                            <= knowledge.get_next_time()
+                            < start + timedelta(hours=24)
+                        ):
+                            hours[
+                                int(
+                                    (
+                                        knowledge.get_next_time() - start
+                                    ).total_seconds()
+                                    // 60
+                                    // 60
+                                )
+                            ] += 1
+                        elif knowledge.get_next_time() < now:
+                            hours[0] += 1
+
+            print(sum(hours))
+            for h in range(24):
+                time = start + timedelta(hours=h)
+                print(
+                    f"{time.day:2} {time.hour:2}:00 {hours[h]:2} {progress(hours[h])}"
+                )
+
         if command in Visualizer.get_commands():
             ratios = 0
             learning_words = 0
