@@ -21,6 +21,39 @@ ESPERANTO_DIGRAPHS: dict[str, str] = {
     "sx": "ŝ",
     "ux": "ŭ",
 }
+FRENCH_DIGRAPHS: dict[str, str] = {
+    "a^": "â",
+    "e^": "ê",
+    "i^": "î",
+    "o^": "ô",
+    "u^": "û",
+    "e'": "é",
+    "a`": "à",
+    "e`": "è",
+    "u`": "ù",
+    "c,": "ç",
+    'e"': "ë",
+    'i"': "ï",
+    'u"': "ü",
+    'y"': "ÿ",
+    "ae_": "æ",
+    "oe_": "œ",
+}
+GERMAN_DIGRAPHS: dict[str, str] = {
+    'a"': "ä",
+    'o"': "ö",
+    'u"': "ü",
+}
+SPANISH_DIGRAPHS: dict[str, str] = {
+    "a'": "á",
+    "e'": "é",
+    "i'": "í",
+    "o'": "ó",
+    "u'": "ú",
+    "y'": "ý",
+    'u"': "ü",
+    "n~": "ñ",
+}
 
 
 class Language:
@@ -242,55 +275,22 @@ def decode_esperanto(text: str) -> str:
 
 
 def decode_french(text: str) -> str:
-    digraphs = {
-        "a^": "â",
-        "e^": "ê",
-        "i^": "î",
-        "o^": "ô",
-        "u^": "û",
-        "e'": "é",
-        "a`": "à",
-        "e`": "è",
-        "u`": "ù",
-        "c,": "ç",
-        'e"': "ë",
-        'i"': "ï",
-        'u"': "ü",
-        'y"': "ÿ",
-        "ae_": "æ",
-        "oe_": "œ",
-    }
-    for digraph in digraphs:
-        text = text.replace(digraph, digraphs[digraph])
+    for digraph in FRENCH_DIGRAPHS:
+        text = text.replace(digraph, FRENCH_DIGRAPHS[digraph])
 
     return text
 
 
 def decode_german(text: str) -> str:
-    digraphs = {
-        'a"': "ä",
-        'o"': "ö",
-        'u"': "ü",
-    }
-    for digraph in digraphs:
-        text = text.replace(digraph, digraphs[digraph])
+    for digraph in GERMAN_DIGRAPHS:
+        text = text.replace(digraph, GERMAN_DIGRAPHS[digraph])
 
     return text
 
 
 def decode_spanish(text: str) -> str:
-    digraphs = {
-        "a'": "á",
-        "e'": "é",
-        "i'": "í",
-        "o'": "ó",
-        "u'": "ú",
-        "y'": "ý",
-        'u"': "ü",
-        "n~": "ñ",
-    }
-    for digraph in digraphs:
-        text = text.replace(digraph, digraphs[digraph])
+    for digraph in SPANISH_DIGRAPHS:
+        text = text.replace(digraph, SPANISH_DIGRAPHS[digraph])
 
     return text
 
