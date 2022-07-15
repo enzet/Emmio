@@ -64,12 +64,15 @@ class Language:
         return DEFAULT_COLOR
 
     def get_code(self) -> str:
+        """Get ISO 639-1:2002 two-letter code."""
         return self.language.part1
 
     def get_part3(self) -> str:
+        """Get ISO 639-3:2007 three-letter code."""
         return self.language.part3
 
     def has_symbol(self, symbol: str) -> bool:
+        """Check whether the symbol is allowed in the language."""
         return symbol in self.symbols
 
     def has_symbols(self) -> bool:
@@ -77,6 +80,7 @@ class Language:
         return self.symbols is not None
 
     def get_symbols(self):
+        """Get all symbols allowed in the language."""
         return self.symbols
 
     def decode_text(self, text: str) -> str:
