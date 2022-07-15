@@ -1,6 +1,8 @@
 """Language and font specifics."""
+import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from colour import Color
 from typing import Optional
@@ -13,47 +15,9 @@ __email__ = "me@enzet.ru"
 
 DEFAULT_COLOR: Color = Color("black")
 
-ESPERANTO_DIGRAPHS: dict[str, str] = {
-    "cx": "ĉ",
-    "gx": "ĝ",
-    "hx": "ĥ",
-    "jx": "ĵ",
-    "sx": "ŝ",
-    "ux": "ŭ",
-}
-FRENCH_DIGRAPHS: dict[str, str] = {
-    "a^": "â",
-    "e^": "ê",
-    "i^": "î",
-    "o^": "ô",
-    "u^": "û",
-    "e'": "é",
-    "a`": "à",
-    "e`": "è",
-    "u`": "ù",
-    "c,": "ç",
-    'e"': "ë",
-    'i"': "ï",
-    'u"': "ü",
-    'y"': "ÿ",
-    "ae_": "æ",
-    "oe_": "œ",
-}
-GERMAN_DIGRAPHS: dict[str, str] = {
-    'a"': "ä",
-    'o"': "ö",
-    'u"': "ü",
-}
-SPANISH_DIGRAPHS: dict[str, str] = {
-    "a'": "á",
-    "e'": "é",
-    "i'": "í",
-    "o'": "ó",
-    "u'": "ú",
-    "y'": "ý",
-    'u"': "ü",
-    "n~": "ñ",
-}
+DIGRAPHS: dict[str, dict[str, str]]
+with (Path(__file__).parent / "digraphs.json").open() as config_file:
+    DIGRAPHS = json.load(config_file)
 
 
 class Language:
@@ -116,18 +80,12 @@ class Language:
         return self.symbols
 
     def decode_text(self, text: str) -> str:
-        if self == ESPERANTO:
-            return decode_esperanto(text)
-        if self == FRENCH:
-            return decode_french(text)
-        if self == GERMAN:
-            return decode_german(text)
-        if self == SPANISH:
-            return decode_spanish(text)
-        if self == UKRAINIAN:
-            return decode_ukrainian(text)
-        if self == LATIN:
-            return decode_latin(text)
+        """Decode possible digraphs."""
+        if self.get_code() in DIGRAPHS:
+            digraphs = DIGRAPHS[self.get_code()]
+            for digraph in digraphs:
+                text = text.replace(digraph, digraphs[digraph])
+
         return text
 
     def __repr__(self):
@@ -260,39 +218,6 @@ def decode_ukrainian(text: str) -> str:
     Merely replace ASCII "i" symbol with Unicode U+0456.
     """
     return text.replace("i", "і")
-
-
-def decode_esperanto(text: str) -> str:
-    """
-    Decode text in Esperanto from possible x-convention.
-
-    H-convention is not used since it may be ambiguous.
-    """
-    for digraph in ESPERANTO_DIGRAPHS:
-        text = text.replace(digraph, ESPERANTO_DIGRAPHS[digraph])
-
-    return text
-
-
-def decode_french(text: str) -> str:
-    for digraph in FRENCH_DIGRAPHS:
-        text = text.replace(digraph, FRENCH_DIGRAPHS[digraph])
-
-    return text
-
-
-def decode_german(text: str) -> str:
-    for digraph in GERMAN_DIGRAPHS:
-        text = text.replace(digraph, GERMAN_DIGRAPHS[digraph])
-
-    return text
-
-
-def decode_spanish(text: str) -> str:
-    for digraph in SPANISH_DIGRAPHS:
-        text = text.replace(digraph, SPANISH_DIGRAPHS[digraph])
-
-    return text
 
 
 def decode_latin(text: str) -> str:
