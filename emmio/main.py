@@ -11,7 +11,6 @@ from emmio.dictionary import Dictionary, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
 from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer
-from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.language import (
     Language,
     construct_language,
@@ -20,6 +19,7 @@ from emmio.language import (
 )
 from emmio.learning.core import Learning, LearningRecord, ResponseType
 from emmio.lexicon.core import Lexicon, LexiconResponse
+from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
 from emmio.ui import Logger, set_log, Interface, progress, error

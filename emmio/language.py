@@ -3,10 +3,9 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-
-from colour import Color
 from typing import Optional
 
+from colour import Color
 from iso639 import languages as iso_languages
 from iso639.iso639 import _Language as ISOLanguage
 

@@ -16,8 +16,8 @@ from emmio.lexicon.core import (
     WordSelection,
 )
 from emmio.sentence.core import Translation
-from emmio.sentence.sentences import Sentences
 from emmio.sentence.database import SentenceDatabase
+from emmio.sentence.sentences import Sentences
 from emmio.ui import log, Interface, debug
 
 __author__ = "Sergey Vartanov"
