@@ -19,10 +19,10 @@ SANITIZER: str = "_"
 
 DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
     "archaic",
-    # "colloquial",
+    "colloquial",  # TODO: remove
     "dated",
     "figuratively",
-    # "informal",
+    "informal",  # TODO: remove
     "obsolete",
     "rare",
     "slang",
