@@ -57,7 +57,7 @@ class EmmioServer(Server):
     """Server for Emmio learning and testing processes."""
 
     def __init__(self, user_data: UserData):
-        self.user_data = user_data
+        self.user_data: UserData = user_data
 
         sentence_db: SentenceDatabase = SentenceDatabase(
             user_data.path / "sentence.db"
@@ -73,14 +73,14 @@ class EmmioServer(Server):
 
         self.learnings: list[LearningWorker] = [
             LearningWorker(
-                x,
-                user_data.get_lexicon(construct_language(x.subject)),
+                learning,
+                user_data.get_lexicon(construct_language(learning.subject)),
                 user_data,
                 Path("cache"),
                 sentence_db,
                 frequency_db,
             )
-            for x in learnings
+            for learning in learnings
         ]
         self.lexicons: list[LexiconWorker] = [
             LexiconWorker(user_data.get_lexicon(x))
@@ -114,9 +114,7 @@ class EmmioServer(Server):
             self.send("Alive.")
 
     def step(self, message: Optional[str] = None) -> bool:
-        """
-        Return true if server is left in awaiting answer status.
-        """
+        """Return true if server is left in awaiting answer status."""
 
         if self.state == ServerState.NOTHING:
 
@@ -144,9 +142,7 @@ class EmmioServer(Server):
         if self.state == ServerState.WORKER:
             if self.worker.is_ready():
                 markup = types.ReplyKeyboardMarkup(
-                    row_width=2,
-                    resize_keyboard=True,
-                    one_time_keyboard=True,
+                    row_width=2, resize_keyboard=True, one_time_keyboard=True
                 )
                 markup.add(
                     types.KeyboardButton("Skip"),

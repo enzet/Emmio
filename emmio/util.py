@@ -14,6 +14,8 @@ from pathlib import Path
 
 from urllib3 import PoolManager, HTTPResponse
 
+HIDE_SYMBOL: str = "░"
+
 
 def day_start(point: datetime) -> datetime:
     return datetime(year=point.year, month=point.month, day=point.day)
@@ -126,6 +128,3 @@ def flatten(
         for j in i[:limit_2]:
             result += ("; " if result else "") + ", ".join(j[:limit_3])
     return result
-
-
-HIDE_SYMBOL: str = "░"
