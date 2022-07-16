@@ -85,6 +85,10 @@ class Language:
 
     def decode_text(self, text: str) -> str:
         """Decode possible digraphs."""
+        if self == UKRAINIAN:
+            return decode_ukrainian(text)
+        if self == LATIN:
+            return decode_latin(text)
         if self.get_code() in DIGRAPHS:
             digraphs = DIGRAPHS[self.get_code()]
             for digraph in digraphs:
