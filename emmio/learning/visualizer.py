@@ -44,6 +44,9 @@ class LearningVisualizer:
     show_not_learning: bool = False
     color_mode: str = "depth_colors"
 
+    # Distinguish not only depth level, but also the total number of answers.
+    use_subtypes: bool = False
+
     interactive: bool = True
 
     def draw(self):
@@ -57,10 +60,12 @@ class LearningVisualizer:
         knowledges = {}
 
         def compute_data_id() -> str:
-            return (
-                f"{get_depth(knowledges[record.question_id].interval):05},"
-                f"{knowledges[record.question_id].get_answers_number():05}"
-            )
+            if self.use_subtypes:
+                return (
+                    f"{get_depth(knowledges[record.question_id].interval):05},"
+                    f"{knowledges[record.question_id].get_answers_number():05}"
+                )
+            return f"{get_depth(knowledges[record.question_id].interval):05}"
 
         def parse_data_id() -> list[int]:
             return [int(z) for z in id_.split(",")]
