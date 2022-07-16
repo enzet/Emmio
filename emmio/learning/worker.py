@@ -126,7 +126,7 @@ class LearningWorker(Worker):
             self.index
         ].translations
 
-        return text + "\n".join(
+        return f"{text}\n" + "\n".join(
             translations[i].text
             for i in range(min(max_translations, len(translations)))
         )
