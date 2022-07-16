@@ -47,6 +47,8 @@ class LearningVisualizer:
     # Distinguish not only depth level, but also the total number of answers.
     use_subtypes: bool = False
 
+    graph_mode: str = "fill_between"
+
     interactive: bool = True
 
     def draw(self):
@@ -135,9 +137,17 @@ class LearningVisualizer:
             else:  # Depth colors.
                 color = DEPTH_COLORS[depth + 1]
 
-            plt.fill_between(
-                x, [0] * (len(x) - len(y[id_])) + y[id_], color=color
-            )
+            if self.graph_mode == "fill_between":
+                plt.fill_between(
+                    x, [0] * (len(x) - len(y[id_])) + y[id_], color=color
+                )
+            else:  # lines
+                plt.plot(
+                    x,
+                    [0] * (len(x) - len(y[id_])) + y[id_],
+                    color=color,
+                    linewidth=0.5,
+                )
 
         plt.title("Question depth")
         plt.xlabel("Time" if self.is_time else "Actions")
