@@ -85,7 +85,10 @@ class LearningVisualizer:
                 )
             if not record.is_learning():
                 if self.show_not_learning:
-                    data["00010,00001"] += 1
+                    if self.use_subtypes:
+                        data["00010,00001"] += 1
+                    else:
+                        data["00010"] += 1
                 continue
             else:
                 last_answers = (
