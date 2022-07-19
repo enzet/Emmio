@@ -196,8 +196,7 @@ class RichInterface(TerminalInterface):
         self.console.print(table)
 
     def colorize(self, text: str, color: str):
-        (styled := Text(text)).stylize(color)
-        return styled
+        return text
 
 
 def get_char() -> str:
