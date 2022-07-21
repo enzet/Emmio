@@ -191,7 +191,7 @@ class Learning:
         sentence_id: int,
         question_id: str,
         interval: timedelta,
-        time: datetime = datetime.now(),
+        time: Optional[datetime] = None,
     ) -> None:
         """
         Register student answer.
@@ -200,8 +200,12 @@ class Learning:
         :param sentence_id: sentence identifier was used to learn the word
         :param question_id: question identifier
         :param interval: repeat interval
-        :param time: a moment in time what the action was performed
+        :param time: a moment in time what the action was performed, if time is
+            None, use method call time
         """
+        if time is None:
+            time = datetime.now()
+
         record: LearningRecord = LearningRecord(
             question_id,
             answer,
