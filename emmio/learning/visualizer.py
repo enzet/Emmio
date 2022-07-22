@@ -1,6 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Union
 
 import numpy as np
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
@@ -61,13 +62,13 @@ class LearningVisualizer:
 
         knowledges = {}
 
-        def compute_data_id() -> str:
+        def compute_data_id() -> Union[str, int]:
             if self.use_subtypes:
                 return (
                     f"{get_depth(knowledges[record.question_id].interval):05},"
                     f"{knowledges[record.question_id].get_answers_number():05}"
                 )
-            return f"{get_depth(knowledges[record.question_id].interval):05}"
+            return get_depth(knowledges[record.question_id].interval)
 
         def parse_data_id() -> list[int]:
             return [int(z) for z in id_.split(",")]
@@ -88,7 +89,7 @@ class LearningVisualizer:
                     if self.use_subtypes:
                         data["00010,00001"] += 1
                     else:
-                        data["00010"] += 1
+                        data[10] += 1
                 continue
             else:
                 last_answers = (
@@ -126,7 +127,10 @@ class LearningVisualizer:
         # Plot data.
 
         for id_ in sorted(data.keys()):
-            depth, returns = parse_data_id()
+            if self.use_subtypes:
+                depth, returns = parse_data_id()
+            else:
+                depth, returns = id_, 1
             max_depth = max(max_depth, depth)
 
             color: str
