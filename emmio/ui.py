@@ -149,22 +149,26 @@ class TerminalInterface(Interface):
             else:
                 word += char
 
-            sys.stdout.write("\r                    \r")
+            buffer: str = "\r                    \r"
 
             word = language.decode_text(word)
 
-            sys.stdout.write(word + (len(right_word) - len(word)) * "_" + "\r")
+            buffer += word + (len(right_word) - len(word)) * "_" + "\r"
             if is_right():
-                sys.stdout.write("\033[32m")
+                buffer += "\033[32m"
             if word in alternative_forms:
-                sys.stdout.write("\033[33m")
-            sys.stdout.write(word)
+                buffer += "\033[33m"
+            buffer += word
             if is_right() or word in alternative_forms:
-                sys.stdout.write("\033[0m")
+                buffer += "\033[0m"
+
+            if is_right():
+                buffer += "\n"
+
+            sys.stdout.write(buffer)
             sys.stdout.flush()
 
             if is_right():
-                sys.stdout.write("\n")
                 return word
 
 
