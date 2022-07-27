@@ -1,3 +1,4 @@
+import sys
 from datetime import timedelta, datetime
 from enum import Enum
 from pathlib import Path
@@ -115,6 +116,9 @@ class EmmioServer(Server):
 
     def step(self, message: Optional[str] = None) -> bool:
         """Return true if server is left in awaiting answer status."""
+
+        if message == "/stop":
+            sys.exit()
 
         if self.state == ServerState.NOTHING:
 

@@ -1,6 +1,5 @@
 import math
 import random
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -375,9 +374,6 @@ class LearningWorker(Worker):
             self.index = 0
             self.print_state()
             return f"Skipped for this session{to_repeat}."
-
-        elif answer == "/stop":
-            sys.exit(0)
 
         elif answer in ["/no", "Don't know"]:
 
