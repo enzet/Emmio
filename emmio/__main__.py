@@ -58,7 +58,7 @@ def main():
 
     elif arguments.mode == "terminal":
         server: TerminalServer = TerminalServer(
-            user_data, ui.TerminalInterface()
+            user_data, ui.TerminalMessengerInterface()
         )
         server.start()
 
