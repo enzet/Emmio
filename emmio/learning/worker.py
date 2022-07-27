@@ -341,6 +341,12 @@ class LearningWorker(Worker):
 
         self.index += 1
 
+        to_repeat: str = (
+            f", {self.learning.to_repeat()} to repeat"
+            if self.learning.to_repeat()
+            else ""
+        )
+
         if answer == self.word:
 
             self.index = 0
@@ -358,15 +364,7 @@ class LearningWorker(Worker):
             self.learning.write()
 
             self.print_state()
-            return (
-                "Right"
-                + (
-                    f", {self.learning.to_repeat()} to repeat"
-                    if self.learning.to_repeat()
-                    else ""
-                )
-                + "."
-            )
+            return f"Right{to_repeat}."
 
         elif answer in self.alternative_forms:
             self.print_state()
@@ -376,7 +374,7 @@ class LearningWorker(Worker):
             self.skip.add(self.word)
             self.index = 0
             self.print_state()
-            return "Skipped for this session."
+            return f"Skipped for this session{to_repeat}."
 
         elif answer == "/stop":
             sys.exit(0)
@@ -409,7 +407,7 @@ class LearningWorker(Worker):
             self.index = 0
 
             self.print_state()
-            return f"Right answer: {self.word}."
+            return f"Right answer: {self.word}{to_repeat}."
 
         elif answer == "/exclude":
             self.user_data.exclude_sentence(self.word, sentence_id)
