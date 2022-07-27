@@ -25,7 +25,7 @@ from emmio.sentence.core import Translation, Sentence
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.sentences import Sentences
 from emmio.text import sanitize
-from emmio.ui import debug, log
+from emmio.ui import log
 from emmio.user_data import UserData
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
@@ -90,7 +90,7 @@ class LearningWorker(Worker):
         self.state = ""
 
     def print_state(self):
-        debug(
+        log(
             f"sent.: {self.index}/{len(self.current_sentences)}, "
             f"skip: {len(self.skip)}, "
             f"to repeat: {self.learning.to_repeat(self.skip)}"
@@ -132,7 +132,7 @@ class LearningWorker(Worker):
 
     def get_next_question(self) -> list[str]:
 
-        debug("get_next_question()")
+        log("get_next_question()")
         self.print_state()
 
         if self.index > 0:
@@ -141,8 +141,8 @@ class LearningWorker(Worker):
             elif self.index == len(self.current_sentences):
                 return ["No more sentences."]
 
-        if self.learning.new_today() < self.learning.ratio:
-            return self.get_new_question()
+        # if self.learning.new_today() < self.learning.ratio:
+        #     return self.get_new_question()
 
         return self.get_question_to_repeat()
 
@@ -153,9 +153,9 @@ class LearningWorker(Worker):
 
             if self.learning.has(question_id):
                 if self.learning.is_initially_known(question_id):
-                    debug(f"[{index}] was initially known")
+                    log(f"[{index}] was initially known")
                 else:
-                    debug(f"[{index}] already learning")
+                    log(f"[{index}] already learning")
                 continue
 
             if (
@@ -164,11 +164,11 @@ class LearningWorker(Worker):
                 and self.lexicon.has(question_id)
                 and self.lexicon.get(question_id) != LexiconResponse.DONT
             ):
-                debug(f"[{index}] known in lexicon")
+                log(f"[{index}] known in lexicon")
                 continue
 
             if question_id in self.skip:
-                debug(f"[{index}] skipped")
+                log(f"[{index}] skipped")
                 continue
 
             items: list[DictionaryItem] = self.dictionaries.get_items(
@@ -184,16 +184,16 @@ class LearningWorker(Worker):
             # Skip word if current dictionaries has no definitions for it
             # or the word is solely a form of other words.
             if not items:
-                debug(f"[{index}] no definition")
+                log(f"[{index}] no definition")
                 continue
 
             if not items[0].has_common_definition(self.learning.language):
-                debug(f"[{index}] not common")
+                log(f"[{index}] not common")
                 continue
 
             if self.learning.check_lexicon and self.lexicon.has(question_id):
                 if self.lexicon.get(question_id) != LexiconResponse.DONT:
-                    debug(f"[{index}] word is known")
+                    log(f"[{index}] word is known")
                     continue
                 else:
                     self.word = question_id
@@ -296,12 +296,12 @@ class LearningWorker(Worker):
 
     def process_answer(self, message: str) -> str:
 
-        debug("process_answer()")
+        log("process_answer()")
         self.print_state()
 
         if self.state == "waiting_lexicon_answer":
 
-            to_skip = False
+            to_skip: bool = False
 
             if message == "Show definition.":
                 self.state = "waiting_lexicon_answer"
@@ -376,15 +376,6 @@ class LearningWorker(Worker):
             return f"Skipped for this session{to_repeat}."
 
         elif answer in ["/no", "Don't know"]:
-
-            self.interface.box(self.word)
-            if self.items:
-                string_items: list[str] = [
-                    x.to_str(self.known_language, self.interface)
-                    for x in self.items
-                ]
-                self.interface.print("\n".join(string_items))
-            self.interface.box(self.word)
 
             self.learning.register(
                 ResponseType.WRONG,
