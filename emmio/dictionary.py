@@ -343,6 +343,14 @@ class DictionaryItem:
 
         return transcription, flatten(texts, 1, 1, 1)
 
+    def get_transcriptions(self) -> list[str]:
+        result: list[str] = []
+        for form in self.forms:
+            for transcription in form.transcriptions:
+                if transcription not in result:
+                    result.append(transcription)
+        return result
+
 
 class Dictionary:
     """Dictionary of word definitions."""
