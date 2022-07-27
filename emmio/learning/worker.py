@@ -98,9 +98,9 @@ class LearningWorker(Worker):
         )
 
     def __lt__(self, other: "LearningWorker") -> bool:
-        return self.learning.get_nearest(
+        return self.learning.to_repeat(self.skip) > other.learning.to_repeat(
             self.skip
-        ) < other.learning.get_nearest(self.skip)
+        )
 
     def is_ready(self) -> bool:
         return self.learning.is_ready(self.skip)
