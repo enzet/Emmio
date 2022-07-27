@@ -309,7 +309,7 @@ class SilentLogger(Logger):
         pass
 
     def network(self, message: str) -> None:
-        super().network(message)
+        pass
 
     def progress_bar(
         self,
