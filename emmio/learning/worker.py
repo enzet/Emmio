@@ -390,19 +390,12 @@ class LearningWorker(Worker):
                 self.interface.print("\n".join(string_items))
             self.interface.box(self.word)
 
-            new_answer = self.interface.input("Learn word? ")
-            if not new_answer:
-                self.learning.register(
-                    ResponseType.WRONG,
-                    sentence_id,
-                    self.word,
-                    SMALLEST_INTERVAL,
-                )
-            else:
-                self.learning.register(
-                    ResponseType.SKIP, sentence_id, self.word, timedelta()
-                )
-
+            self.learning.register(
+                ResponseType.WRONG,
+                sentence_id,
+                self.word,
+                SMALLEST_INTERVAL,
+            )
             self.learning.write()
             self.index = 0
 
