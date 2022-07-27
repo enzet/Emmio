@@ -380,3 +380,17 @@ class TelegramInterface(Interface):
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
         pass
+
+
+class TerminalMessengerInterface(TerminalInterface):
+    def __init__(self):
+        self.console: Console = Console()
+
+    def header(self, text: str) -> None:
+        self.console.print(Panel(text))
+
+    def box(self, text: str) -> None:
+        self.console.print(Panel(text))
+
+    def print(self, text: str) -> None:
+        self.console.print(Panel(text))
