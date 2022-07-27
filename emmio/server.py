@@ -114,11 +114,14 @@ class EmmioServer(Server):
         else:
             self.send("Alive.")
 
-    def step(self, message: Optional[str] = None) -> bool:
+    def step(self, message: Optional[str] = None) -> str:
         """Return true if server is left in awaiting answer status."""
 
         if message == "/stop":
-            sys.exit()
+            return "stop"
+
+        if message == "/stat":
+            return "stat"
 
         if self.state == ServerState.NOTHING:
 
@@ -128,7 +131,7 @@ class EmmioServer(Server):
                 self.worker = nearest
                 self.send(nearest.get_greetings())
                 self.state = ServerState.WORKER
-                return False
+                return ""
 
             elif self.lexicons and (
                 (nearest := sorted(self.lexicons)[0]).is_ready()
@@ -136,12 +139,12 @@ class EmmioServer(Server):
                 self.worker = nearest
                 self.send(nearest.get_greetings())
                 self.state = ServerState.WORKER
-                return False
+                return ""
 
             else:
                 debug(f"{datetime.now()} Waiting...")
                 sleep(60)
-                return False
+                return ""
 
         if self.state == ServerState.WORKER:
             if self.worker.is_ready():
@@ -155,12 +158,12 @@ class EmmioServer(Server):
                 for text in self.worker.get_next_question():
                     self.send(text)
                 self.state = ServerState.ASKING
-                return True
+                return "wait for answer"
 
             else:
                 self.send("No more questions.")
                 self.state = ServerState.NOTHING
-                return False
+                return ""
 
         if self.state == ServerState.ASKING:
             respond: str = self.worker.process_answer(message)
@@ -172,7 +175,7 @@ class EmmioServer(Server):
                     sleep(0.4)
 
             self.state = ServerState.WORKER
-            return False
+            return ""
 
         assert False, "Unknown server state"
 
@@ -190,8 +193,10 @@ class TerminalServer(EmmioServer):
     def start(self):
         message: Optional[str] = None
         while True:
-            is_waiting_for_answer: bool = self.step(message)
-            if is_waiting_for_answer:
+            state: str = self.step(message)
+            if state == "stop":
+                break
+            if state == "wait for answer":
                 message = input("> ")
 
 
@@ -225,8 +230,10 @@ class TelegramServer(EmmioServer):
             return
 
         while True:
-            is_waiting_for_answer: bool = self.step(message.text)
-            if is_waiting_for_answer:
+            state: str = self.step(message.text)
+            if state == "stop":
+                break
+            if state == "wait for answer":
                 break
 
     def statistics(self, message: Message):
