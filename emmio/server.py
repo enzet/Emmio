@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import timedelta, datetime
 from enum import Enum
 from pathlib import Path
@@ -176,6 +177,14 @@ class EmmioServer:
 
         assert False, "Unknown server state"
 
+    def statistics(self, message: Message):
+        self.send(message.text)
+
+
+@dataclass
+class TerminalMessage:
+    text: str
+
 
 class TerminalServer(EmmioServer):
     """Emmio server with command-line interface."""
@@ -187,14 +196,28 @@ class TerminalServer(EmmioServer):
     def send(self, message: str):
         self.interface.print(message)
 
-    def start(self):
-        message: Optional[str] = None
+    def receive_message(self, message: Message):
+
+        if message.text.startswith("/status"):
+            self.status()
+            return
+
+        if message.text.startswith("/stat"):
+            self.statistics(message)
+            return
+
         while True:
-            state: str = self.step(message)
+            state: str = self.step(message.text)
             if state == "stop":
                 break
             if state == "wait for answer":
-                message = input("> ")
+                break
+
+    def start(self):
+        while True:
+            message = input("> ")
+            m = TerminalMessage(message)
+            self.receive_message(m)
 
 
 class TelegramServer(EmmioServer):
@@ -235,6 +258,3 @@ class TelegramServer(EmmioServer):
                 break
             if state == "wait for answer":
                 break
-
-    def statistics(self, message: Message):
-        self.send(message.text)
