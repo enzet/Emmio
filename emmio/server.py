@@ -184,11 +184,11 @@ class TerminalServer(EmmioServer):
         self.interface.print(message)
 
     def start(self):
+        message: Optional[str] = None
         while True:
-            is_waiting_for_answer: bool = self.step()
+            is_waiting_for_answer: bool = self.step(message)
             if is_waiting_for_answer:
-                a = input("> ")
-                self.receive(a)
+                message = input("> ")
 
 
 class TelegramServer(EmmioServer):
