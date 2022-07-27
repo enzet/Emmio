@@ -1,6 +1,6 @@
 import math
 import random
-from datetime import timedelta
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -379,7 +379,7 @@ class LearningWorker(Worker):
             return "Skipped for this session."
 
         elif answer == "/stop":
-            return "Stop."
+            sys.exit(0)
 
         elif answer in ["/no", "Don't know"]:
 
