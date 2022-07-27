@@ -1,4 +1,3 @@
-import sys
 from datetime import timedelta, datetime
 from enum import Enum
 from pathlib import Path
@@ -46,15 +45,7 @@ class ServerState(Enum):
     PROCESSING = 3
 
 
-class Server:
-    def send(self, message: str):
-        pass
-
-    def receive(self, message: str):
-        pass
-
-
-class EmmioServer(Server):
+class EmmioServer:
     """Server for Emmio learning and testing processes."""
 
     def __init__(self, user_data: UserData):
@@ -84,8 +75,8 @@ class EmmioServer(Server):
             for learning in learnings
         ]
         self.lexicons: list[LexiconWorker] = [
-            LexiconWorker(user_data.get_lexicon(x))
-            for x in user_data.get_lexicon_languages()
+            # LexiconWorker(user_data.get_lexicon(x))
+            # for x in user_data.get_lexicon_languages()
         ]
         self.id_: int = 0
 
@@ -93,6 +84,12 @@ class EmmioServer(Server):
 
         self.worker: Optional[Worker] = None
         self.state: ServerState = ServerState.NOTHING
+
+    def send(self, message: str):
+        pass
+
+    def receive(self, message: str):
+        pass
 
     def status(self) -> None:
         if not self.id_:
@@ -219,6 +216,9 @@ class TelegramServer(EmmioServer):
             pass
 
     def receive_message(self, message: Message):
+
+        print(f"Received {message.text}.")
+
         self.id_ = message.chat.id
 
         if message.text.startswith("/status"):
