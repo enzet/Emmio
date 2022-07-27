@@ -108,58 +108,7 @@ class Emmio:
             self.run_lexicon(command[len("lexicon") :])
 
         if command == "stat learn":
-            sorted_ids: list[str] = sorted(
-                self.user_data.course_ids,
-                key=lambda x: -self.user_data.get_course(x).to_repeat(),
-            )
-            stat: dict[int, int] = defaultdict(int)
-            total: int = 0
-            for course_id in sorted_ids:
-                if not self.user_data.get_course(course_id).is_learning:
-                    continue
-                k = self.user_data.get_course(course_id).knowledges
-                for word in k:
-                    if k[word].interval.total_seconds() == 0:
-                        continue
-                    depth = k[word].get_depth()
-                    stat[depth] += 1
-                    total += 1 / (2**depth)
-
-            rows = []
-
-            total_to_repeat: int = 0
-            total_new: int = 0
-            total_all: int = 0
-
-            for course_id in sorted_ids:
-                learning: Learning = self.user_data.get_course(course_id)
-                if not learning.is_learning:
-                    continue
-                row = [
-                    learning.name,
-                    progress((to_repeat := learning.to_repeat())),
-                    progress(
-                        (new := max(0, learning.ratio - learning.new_today()))
-                    ),
-                    str((all_ := learning.learning())),
-                ]
-                rows.append(row)
-                total_to_repeat += to_repeat
-                total_new += new
-                total_all += all_
-
-            if total_to_repeat or total_new:
-                footer = [
-                    "Total",
-                    str(total_to_repeat),
-                    str(total_new),
-                    str(total_all),
-                ]
-                rows.append(footer)
-
-            self.interface.print(f"Pressure: {total:.2f}")
-
-            self.interface.table(["Course", "Repeat", "Add", "All"], rows)
+            self.user_data.get_stat(self.interface)
 
         if command == "stat lexicon":
 

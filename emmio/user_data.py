@@ -1,8 +1,10 @@
 import json
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
+from emmio import ui
 from emmio.frequency import FrequencyList
 from emmio.language import Language, construct_language
 from emmio.learning.core import Learning
@@ -12,8 +14,7 @@ from emmio.util import MalformedFile
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-from emmio.ui import error
-
+from emmio.ui import error, progress
 
 EXCLUDE_SENTENCES_FILE_NAME: str = "exclude_sentences.json"
 EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
@@ -151,3 +152,56 @@ class UserData:
                 self.courses[course_id] = Learning(file_path, config, course_id)
 
         return self.courses[course_id]
+
+    def get_stat(self, interface: ui.Interface):
+        sorted_ids: list[str] = sorted(
+            self.course_ids,
+            key=lambda x: -self.get_course(x).to_repeat(),
+        )
+        stat: dict[int, int] = defaultdict(int)
+        total: int = 0
+        for course_id in sorted_ids:
+            if not self.get_course(course_id).is_learning:
+                continue
+            k = self.get_course(course_id).knowledges
+            for word in k:
+                if k[word].interval.total_seconds() == 0:
+                    continue
+                depth = k[word].get_depth()
+                stat[depth] += 1
+                total += 1 / (2**depth)
+
+        rows = []
+
+        total_to_repeat: int = 0
+        total_new: int = 0
+        total_all: int = 0
+
+        for course_id in sorted_ids:
+            learning: Learning = self.get_course(course_id)
+            if not learning.is_learning:
+                continue
+            row = [
+                learning.name,
+                progress((to_repeat := learning.to_repeat())),
+                progress(
+                    (new := max(0, learning.ratio - learning.new_today()))
+                ),
+                str((all_ := learning.learning())),
+            ]
+            rows.append(row)
+            total_to_repeat += to_repeat
+            total_new += new
+            total_all += all_
+
+        if total_to_repeat or total_new:
+            footer = [
+                "Total",
+                str(total_to_repeat),
+                str(total_new),
+                str(total_all),
+            ]
+            rows.append(footer)
+
+        interface.print(f"Pressure: {total:.2f}")
+        interface.table(["Course", "Repeat", "Add", "All"], rows)
