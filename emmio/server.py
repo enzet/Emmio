@@ -178,8 +178,10 @@ class EmmioServer:
 
         assert False, "Unknown server state"
 
-    def statistics(self, message: Message):
-        self.send(message.text)
+    def statistics(self):
+        interface = ui.StringInterface()
+        self.user_data.get_stat(interface)
+        self.send(interface.string)
 
 
 @dataclass
@@ -204,7 +206,7 @@ class TerminalServer(EmmioServer):
             return
 
         if message.text.startswith("/stat"):
-            self.statistics(message)
+            self.statistics()
             return
 
         while True:
@@ -250,7 +252,7 @@ class TelegramServer(EmmioServer):
             return
 
         if message.text.startswith("/stat"):
-            self.statistics(message)
+            self.statistics()
             return
 
         while True:
