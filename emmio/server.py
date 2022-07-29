@@ -26,7 +26,7 @@ MAXIMUM_MESSAGE_SIZE: int = 512
 
 
 class LexiconWorker(Worker):
-    def __init__(self, lexicon: Lexicon):
+    def __init__(self, lexicon: Lexicon) -> None:
         self.lexicon: Lexicon = lexicon
 
     def __lt__(self, other: "LexiconWorker") -> bool:
@@ -147,10 +147,11 @@ class EmmioServer:
         if self.state == ServerState.WORKER:
             if self.worker.is_ready():
                 markup = types.ReplyKeyboardMarkup(
-                    row_width=2, resize_keyboard=True, one_time_keyboard=True
+                    resize_keyboard=True, one_time_keyboard=True
                 )
                 markup.add(
                     types.KeyboardButton("Skip"),
+                    types.KeyboardButton("Next sentence"),
                     types.KeyboardButton("Don't know"),
                 )
                 for text in self.worker.get_next_question():
