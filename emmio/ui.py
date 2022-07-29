@@ -129,6 +129,14 @@ class StringInterface(Interface):
         self.string += table(columns, rows)
 
 
+class StringMarkdownInterface(StringInterface):
+    def __init__(self):
+        super().__init__()
+
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        self.string += "```\n" + table(columns, rows) + "```\n"
+
+
 class TerminalInterface(Interface):
     def header(self, message: str) -> None:
         pass
