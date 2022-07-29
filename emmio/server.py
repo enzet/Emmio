@@ -199,18 +199,18 @@ class TerminalServer(EmmioServer):
     def send(self, message: str):
         self.interface.print(message)
 
-    def receive_message(self, message: Message):
+    def receive_message(self, message: str):
 
-        if message.text.startswith("/status"):
+        if message.startswith("/status"):
             self.status()
             return
 
-        if message.text.startswith("/stat"):
+        if message.startswith("/stat"):
             self.statistics()
             return
 
         while True:
-            state: str = self.step(message.text)
+            state: str = self.step(message)
             if state == "stop":
                 break
             if state == "wait for answer":
@@ -218,9 +218,7 @@ class TerminalServer(EmmioServer):
 
     def start(self):
         while True:
-            message = input("> ")
-            m = TerminalMessage(message)
-            self.receive_message(m)
+            self.receive_message(input("> "))
 
 
 class TelegramServer(EmmioServer):
