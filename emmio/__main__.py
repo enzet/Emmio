@@ -57,6 +57,7 @@ def main():
                 print(e)
 
     elif arguments.mode == "terminal":
+        ui.logger = ui.SilentLogger()
         server: TerminalServer = TerminalServer(
             user_data, ui.TerminalMessengerInterface()
         )
