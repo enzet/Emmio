@@ -45,6 +45,26 @@ def colorize(text: str, color: str):
         return text
 
 
+def table(columns: list[str], rows: list[list[str]]) -> str:
+
+    result: str = ""
+
+    lengths: list[int] = [
+        max(len(row[i]) for row in rows) + 1 for i in range(len(columns))
+    ]
+    result += (
+        " ".join(columns[i].ljust(lengths[i]) for i in range(len(columns)))
+        + "\n"
+    )
+    for row in rows:
+        result += (
+            " ".join(row[i].ljust(lengths[i]) for i in range(len(columns)))
+            + "\n"
+        )
+
+    return result
+
+
 class Interface:
     """
     User input/output interface.
@@ -87,6 +107,28 @@ class Interface:
         pass
 
 
+class StringInterface(Interface):
+    def __init__(self):
+        self.string: str = ""
+
+    def print(self, text: str) -> None:
+        self.string += text + "\n"
+
+    def header(self, text: str) -> None:
+        self.string += text + "\n"
+
+    def input(self, prompt: str) -> str:
+        pass
+
+    def get_word(
+        self, right_word: str, alternative_forms: set[str], language: Language
+    ) -> str:
+        pass
+
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        self.string += table(columns, rows)
+
+
 class TerminalInterface(Interface):
     def header(self, message: str) -> None:
         pass
@@ -107,16 +149,7 @@ class TerminalInterface(Interface):
         self.print(s)
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        lengths: list[int] = [
-            max(len(row[i]) for row in rows) for i in range(len(columns))
-        ]
-        self.print(
-            " ".join(columns[i].ljust(lengths[i]) for i in range(len(columns)))
-        )
-        for row in rows:
-            self.print(
-                " ".join(row[i].ljust(lengths[i]) for i in range(len(columns)))
-            )
+        self.print(table(columns, rows))
 
     def colorize(self, text: str, color: str):
         if color in colors:
