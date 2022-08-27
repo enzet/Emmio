@@ -178,11 +178,6 @@ class EmmioServer:
 
         assert False, "Unknown server state"
 
-    def statistics(self):
-        interface = ui.StringInterface()
-        self.user_data.get_stat(interface)
-        self.send(interface.string)
-
 
 @dataclass
 class TerminalMessage:
@@ -198,6 +193,11 @@ class TerminalServer(EmmioServer):
 
     def send(self, message: str):
         self.interface.print(message)
+
+    def statistics(self):
+        interface = ui.StringInterface()
+        self.user_data.get_stat(interface)
+        self.send(interface.string)
 
     def receive_message(self, message: str):
 
@@ -228,6 +228,11 @@ class TelegramServer(EmmioServer):
         super().__init__(user_data)
 
         self.bot: telebot.TeleBot = bot
+
+    def statistics(self):
+        interface = ui.StringMarkdownInterface()
+        self.user_data.get_stat(interface)
+        self.send(interface.string)
 
     def send(self, message: str, markup=None):
 
