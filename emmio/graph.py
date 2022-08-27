@@ -177,7 +177,6 @@ class Visualizer:
                     width=width,
                     label=label,
                 )
-        plt.legend(loc="center left", frameon=False)
         self.plot()
 
     def graph_2(self, records: list[LearningRecord]):
