@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from emmio.language import Language, construct_language
-from emmio.ui import debug
+from emmio.ui import log
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -297,7 +297,7 @@ class Learning:
 
     def write(self) -> None:
         """Serialize learning process to a file."""
-        debug(f"saving learning process to {self.file_path}")
+        log(f"saving learning process to {self.file_path}")
         structure = {"log": [], "config": self.config}
         for record in self.records:
             structure["log"].append(record.to_structure())
