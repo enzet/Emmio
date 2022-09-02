@@ -240,7 +240,9 @@ class TelegramServer(EmmioServer):
             message = message[:MAXIMUM_MESSAGE_SIZE] + "..."
 
         try:
-            self.bot.send_message(self.id_, message, reply_markup=markup)
+            self.bot.send_message(
+                self.id_, message, parse_mode="Markdown", reply_markup=markup
+            )
         except telebot.apihelper.ApiTelegramException:
             pass
 
