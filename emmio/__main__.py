@@ -41,7 +41,21 @@ def main():
     user_data: UserData = UserData.from_directory(data_path, user_id)
     server: EmmioServer
 
-    if arguments.mode == "telegram":
+    if arguments.mode == "messenger":
+        ui.logger = ui.SilentLogger()
+        server: TerminalServer = TerminalServer(
+            user_data, ui.TerminalMessengerInterface()
+        )
+        server.start()
+
+    elif arguments.mode == "terminal":
+        ui.logger = ui.SilentLogger()
+        server: TerminalServer = TerminalServer(
+            user_data, ui.TerminalInterface()
+        )
+        server.start()
+
+    elif arguments.mode == "telegram":
         bot: telebot.TeleBot = telebot.TeleBot(arguments.token)
         server: TelegramServer = TelegramServer(user_data, bot)
 
@@ -55,13 +69,6 @@ def main():
                 bot.polling(non_stop=True)
             except Exception as e:
                 print(e)
-
-    elif arguments.mode == "terminal":
-        ui.logger = ui.SilentLogger()
-        server: TerminalServer = TerminalServer(
-            user_data, ui.TerminalMessengerInterface()
-        )
-        server.start()
 
 
 if __name__ == "__main__":
