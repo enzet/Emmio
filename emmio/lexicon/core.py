@@ -417,15 +417,6 @@ class Lexicon:
             / len(self.responses[index_1:index_2])
         )
 
-    def get_data(self, start: datetime, finish: datetime) -> (int, int):
-        length: int = 0
-        data: int = 0
-        for index in range(len(self.dates)):
-            if start <= self.dates[index] < finish:
-                length += 1
-                data += self.responses[index]
-        return length, data
-
     def get_preferred_interval(self) -> int:
         return int(100 / self.get_average())
 
