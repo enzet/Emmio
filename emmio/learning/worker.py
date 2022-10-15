@@ -6,7 +6,7 @@ from typing import Optional
 from emmio import ui
 from emmio.dictionary import DictionaryItem, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.frequency import FrequencyDatabase
+from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.language import (
     Language,
     construct_language,
@@ -25,7 +25,7 @@ from emmio.sentence.core import Translation, Sentence
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.sentences import Sentences
 from emmio.text import sanitize
-from emmio.ui import log
+from emmio.ui import log, error
 from emmio.user_data import UserData
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
@@ -70,6 +70,25 @@ class LearningWorker(Worker):
         log("getting words")
         for frequency_list_id in learning.frequency_list_ids:
             frequency_list_id: str
+            if not frequency_db.has_table(frequency_list_id):
+                frequency_list: Optional[
+                    FrequencyList
+                ] = self.user_data.get_frequency_list(frequency_list_id)
+                if frequency_list is None:
+                    error(
+                        f"frequency list for {frequency_list_id} was not "
+                        f"constructed"
+                    )
+                    return
+
+                if frequency_list.update and frequency_db.has_table(
+                    frequency_list_id
+                ):
+                    frequency_db.drop_table(frequency_list_id)
+
+                if not frequency_db.has_table(frequency_list_id):
+                    log(f"adding frequency database table {frequency_list_id}")
+                    frequency_db.add_table(frequency_list_id, frequency_list)
             for index, word, _ in frequency_db.get_words(frequency_list_id):
                 index: int
                 word: str
