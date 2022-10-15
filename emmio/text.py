@@ -81,4 +81,4 @@ if __name__ == "__main__":
         text = Text(input_file.read(), language=construct_language(language))
 
     frequency_list: FrequencyList = text.get_frequency_list()
-    frequency_list.write_json(output_path)
+    frequency_list.write_list(output_path)

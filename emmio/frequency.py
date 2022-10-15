@@ -235,15 +235,15 @@ class FrequencyList:
 
         return frequency_list
 
-    def write_list(self, file_name: str, delimiter: str = " ") -> None:
+    def write_list(self, output_path: Path, delimiter: str = " ") -> None:
         """
         Write frequency list in the format:
         `<word><delimiter><number of occurrences>`.
 
-        :param file_name: output text file name.
+        :param output_path: output text file path.
         :param delimiter: delimiter between word and its number of occurrences.
         """
-        with open(file_name, "w+") as output_file:
+        with output_path.open("w+") as output_file:
             for word in sorted(self.data.keys(), key=lambda x: -self.data[x]):
                 output_file.write(f"{word}{delimiter}{self.data[word]}\n")
 
