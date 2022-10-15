@@ -109,6 +109,9 @@ KANJI: str = (
     letter_range("㐀", "䶵") + letter_range("一", "鿋") + letter_range("豈", "頻")
 )
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
+ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
+    "\u0531", "\u0556"
+)
 
 LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
@@ -130,6 +133,7 @@ LATIN_LIGATURES: dict[str, str] = {
 }
 
 ARABIC: Language = Language("ar", Color("#FF8800"))
+ARMENIAN: Language = Language("hy", Color("#888800"), ARMENIAN_LETTERS)
 CHINESE: Language = Language("zh", Color("#444400"), self_name="中文")
 ENGLISH: Language = Language(
     "en",
@@ -198,6 +202,7 @@ UKRAINIAN: Language = Language(
 
 known_languages = [
     ARABIC,
+    ARMENIAN,
     CHINESE,
     ENGLISH,
     ESPERANTO,
