@@ -1,5 +1,8 @@
+import sys
+from pathlib import Path
+
 from emmio.frequency import FrequencyList
-from emmio.language import Language
+from emmio.language import Language, construct_language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -67,3 +70,15 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
             text = text[:start] + sanitized + text[start + len(word) :]
 
     return text
+
+
+if __name__ == "__main__":
+    input_path: Path = Path(sys.argv[1])
+    output_path: Path = Path(sys.argv[2])
+    language: str = sys.argv[3]
+
+    with input_path.open() as input_file:
+        text = Text(input_file.read(), language=construct_language(language))
+
+    frequency_list: FrequencyList = text.get_frequency_list()
+    frequency_list.write_json(output_path)
