@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 from colour import Color
 from iso639 import languages as iso_languages
@@ -29,12 +29,18 @@ class Language:
         symbols: Optional[str] = None,
         self_name: str = None,
         tone: Optional[Color] = None,
+        checking: Optional[Callable] = None,
     ):
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: Optional[str] = symbols
         self.color: Optional[Color] = color
         self.self_name: str = self_name
         self.tone: Optional[Color] = tone
+
+        if checking:
+            self.has_symbol = checking
+        else:
+            self.has_symbol = lambda x: x in self.symbols
 
     def __eq__(self, other: "Language"):
         assert isinstance(other, Language)
@@ -69,10 +75,6 @@ class Language:
     def get_part3(self) -> str:
         """Get ISO 639-3:2007 three-letter code."""
         return self.language.part3
-
-    def has_symbol(self, symbol: str) -> bool:
-        """Check whether the symbol is allowed in the language."""
-        return symbol in self.symbols
 
     def has_symbols(self) -> bool:
         """Check whether language knows its allowed symbols."""
@@ -133,7 +135,12 @@ LATIN_LIGATURES: dict[str, str] = {
 }
 
 ARABIC: Language = Language("ar", Color("#FF8800"))
-ARMENIAN: Language = Language("hy", Color("#888800"), ARMENIAN_LETTERS)
+ARMENIAN: Language = Language(
+    "hy",
+    Color("#888800"),
+    ARMENIAN_LETTERS,
+    checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
+)
 CHINESE: Language = Language("zh", Color("#444400"), self_name="中文")
 ENGLISH: Language = Language(
     "en",

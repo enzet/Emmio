@@ -1,5 +1,7 @@
 import sys
+from collections import defaultdict
 from pathlib import Path
+from typing import IO
 
 from emmio.frequency import FrequencyList
 from emmio.language import Language, construct_language
@@ -11,45 +13,40 @@ __email__ = "me@enzet.ru"
 class Text:
     """Text processing utility."""
 
-    def __init__(self, text: str, language: Language):
+    def __init__(self, input_file: IO, language: Language):
         """
-        :param text: some text to process
+        :param input_file: file to process
         :param language: text language
         """
-        self.text: str = text
+        self.input_file: IO = input_file
         self.language: Language = language
 
-    def get_frequency_list(
-        self, ignore_proper_nouns: bool = False
-    ) -> FrequencyList:
-        """
-        Construct frequency list of the text.
-
-        :param ignore_proper_nouns: ignore capital letters
-        """
+    def get_frequency_list(self) -> dict:
+        """Construct frequency list of the text."""
         print("Construct frequency list...")
+        check = self.language.has_symbol
 
-        frequency_list: FrequencyList = FrequencyList(update=False)
+        # frequency_list: FrequencyList = FrequencyList(update=False)
+        m = defaultdict(int)
 
-        for line in self.text.split("\n"):
-            line: str
-            word: str = ""
+        word: str = ""
+        for line in input_file:
             for symbol in line:
                 symbol: str
-                if self.language.has_symbol(symbol):
+                if (
+                    "\u0561" <= symbol <= "\u0587"
+                    or "\u0531" <= symbol <= "\u0556"
+                ):
                     word += symbol
-                    continue
-                if word != "":
-                    if ignore_proper_nouns:
-                        frequency_list.add(word[0] + word[1:].lower())
-                    else:
-                        frequency_list.add(word.lower())
-                word = ""
+                # if check(symbol):
+                #     word += symbol
+                #     continue
+                else:
+                    if word:
+                        m[word.lower()] += 1
+                    word = ""
 
-        if ignore_proper_nouns:
-            frequency_list.ignore_proper_nouns()
-
-        return frequency_list
+        return m
 
 
 def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
@@ -78,7 +75,9 @@ if __name__ == "__main__":
     language: str = sys.argv[3]
 
     with input_path.open() as input_file:
-        text = Text(input_file.read(), language=construct_language(language))
+        text = Text(input_file, language=construct_language(language))
+        m = text.get_frequency_list()
 
-    frequency_list: FrequencyList = text.get_frequency_list()
-    frequency_list.write_list(output_path)
+    with output_path.open("w+") as output_file:
+        for word in sorted(m.keys(), key=lambda x: -m[x]):
+            output_file.write(f"{word} {m[word]}\n")
