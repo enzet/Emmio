@@ -71,19 +71,19 @@ int main(int argc, char** argv) {
                         if (bit == 0) {
                             if (current->zero == NULL) {
                                 current->zero = malloc(sizeof(struct Dictionary));
-                                current = current->zero;
-                                current->count = 0;
-                                current->zero = NULL;
-                                current->one = NULL;
+                                current->zero->count = 0;
+                                current->zero->zero = NULL;
+                                current->zero->one = NULL;
                             }
+                            current = current->zero;
                         } else {
                             if (current->one == NULL) {
                                 current->one = malloc(sizeof(struct Dictionary));
-                                current = current->one;
-                                current->count = 0;
-                                current->zero = NULL;
-                                current->one = NULL;
+                                current->one->count = 0;
+                                current->one->zero = NULL;
+                                current->one->one = NULL;
                             }
+                            current = current->one;
                         }
                     }
                     i++;
@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
                     word[i] = 0;
                 }
                 word[0] = 0;
+                current = dictionary;
                 i = 0;
             }
             j++;
