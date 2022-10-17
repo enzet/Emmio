@@ -1,7 +1,7 @@
 // The script constructs frequency list for text.
 // Arguments:
-//     - Path to input file with text.
-//     - Path to output file to store frequency list.
+//   1. path to input file with text,
+//   2. path to output file to store frequency list.
 
 #include <locale.h>
 #include <stdlib.h>
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 
             // If character is of interest.
             if (code >= 0) {
-                if (word_index > MAX_WORD_SIZE) {
+                if (word_index > MAX_WORD_SIZE - 1) {
                     buffer_index++;
                     continue;
                 }
@@ -137,14 +137,24 @@ int main(int argc, char** argv) {
 
     process(binary_tree, str, 0, 0);
 
+    // Sort word from the most frequent to the least frequent. For words with
+    // the same number of occurrences, order is undefined.
+
     printf("Sorting...\n");
-    qsort((void*) occurrences, unique_words, sizeof(struct Occurrences), comparator);
+
+    qsort((void*) occurrences, unique_words, sizeof(struct Occurrences),
+        comparator);
+
+    // Write frequency list to the file of the format
+    // <word><space><occurrences>.
+
+    printf("Writing...\n");
 
     FILE* output_file = fopen(output_file_path, "w");
 
-    printf("Writing...\n");
-    for (int i = 0; i < unique_words; i++) {
-        fwprintf(output_file, L"%ls %d\n", occurrences[i].word, occurrences[i].count);
+    for (struct Occurrences* element = occurrences;
+            element - occurrences < unique_words; element++) {
+        fwprintf(output_file, L"%ls %d\n", element->word, element->count);
     }
     fclose(output_file);
 
