@@ -1,4 +1,4 @@
-<img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo.png" />
+<img align="right" src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo_blue.svg" />
 
 __Emmio__ is an experimental project on languages and learning. It consists of:
 
