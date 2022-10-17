@@ -48,17 +48,15 @@ int main(int argc, char** argv) {
     setlocale(LC_ALL, "");
 
     struct Dictionary *dictionary = malloc(sizeof(struct Dictionary));
-    dictionary->count = 0;
-    dictionary->zero = NULL;
-    dictionary->one = NULL;
+    *dictionary = (struct Dictionary){NULL, NULL, 0};
 
     struct Dictionary *current = dictionary;
 
-    wchar_t buf[BUFFER_SIZE];
-    while (fgetws(buf, BUFFER_SIZE, file) != NULL) {
+    wchar_t buffer[BUFFER_SIZE];
+    while (fgetws(buffer, BUFFER_SIZE, file) != NULL) {
         int j = 0;
         while (1) {
-            wchar_t c = buf[j];
+            wchar_t c = buffer[j];
             if (!c) {
                 break;
             }
@@ -71,17 +69,13 @@ int main(int argc, char** argv) {
                         if (bit == 0) {
                             if (current->zero == NULL) {
                                 current->zero = malloc(sizeof(struct Dictionary));
-                                current->zero->count = 0;
-                                current->zero->zero = NULL;
-                                current->zero->one = NULL;
+                                *current->zero = (struct Dictionary){NULL, NULL, 0};
                             }
                             current = current->zero;
                         } else {
                             if (current->one == NULL) {
                                 current->one = malloc(sizeof(struct Dictionary));
-                                current->one->count = 0;
-                                current->one->zero = NULL;
-                                current->one->one = NULL;
+                                *current->one = (struct Dictionary){NULL, NULL, 0};
                             }
                             current = current->one;
                         }
