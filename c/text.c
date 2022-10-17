@@ -36,12 +36,12 @@ int comparator(const void *x, const void *y) {
 }
 
 void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
-        int summ) {
+        int code) {
 
     if (index > 0 && index % BITS_PER_CHARACTER == 0) {
-        word[index / BITS_PER_CHARACTER - 1] = summ + L'\x0561';
+        word[index / BITS_PER_CHARACTER - 1] = code + L'\x0561';
         word[index / BITS_PER_CHARACTER] = L'\0';
-        summ = 0;
+        code = 0;
     }
     if (binary_tree == NULL) {
         return;
@@ -53,7 +53,7 @@ void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
     }
     for (int bit = 0; bit < 2; bit++) {
         if (binary_tree->subtrees[bit] != NULL) {
-            process(binary_tree->subtrees[bit], word, index + 1, (summ << 1) + bit);
+            process(binary_tree->subtrees[bit], word, index + 1, (code << 1) + bit);
         }
     }
 }
@@ -92,16 +92,16 @@ int main(int argc, char** argv) {
 
         while ((character = buffer[buffer_index])) {
 
-            int number = -1; // Integer representation of the character.
+            int code = -1; // Case-insensitive encoding for the character.
 
             if (L'\x0561' <= character && character <= L'\x0587') {
-                number = character - L'\x0561';
+                code = character - L'\x0561';
             } else if (L'\x0531' <= character && character <= L'\x0556') {
-                number = character - L'\x0531';
+                code = character - L'\x0531';
             }
 
             // If character is of interest.
-            if (number >= 0) {
+            if (code >= 0) {
                 if (word_index > MAX_WORD_SIZE) {
                     buffer_index++;
                     continue;
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
                 for (int k = 1 << (BITS_PER_CHARACTER - 1); k >= 1;
                         k = k >> 1) {
 
-                    int bit = number & k ? 1 : 0;
+                    int bit = code & k ? 1 : 0;
                     if (!current->subtrees[bit]) {
                         current->subtrees[bit] =
                             malloc(sizeof(struct BinaryTree));
