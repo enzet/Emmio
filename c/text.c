@@ -76,7 +76,6 @@ int main(int argc, char** argv) {
     wchar_t word[MAX_WORD_SIZE];
     int word_index = 0;
     int unique_words = 0;
-    int buffer_count = 0;
 
     printf("Reading...\n");
 
@@ -84,11 +83,6 @@ int main(int argc, char** argv) {
 
         int buffer_index = 0;
         wchar_t character;
-
-        buffer_count++;
-        if (buffer_count % 1000000 == 0) {
-            printf("Buffer #%d.\n", buffer_count);
-        }
 
         while ((character = buffer[buffer_index])) {
 
