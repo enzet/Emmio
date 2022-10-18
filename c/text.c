@@ -17,8 +17,8 @@
 // prefix will be used as a whole word.
 #define MAX_WORD_SIZE 50
 
-int w = 0;
-struct Occurrences* occurrences;
+struct Occurrences* occurrences; // Resulted frequency list.
+int occurrences_index = 0;
 
 struct BinaryTree {
     struct BinaryTree* subtrees[2];
@@ -35,6 +35,7 @@ int comparator(const void *x, const void *y) {
     return ((struct Occurrences*) y)->count - ((struct Occurrences*) x)->count;
 }
 
+// Process binary tree and store collected unsorted frequency list into array.
 void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
         int code) {
 
@@ -47,13 +48,14 @@ void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
         return;
     }
     if (binary_tree->count > 0) {
-        occurrences[w].count = binary_tree->count;
-        wcscpy(occurrences[w].word, word);
-        w++;
+        occurrences[occurrences_index].count = binary_tree->count;
+        wcscpy(occurrences[occurrences_index].word, word);
+        occurrences_index++;
     }
     for (int bit = 0; bit < 2; bit++) {
         if (binary_tree->subtrees[bit] != NULL) {
-            process(binary_tree->subtrees[bit], word, index + 1, (code << 1) + bit);
+            process(binary_tree->subtrees[bit], word, index + 1,
+                (code << 1) + bit);
         }
     }
 }
@@ -74,8 +76,10 @@ int main(int argc, char** argv) {
 
     wchar_t buffer[BUFFER_SIZE];
     wchar_t word[MAX_WORD_SIZE];
-    int word_index = 0;
-    int unique_words = 0;
+    int word_index = 0; // Index of current character in word.
+    int unique_words = 0; // Number of unique words in text so far.
+
+    // Read text from the file and store words and occurrences into binary tree.
 
     printf("Reading...\n");
 
