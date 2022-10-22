@@ -3,7 +3,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import IO
 
-from emmio.frequency import FrequencyList
 from emmio.language import Language, construct_language
 
 __author__ = "Sergey Vartanov"
