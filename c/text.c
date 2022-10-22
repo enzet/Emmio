@@ -17,6 +17,12 @@
 // prefix will be used as a whole word.
 #define MAX_WORD_SIZE 50
 
+enum Language {
+    HY = 0,
+};
+
+enum Language text_language = HY;
+
 struct Occurrences* occurrences; // Resulted frequency list.
 int occurrences_index = 0;
 
@@ -92,10 +98,14 @@ int main(int argc, char** argv) {
 
             int code = -1; // Case-insensitive encoding for the character.
 
-            if (L'\x0561' <= character && character <= L'\x0587') {
-                code = character - L'\x0561';
-            } else if (L'\x0531' <= character && character <= L'\x0556') {
-                code = character - L'\x0531';
+            switch (text_language) {
+                case HY:
+                    if (L'\x0561' <= character && character <= L'\x0587') {
+                        code = character - L'\x0561';
+                    } else if (L'\x0531' <= character && character <= L'\x0556') {
+                        code = character - L'\x0531';
+                    }
+                    break;
             }
 
             // If character is of interest.
