@@ -152,8 +152,9 @@ class Form:
         self, translation: Definition, language: Language
     ) -> None:
         """
-        Add word translation.  It is assumed that translations are sorted by
-        usage frequency.
+        Add word translation.
+
+        It is assumed that translations are sorted by usage frequency.
 
         :param language: language of translation
         :param translation: word translation
@@ -395,10 +396,9 @@ class Dictionaries:
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
         """
-        Add dictionary to the list.  It will have lower priority than previously
-        added dictionaries.
+        Add dictionary to the list.
 
-        :param dictionary: dictionary to add
+        It will have lower priority than previously added dictionaries.
         """
         self.dictionaries.append(dictionary)
 
