@@ -10,6 +10,6 @@ setup(
     author_email="me@enzet.ru",
     description="Language learning toolbox",
     entry_points={
-        "console_scripts": ["emmio=emmio.main:main"],
+        "console_scripts": ["emmio=emmio.__main__:main"],
     },
 )
