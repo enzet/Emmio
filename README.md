@@ -21,7 +21,7 @@ pip install git+https://github.com/enzet/emmio
 ## Run ##
 
 ```shell
-emmio ${DATA_DIRECTORY} ${USER_NAME}
+emmio learn --data ${DATA_DIRECTORY} --user ${USER_NAME}
 ```
 
 ## Lexicon ##

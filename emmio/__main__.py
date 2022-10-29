@@ -23,10 +23,19 @@ def main():
     set_log(Logger)
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser("Emmio")
-    parser.add_argument("--data", help="path to data directory")
-    parser.add_argument("--user", help="user name")
-    parser.add_argument("--mode", help="interface mode")
-    parser.add_argument("--token", help="Telegram messenger token")
+
+    subparser = parser.add_subparsers(dest="command")
+
+    learning_parser = subparser.add_parser("learn")
+
+    learning_parser.add_argument("--data", help="path to data directory")
+    learning_parser.add_argument("--user", help="user name")
+    learning_parser.add_argument(
+        "--mode",
+        help="interface mode",
+        default="terminal",
+    )
+    learning_parser.add_argument("--token", help="Telegram messenger token")
     arguments: argparse.Namespace = parser.parse_args(sys.argv[1:])
 
     data_path: Path = Path.home() / EMMIO_DEFAULT_DIRECTORY
