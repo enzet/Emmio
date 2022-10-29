@@ -3,12 +3,12 @@
 
 <svg
    width="115.17364mm"
-   height="40.05941mm"
-   viewBox="0 0 408.09557 141.94279"
+   height="50.642742mm"
+   viewBox="0 0 408.09557 179.44279"
    id="svg4281"
    version="1.1"
    inkscape:version="1.1.1 (c3084ef, 2021-09-22)"
-   sodipodi:docname="logo_black.svg"
+   sodipodi:docname="header_black.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -26,8 +26,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.2596268"
-     inkscape:cx="446.56086"
-     inkscape:cy="114.31958"
+     inkscape:cx="210.77672"
+     inkscape:cy="107.96849"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -37,10 +37,11 @@
      fit-margin-bottom="0"
      inkscape:window-width="1440"
      inkscape:window-height="847"
-     inkscape:window-x="-11"
+     inkscape:window-x="0"
      inkscape:window-y="25"
      inkscape:window-maximized="0"
-     inkscape:pagecheckerboard="0" />
+     inkscape:pagecheckerboard="0"
+     inkscape:snap-page="true" />
   <metadata
      id="metadata4286">
     <rdf:RDF>

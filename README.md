@@ -1,6 +1,6 @@
 <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo_white.svg">
-    <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/logo_black.svg" alt="Swift logo" height="70">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_white.svg">
+    <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
 __Emmio__ is an experimental project on languages and learning. It consists of:
