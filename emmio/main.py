@@ -1,10 +1,8 @@
 import json
-import sys
-from collections import defaultdict
 from datetime import datetime, timedelta
 from logging import info
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from emmio import util, ui, __main__
 from emmio.dictionary import Dictionary, Dictionaries
@@ -55,10 +53,10 @@ HELP: list[list[str]] = [
 class Emmio:
     """Emmio entry point."""
 
-    def __init__(self, user_data: UserData, path: Path, interface: Interface):
-        self.user_data: UserData = user_data
+    def __init__(self, path: Path, interface: Interface):
         self.path: Path = path
         self.interface: Interface = interface
+        self.user_datas: dict[str, UserData] = {}
 
         self.sentence_db: SentenceDatabase = SentenceDatabase(
             path / "sentence.db"
@@ -66,18 +64,19 @@ class Emmio:
         self.frequency_db: FrequencyDatabase = FrequencyDatabase(
             path / "frequency.db"
         )
-        with (path / "config.json").open() as input_file:
-            self.config = json.load(input_file)
+        config_path: Path = path / "config.json"
+
+        self.config: dict[str, Any]
+        if not config_path.is_file():
+            self.config = {}
+        else:
+            with (path / "config.json").open() as input_file:
+                self.config = json.load(input_file)
 
     def get_dictionaries(self, language: Language) -> list[Dictionary]:
-        dictionaries: list[Dictionary] = []
+        return [EnglishWiktionary(Path("cache"), language)]
 
-        wiktionary: Dictionary = EnglishWiktionary(Path("cache"), language)
-        dictionaries.append(wiktionary)
-
-        return dictionaries
-
-    def run(self):
+    def run(self, user_name: str):
 
         print("\nEmmio\n")
 
@@ -94,33 +93,35 @@ class Emmio:
             if command in ["q", "quit", "exit"]:
                 return
 
-            self.process_command(command)
+            self.process_command(user_name, command)
 
-    def process_command(self, command: str, interactive: bool = True) -> None:
+    def process_command(
+        self, user_name: str, command: str, interactive: bool = True
+    ) -> None:
+
+        user_data: UserData = self.user_datas[user_name]
 
         if command == "help":
             self.interface.table(["Command", "Description"], HELP)
 
         if not command or command == "learn":
-            self.learn()
+            self.learn(user_data)
 
         if command.startswith("lexicon"):
-            self.run_lexicon(command[len("lexicon") :])
+            self.run_lexicon(user_data, command[len("lexicon") :])
 
         if command == "stat learn":
-            self.user_data.get_stat(self.interface)
+            user_data.get_stat(self.interface)
 
         if command == "stat lexicon":
 
             rows = []
 
             for language in sorted(
-                self.user_data.get_lexicon_languages(),
-                key=lambda x: -self.user_data.get_lexicon(
-                    x
-                ).get_last_rate_number(),
+                user_data.get_lexicon_languages(),
+                key=lambda x: -user_data.get_lexicon(x).get_last_rate_number(),
             ):
-                lexicon: Lexicon = self.user_data.get_lexicon(language)
+                lexicon: Lexicon = user_data.get_lexicon(language)
                 now: datetime = datetime.now()
                 rate: Optional[float] = lexicon.get_last_rate()
                 last_week_precision: int = lexicon.count_unknowns(
@@ -141,8 +142,8 @@ class Emmio:
         if command == "plot lexicon":
             LexiconVisualizer(interactive=interactive).graph_with_matplot(
                 [
-                    self.user_data.get_lexicon(language)
-                    for language in self.user_data.get_lexicon_languages()
+                    user_data.get_lexicon(language)
+                    for language in user_data.get_lexicon_languages()
                 ]
             )
 
@@ -153,8 +154,8 @@ class Emmio:
                 impulses=False,
             ).graph_with_svg(
                 [
-                    self.user_data.get_lexicon(language)
-                    for language in self.user_data.get_lexicon_languages()
+                    user_data.get_lexicon(language)
+                    for language in user_data.get_lexicon_languages()
                 ],
                 1.5,
             )
@@ -162,18 +163,18 @@ class Emmio:
         if command == "svg lexicon week":
             LexiconVisualizer().graph_with_svg(
                 [
-                    self.user_data.get_lexicon(language)
-                    for language in self.user_data.get_lexicon_languages()
+                    user_data.get_lexicon(language)
+                    for language in user_data.get_lexicon_languages()
                 ],
             )
 
         if command == "data":
-            for course_id in self.user_data.course_ids:
+            for course_id in user_data.course_ids:
                 ui.log(f"construct data for {course_id}")
-                learning: Learning = self.user_data.get_course(course_id)
+                learning: Learning = user_data.get_course(course_id)
                 self.fill_data(
                     construct_language(learning.subject),
-                    self.user_data.get_frequency_list(
+                    user_data.get_frequency_list(
                         learning.frequency_list_ids[-1]
                     ),
                 )
@@ -181,8 +182,8 @@ class Emmio:
         if command == "to learn":
 
             rows = []
-            for course_id in self.user_data.course_ids:
-                learning = self.user_data.get_course(course_id)
+            for course_id in user_data.course_ids:
+                learning = user_data.get_course(course_id)
 
                 rows.append([f"== {learning.name} =="])
                 for word, knowledge in learning.knowledges.items():
@@ -215,8 +216,8 @@ class Emmio:
                 year=now.year, month=now.month, day=now.day, hour=now.hour
             )
 
-            for course_id in self.user_data.course_ids:
-                learning: Learning = self.user_data.get_course(course_id)
+            for course_id in user_data.course_ids:
+                learning: Learning = user_data.get_course(course_id)
                 for question_id, knowledge in learning.knowledges.items():
                     if knowledge.is_learning():
                         if (
@@ -249,8 +250,8 @@ class Emmio:
             learning_words = 0
             records: list[LearningRecord] = []
             knowledges = {}
-            for course_id in self.user_data.course_ids:
-                learning: Learning = self.user_data.get_course(course_id)
+            for course_id in user_data.course_ids:
+                learning: Learning = user_data.get_course(course_id)
                 if not learning.is_learning:
                     continue
                 ratios += learning.ratio
@@ -262,28 +263,28 @@ class Emmio:
             records = sorted(records, key=lambda x: x.time)
 
             lexicons = [
-                self.user_data.get_lexicon(language)
-                for language in self.user_data.get_lexicon_languages()
+                user_data.get_lexicon(language)
+                for language in user_data.get_lexicon_languages()
             ]
             visualizer.process_command(command, records, knowledges, lexicons)
 
-    def run_lexicon(self, code: str) -> None:
+    def run_lexicon(self, user_data: UserData, code: str) -> None:
         """Check all user lexicons."""
 
         if code.endswith(" ra"):
             language_code = code[1:3]
             language = construct_language(language_code)
-            lexicon = self.user_data.get_lexicon(language)
+            lexicon = user_data.get_lexicon(language)
             lexicon.check(
                 self.interface,
-                self.user_data.get_frequency_list_for_lexicon(language),
+                user_data.get_frequency_list_for_lexicon(language),
                 None,
                 Dictionaries(self.get_dictionaries(language)),
                 "most frequent",
                 False,
                 False,
                 None,
-                learning=self.user_data.get_course(f"ru_{language_code}"),
+                learning=user_data.get_course(f"ru_{language_code}"),
             )
             return
 
@@ -294,14 +295,12 @@ class Emmio:
             languages = [construct_language(code[1:])]
         else:
             languages = sorted(
-                self.user_data.get_lexicon_languages(),
-                key=lambda x: -self.user_data.get_lexicon(
-                    x
-                ).get_last_rate_number(),
+                user_data.get_lexicon_languages(),
+                key=lambda x: -user_data.get_lexicon(x).get_last_rate_number(),
             )
 
         for language in languages:
-            lexicon: Lexicon = self.user_data.get_lexicon(language)
+            lexicon: Lexicon = user_data.get_lexicon(language)
             now: datetime = datetime.now()
             need: int = 5 - lexicon.count_unknowns(
                 "log", now - timedelta(days=7), now
@@ -314,7 +313,7 @@ class Emmio:
 
             lexicon.check(
                 self.interface,
-                self.user_data.get_frequency_list_for_lexicon(language),
+                user_data.get_frequency_list_for_lexicon(language),
                 None,
                 Dictionaries(self.get_dictionaries(language)),
                 "frequency",
@@ -324,20 +323,20 @@ class Emmio:
             )
             break
 
-    def learn(self) -> None:
+    def learn(self, user_data: UserData) -> None:
         sorted_ids: list[str] = sorted(
-            self.user_data.course_ids,
-            key=lambda x: -self.user_data.get_course(x).to_repeat(),
+            user_data.course_ids,
+            key=lambda x: -user_data.get_course(x).to_repeat(),
         )
         for course_id in sorted_ids:
-            learning: Learning = self.user_data.get_course(course_id)
+            learning: Learning = user_data.get_course(course_id)
             if not learning.is_learning:
                 continue
 
             lexicon: Optional[Lexicon]
 
             try:
-                lexicon = self.user_data.get_lexicon(
+                lexicon = user_data.get_lexicon(
                     construct_language(learning.subject)
                 )
             except LanguageNotFound:
@@ -346,7 +345,7 @@ class Emmio:
             for frequency_list_id in learning.frequency_list_ids:
                 frequency_list: Optional[
                     FrequencyList
-                ] = self.user_data.get_frequency_list(frequency_list_id)
+                ] = user_data.get_frequency_list(frequency_list_id)
 
                 if frequency_list is None:
                     error(
@@ -371,7 +370,7 @@ class Emmio:
                 teacher: Teacher = Teacher(
                     Path("cache"),
                     self.interface,
-                    self.user_data,
+                    user_data,
                     self.sentence_db,
                     self.frequency_db,
                     learning,
@@ -382,17 +381,17 @@ class Emmio:
                     return
 
         sorted_ids = sorted(
-            self.user_data.course_ids,
+            user_data.course_ids,
             key=lambda x: (
                 0
-                if not self.user_data.get_course(x).ratio
-                else self.user_data.get_course(x).learning()
-                / self.user_data.get_course(x).ratio
+                if not user_data.get_course(x).ratio
+                else user_data.get_course(x).learning()
+                / user_data.get_course(x).ratio
             ),
         )
         for course_id in sorted_ids:
-            learning = self.user_data.get_course(course_id)
-            lexicon: Lexicon = self.user_data.get_lexicon(
+            learning = user_data.get_course(course_id)
+            lexicon: Lexicon = user_data.get_lexicon(
                 construct_language(learning.subject)
             )
             if learning.ratio > learning.new_today():
@@ -402,7 +401,7 @@ class Emmio:
                 learner = Teacher(
                     Path("cache"),
                     self.interface,
-                    self.user_data,
+                    user_data,
                     self.sentence_db,
                     self.frequency_db,
                     learning,
@@ -417,7 +416,7 @@ class Emmio:
 
         now: datetime = datetime.now()
         time_to_repetition: timedelta = (
-            min(x.get_nearest() for x in self.user_data.courses.values()) - now
+            min(x.get_nearest() for x in user_data.courses.values()) - now
         )
         time_to_new: timedelta = util.day_end(now) - now
         if time_to_repetition < time_to_new:
@@ -425,32 +424,3 @@ class Emmio:
         else:
             print(f"    New question in {time_to_new}.")
         print()
-
-
-def main() -> None:
-    """Entry point."""
-    set_log(Logger)
-
-    data_path: Path = Path(sys.argv[1])
-    user_id: str = sys.argv[2]
-    interface: Interface = ui.RichInterface()
-
-    interface.run()
-
-    emmio: Emmio = Emmio(
-        UserData.from_directory(data_path, user_id),
-        data_path,
-        interface,
-    )
-
-    if len(sys.argv) > 3:
-        command = " ".join(sys.argv[3:])
-        emmio.process_command(command, interactive=False)
-    else:
-        emmio.run()
-
-    interface.stop()
-
-
-if __name__ == "__main__":
-    __main__.main()
