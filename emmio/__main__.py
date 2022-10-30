@@ -19,18 +19,18 @@ def main():
     parser: ArgumentParser = ArgumentParser("Emmio")
     subparser = parser.add_subparsers(dest="command")
 
-    # Learning parser.
+    # Server.
 
-    learning_parser: ArgumentParser = subparser.add_parser("learn")
+    server_parser: ArgumentParser = subparser.add_parser("server")
 
-    learning_parser.add_argument("--data", help="path to data directory")
-    learning_parser.add_argument("--user", help="user name")
-    learning_parser.add_argument(
+    server_parser.add_argument("--data", help="path to data directory")
+    server_parser.add_argument("--user", help="user name")
+    server_parser.add_argument(
         "--mode",
-        help="interface mode",
+        help="server mode",
         default="terminal",
     )
-    learning_parser.add_argument("--token", help="Telegram messenger token")
+    server_parser.add_argument("--token", help="Telegram messenger token")
 
     # Frequency list parser.
 
@@ -50,7 +50,7 @@ def main():
         data_path = Path(arguments.data)
     data_path.mkdir(parents=True, exist_ok=True)
 
-    if arguments.command == "learn":
+    if arguments.command == "server":
         from emmio.entry import start
 
         start(data_path, arguments)

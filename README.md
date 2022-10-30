@@ -10,7 +10,7 @@ __Emmio__ is an experimental project on languages and learning. It consists of:
     flashcard learning system.
   * _Lexicon_: check and track vocabulary level.
 
-## Installation ##
+## Installation
 
 Requires __Python 3.9__.
 
@@ -18,13 +18,19 @@ Requires __Python 3.9__.
 pip install git+https://github.com/enzet/emmio
 ```
 
-## Run ##
+## Server
 
 ```shell
-emmio learn --data ${DATA_DIRECTORY} --user ${USER_NAME}
+emmio server
 ```
 
-## Lexicon ##
+### Telegram
+
+```shell
+emmio server --mode telegram --token ${TELEGRAM_TOKEN}
+```
+
+## Lexicon
 
 The algorithm will randomly (based on frequency) offer you words of the target
 language. For each word you have to decide 
@@ -65,14 +71,14 @@ Lexicon configuration:
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
 
-## Frequency ##
+## Frequency
 
 There are full and stripped frequency lists. Stripped list uses only top part of
 the full list. Some algorithms require full lists.
 
 There are a lot of projects with frequency lists.
 
-### FrequencyWords (Opensubtitles) ###
+### FrequencyWords (Opensubtitles)
 
 There is [Hermit Dave](https://github.com/hermitdave)'s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
@@ -85,7 +91,7 @@ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/
     --output-document=${LANGUAGE_CODE}_opensubtitles_2018.txt
 ```
 
-### Wiktionary ###
+### Wiktionary
 
 Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
