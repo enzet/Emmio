@@ -22,9 +22,7 @@ EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
 
 @dataclass
 class UserData:
-    """
-    Learning data for one user.
-    """
+    """Learning data for one user."""
 
     id_: str
     name: str

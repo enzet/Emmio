@@ -1,6 +1,4 @@
-"""
-Emmio console user interface.
-"""
+"""Emmio console user interface."""
 
 import sys
 import termios
@@ -10,7 +8,6 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from emmio.language import Language
 
@@ -66,9 +63,7 @@ def table(columns: list[str], rows: list[list[str]]) -> str:
 
 
 class Interface:
-    """
-    User input/output interface.
-    """
+    """User input/output interface."""
 
     def print(self, text: str) -> None:
         """Simply print text message."""

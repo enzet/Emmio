@@ -1,6 +1,4 @@
-"""
-Frequency list utility.
-"""
+"""Frequency list utility."""
 import json
 import random
 import sys
@@ -15,11 +13,10 @@ from urllib3 import HTTPResponse
 
 from emmio.database import Database
 from emmio.ui import progress_bar
+from emmio.util import MalformedFile
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
-from emmio.util import MalformedFile
 
 
 @dataclass
