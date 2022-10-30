@@ -1,16 +1,10 @@
 """Emmio entry point."""
-import argparse
-import getpass
+import logging
+from argparse import Namespace, ArgumentParser
 import sys
 from pathlib import Path
 
-import telebot
-from telebot.types import Message
-
-from emmio import ui
-from emmio.server import TelegramServer, TerminalServer, EmmioServer
 from emmio.ui import set_log, Logger
-from emmio.user_data import UserData
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -22,11 +16,12 @@ def main():
     """Emmio entry point."""
     set_log(Logger)
 
-    parser: argparse.ArgumentParser = argparse.ArgumentParser("Emmio")
-
+    parser: ArgumentParser = ArgumentParser("Emmio")
     subparser = parser.add_subparsers(dest="command")
 
-    learning_parser = subparser.add_parser("learn")
+    # Learning parser.
+
+    learning_parser: ArgumentParser = subparser.add_parser("learn")
 
     learning_parser.add_argument("--data", help="path to data directory")
     learning_parser.add_argument("--user", help="user name")
@@ -36,48 +31,37 @@ def main():
         default="terminal",
     )
     learning_parser.add_argument("--token", help="Telegram messenger token")
-    arguments: argparse.Namespace = parser.parse_args(sys.argv[1:])
+
+    # Frequency list parser.
+
+    frequency_parser: ArgumentParser = subparser.add_parser("frequency")
+
+    frequency_parser.add_argument("--data", help="path to data directory")
+    frequency_parser.add_argument("--input", help="input text file path")
+    frequency_parser.add_argument(
+        "--id", help="output frequency list identifier"
+    )
+    frequency_parser.add_argument("--language", help="language code")
+
+    arguments: Namespace = parser.parse_args(sys.argv[1:])
 
     data_path: Path = Path.home() / EMMIO_DEFAULT_DIRECTORY
     if arguments.data:
         data_path = Path(arguments.data)
     data_path.mkdir(parents=True, exist_ok=True)
 
-    user_id: str = getpass.getuser()
-    if arguments.user:
-        user_id: str = arguments.user
+    if arguments.command == "learn":
+        from emmio.entry import start
 
-    user_data: UserData = UserData.from_directory(data_path, user_id)
-    server: EmmioServer
+        start(data_path, arguments)
 
-    if arguments.mode == "messenger":
-        ui.logger = ui.SilentLogger()
-        server: TerminalServer = TerminalServer(
-            user_data, ui.TerminalMessengerInterface()
-        )
-        server.start()
+    elif arguments.command == "frequency":
+        from emmio.text import construct_frequency_list
 
-    elif arguments.mode == "terminal":
-        ui.logger = ui.SilentLogger()
-        server: TerminalServer = TerminalServer(
-            user_data, ui.TerminalInterface()
-        )
-        server.start()
+        construct_frequency_list(arguments)
 
-    elif arguments.mode == "telegram":
-        bot: telebot.TeleBot = telebot.TeleBot(arguments.token)
-        server: TelegramServer = TelegramServer(user_data, bot)
-
-        @bot.message_handler()
-        def receive(message: Message):
-            """Get current statistics."""
-            server.receive_message(message)
-
-        while True:
-            try:
-                bot.polling(non_stop=True)
-            except Exception as e:
-                print(e)
+    else:
+        logging.fatal(f"Unknown command `{arguments.command}`.")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import sys
+from argparse import Namespace
 from collections import defaultdict
 from pathlib import Path
 from typing import IO
@@ -29,7 +30,7 @@ class Text:
         m = defaultdict(int)
 
         word: str = ""
-        for line in input_file:
+        for line in self.input_file:
             for symbol in line:
                 symbol: str
                 if (
@@ -68,9 +69,9 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
     return text
 
 
-if __name__ == "__main__":
-    input_path: Path = Path(sys.argv[1])
-    output_path: Path = Path(sys.argv[2])
+def construct_frequency_list(arguments: Namespace) -> None:
+    input_path: Path = Path(arguments.input)
+    output_path: Path = Path(arguments.output)
     language: str = sys.argv[3]
 
     with input_path.open() as input_file:
