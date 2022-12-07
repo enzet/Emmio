@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from emmio.language import Language, construct_language
 from emmio.ui import log
@@ -145,8 +145,8 @@ class Learning:
 
         # Config defaults.
         self.ratio: int = self.config.get("ratio", 10)
-        self.language: Optional[Language] = None
-        self.subject: Optional[str] = self.config.get("subject", None)
+        self.language: Language | None = None
+        self.subject: str | None = self.config.get("subject", None)
         self.check_lexicon = self.config.get("check_lexicon", True)
         self.ask_lexicon = self.config.get("ask_lexicon", False)
         self.name: str = self.config.get("name", "Unknown")
@@ -179,7 +179,7 @@ class Learning:
         sentence_id: int,
         question_id: str,
         interval: timedelta,
-        time: Optional[datetime] = None,
+        time: datetime | None = None,
     ) -> None:
         """
         Register student answer.
@@ -205,7 +205,7 @@ class Learning:
         self.records.append(record)
         self._update_knowledge(record)
 
-    def get_next(self, skip: set[str]) -> Optional[str]:
+    def get_next(self, skip: set[str]) -> str | None:
         """
         Get question identifier of the next question.
 
@@ -234,7 +234,7 @@ class Learning:
             and knowledge.responses[0] == ResponseType.RIGHT
         )
 
-    def get_nearest(self, skip: set[str] = None) -> Optional[datetime]:
+    def get_nearest(self, skip: set[str] = None) -> datetime | None:
         """Get the nearest repetition time."""
         return min(
             [
