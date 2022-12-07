@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Optional, Any
 
 from emmio import util, ui
-from emmio.dictionary import Dictionary, Dictionaries
-from emmio.external.en_wiktionary import EnglishWiktionary
+from emmio.dictionary.core import Dictionary, Dictionaries
+from emmio.dictionary.en_wiktionary import EnglishWiktionary
 from emmio.frequency.core import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer
 from emmio.language import (

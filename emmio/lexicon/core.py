@@ -7,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from emmio.dictionary import Dictionaries, Dictionary, DictionaryItem
+from emmio.dictionary.core import Dictionaries, Dictionary, DictionaryItem
 from emmio.frequency.core import FrequencyList
 from emmio.language import Language, RUSSIAN
 from emmio.ui import get_char, log, write, Interface

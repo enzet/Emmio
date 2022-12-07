@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from emmio.dictionary import Definition, DefinitionValue, Link
-from emmio.external.en_wiktionary import EnglishWiktionary
+from emmio.dictionary.core import Definition, DefinitionValue, Link
+from emmio.dictionary.en_wiktionary import EnglishWiktionary
 from emmio.language import construct_language
 
 

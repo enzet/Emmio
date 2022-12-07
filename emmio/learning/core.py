@@ -235,7 +235,7 @@ class Learning:
         )
 
     def get_nearest(self, skip: set[str] = None) -> Optional[datetime]:
-        """Get nearest repetition time."""
+        """Get the nearest repetition time."""
         return min(
             [
                 self.knowledges[word].get_next_time()

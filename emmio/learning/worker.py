@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Optional
 
 from emmio import ui
-from emmio.dictionary import DictionaryItem, Dictionaries
-from emmio.external.en_wiktionary import EnglishWiktionary
+from emmio.dictionary.core import DictionaryItem, Dictionaries
+from emmio.dictionary.en_wiktionary import EnglishWiktionary
 from emmio.language import (
     Language,
     construct_language,

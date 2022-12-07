@@ -12,8 +12,7 @@ import yaml
 from urllib3 import HTTPResponse
 
 from emmio.database import Database
-from emmio.language import Language, construct_language
-from emmio.ui import progress_bar
+from emmio.language import construct_language
 from emmio.util import MalformedFile
 
 __author__ = "Sergey Vartanov"

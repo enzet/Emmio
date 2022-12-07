@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from emmio.dictionary import Link, Definition
-from emmio.external.en_wiktionary import EnglishWiktionary, get_file_name
+from emmio.dictionary.core import Link, Definition
+from emmio.dictionary.en_wiktionary import EnglishWiktionary, get_file_name
 from emmio.language import construct_language
 
 

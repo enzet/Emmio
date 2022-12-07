@@ -14,7 +14,7 @@ from typing import Optional, Any, Union
 
 from wiktionaryparser import WiktionaryParser
 
-from emmio.dictionary import (
+from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
     Form,

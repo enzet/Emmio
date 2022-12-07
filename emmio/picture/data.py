@@ -3,24 +3,24 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from emmio.frequency import FrequencyList
+from emmio.frequency.core import FrequencyList
 from emmio.language import Language
 from emmio.learning.core import Learning
 from emmio.lexicon.core import Lexicon, LexiconResponse
-from emmio.user_data import UserData
+from emmio.data import Data
 
 
 @dataclass
 class Picture:
 
-    user_data: UserData
+    data: Data
 
     def fill_data(
         self, language: Language, frequency_list: FrequencyList
     ) -> None:
 
         words = {}
-        learn: Learning = self.user_data.get_course(f"ru_{language.get_code()}")
+        learn: Learning = self.data.get_course(f"ru_{language.get_code()}")
         for record in learn.records:
             if record.question_id not in words:
                 words[record.question_id] = {
@@ -37,7 +37,7 @@ class Picture:
                 )
                 words[record.question_id]["vector"] += record.answer.value
 
-        lexicon: Lexicon = self.user_data.get_lexicon(language)
+        lexicon: Lexicon = self.data.get_lexicon(language)
         for word in lexicon.words:
             if word not in words:
                 words[word] = {
