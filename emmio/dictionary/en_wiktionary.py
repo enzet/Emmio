@@ -41,7 +41,10 @@ LINK_PATTERN: re.Pattern = re.compile(
 
 def get_file_name(word: str):
     """
-    Get file name for cache JSON file for case-insensitive operating systems.
+    Get file name for cache JSON file.
+
+    For this to work on case-insensitive operating systems, we add special
+    symbol `^` before the capitalized letter.
     """
     name: str = "".join(f"^{c.lower()}" if c.lower() != c else c for c in word)
 
