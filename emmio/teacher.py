@@ -15,7 +15,7 @@ from emmio.lexicon.core import (
     LexiconLog,
     WordSelection,
 )
-from emmio.sentence.core import Translation
+from emmio.sentence.core import SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.sentences import Sentences
 from emmio.ui import log, Interface, debug
@@ -206,7 +206,7 @@ class Teacher:
         if word in self.user_data.exclude_sentences:
             ids_to_skip = set(self.user_data.exclude_sentences[word])
 
-        sentences: list[Translation] = self.sentences.filter_(
+        sentences: list[SentenceTranslations] = self.sentences.filter_(
             word, ids_to_skip, 120
         )
         if interval.total_seconds() == 0:

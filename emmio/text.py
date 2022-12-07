@@ -69,15 +69,13 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
     return text
 
 
-def construct_frequency_list(arguments: Namespace) -> None:
+def construct_frequency_list(emmio_data: "Emmio", arguments: Namespace) -> None:
     input_path: Path = Path(arguments.input)
-    output_path: Path = Path(arguments.output)
-    language: str = sys.argv[3]
+    frequency_list_id: str = arguments.id
+    language: str = arguments.language
 
     with input_path.open() as input_file:
         text = Text(input_file, language=construct_language(language))
         m = text.get_frequency_list()
 
-    with output_path.open("w+") as output_file:
-        for word in sorted(m.keys(), key=lambda x: -m[x]):
-            output_file.write(f"{word} {m[word]}\n")
+    emmio_data.add_frequency_list(frequency_list_id, m)

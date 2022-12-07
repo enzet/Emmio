@@ -6,7 +6,6 @@ from typing import Optional
 from emmio import ui
 from emmio.dictionary import DictionaryItem, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.frequency import FrequencyDatabase, FrequencyList
 from emmio.language import (
     Language,
     construct_language,
@@ -21,12 +20,11 @@ from emmio.lexicon.core import (
     LexiconLog,
     AnswerType,
 )
-from emmio.sentence.core import Translation, Sentence
-from emmio.sentence.database import SentenceDatabase
+from emmio.sentence.core import SentenceTranslations, Sentence
 from emmio.sentence.sentences import Sentences
 from emmio.text import sanitize
-from emmio.ui import log, error
-from emmio.user_data import UserData
+from emmio.ui import log
+from emmio.data import Data
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
 
@@ -36,12 +34,10 @@ class LearningWorker(Worker):
         self,
         learning: Learning,
         lexicon: Lexicon,
-        user_data: UserData,
+        data: Data,
         cache_directory: Path,
-        sentence_db: SentenceDatabase,
-        frequency_db: FrequencyDatabase,
     ):
-        self.user_data: UserData = user_data
+        self.data: Data = data
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
 
@@ -57,39 +53,17 @@ class LearningWorker(Worker):
         self.dictionaries: Dictionaries = Dictionaries(
             [EnglishWiktionary(cache_directory, self.learning_language)]
         )
-        self.sentences: Sentences = Sentences(
-            cache_directory,
-            sentence_db,
-            self.known_language,
-            self.learning_language,
+        self.sentences: Sentences = data.get_sentences(
+            self.known_language, self.learning_language
         )
 
         self.skip: set[str] = set()
 
         self.question_ids: list[tuple[int, str]] = []
+
         log("getting words")
         for frequency_list_id in learning.frequency_list_ids:
-            frequency_list_id: str
-            if not frequency_db.has_table(frequency_list_id):
-                frequency_list: Optional[
-                    FrequencyList
-                ] = self.user_data.get_frequency_list(frequency_list_id)
-                if frequency_list is None:
-                    error(
-                        f"frequency list for {frequency_list_id} was not "
-                        f"constructed"
-                    )
-                    return
-
-                if frequency_list.update and frequency_db.has_table(
-                    frequency_list_id
-                ):
-                    frequency_db.drop_table(frequency_list_id)
-
-                if not frequency_db.has_table(frequency_list_id):
-                    log(f"adding frequency database table {frequency_list_id}")
-                    frequency_db.add_table(frequency_list_id, frequency_list)
-            for index, word, _ in frequency_db.get_words(frequency_list_id):
+            for index, word, _ in self.data.get_words(frequency_list_id):
                 index: int
                 word: str
                 self.question_ids.append((index, word))
@@ -103,7 +77,7 @@ class LearningWorker(Worker):
         self.index: int = 0
 
         self.alternative_forms: set[str] = set()
-        self.current_sentences: list[Translation] = []
+        self.current_sentences: list[SentenceTranslations] = []
         self.items: list[DictionaryItem] = []
 
         self.state = ""
@@ -238,12 +212,12 @@ class LearningWorker(Worker):
         self.interval = self.learning.knowledges[self.word].interval
 
         ids_to_skip: set[int] = set()
-        if self.word in self.user_data.exclude_sentences:
-            ids_to_skip = set(self.user_data.exclude_sentences[self.word])
+        if self.word in self.data.exclude_sentences:
+            ids_to_skip = set(self.data.exclude_sentences[self.word])
 
-        self.current_sentences: list[Translation] = self.sentences.filter_(
-            self.word, ids_to_skip, 120
-        )
+        self.current_sentences: list[
+            SentenceTranslations
+        ] = self.sentences.filter_(self.word, ids_to_skip, 120)
         if self.interval.total_seconds() == 0:
             self.current_sentences = sorted(
                 self.current_sentences, key=lambda x: len(x.sentence.text)
@@ -261,9 +235,9 @@ class LearningWorker(Worker):
         self.alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
 
-        if self.word in self.user_data.exclude_translations:
+        if self.word in self.data.exclude_translations:
             exclude_translations = set(
-                self.user_data.exclude_translations[self.word]
+                self.data.exclude_translations[self.word]
             )
 
         self.items: list[DictionaryItem] = self.dictionaries.get_items(
@@ -409,14 +383,14 @@ class LearningWorker(Worker):
             return f"Right answer: {self.word}{state}."
 
         elif answer == "/exclude":
-            self.user_data.exclude_sentence(self.word, sentence_id)
+            self.data.exclude_sentence(self.word, sentence_id)
             self.skip.add(self.word)
             self.print_state()
             return "Sentence was excluded."
 
         elif answer.startswith("/hide "):
             parts = answer.split(" ")
-            self.user_data.exclude_translation(self.word, " ".join(parts[1:]))
+            self.data.exclude_translation(self.word, " ".join(parts[1:]))
             self.skip.add(self.word)
             self.print_state()
             return "Translation was hidden."

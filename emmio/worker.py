@@ -5,7 +5,7 @@ class Worker:
         raise NotImplementedError()
 
     def is_ready(self) -> bool:
-        """Check if worker has next message to send."""
+        """Check if worker has the next message to send."""
         pass
 
     @staticmethod

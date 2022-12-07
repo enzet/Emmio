@@ -132,7 +132,6 @@ class Learning:
         self.knowledges: dict[str, Knowledge] = {}
         self.config: dict[str, str] = config
         self.course_id: str = course_id
-        self.is_learning: bool = True
 
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
@@ -145,27 +144,16 @@ class Learning:
         self.frequency_list_ids: list[str] = config["frequency_lists"]
 
         # Config defaults.
-        self.ratio: int = 10
+        self.ratio: int = self.config.get("ratio", 10)
         self.language: Optional[Language] = None
-        self.subject: Optional[str] = None
-        self.check_lexicon = True
-        self.ask_lexicon = False
-        self.name: str = "Unknown"
+        self.subject: Optional[str] = self.config.get("subject", None)
+        self.check_lexicon = self.config.get("check_lexicon", True)
+        self.ask_lexicon = self.config.get("ask_lexicon", False)
+        self.name: str = self.config.get("name", "Unknown")
+        self.is_learning: bool = self.config.get("is_learning", True)
 
-        if "ratio" in self.config:
-            self.ratio = int(self.config["ratio"])
         if "language" in self.config:
             self.language = construct_language(self.config["language"])
-        if "subject" in self.config:
-            self.subject = self.config["subject"]
-        if "check_lexicon" in self.config:
-            self.check_lexicon = self.config["check_lexicon"]
-        if "ask_lexicon" in self.config:
-            self.ask_lexicon = self.config["ask_lexicon"]
-        if "name" in self.config:
-            self.name = self.config["name"]
-        if "is_learning" in self.config:
-            self.is_learning = self.config["is_learning"]
 
         for record_structure in records:
             record: LearningRecord = LearningRecord.from_structure(

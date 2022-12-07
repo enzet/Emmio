@@ -4,10 +4,10 @@ from logging import info
 from pathlib import Path
 from typing import Optional, Any
 
-from emmio import util, ui, __main__
+from emmio import util, ui
 from emmio.dictionary import Dictionary, Dictionaries
 from emmio.external.en_wiktionary import EnglishWiktionary
-from emmio.frequency import FrequencyDatabase, FrequencyList
+from emmio.frequency.core import FrequencyDatabase, FrequencyList
 from emmio.graph import Visualizer
 from emmio.language import (
     Language,
@@ -64,14 +64,25 @@ class Emmio:
         self.frequency_db: FrequencyDatabase = FrequencyDatabase(
             path / "frequency.db"
         )
-        config_path: Path = path / "config.json"
+        self.config_path: Path = path / "config.json"
 
         self.config: dict[str, Any]
-        if not config_path.is_file():
+        if not self.config_path.is_file():
             self.config = {}
         else:
-            with (path / "config.json").open() as input_file:
+            with self.config_path.open() as input_file:
                 self.config = json.load(input_file)
+
+    def add_frequency_list(self, frequency_list: FrequencyList) -> None:
+
+        output_path: Path = self.path / "list" / f"{frequency_list.id_}.txt"
+        frequency_list.write_list(output_path)
+
+        self.frequency_db.add_table(frequency_list.id_, frequency_list)
+
+        self.config["list"].append(frequency_list.to_config())
+
+        # FIXME: add FL to config and load it to the DB.
 
     def get_dictionaries(self, language: Language) -> list[Dictionary]:
         return [EnglishWiktionary(Path("cache"), language)]

@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Dict, Set, List, Optional
 
 from emmio.language import Language
-from emmio.sentence.core import Sentence, Translation
+from emmio.sentence.core import Sentence, SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
 from emmio.ui import log, progress_bar
 from emmio.util import download
 
 
 class Sentences:
-    """Collection of sentences."""
+    """Collection of sentences in two languages with translation relations."""
 
     def __init__(
         self,
@@ -173,7 +173,7 @@ class Sentences:
         ids_to_skip: Set[int],
         max_length: int,
         max_number: Optional[int] = 1000,
-    ) -> List[Translation]:
+    ) -> List[SentenceTranslations]:
         """
         Get sentences that contain the specified word and their translations to
         the second language.
@@ -184,7 +184,7 @@ class Sentences:
         :param max_length: maximum sentence length
         :param max_number: maximum number of sentences to check
         """
-        result: List[Translation] = []
+        result: List[SentenceTranslations] = []
 
         if word not in self.cache:
             return result
@@ -206,7 +206,7 @@ class Sentences:
             assert index >= 0
             if str(id_) in self.links:
                 result.append(
-                    Translation(
+                    SentenceTranslations(
                         sentence,
                         [
                             self.sentence_db.get_sentence(self.language_1, x)

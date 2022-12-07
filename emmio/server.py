@@ -18,9 +18,7 @@ from emmio.language import construct_language
 from emmio.learning.core import Learning
 from emmio.learning.worker import LearningWorker
 from emmio.lexicon.core import Lexicon
-from emmio.sentence.database import SentenceDatabase
 from emmio.ui import debug
-from emmio.user_data import UserData
 from emmio.util import format_delta
 from emmio.worker import Worker
 
@@ -51,29 +49,21 @@ class ServerState(Enum):
 class EmmioServer:
     """Server for Emmio learning and testing processes."""
 
-    def __init__(self, user_data: UserData):
-        self.user_data: UserData = user_data
+    def __init__(self, data: Data):
+        self.data: Data = data
 
-        sentence_db: SentenceDatabase = SentenceDatabase(
-            user_data.path / "sentence.db"
-        )
-        frequency_db: FrequencyDatabase = FrequencyDatabase(
-            user_data.path / "frequency.db"
-        )
         learnings: list[Learning] = [
-            user_data.get_course(x)
-            for x in user_data.course_ids
-            if user_data.get_course(x).is_learning
+            data.get_course(x)
+            for x in data.course_ids
+            if data.get_course(x).is_learning
         ]
 
         self.learnings: list[LearningWorker] = [
             LearningWorker(
                 learning,
-                user_data.get_lexicon(construct_language(learning.subject)),
-                user_data,
+                data.get_lexicon(construct_language(learning.subject)),
+                data,
                 Path("cache"),
-                sentence_db,
-                frequency_db,
             )
             for learning in learnings
         ]

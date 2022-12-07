@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio import ui
-from emmio.frequency import FrequencyList
+from emmio.frequency.core import FrequencyList, FrequencyDatabase
 from emmio.language import Language, construct_language
 from emmio.learning.core import Learning
 from emmio.lexicon.core import Lexicon
+from emmio.sentence.database import SentenceDatabase
+from emmio.sentence.sentences import Sentences
 from emmio.util import MalformedFile
 
 __author__ = "Sergey Vartanov"
@@ -21,7 +23,7 @@ EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
 
 
 @dataclass
-class UserData:
+class Data:
     """Learning data for one user."""
 
     id_: str
@@ -36,6 +38,9 @@ class UserData:
 
     exclude_sentences: dict
     exclude_translations: dict[str, list[str]]
+
+    sentence_db: SentenceDatabase
+    frequency_db: FrequencyDatabase
 
     courses: dict = field(default_factory=dict)
     lexicons: dict[Language, Lexicon] = field(default_factory=dict)
@@ -68,6 +73,8 @@ class UserData:
             config["learn"],
             exclude_sentences,
             exclude_translations,
+            SentenceDatabase(path / "sentence.db"),
+            FrequencyDatabase(path / "frequency.db"),
         )
 
     def exclude_sentence(self, word: str, sentence_id: int):
@@ -203,3 +210,40 @@ class UserData:
 
         interface.print(f"Pressure: {total:.2f}")
         interface.table(["Course", "Repeat", "Add", "All"], rows)
+
+    def get_cache_path(self) -> Path:
+        return self.path / "cache"
+
+    def get_sentences(self, known_language, learning_language) -> Sentences:
+        return Sentences(
+            self.get_cache_path(),
+            self.sentence_db,
+            known_language,
+            learning_language,
+        )
+
+    def get_words(self, frequency_list_id: str):
+
+        frequency_list_id: str
+
+        if not self.frequency_db.has_table(frequency_list_id):
+            frequency_list: Optional[FrequencyList] = self.get_frequency_list(
+                frequency_list_id
+            )
+            if frequency_list is None:
+                error(
+                    f"frequency list for {frequency_list_id} was not "
+                    f"constructed"
+                )
+                return
+
+            if frequency_list.update and self.frequency_db.has_table(
+                frequency_list_id
+            ):
+                self.frequency_db.drop_table(frequency_list_id)
+
+            if not self.frequency_db.has_table(frequency_list_id):
+                print(f"adding frequency database table {frequency_list_id}")
+                self.frequency_db.add_table(frequency_list_id, frequency_list)
+
+        return self.frequency_db.get_words(frequency_list_id)

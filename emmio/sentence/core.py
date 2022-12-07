@@ -8,8 +8,9 @@ __email__ = "me@enzet.ru"
 @dataclass
 class Sentence:
     """
-    Some part of a text written in a single language.  Sometimes it may contain
-    two or more sentences or not be complete in itself.
+    Some part of a text written in a single language.
+
+    Sometimes it may contain two or more sentences or not be complete.
     """
 
     id_: int
@@ -17,10 +18,11 @@ class Sentence:
 
 
 @dataclass
-class Translation:
+class SentenceTranslations:
     """
-    Some part of a text written in a single language and its translations to
-    other languages.  Some translations may be transitive.
+    Some part of a text written in a single language and its translations.
+
+    Some translations may be transitive.
     """
 
     sentence: Sentence
