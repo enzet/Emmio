@@ -51,7 +51,7 @@ def main():
     data_path.mkdir(parents=True, exist_ok=True)
 
     if arguments.command == "server":
-        from emmio.entry import start
+        from emmio.server import start
 
         start(data_path, arguments)
 

@@ -1,3 +1,5 @@
+import getpass
+from argparse import Namespace
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 from enum import Enum
@@ -11,7 +13,7 @@ from telebot import types
 from telebot.types import Message
 
 from emmio import ui, util
-from emmio.frequency import FrequencyDatabase
+from emmio.data import Data
 from emmio.language import construct_language
 from emmio.learning.core import Learning
 from emmio.learning.worker import LearningWorker
@@ -100,8 +102,7 @@ class EmmioServer:
         elif self.state == ServerState.NOTHING:
             now: datetime = datetime.now()
             time_to_repetition: timedelta = (
-                min(x.get_nearest() for x in self.user_data.courses.values())
-                - now
+                min(x.get_nearest() for x in self.data.courses.values()) - now
             )
             time_to_new: timedelta = util.day_end(now) - now
 
@@ -187,8 +188,8 @@ class TerminalMessage:
 class TerminalServer(EmmioServer):
     """Emmio server with command-line interface."""
 
-    def __init__(self, user_data: UserData, interface: ui.Interface):
-        super().__init__(user_data)
+    def __init__(self, data: Data, interface: ui.Interface):
+        super().__init__(data)
         self.interface: ui.Interface = interface
 
     def send(self, message: str):
@@ -196,7 +197,7 @@ class TerminalServer(EmmioServer):
 
     def statistics(self):
         interface = ui.StringInterface()
-        self.user_data.get_stat(interface)
+        self.data.get_stat(interface)
         self.send(interface.string)
 
     def receive_message(self, message: str):
@@ -224,14 +225,14 @@ class TerminalServer(EmmioServer):
 class TelegramServer(EmmioServer):
     """Emmio server for Telegram messenger."""
 
-    def __init__(self, user_data: UserData, bot: telebot.TeleBot) -> None:
-        super().__init__(user_data)
+    def __init__(self, data: Data, bot: telebot.TeleBot) -> None:
+        super().__init__(data)
 
         self.bot: telebot.TeleBot = bot
 
     def statistics(self):
         interface = ui.StringMarkdownInterface()
-        self.user_data.get_stat(interface)
+        self.data.get_stat(interface)
         self.send(interface.string)
 
     def send(self, message: str, markup=None):
@@ -266,3 +267,40 @@ class TelegramServer(EmmioServer):
                 break
             if state == "wait for answer":
                 break
+
+
+def start(data_path: Path, arguments: Namespace):
+    if arguments.user:
+        user_id: str = arguments.user
+    else:
+        user_id: str = getpass.getuser()
+
+    data: Data = Data.from_directory(data_path, user_id)
+    server: EmmioServer
+
+    if arguments.mode == "messenger":
+        ui.logger = ui.SilentLogger()
+        server: TerminalServer = TerminalServer(
+            data, ui.TerminalMessengerInterface()
+        )
+        server.start()
+
+    elif arguments.mode == "terminal":
+        ui.logger = ui.SilentLogger()
+        server: TerminalServer = TerminalServer(data, ui.TerminalInterface())
+        server.start()
+
+    elif arguments.mode == "telegram":
+        bot: telebot.TeleBot = telebot.TeleBot(arguments.token)
+        server: TelegramServer = TelegramServer(data, bot)
+
+        @bot.message_handler()
+        def receive(message: Message):
+            """Get current statistics."""
+            server.receive_message(message)
+
+        while True:
+            try:
+                bot.polling(non_stop=True)
+            except Exception as e:
+                print(e)
