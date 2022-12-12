@@ -17,14 +17,15 @@ from emmio.util import MalformedFile
 
 ANSWERS: list[str] = ["y", "n", "s"]
 
-# Learning intervals in minutes, other intervals are 2.5 times previous
-# interval.
 INTERVALS: list[float] = [
     5.0,
     12.0,
     30.0 * 24.0,
     90.0 * 24.0,
 ]
+"""
+Learning intervals in minutes, other intervals are 2.5 times previous interval.
+"""
 
 
 class LearningYAMLDecoder:

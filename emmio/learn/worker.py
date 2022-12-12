@@ -150,9 +150,9 @@ class LearningWorker(Worker):
 
             if self.learning.has(question_id):
                 if self.learning.is_initially_known(question_id):
-                    logging.debug("was initially known")
+                    logging.debug("Word skipped: was initially known.")
                 else:
-                    logging.debug("already learning")
+                    logging.debug("Word skipped: already learning.")
                 continue
 
             if (
@@ -161,11 +161,11 @@ class LearningWorker(Worker):
                 and self.lexicon.has(question_id)
                 and self.lexicon.get(question_id) != LexiconResponse.DONT
             ):
-                logging.debug("known in lexicon")
+                logging.debug("Word skipped: known in lexicon.")
                 continue
 
             if question_id in self.skip:
-                logging.debug("skipped")
+                logging.debug("Word skipped: skipped.")
                 continue
 
             items: list[DictionaryItem] = self.dictionaries.get_items(
@@ -181,18 +181,18 @@ class LearningWorker(Worker):
             # Skip word if current dictionaries has no definitions for it
             # or the word is solely a form of other words.
             if not items:
-                logging.debug("no definition")
+                logging.debug("Word skipped: no definition.")
                 continue
 
             if not items[0].has_common_definition(self.learning.base_language):
-                logging.debug("not common")
+                logging.debug("Word skipped: it is not common.")
                 continue
 
             if self.learning.config.check_lexicon and self.lexicon.has(
                 question_id
             ):
                 if self.lexicon.get(question_id) != LexiconResponse.DONT:
-                    logging.debug("word is known")
+                    logging.debug("Word skipped: it is already known.")
                     continue
                 else:
                     self.word = question_id
