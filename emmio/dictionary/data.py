@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from emmio.dictionary.config import DictionaryConfig, DictionaryType
+from emmio.dictionary.config import DictionaryConfig
 from emmio.dictionary.core import Dictionary, Dictionaries, SimpleDictionary
 from emmio.dictionary.en_wiktionary import EnglishWiktionary
 from emmio.language import construct_language
@@ -30,14 +30,14 @@ class DictionaryData:
 
     def get_dictionary(self, dictionary_usage_config: dict) -> Dictionary:
 
-        match dictionary_usage_config["id"]:
+        match id_ := dictionary_usage_config["id"]:
             case "en_wiktionary":
                 return EnglishWiktionary(
                     self.path / "cache",
                     construct_language(dictionary_usage_config["language"]),
                 )
             case _:
-                return self.dictionaries[dictionary_usage_config["id"]]
+                return self.dictionaries[id_]
 
     def get_dictionaries(
         self, dictionary_usage_configs: list[dict]
