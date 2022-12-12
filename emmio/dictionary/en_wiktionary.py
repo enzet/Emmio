@@ -23,7 +23,7 @@ from emmio.dictionary.core import (
     Definition,
     DefinitionValue,
 )
-from emmio.language import Language, RUSSIAN
+from emmio.language import Language, ENGLISH
 
 with (Path(__file__).parent / "config.json").open() as config_file:
     CONFIG = json.load(config_file)
@@ -148,8 +148,7 @@ class EnglishWiktionary(Dictionary):
             if isinstance(element, Link):
                 form.add_link(element)
             elif isinstance(element, Definition):
-                # FIXME: should be `ENGLISH`.
-                form.add_translation(element, RUSSIAN)
+                form.add_translation(element, ENGLISH)
 
         for pronunciation in pronunciations:
             form.add_transcription(pronunciation)
