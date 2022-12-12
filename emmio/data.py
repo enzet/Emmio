@@ -126,9 +126,10 @@ class Data:
 
         return self.courses[course_id]
 
-    def get_stat(self, interface: ui.Interface):
+    def get_stat(self, interface: ui.Interface, user_data: UserData):
+
         sorted_ids: list[str] = sorted(
-            self.course_ids,
+            user_data.learnings,
             key=lambda x: -self.get_course(x).to_repeat(),
         )
         stat: dict[int, int] = defaultdict(int)

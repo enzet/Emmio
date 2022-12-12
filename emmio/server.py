@@ -186,7 +186,7 @@ class TerminalServer(EmmioServer):
 
     def statistics(self):
         interface = ui.StringInterface()
-        self.data.get_stat(interface)
+        self.data.get_stat(interface, self.user_data)
         self.send(interface.string)
 
     def receive_message(self, message: str):

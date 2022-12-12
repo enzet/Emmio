@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio.dictionary.core import Dictionaries, Dictionary, DictionaryItem
-from emmio.language import RUSSIAN
+from emmio.language import RUSSIAN, construct_language
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import get_char, Interface
@@ -229,6 +229,7 @@ class Lexicon:
 
     def __init__(self, path: Path, config: LexiconConfig):
 
+        self.language = construct_language(config.language)
         self.config: LexiconConfig = config
         self.logs: dict[str, LexiconLog] = {}
 

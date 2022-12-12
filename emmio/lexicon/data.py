@@ -31,7 +31,7 @@ class LexiconData:
         """Get lexicon with the requested language."""
 
         lexicons: list[Lexicon] = [
-            x for x in self.lexicons.values() if x.config.language == language
+            x for x in self.lexicons.values() if x.language == language
         ]
         if len(lexicons) == 1:
             return lexicons[0]
