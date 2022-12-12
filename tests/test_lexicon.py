@@ -1,7 +1,6 @@
 from datetime import datetime
 from pathlib import Path
 
-from emmio.language import ENGLISH
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import (
     Lexicon,
@@ -14,7 +13,7 @@ from emmio.lexicon.core import (
 def test_lexicon() -> None:
     """Test lexicon checking process."""
     temp_directory: Path = Path("tests") / "temp"
-    temp_directory.mkdir()
+    temp_directory.mkdir(exist_ok=True)
     lexicon: Lexicon = Lexicon(
         temp_directory,
         LexiconConfig(path="en.json", language="en", frequency_list="en"),
