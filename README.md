@@ -12,7 +12,7 @@ __Emmio__ is an experimental project on languages and learning. It consists of:
 
 ## Installation
 
-Requires __Python 3.9__.
+Requires __Python 3.10__.
 
 ```shell
 pip install git+https://github.com/enzet/emmio
@@ -24,13 +24,17 @@ pip install git+https://github.com/enzet/emmio
 emmio server
 ```
 
-### Telegram
+To run Emmio server on the Telegram, use
 
 ```shell
 emmio server --mode telegram --token ${TELEGRAM_TOKEN}
 ```
 
 ## Lexicon
+
+```shell
+emmio lexicon
+```
 
 The algorithm will randomly (based on frequency) offer you words of the target
 language. For each word you have to decide 

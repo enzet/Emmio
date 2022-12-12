@@ -1,22 +1,26 @@
 import json
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Iterator
 
 from emmio import ui
-from emmio.frequency.core import FrequencyList, FrequencyDatabase
+from emmio.dictionary.core import Dictionary, Dictionaries
+from emmio.dictionary.data import DictionaryData
 from emmio.language import Language, construct_language
-from emmio.learning.core import Learning
-from emmio.lexicon.core import Lexicon
-from emmio.sentence.database import SentenceDatabase
-from emmio.sentence.sentences import Sentences
-from emmio.util import MalformedFile
+from emmio.learn.core import Learning
+from emmio.lists.core import List
+from emmio.lists.data import ListsData
+from emmio.lists.frequency_list import FrequencyList
+from emmio.sentence.tatoeba import TatoebaSentences
+from emmio.sentence.core import SentencesCollection, Sentences
+from emmio.sentence.data import SentencesData
+
+from emmio.ui import progress
+from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
-from emmio.ui import error, progress
 
 EXCLUDE_SENTENCES_FILE_NAME: str = "exclude_sentences.json"
 EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
@@ -24,58 +28,33 @@ EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
 
 @dataclass
 class Data:
-    """Learning data for one user."""
+    """Registry of all available Emmio data."""
 
-    id_: str
-    name: str
-    path: Path
-    native_languages: set[Language]
-    course_ids: set[str]
-
-    lexicon_config: dict[str, str]
-    frequency_list_config: dict[str, dict[str, str]]
-    learn_config: dict[str, dict[str, str]]
-
-    exclude_sentences: dict
-    exclude_translations: dict[str, list[str]]
-
-    sentence_db: SentenceDatabase
-    frequency_db: FrequencyDatabase
-
-    courses: dict = field(default_factory=dict)
-    lexicons: dict[Language, Lexicon] = field(default_factory=dict)
-    frequency_lists: dict[str, FrequencyList] = field(default_factory=dict)
+    lists: ListsData
+    sentences: SentencesData
+    dictionaries: DictionaryData
+    user_data: dict[str, UserData]
 
     @classmethod
-    def from_directory(cls, path: Path, user_id: str):
-        """
-        :param path: path to the user data directory
-        :param user_id: unique string user identifier
-        """
-        with (path / user_id / "exclude_sentences.json").open() as input_file:
-            exclude_sentences = json.load(input_file)
-        with (
-            path / user_id / "exclude_translations.json"
-        ).open() as input_file:
-            exclude_translations = json.load(input_file)
+    def from_directory(cls, path: Path) -> "Data":
 
-        with (path / user_id / "config.json").open() as config_file:
-            config: dict[str, Any] = json.load(config_file)
-
-        return cls(
-            user_id,
-            config["name"],
-            path,
-            set(construct_language(x) for x in config["native_languages"]),
-            set(config["learn"].keys()),
-            config["lexicon"],
-            config["priority"],
-            config["learn"],
-            exclude_sentences,
-            exclude_translations,
-            SentenceDatabase(path / "sentence.db"),
-            FrequencyDatabase(path / "frequency.db"),
+        lists: ListsData = ListsData.from_config(path / "lists")
+        sentences: SentencesData = SentencesData.from_config(path / "sentences")
+        dictionaries: DictionaryData = DictionaryData.from_config(
+            path / "dictionaries"
         )
+
+        users_path: Path = path / "users"
+        user_data: dict[str, UserData] = {}
+
+        for user_path in users_path.iterdir():
+            with (user_path / "config.json").open() as user_config_file:
+                config: dict = json.load(user_config_file)
+                user_data[user_path.name] = UserData.from_config(
+                    user_path, config
+                )
+
+        return cls(lists, sentences, dictionaries, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int):
         """
@@ -107,44 +86,35 @@ class Data:
     def get_frequency_list_for_lexicon(
         self, language: Language
     ) -> FrequencyList:
-        return self.get_frequency_list(self.lexicon_config[language.get_code()])
-
-    def get_frequency_list_structure(
-        self, frequency_list_id: str
-    ) -> dict[str, str]:
-        return self.frequency_list_config[frequency_list_id]
-
-    def get_frequency_list(
-        self, frequency_list_id: str
-    ) -> Optional[FrequencyList]:
-        if frequency_list_id not in self.frequency_lists:
-            try:
-                frequency_list: FrequencyList = FrequencyList.from_structure(
-                    self.frequency_list_config[frequency_list_id],
-                    self.path / "priority",
-                )
-                self.frequency_lists[frequency_list_id] = frequency_list
-            except MalformedFile as e:
-                error(
-                    f"cannot construct frequency list: file {e.path} is "
-                    "malformed"
-                )
-                return None
-
-        return self.frequency_lists[frequency_list_id]
+        return self.get_frequency_list(
+            self.user_data[user_id].get_lexicon[language.get_code()]
+        )
 
     def get_lexicon_languages(self) -> Iterator[Language]:
         return map(construct_language, self.lexicon_config.keys())
 
-    def get_lexicon(self, language: Language) -> Lexicon:
-        if language not in self.lexicons:
-            file_path: Path = (
-                self.path / self.id_ / "lexicon" / f"{language.get_code()}.json"
-            )
-            if file_path.is_file():
-                self.lexicons[language] = Lexicon(language, file_path)
+    def get_list(self, id_) -> List | None:
+        return self.lists.get_list(id_)
 
-        return self.lexicons[language]
+    def get_frequency_list(self, id_: str) -> FrequencyList | None:
+        return self.lists.get_frequency_list(id_)
+
+    def get_dictionary(self, usage_config: dict) -> Dictionary:
+        return self.dictionaries.get_dictionary(usage_config)
+
+    def get_dictionaries(self, usage_configs: list[dict]) -> Dictionaries:
+        return self.dictionaries.get_dictionaries(usage_configs)
+
+    def get_sentences(self, usage_config: dict) -> Sentences:
+        return self.sentences.get_sentences(usage_config)
+
+    def get_sentences_collection(
+        self, usage_configs: list[dict]
+    ) -> SentencesCollection:
+        return self.sentences.get_sentences_collection(usage_configs)
+
+    def get_words(self, list_id: str):
+        return self.get_list(list_id).get_words()
 
     def get_course(self, course_id: str) -> Learning:
         if course_id not in self.courses:
@@ -168,7 +138,7 @@ class Data:
         for course_id in sorted_ids:
             if not self.get_course(course_id).is_learning:
                 continue
-            k = self.get_course(course_id).knowledges
+            k = self.get_course(course_id).knowledge
             for word in k:
                 if k[word].interval.total_seconds() == 0:
                     continue
@@ -210,40 +180,3 @@ class Data:
 
         interface.print(f"Pressure: {total:.2f}")
         interface.table(["Course", "Repeat", "Add", "All"], rows)
-
-    def get_cache_path(self) -> Path:
-        return self.path / "cache"
-
-    def get_sentences(self, known_language, learning_language) -> Sentences:
-        return Sentences(
-            self.get_cache_path(),
-            self.sentence_db,
-            known_language,
-            learning_language,
-        )
-
-    def get_words(self, frequency_list_id: str):
-
-        frequency_list_id: str
-
-        if not self.frequency_db.has_table(frequency_list_id):
-            frequency_list: Optional[FrequencyList] = self.get_frequency_list(
-                frequency_list_id
-            )
-            if frequency_list is None:
-                error(
-                    f"frequency list for {frequency_list_id} was not "
-                    f"constructed"
-                )
-                return
-
-            if frequency_list.update and self.frequency_db.has_table(
-                frequency_list_id
-            ):
-                self.frequency_db.drop_table(frequency_list_id)
-
-            if not self.frequency_db.has_table(frequency_list_id):
-                print(f"adding frequency database table {frequency_list_id}")
-                self.frequency_db.add_table(frequency_list_id, frequency_list)
-
-        return self.frequency_db.get_words(frequency_list_id)

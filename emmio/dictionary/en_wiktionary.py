@@ -6,6 +6,7 @@ See https://en.wiktionary.org.
 Author: Sergey Vartanov (me@enzet.ru).
 """
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -23,7 +24,6 @@ from emmio.dictionary.core import (
     DefinitionValue,
 )
 from emmio.language import Language, RUSSIAN
-from emmio.ui import network, error
 
 with (Path(__file__).parent / "config.json").open() as config_file:
     CONFIG = json.load(config_file)
@@ -182,7 +182,7 @@ class EnglishWiktionary(Dictionary):
             if cache_only:
                 return None
 
-            network(f"getting English Wiktionary item")
+            logging.info(f"getting English Wiktionary item")
             sleep(1)
             try:
                 content: Optional[list[dict[str, Any]]] = self.parser.fetch(
@@ -191,7 +191,7 @@ class EnglishWiktionary(Dictionary):
                 with open(path, "w+") as output_file:
                     json.dump(content, output_file)
             except (KeyError, AttributeError):
-                error("malformed HTML")
+                logging.error("malformed HTML")
                 content = None
 
         if not content:

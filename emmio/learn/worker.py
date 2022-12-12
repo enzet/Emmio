@@ -1,18 +1,18 @@
+import logging
 import math
 import random
-from pathlib import Path
+from datetime import timedelta
 from typing import Optional
 
 from emmio import ui
 from emmio.dictionary.core import DictionaryItem, Dictionaries
-from emmio.dictionary.en_wiktionary import EnglishWiktionary
 from emmio.language import (
     Language,
     construct_language,
     LanguageNotFound,
     GERMAN,
 )
-from emmio.learning.core import Learning, ResponseType, SMALLEST_INTERVAL
+from emmio.learn.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.lexicon.core import (
     Lexicon,
     WordSelection,
@@ -20,10 +20,12 @@ from emmio.lexicon.core import (
     LexiconLog,
     AnswerType,
 )
-from emmio.sentence.core import SentenceTranslations, Sentence
-from emmio.sentence.sentences import Sentences
+from emmio.sentence.core import (
+    SentenceTranslations,
+    Sentence,
+    SentencesCollection,
+)
 from emmio.text import sanitize
-from emmio.ui import log
 from emmio.data import Data
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
@@ -35,38 +37,39 @@ class LearningWorker(Worker):
         learning: Learning,
         lexicon: Lexicon,
         data: Data,
-        cache_directory: Path,
     ):
         self.data: Data = data
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
 
-        self.known_language: Language = learning.language
+        self.known_language: Language = construct_language(
+            learning.config.base_language
+        )
         self.learning_language: Optional[Language]
         try:
-            self.learning_language = construct_language(learning.subject)
+            self.learning_language = construct_language(
+                learning.config.learning_language
+            )
         except LanguageNotFound:
             self.learning_language = None
 
         self.interface: ui.Interface = ui.TelegramInterface()
 
-        self.dictionaries: Dictionaries = Dictionaries(
-            [EnglishWiktionary(cache_directory, self.learning_language)]
+        self.dictionaries: Dictionaries = data.get_dictionaries(
+            self.learning.config.dictionaries
         )
-        self.sentences: Sentences = data.get_sentences(
-            self.known_language, self.learning_language
+        self.sentences: SentencesCollection = data.get_sentences_collection(
+            self.learning.config.sentences
         )
 
         self.skip: set[str] = set()
 
-        self.question_ids: list[tuple[int, str]] = []
+        self.question_ids: list[str] = []
 
-        log("getting words")
-        for frequency_list_id in learning.frequency_list_ids:
-            for index, word, _ in self.data.get_words(frequency_list_id):
-                index: int
-                word: str
-                self.question_ids.append((index, word))
+        logging.debug("getting words")
+        for list_id in learning.config.lists:
+            for word in self.data.get_words(list_id):
+                self.question_ids.append(word)
 
         # Current word status.
         self.word: Optional[str] = None
@@ -83,7 +86,7 @@ class LearningWorker(Worker):
         self.state = ""
 
     def print_state(self):
-        log(
+        logging.debug(
             f"sent.: {self.index}/{len(self.current_sentences)}, "
             f"skip: {len(self.skip)}, "
             f"to repeat: {self.learning.to_repeat(self.skip)}"
@@ -95,7 +98,10 @@ class LearningWorker(Worker):
         )
 
     def is_ready(self) -> bool:
-        return self.learning.is_ready(self.skip)
+        if self.learning.is_ready(self.skip):
+            return True
+        # FIXME: check if there is new questions.
+        return True
 
     def get_sentence(
         self, show_index: bool = False, max_translations: int = 1
@@ -125,7 +131,7 @@ class LearningWorker(Worker):
 
     def get_next_question(self) -> list[str]:
 
-        log("get_next_question()")
+        logging.debug("LearningWorker: get_next_question()")
         self.print_state()
 
         if self.index > 0:
@@ -134,34 +140,32 @@ class LearningWorker(Worker):
             elif self.index == len(self.current_sentences):
                 return ["No more sentences."]
 
-        # if self.learning.new_today() < self.learning.ratio:
-        #     return self.get_new_question()
+        if q := self.get_question():
+            return q
 
-        return self.get_question_to_repeat()
-
-    def get_new_question(self) -> list[str]:
+    def get_new_question(self) -> str:
         """Get new question from the question list."""
-        for index, question_id in self.question_ids[self.question_index :]:
+        for question_id in self.question_ids[self.question_index :]:
             self.question_index += 1
 
             if self.learning.has(question_id):
                 if self.learning.is_initially_known(question_id):
-                    log(f"[{index}] was initially known")
+                    logging.debug("was initially known")
                 else:
-                    log(f"[{index}] already learning")
+                    logging.debug("already learning")
                 continue
 
             if (
-                self.learning.check_lexicon
+                self.learning.config.check_lexicon
                 and self.lexicon
                 and self.lexicon.has(question_id)
                 and self.lexicon.get(question_id) != LexiconResponse.DONT
             ):
-                log(f"[{index}] known in lexicon")
+                logging.debug("known in lexicon")
                 continue
 
             if question_id in self.skip:
-                log(f"[{index}] skipped")
+                logging.debug("skipped")
                 continue
 
             items: list[DictionaryItem] = self.dictionaries.get_items(
@@ -177,47 +181,62 @@ class LearningWorker(Worker):
             # Skip word if current dictionaries has no definitions for it
             # or the word is solely a form of other words.
             if not items:
-                log(f"[{index}] no definition")
+                logging.debug("no definition")
                 continue
 
-            if not items[0].has_common_definition(self.learning.language):
-                log(f"[{index}] not common")
+            if not items[0].has_common_definition(self.learning.base_language):
+                logging.debug("not common")
                 continue
 
-            if self.learning.check_lexicon and self.lexicon.has(question_id):
+            if self.learning.config.check_lexicon and self.lexicon.has(
+                question_id
+            ):
                 if self.lexicon.get(question_id) != LexiconResponse.DONT:
-                    log(f"[{index}] word is known")
+                    logging.debug("word is known")
                     continue
                 else:
                     self.word = question_id
                     self.state = "waiting_lexicon_answer"
-                    return [question_id + " ?"]
+                    return question_id
 
             if not self.lexicon.has_log("log_ex"):
                 self.lexicon.add_log(LexiconLog("log_ex", WordSelection("top")))
 
-            if self.learning.ask_lexicon and not self.lexicon.has(question_id):
+            if self.learning.config.ask_lexicon and not self.lexicon.has(
+                question_id
+            ):
 
                 self.lexicon.write()
 
                 self.word = question_id
                 self.state = "waiting_lexicon_answer"
-                return [question_id + " ?"]
+                return question_id
 
-    def get_question_to_repeat(self) -> list[str]:
+            return question_id
+
+    def get_question(self) -> list[str]:
+
         self.word = self.learning.get_next(self.skip)
-        if not self.word:
-            return ["No more words."]
 
-        self.interval = self.learning.knowledges[self.word].interval
+        if not self.word:
+            self.word = self.get_new_question()
+
+        if not self.word:
+            return []
+
+        if self.word in self.learning.knowledge:
+            self.interval = self.learning.knowledge[self.word].interval
+        else:
+            self.interval = timedelta()
 
         ids_to_skip: set[int] = set()
-        if self.word in self.data.exclude_sentences:
-            ids_to_skip = set(self.data.exclude_sentences[self.word])
+        # if self.word in self.data.exclude_sentences:
+        #     ids_to_skip = set(self.data.exclude_sentences[self.word])
 
         self.current_sentences: list[
             SentenceTranslations
         ] = self.sentences.filter_(self.word, ids_to_skip, 120)
+
         if self.interval.total_seconds() == 0:
             self.current_sentences = sorted(
                 self.current_sentences, key=lambda x: len(x.sentence.text)
@@ -235,10 +254,10 @@ class LearningWorker(Worker):
         self.alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
 
-        if self.word in self.data.exclude_translations:
-            exclude_translations = set(
-                self.data.exclude_translations[self.word]
-            )
+        # if self.word in self.data.exclude_translations:
+        #     exclude_translations = set(
+        #         self.data.exclude_translations[self.word]
+        #     )
 
         self.items: list[DictionaryItem] = self.dictionaries.get_items(
             self.word
@@ -289,7 +308,7 @@ class LearningWorker(Worker):
 
     def process_answer(self, message: str) -> str:
 
-        log("process_answer()")
+        logging.debug("process_answer()")
         self.print_state()
 
         if self.state == "waiting_lexicon_answer":
@@ -400,4 +419,4 @@ class LearningWorker(Worker):
             return "No."
 
     def get_greetings(self) -> str:
-        return self.learning.name
+        return self.learning.config.name

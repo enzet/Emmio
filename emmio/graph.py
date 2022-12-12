@@ -7,8 +7,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from emmio import util
-from emmio.learning.core import Knowledge, LearningRecord, ResponseType
-from emmio.learning.visualizer import LearningVisualizer, DEPTH_COLORS
+from emmio.learn.core import Knowledge, LearningRecord, ResponseType
+from emmio.learn.visualizer import LearningVisualizer, DEPTH_COLORS
 from emmio.lexicon.core import Lexicon, AnswerType
 
 __author__ = "Sergey Vartanov"

@@ -1,6 +1,8 @@
 import json
+import logging
 import math
 import random
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -8,9 +10,10 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio.dictionary.core import Dictionaries, Dictionary, DictionaryItem
-from emmio.frequency.core import FrequencyList
-from emmio.language import Language, RUSSIAN
-from emmio.ui import get_char, log, write, Interface
+from emmio.lexicon.config import LexiconConfig
+from emmio.lists.frequency_list import FrequencyList
+from emmio.language import RUSSIAN
+from emmio.ui import get_char, Interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -23,21 +26,28 @@ class LexiconResponse(Enum):
 
     UNKNOWN = 0
 
-    # User knows at least one meaning of the word.
     KNOW = 1
+    """User knows at least one meaning of the word."""
 
-    # User doesn't know any meaning of the word.
     DONT = 2
+    """User doesn't know any meaning of the word."""
 
-    # User knows at least one meaning of the word or the string is not a word.
     KNOW_OR_NOT_A_WORD = 3
+    """
+    User knows at least one meaning of the word or the string is not a word.
+    """
 
-    # User doesn't know the word, but it is often used as a proper noun.
     DONT_BUT_PROPER_NOUN_TOO = 4
+    """User doesn't know the word, but it is often used as a proper noun."""
 
-    # The string is not a dictionary word (misspelling, non-dictionary
-    # onomatopoeic word, foreign word).
     NOT_A_WORD = 5
+    """
+    The string is not a dictionary word.
+    
+    This may be misspelling, non-dictionary onomatopoeic word, foreign word,
+    etc.  Frequency list may contain such words if it was not filtered using
+    the dictionary.
+    """
 
     def to_string(self) -> str:
         return self.name.lower()
@@ -47,41 +57,50 @@ class LexiconResponse(Enum):
         return cls[string.upper()]
 
     def get_message(self) -> str:
-        if self == self.KNOW:
-            return "knows at least one meaning of the word"
-        if self == self.DONT:
-            return "does not know any meaning of the word"
-        if self == self.KNOW_OR_NOT_A_WORD:
-            return "knows or not a word"
-        if self == self.DONT_BUT_PROPER_NOUN_TOO:
-            return "does not know, but a proper noun too"
-        if self == self.NOT_A_WORD:
-            return "not a word"
+        match self:
+            case self.KNOW:
+                return "knows at least one meaning of the word"
+            case self.DONT:
+                return "does not know any meaning of the word"
+            case self.KNOW_OR_NOT_A_WORD:
+                return "knows or not a word"
+            case self.DONT_BUT_PROPER_NOUN_TOO:
+                return "does not know, but a proper noun too"
+            case self.NOT_A_WORD:
+                return "not a word"
 
 
 class AnswerType(Enum):
     UNKNOWN = "unknown"
 
-    # User answer.
     USER_ANSWER = "user_answer"
+    """User answer."""
 
-    # Assume that the word is not a dictionary word, because it contains symbols
-    # that are not common in the language.
     ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
+    """
+    Assume that the word is not a dictionary word, because it contains symbols
+    that are not common in the language.
+    """
 
-    # Assume that the word is not a dictionary word, because some selected
-    # dictionary does not have it.
     ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
+    """
+    Assume that the word is not a dictionary word, because some selected
+    dictionary does not have it.
+    """
 
-    # Previous answer was propagated because of a special flag set by the user.
     PROPAGATE__SKIP = "propagate_skip"
+    """
+    Previous answer was propagated because of a special flag set by the user.
+    """
 
-    # Previous answer was propagated because it stated that the word is not a
-    # dictionary word.
     PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
+    """
+    Previous answer was propagated because it stated that the word is not a
+    dictionary word.
+    """
 
-    # Not enough time passed since last answer, therefore it was propagated.
     PROPAGATE__TIME = "propagate_time"
+    """Not enough time passed since last answer, therefore it was propagated."""
 
     def __str__(self) -> str:
         return self.value
@@ -108,9 +127,7 @@ class WordKnowledge:
 
 @dataclass
 class LexiconLogRecord:
-    """
-    Record of user's answer.
-    """
+    """Record of user's answer."""
 
     time: datetime
     word: str
@@ -208,18 +225,14 @@ class LexiconLog:
 
 
 class Lexicon:
-    """
-    Tracking of lexicon for one particular language through time.
-    """
+    """Tracking of lexicon for one particular language through time."""
 
-    def __init__(self, language: Language, file_path: Path):
+    def __init__(self, path: Path, config: LexiconConfig):
 
-        self.language: Language = language
-        self.file_path: Path = file_path
-
+        self.config: LexiconConfig = config
         self.logs: dict[str, LexiconLog] = {}
 
-        # Temporary data.
+        self.file_path = path / config.path
 
         self.words: dict[str, WordKnowledge] = {}
         self.dates: list[datetime] = []
@@ -229,8 +242,8 @@ class Lexicon:
 
         # Read data from file.
 
-        if not self.file_path.is_file():
-            return
+        if not self.file_path.exists():
+            self.write()
 
         with self.file_path.open() as input_file:
             data = json.load(input_file)
@@ -249,19 +262,20 @@ class Lexicon:
 
         # Fill data.
 
-        for record in self.logs["log"].records:
-            if record.response in [
-                LexiconResponse.KNOW,
-                LexiconResponse.DONT,
-            ]:
-                self.dates.append(record.time)
-                self.responses.append(
-                    1 if record.response == LexiconResponse.KNOW else 0
-                )
+        if "log" in self.logs:
+            for record in self.logs["log"].records:
+                if record.response in [
+                    LexiconResponse.KNOW,
+                    LexiconResponse.DONT,
+                ]:
+                    self.dates.append(record.time)
+                    self.responses.append(
+                        1 if record.response == LexiconResponse.KNOW else 0
+                    )
 
-                if self.start is None:
-                    self.start = record.time
-                self.finish = record.time
+                    if self.start is None:
+                        self.start = record.time
+                    self.finish = record.time
 
     def has_log(self, log_id: str):
         return log_id in self.logs
@@ -275,7 +289,7 @@ class Lexicon:
         Write lexicon to a JSON file using string writing. Should be faster than
         `write_json` but less accurate.
         """
-        log(f"writing lexicon to {self.file_path}")
+        logging.debug(f"writing lexicon to {self.file_path}")
 
         structure: list[dict[str, Any]] = []
 
@@ -524,20 +538,18 @@ class Lexicon:
         skip_unknown: bool = False,
         log_name: str = "log",
     ) -> (bool, LexiconResponse, Optional[Dictionary]):
-        """
-        Ask user if the word is known.
-        """
-        write(f"\n    {word}\n")
+        """Ask user if the word is known."""
+        sys.stdout.write(f"\n    {word}\n")
 
         if word_list:
             if word + "\n" in word_list:
-                write("In word list.", color="green")
+                sys.stdout.write("In word list.", color="green")
             else:
-                write("Not in word list.", color="red")
+                sys.stdout.write("Not in word list.", color="red")
             if word[0].upper() + word[1:] + "\n" in word_list:
-                write("Capitalized in word list.", color="green")
+                sys.stdout.write("Capitalized in word list.", color="green")
             else:
-                write("Capitalized not in word list.", color="red")
+                sys.stdout.write("Capitalized not in word list.", color="red")
 
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")

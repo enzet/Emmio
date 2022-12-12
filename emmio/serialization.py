@@ -1,11 +1,10 @@
 import io
 from datetime import datetime
-from typing import Optional
-
+from typing import Literal
 
 BOOLEAN_NONE: bytes = b"\x02"
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
-ENDIAN: str = "little"
+ENDIAN: Literal["little", "big"] = "little"
 EPOCH: datetime = datetime(1970, 1, 1)
 SAME: int = 255
 
@@ -48,7 +47,7 @@ class Encoder:
         """Encode Boolean value."""
         self.code.write(b"\x01" if value else b"\x00")
 
-    def encode_ternary(self, value: Optional[bool]) -> None:
+    def encode_ternary(self, value: bool | None) -> None:
         """Encode optional Boolean value."""
         if value is None:
             self.code.write(b"\x02")
@@ -92,13 +91,13 @@ class Decoder:
         """Decode string value."""
         return self.code.read(self.decode_int(2)).decode()
 
-    def decode_enum(self, values) -> Optional[str]:
+    def decode_enum(self, values) -> str | None:
         """Decode enum value."""
         if (code := self.decode_int(1)) == 0:
             return None
         return values[code - 1]
 
-    def decode_ternary(self) -> Optional[bool]:
+    def decode_ternary(self) -> bool | None:
         """Decode optional boolean value."""
         if (code := self.code.read(1)) == b"\x02":
             return None

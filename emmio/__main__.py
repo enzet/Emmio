@@ -4,7 +4,10 @@ from argparse import Namespace, ArgumentParser
 import sys
 from pathlib import Path
 
-from emmio.ui import set_log, Logger
+import coloredlogs as coloredlogs
+
+from emmio.data import Data
+from emmio.ui import TerminalInterface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -14,34 +17,59 @@ EMMIO_DEFAULT_DIRECTORY: str = ".emmio"
 
 def main():
     """Emmio entry point."""
-    set_log(Logger)
+
+    coloredlogs.install(level=logging.DEBUG, fmt="%(message)s")
 
     parser: ArgumentParser = ArgumentParser("Emmio")
+    parser.add_argument("--data", help="path to data directory")
+
     subparser = parser.add_subparsers(dest="command")
 
-    # Server.
-
-    server_parser: ArgumentParser = subparser.add_parser("server")
-
-    server_parser.add_argument("--data", help="path to data directory")
-    server_parser.add_argument("--user", help="user name")
-    server_parser.add_argument(
-        "--mode",
-        help="server mode",
-        default="terminal",
+    # Command `learn`.
+    learn_parser: ArgumentParser = subparser.add_parser(
+        "learn", help="start learning process"
     )
+
+    learn_parser.add_argument("--user", help="user name")
+
+    # Command `server`.
+    server_parser: ArgumentParser = subparser.add_parser(
+        "server", help="run Emmio server"
+    )
+
+    server_parser.add_argument("--user", help="user name")
+    server_parser.add_argument("--mode", help="server mode", default="terminal")
     server_parser.add_argument("--token", help="Telegram messenger token")
 
-    # Frequency list parser.
+    # Commands for frequency and word lists.
 
-    frequency_parser: ArgumentParser = subparser.add_parser("frequency")
+    # Command `list <command>`.
+    list_parser: ArgumentParser = subparser.add_parser(
+        "list", help="manipulating frequency and word lists"
+    )
+    list_subparser = list_parser.add_subparsers(dest="subcommand")
 
-    frequency_parser.add_argument("--data", help="path to data directory")
-    frequency_parser.add_argument("--input", help="input text file path")
-    frequency_parser.add_argument(
+    # Command `list info`.
+    list_subparser.add_parser("info", help="information about loaded lists")
+
+    # Command `list show <id>`.
+    list_show_parser: ArgumentParser = list_subparser.add_parser("show")
+    list_show_parser.add_argument("id")
+
+    # Command `list add <id>`.
+    list_add_parser: ArgumentParser = list_subparser.add_parser("add")
+    list_add_parser.add_argument("id")
+    list_add_parser.add_argument("--input", help="input text file path")
+    list_add_parser.add_argument(
         "--id", help="output frequency list identifier"
     )
-    frequency_parser.add_argument("--language", help="language code")
+    list_add_parser.add_argument("--language", help="language code")
+
+    # Old interface.
+
+    run_parser: ArgumentParser = subparser.add_parser("run")
+
+    run_parser.add_argument("--user", help="user name")
 
     arguments: Namespace = parser.parse_args(sys.argv[1:])
 
@@ -50,18 +78,39 @@ def main():
         data_path = Path(arguments.data)
     data_path.mkdir(parents=True, exist_ok=True)
 
-    if arguments.command == "server":
-        from emmio.server import start
+    data: Data = Data.from_directory(data_path)
 
-        start(data_path, arguments)
+    match arguments.command:
 
-    elif arguments.command == "frequency":
-        from emmio.text import construct_frequency_list
+        case "server":
+            from emmio.server import start
 
-        construct_frequency_list(arguments)
+            logging.basicConfig(level=logging.DEBUG)
+            start(data, arguments)
 
-    else:
-        logging.fatal(f"Unknown command `{arguments.command}`.")
+        case "list":
+            match arguments.subcommand:
+                case "info":
+                    print("Frequency lists:")
+                    for key in data.lists.frequency_lists:
+                        print(f"    {key}")
+                    print("Word lists:")
+                    for key in data.lists.word_lists:
+                        print(f"    {key}")
+                case "show":
+                    if list_ := data.get_list(arguments.id):
+                        print(list_.get_info())
+                    else:
+                        print("No such list.")
+
+        case "run":
+            from emmio.main import Emmio
+
+            e: Emmio = Emmio(Path(arguments.data), TerminalInterface(), data)
+            e.run(arguments.user)
+
+        case _:
+            logging.fatal(f"Unknown command `{arguments.command}`.")
 
 
 if __name__ == "__main__":

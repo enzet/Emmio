@@ -1,10 +1,10 @@
 import bz2
+import logging
 from pathlib import Path
 
 from emmio.database import Database
 from emmio.language import Language
 from emmio.sentence.core import Sentence
-from emmio.ui import log
 from emmio.util import download
 
 
@@ -34,7 +34,9 @@ class SentenceDatabase(Database):
                 )
             with bz2.open(zip_path) as zip_file:
                 with file_path.open("wb+") as cache_file:
-                    log(f"unzipping sentences for {language.get_name()}")
+                    logging.info(
+                        f"unzipping sentences for {language.get_name()}"
+                    )
                     cache_file.write(zip_file.read())
 
         self.cursor.execute(

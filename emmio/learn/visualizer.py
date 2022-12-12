@@ -6,7 +6,7 @@ from typing import Union
 import numpy as np
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
 
-from emmio.learning.core import LearningRecord, Knowledge
+from emmio.learn.core import LearningRecord, Knowledge
 
 DEPTH_COLORS_BLACK_AND_WHITE: list[str] = ["#000000"] + [
     "#" + f"{hex(int(256 - 256 / 1.5 ** x))[2:]:2}".replace(" ", "0") * 3

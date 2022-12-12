@@ -1,12 +1,15 @@
 """
 Dictionary.
 """
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
-from emmio.language import Language
+from emmio.dictionary.config import DictionaryConfig
+from emmio.language import Language, construct_language
 from emmio.text import sanitize
 from emmio.ui import Interface
 from emmio.util import flatten
@@ -127,7 +130,7 @@ class Form:
 
     word: str
 
-    part_of_speech: str
+    part_of_speech: str = "unknown"
     transcriptions: set[str] = field(default_factory=set)
     definitions: dict[Language, list[Definition]] = field(default_factory=dict)
     links: list[Link] = field(default_factory=list)
@@ -244,12 +247,12 @@ class Form:
         ]
 
 
+@dataclass
 class DictionaryItem:
     """Dictionary item: word translations."""
 
-    def __init__(self, word: str):
-        self.word: str = word
-        self.forms: list[Form] = []
+    word: str
+    forms: list[Form] = field(default_factory=list)
 
     def add_definition(self, form: Form):
         """Add word form to dictionary item."""
@@ -325,18 +328,17 @@ class DictionaryItem:
         transcription = ""
 
         for form in self.forms:
-            if language in form.definitions:
-                definitions: list[list[str]] = []
+            if language not in form.definitions:
+                continue
+            definitions: list[list[str]] = []
 
-                for link in form.get_links():
-                    definitions.append(["→ " + link.link_value])
-                for definition in form.definitions[language]:
-                    definitions.append(
-                        [value.value for value in definition.values]
-                    )
-                texts.append(definitions)
-                if not transcription and form.transcriptions:
-                    transcription = list(form.transcriptions)[0]
+            for link in form.get_links():
+                definitions.append(["→ " + link.link_value])
+            for definition in form.definitions[language]:
+                definitions.append([value.value for value in definition.values])
+            texts.append(definitions)
+            if not transcription and form.transcriptions:
+                transcription = list(form.transcriptions)[0]
 
         for limit_1, limit_2, limit_3 in (2, 2, 2), (2, 2, 1), (2, 1, 1):
             if len(text := flatten(texts, limit_1, limit_2, limit_3)) < limit:
@@ -386,6 +388,42 @@ class Dictionary:
         return forms
 
 
+@dataclass
+class SimpleDictionary(Dictionary):
+
+    data: dict[str, str]
+    from_language: Language
+    to_language: Language
+
+    @classmethod
+    def from_config(
+        cls, path: Path, config: DictionaryConfig
+    ) -> "SimpleDictionary":
+
+        with (path / config.path).open() as input_file:
+            data = json.load(input_file)
+
+        return cls(
+            data,
+            construct_language(config.from_language),
+            construct_language(config.to_language),
+        )
+
+    def get_item(
+        self, word: str, cache_only: bool = False
+    ) -> DictionaryItem | None:
+
+        if word not in self.data:
+            return None
+
+        item = DictionaryItem(word)
+        definitions = [Definition([DefinitionValue(self.data[word])])]
+        item.add_definition(
+            Form(word, definitions={self.to_language: definitions})
+        )
+        return item
+
+
 class Dictionaries:
     """A set of dictionaries for a language."""
 
@@ -403,12 +441,12 @@ class Dictionaries:
         self.dictionaries.append(dictionary)
 
     def get_items(self, word: str) -> list[DictionaryItem]:
-        """Get word definition from the first dictionary."""
+        """Get dictionary items from all dictionaries."""
+
         items: list[DictionaryItem] = []
 
         for dictionary in self.dictionaries:
-            item: Optional[DictionaryItem] = dictionary.get_item(word)
-            if item:
+            if item := dictionary.get_item(word):
                 items.append(item)
                 links: set[str] = set()
                 for definition in item.forms:
@@ -417,6 +455,5 @@ class Dictionaries:
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
                         items.append(link_item)
-                return items
 
-        return []
+        return items

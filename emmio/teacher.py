@@ -5,10 +5,9 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
-from emmio.dictionary import Dictionaries, DictionaryItem
-from emmio.frequency import FrequencyDatabase
+from emmio.dictionary.core import Dictionaries, DictionaryItem
 from emmio.language import Language, construct_language, GERMAN
-from emmio.learning.core import Learning, ResponseType
+from emmio.learn.core import Learning, ResponseType
 from emmio.lexicon.core import (
     Lexicon,
     LexiconResponse,
@@ -17,13 +16,13 @@ from emmio.lexicon.core import (
 )
 from emmio.sentence.core import SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
-from emmio.sentence.sentences import Sentences
+from emmio.sentence.core import Sentences
 from emmio.ui import log, Interface, debug
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-from emmio.user_data import UserData
+from emmio.data import Data
 
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
@@ -33,15 +32,14 @@ class Teacher:
         self,
         cache_directory_name: Path,
         interface: Interface,
-        user_data: UserData,
+        data: Data,
         sentence_db: SentenceDatabase,
-        frequency_db: FrequencyDatabase,
         learning: Learning,
         lexicon: Lexicon,
         get_dictionaries=None,
     ) -> None:
         self.interface: Interface = interface
-        self.user_data: UserData = user_data
+        self.data: Data = data
         self.known_language: Language = learning.language
 
         self.learning_language: Optional[Language]
@@ -86,7 +84,7 @@ class Teacher:
 
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledges[word].interval, 0
+                    word, self.learning.knowledge[word].interval, 0
                 )
                 if code == "stop":
                     return False
@@ -186,7 +184,7 @@ class Teacher:
             word = self.learning.get_next(self.skip)
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledges[word].interval, 0
+                    word, self.learning.knowledge[word].interval, 0
                 )
                 if code == "bad question":
                     self.skip.add(word)
@@ -203,8 +201,8 @@ class Teacher:
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
         ids_to_skip: set[int] = set()
-        if word in self.user_data.exclude_sentences:
-            ids_to_skip = set(self.user_data.exclude_sentences[word])
+        if word in self.data.exclude_sentences:
+            ids_to_skip = set(self.data.exclude_sentences[word])
 
         sentences: list[SentenceTranslations] = self.sentences.filter_(
             word, ids_to_skip, 120
@@ -268,10 +266,8 @@ class Teacher:
         alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
 
-        if word in self.user_data.exclude_translations:
-            exclude_translations = set(
-                self.user_data.exclude_translations[word]
-            )
+        if word in self.data.exclude_translations:
+            exclude_translations = set(self.data.exclude_translations[word])
 
         items: list[DictionaryItem] = self.dictionaries.get_items(word)
 
@@ -368,18 +364,18 @@ class Teacher:
 
             if answer.startswith("/"):
                 if answer == "/exclude":
-                    self.user_data.exclude_sentence(word, sentence_id)
+                    self.data.exclude_sentence(word, sentence_id)
                     self.skip.add(word)
                     return "ok"
                 elif answer.startswith("/hide "):
-                    self.user_data.exclude_translation(
+                    self.data.exclude_translation(
                         word, " ".join(answer.split(" ")[1:])
                     )
                     self.skip.add(word)
                     return "ok"
                 elif answer.startswith("/btt "):
                     _, w, t = answer.split(" ")
-                    self.user_data.exclude_translation(w, t)
+                    self.data.exclude_translation(w, t)
                     continue
 
             if answer == "/no":

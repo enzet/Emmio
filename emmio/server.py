@@ -1,4 +1,5 @@
 import getpass
+import logging
 from argparse import Namespace
 from dataclasses import dataclass
 from datetime import timedelta, datetime
@@ -15,10 +16,10 @@ from telebot.types import Message
 from emmio import ui, util
 from emmio.data import Data
 from emmio.language import construct_language
-from emmio.learning.core import Learning
-from emmio.learning.worker import LearningWorker
+from emmio.learn.core import Learning
+from emmio.learn.worker import LearningWorker
 from emmio.lexicon.core import Lexicon
-from emmio.ui import debug
+from emmio.user.data import UserData
 from emmio.util import format_delta
 from emmio.worker import Worker
 
@@ -49,21 +50,19 @@ class ServerState(Enum):
 class EmmioServer:
     """Server for Emmio learning and testing processes."""
 
-    def __init__(self, data: Data):
+    def __init__(self, data: Data, user_id: str):
+
         self.data: Data = data
+        self.user_data: UserData = data.user_data[user_id]
 
-        learnings: list[Learning] = [
-            data.get_course(x)
-            for x in data.course_ids
-            if data.get_course(x).is_learning
-        ]
-
+        learnings: list[Learning] = self.user_data.get_learnings()
         self.learnings: list[LearningWorker] = [
             LearningWorker(
                 learning,
-                data.get_lexicon(construct_language(learning.subject)),
+                self.user_data.get_lexicon(
+                    construct_language(learning.config.learning_language)
+                ),
                 data,
-                Path("cache"),
             )
             for learning in learnings
         ]
@@ -131,8 +130,9 @@ class EmmioServer:
                 return ""
 
             else:
-                debug(f"{datetime.now()} Waiting...")
-                sleep(60)
+                seconds = 60
+                logging.debug(f"Waiting {seconds} seconds...")
+                sleep(seconds)
                 return ""
 
         if self.state == ServerState.WORKER:
@@ -178,8 +178,8 @@ class TerminalMessage:
 class TerminalServer(EmmioServer):
     """Emmio server with command-line interface."""
 
-    def __init__(self, data: Data, interface: ui.Interface):
-        super().__init__(data)
+    def __init__(self, data: Data, user_id: str, interface: ui.Interface):
+        super().__init__(data, user_id)
         self.interface: ui.Interface = interface
 
     def send(self, message: str):
@@ -215,8 +215,8 @@ class TerminalServer(EmmioServer):
 class TelegramServer(EmmioServer):
     """Emmio server for Telegram messenger."""
 
-    def __init__(self, data: Data, bot: telebot.TeleBot) -> None:
-        super().__init__(data)
+    def __init__(self, data: Data, user_id: str, bot: telebot.TeleBot) -> None:
+        super().__init__(data, user_id)
 
         self.bot: telebot.TeleBot = bot
 
@@ -259,30 +259,29 @@ class TelegramServer(EmmioServer):
                 break
 
 
-def start(data_path: Path, arguments: Namespace):
+def start(data: Data, arguments: Namespace):
     if arguments.user:
         user_id: str = arguments.user
     else:
         user_id: str = getpass.getuser()
 
-    data: Data = Data.from_directory(data_path, user_id)
     server: EmmioServer
 
     if arguments.mode == "messenger":
-        ui.logger = ui.SilentLogger()
         server: TerminalServer = TerminalServer(
-            data, ui.TerminalMessengerInterface()
+            data, user_id, ui.TerminalMessengerInterface()
         )
         server.start()
 
     elif arguments.mode == "terminal":
-        ui.logger = ui.SilentLogger()
-        server: TerminalServer = TerminalServer(data, ui.TerminalInterface())
+        server: TerminalServer = TerminalServer(
+            data, user_id, ui.TerminalInterface()
+        )
         server.start()
 
     elif arguments.mode == "telegram":
         bot: telebot.TeleBot = telebot.TeleBot(arguments.token)
-        server: TelegramServer = TelegramServer(data, bot)
+        server: TelegramServer = TelegramServer(data, user_id, bot)
 
         @bot.message_handler()
         def receive(message: Message):

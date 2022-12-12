@@ -19,6 +19,10 @@ with (Path(__file__).parent / "digraphs.json").open() as config_file:
     DIGRAPHS = json.load(config_file)
 
 
+class LanguageConfig(str):
+    pass
+
+
 class Language:
     """Natural language description."""
 

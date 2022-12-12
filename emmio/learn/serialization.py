@@ -11,7 +11,7 @@ from typing import Union, Any
 
 import yaml
 
-from emmio.learning.core import Learning, ResponseType
+from emmio.learn.core import Learning, ResponseType
 from emmio.serialization import Decoder, DATE_FORMAT, EPOCH, Encoder
 from emmio.util import MalformedFile
 

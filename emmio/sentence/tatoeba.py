@@ -1,44 +1,44 @@
 import bz2
 import json
+import logging
 import os
+from dataclasses import dataclass
 from os.path import join
 from pathlib import Path
-from typing import Dict, Set, List, Optional
 
 from emmio.language import Language
 from emmio.sentence.core import Sentence, SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
-from emmio.ui import log, progress_bar
+from emmio.ui import progress_bar
 from emmio.util import download
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
-class Sentences:
+
+@dataclass
+class TatoebaSentences:
     """Collection of sentences in two languages with translation relations."""
 
-    def __init__(
-        self,
-        cache_path: Path,
-        sentence_db: SentenceDatabase,
-        language_1: Language,
-        language_2: Language,
-    ):
+    path: Path
+    language_1: Language
+    language_2: Language
+    database: SentenceDatabase
 
-        self.sentence_db: SentenceDatabase = sentence_db
-        self.language_1: Language = language_1
-        self.language_2: Language = language_2
+    def __post_init__(self):
 
         links_cache_path: Path = (
-            cache_path / f"links_{self.language_1.get_part3()}_"
+            self.path / "cache" / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"
         )
 
-        self.links: Dict[int, Set[int]] = {}
+        self.links: dict[int, set[int]] = {}
 
         if links_cache_path.is_file():
             self.read_link_sets(links_cache_path)
         else:
-            self.read_links(cache_path)
-            log("writing link cache")
+            self.read_links(self.path / "cache")
+            logging.info("writing link cache")
             with open(links_cache_path, "w+") as output_file:
                 content = {}
                 for key in self.links:
@@ -46,15 +46,15 @@ class Sentences:
                     content[key] = list(self.links[key])
                 json.dump(content, output_file)
 
-        self.cache: Dict[str, List[int]] = {}
+        self.cache: dict[str, list[int]] = {}
 
         links_cache_path: str = join(
-            cache_path, f"cache_{self.language_2.get_part3()}.json"
+            self.path / "cache", f"cache_{self.language_2.get_part3()}.json"
         )
         # FIXME: remove cache file.
 
         if os.path.isfile(links_cache_path):
-            log("reading word cache")
+            logging.debug("Reading word cache...")
             with open(links_cache_path) as input_file:
                 self.cache = json.load(input_file)
         else:
@@ -70,22 +70,22 @@ class Sentences:
             if not zip_path.exists():
                 download(
                     "https://downloads.tatoeba.org/exports/links.tar.bz2",
-                    Path("links.tar.bz2"),
+                    zip_path,
                 )
             with bz2.open(zip_path) as zip_file:
                 with file_path.open("wb+") as cache_file:
-                    log("unzipping links")
+                    logging.info("unzipping links")
                     cache_file.write(zip_file.read())
 
-        log("reading links")
+        logging.debug("Reading links...")
         with file_path.open() as input_1:
             lines = input_1.readlines()
 
-        links: Dict[int, Set[int]] = {}
+        links: dict[int, set[int]] = {}
 
         size = len(lines)
 
-        log(
+        logging.info(
             f"construct cache links for {self.language_1.get_name()} and "
             f"{self.language_2.get_name()}"
         )
@@ -114,10 +114,10 @@ class Sentences:
 
         progress_bar(-1, size)
 
-        sentences_1: dict[str, Sentence] = self.sentence_db.get_sentences(
+        sentences_1: dict[str, Sentence] = self.database.get_sentences(
             self.language_1, cache_path
         )
-        sentences_2: dict[str, Sentence] = self.sentence_db.get_sentences(
+        sentences_2: dict[str, Sentence] = self.database.get_sentences(
             self.language_2, cache_path
         )
 
@@ -133,20 +133,20 @@ class Sentences:
 
     def read_link_sets(self, file_name: Path):
 
-        log("reading link cache")
+        logging.debug("Reading link cache...")
         with file_name.open() as input_file:
             self.links = json.load(input_file)
 
     def fill_cache(self, file_name: str) -> None:
         """Construct dictionary from words to sentences."""
-        log("fill word cache")
+        logging.info("fill word cache")
         size = len(self.links)
         for index, id_ in enumerate(self.links.keys()):
             id_ = int(id_)
             progress_bar(index, size)
             word: str = ""
-            sentence_words: Set[str] = set()
-            sentence: str = self.sentence_db.get_sentence(
+            sentence_words: set[str] = set()
+            sentence: str = self.database.get_sentence(
                 self.language_2, id_
             ).text
             for symbol in sentence.lower():
@@ -164,16 +164,16 @@ class Sentences:
                 self.cache[word].append(id_)
         progress_bar(-1, size)
         with open(file_name, "w+") as output_file:
-            log("writing word cache")
+            logging.info("writing word cache")
             json.dump(self.cache, output_file)
 
     def filter_(
         self,
         word: str,
-        ids_to_skip: Set[int],
+        ids_to_skip: set[int],
         max_length: int,
-        max_number: Optional[int] = 1000,
-    ) -> List[SentenceTranslations]:
+        max_number: int | None = 1000,
+    ) -> list[SentenceTranslations]:
         """
         Get sentences that contain the specified word and their translations to
         the second language.
@@ -184,7 +184,7 @@ class Sentences:
         :param max_length: maximum sentence length
         :param max_number: maximum number of sentences to check
         """
-        result: List[SentenceTranslations] = []
+        result: list[SentenceTranslations] = []
 
         if word not in self.cache:
             return result
@@ -197,7 +197,7 @@ class Sentences:
         for id_ in ids_to_check:
             if id_ in ids_to_skip:
                 continue
-            sentence: Sentence = self.sentence_db.get_sentence(
+            sentence: Sentence = self.database.get_sentence(
                 self.language_2, id_
             )
             if len(sentence.text) > max_length:
@@ -209,7 +209,7 @@ class Sentences:
                     SentenceTranslations(
                         sentence,
                         [
-                            self.sentence_db.get_sentence(self.language_1, x)
+                            self.database.get_sentence(self.language_1, x)
                             for x in self.links[str(id_)]
                         ],
                     )

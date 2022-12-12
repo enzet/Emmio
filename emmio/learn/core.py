@@ -2,6 +2,7 @@
 The learning process.
 """
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from emmio.language import Language, construct_language
-from emmio.ui import log
+from emmio.learn.config import LearnConfig
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -30,35 +31,37 @@ class ResponseType(Enum):
 class LearningRecord:
     """Learning record for a question."""
 
-    # Unique string question identifier. For single word learning it should be
-    # a word itself.
     question_id: str
+    """
+    Unique string question identifier.
 
-    # Response type: fail or success.
+    For single word learning it should be a word itself.
+    """
+
     answer: ResponseType
+    """Response type: fail or success."""
 
-    # Sentence identifier used to learn the question.
     sentence_id: int
+    """Sentence identifier used to learn the question."""
 
-    # Record time.
     time: datetime
+    """Record time."""
 
-    # Time interval for the next question. The question is ready to repeat after
-    # `time` + `interval` point in time.
     interval: timedelta
+    """
+    Time interval for the next question.
 
-    # Learning process identifier.
-    course_id: str
+    The question is ready to repeat after `time` + `interval` point in time.
+    """
 
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
         return self.interval.total_seconds() != 0
 
     @classmethod
-    def from_structure(
-        cls, structure: dict[str, Any], course_id: str
-    ) -> "LearningRecord":
+    def from_structure(cls, structure: dict[str, Any]) -> "LearningRecord":
         """Parse learning record from the dictionary."""
+
         interval = SMALLEST_INTERVAL
         if "interval" in structure:
             interval = timedelta(seconds=structure["interval"])
@@ -68,11 +71,11 @@ class LearningRecord:
             structure["sentence_id"],
             datetime.strptime(structure["time"], FORMAT),
             interval,
-            course_id,
         )
 
     def to_structure(self) -> dict[str, Any]:
         """Export learning record as a dictionary."""
+
         return {
             "word": self.question_id,
             "answer": self.answer.value,
@@ -124,14 +127,19 @@ class Knowledge:
 class Learning:
     """Learning process."""
 
-    def __init__(
-        self, file_path: Path, config: dict[str, any], course_id: str
-    ) -> None:
-        self.file_path: Path = file_path
+    def __init__(self, path: Path, config: LearnConfig) -> None:
+
+        self.config: LearnConfig = config
+
         self.records: list[LearningRecord] = []
-        self.knowledges: dict[str, Knowledge] = {}
-        self.config: dict[str, str] = config
-        self.course_id: str = course_id
+        self.knowledge: dict[str, Knowledge] = {}
+
+        self.learning_language: Language = construct_language(
+            config.learning_language
+        )
+        self.base_language: Language = construct_language(config.base_language)
+
+        self.file_path: Path = path / config.path
 
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
@@ -141,32 +149,18 @@ class Learning:
             content = json.load(log_file)
             records = content["log"]
 
-        self.frequency_list_ids: list[str] = config["frequency_lists"]
-
-        # Config defaults.
-        self.ratio: int = self.config.get("ratio", 10)
-        self.language: Language | None = None
-        self.subject: str | None = self.config.get("subject", None)
-        self.check_lexicon = self.config.get("check_lexicon", True)
-        self.ask_lexicon = self.config.get("ask_lexicon", False)
-        self.name: str = self.config.get("name", "Unknown")
-        self.is_learning: bool = self.config.get("is_learning", True)
-
-        if "language" in self.config:
-            self.language = construct_language(self.config["language"])
-
         for record_structure in records:
             record: LearningRecord = LearningRecord.from_structure(
-                record_structure, self.course_id
+                record_structure
             )
             self.records.append(record)
             self._update_knowledge(record)
 
     def _update_knowledge(self, record: LearningRecord) -> None:
         last_answers: list[ResponseType] = []
-        if record.question_id in self.knowledges:
-            last_answers = self.knowledges[record.question_id].responses
-        self.knowledges[record.question_id] = Knowledge(
+        if record.question_id in self.knowledge:
+            last_answers = self.knowledge[record.question_id].responses
+        self.knowledge[record.question_id] = Knowledge(
             record.question_id,
             last_answers + [record.answer],
             record.time,
@@ -200,7 +194,6 @@ class Learning:
             sentence_id,
             time,
             interval,
-            self.course_id,
         )
         self.records.append(record)
         self._update_knowledge(record)
@@ -211,22 +204,21 @@ class Learning:
 
         :param skip: question identifiers to skip
         """
-        for question_id in self.knowledges:
+        for question_id in self.knowledge:
             if (
                 question_id not in skip
-                and self.knowledges[question_id].is_learning() != 0
-                and datetime.now()
-                > self.knowledges[question_id].get_next_time()
+                and self.knowledge[question_id].is_learning() != 0
+                and datetime.now() > self.knowledge[question_id].get_next_time()
             ):
                 return question_id
 
     def has(self, word: str) -> bool:
         """Check whether the word is in the learning process."""
-        return word in self.knowledges
+        return word in self.knowledge
 
     def is_initially_known(self, word: str) -> bool:
         """Check whether the word was initially known."""
-        knowledge: Knowledge = self.knowledges[word]
+        knowledge: Knowledge = self.knowledge[word]
 
         return (
             not knowledge.is_learning()
@@ -238,9 +230,9 @@ class Learning:
         """Get the nearest repetition time."""
         return min(
             [
-                self.knowledges[word].get_next_time()
-                for word in self.knowledges
-                if self.knowledges[word].is_learning()
+                self.knowledge[word].get_next_time()
+                for word in self.knowledge
+                if self.knowledge[word].is_learning()
                 and (not skip or word not in skip)
             ]
         )
@@ -265,8 +257,8 @@ class Learning:
     def to_repeat(self, skip: set[str] = None) -> int:
         count: int = 0
         now: datetime = datetime.now()
-        for word in self.knowledges:
-            record: Knowledge = self.knowledges[word]
+        for word in self.knowledge:
+            record: Knowledge = self.knowledge[word]
             if (
                 record.is_learning()
                 and record.get_next_time() < now
@@ -277,16 +269,16 @@ class Learning:
 
     def learning(self) -> int:
         count: int = 0
-        for word in self.knowledges:
-            record: Knowledge = self.knowledges[word]
+        for word in self.knowledge:
+            record: Knowledge = self.knowledge[word]
             if record.is_learning():
                 count += 1
         return count
 
     def write(self) -> None:
         """Serialize learning process to a file."""
-        log(f"saving learning process to {self.file_path}")
-        structure = {"log": [], "config": self.config}
+        logging.debug(f"saving learning process to {self.file_path}")
+        structure = {"log": []}
         for record in self.records:
             structure["log"].append(record.to_structure())
         with self.file_path.open("w+") as output_file:
