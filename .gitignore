@@ -1,5 +1,6 @@
 *.pyc
 .idea
+.venv
 Emmio.egg-info
 __pycache__
 c/text
@@ -7,6 +8,6 @@ cache
 data
 out
 test
-venv
+tests/temp
 web
 work
