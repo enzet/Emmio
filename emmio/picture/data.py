@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from emmio.lists.core import FrequencyList
+from emmio.data import Data
 from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon, LexiconResponse
-from emmio.data import Data
+from emmio.lists.core import FrequencyList
 
 
 @dataclass

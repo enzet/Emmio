@@ -1,4 +1,3 @@
-import sys
 from argparse import Namespace
 from collections import defaultdict
 from pathlib import Path

@@ -6,7 +6,6 @@ from emmio.learn.core import Learning
 from emmio.learn.data import LearnData
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.data import LexiconData
-from emmio.user.config import UserConfig
 
 
 @dataclass

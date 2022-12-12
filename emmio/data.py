@@ -12,10 +12,8 @@ from emmio.learn.core import Learning
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
-from emmio.sentence.tatoeba import TatoebaSentences
 from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
-
 from emmio.ui import progress
 from emmio.user.data import UserData
 

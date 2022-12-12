@@ -6,7 +6,9 @@ __email__ = "me@enzet.ru"
 
 class List:
     def get_info(self) -> str:
+        """Get information about the list."""
         raise NotImplementedError()
 
     def get_words(self) -> list[str]:
+        """Get ordered list of words."""
         raise NotImplementedError()

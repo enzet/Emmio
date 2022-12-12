@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from emmio.dictionary.core import Dictionaries, Dictionary, DictionaryItem
+from emmio.language import RUSSIAN
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
-from emmio.language import RUSSIAN
 from emmio.ui import get_char, Interface
 
 __author__ = "Sergey Vartanov"

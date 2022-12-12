@@ -4,8 +4,8 @@ from pathlib import Path
 
 from emmio.language import construct_language
 from emmio.sentence.config import SentencesConfig
-from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.core import SentencesCollection, Sentences
+from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.tatoeba import TatoebaSentences
 
 

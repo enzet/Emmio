@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Optional
 
 from emmio import ui
+from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, Dictionaries
 from emmio.language import (
     Language,
@@ -26,7 +27,6 @@ from emmio.sentence.core import (
     SentencesCollection,
 )
 from emmio.text import sanitize
-from emmio.data import Data
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
 

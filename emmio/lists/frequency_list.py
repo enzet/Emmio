@@ -1,8 +1,8 @@
 import json
 import logging
+import random
 import sys
 from dataclasses import dataclass
-import random
 from pathlib import Path
 
 import urllib3 as urllib3

@@ -4,7 +4,6 @@ from argparse import Namespace
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 from enum import Enum
-from pathlib import Path
 from time import sleep
 from typing import Optional
 

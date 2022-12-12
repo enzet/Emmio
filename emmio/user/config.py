@@ -1,7 +1,7 @@
 from pydantic.main import BaseModel
 
-from emmio.lexicon.config import LexiconConfig
 from emmio.learn.config import LearnConfig
+from emmio.lexicon.config import LexiconConfig
 
 
 class UserConfig(BaseModel):

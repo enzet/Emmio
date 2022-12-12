@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Optional, Any
 
 from emmio import util, ui
+from emmio.data import Data
 from emmio.dictionary.core import Dictionary, Dictionaries
 from emmio.dictionary.en_wiktionary import EnglishWiktionary
-from emmio.lists.frequency_list import FrequencyList
 from emmio.graph import Visualizer
 from emmio.language import (
     Language,
@@ -18,10 +18,10 @@ from emmio.language import (
 from emmio.learn.core import Learning, LearningRecord, ResponseType
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
+from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.database import SentenceDatabase
 from emmio.teacher import Teacher
 from emmio.ui import Interface, progress, error
-from emmio.data import Data
 
 LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word

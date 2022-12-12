@@ -1,7 +1,7 @@
 """Emmio entry point."""
 import logging
-from argparse import Namespace, ArgumentParser
 import sys
+from argparse import Namespace, ArgumentParser
 from pathlib import Path
 
 import coloredlogs as coloredlogs
