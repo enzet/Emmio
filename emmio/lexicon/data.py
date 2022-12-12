@@ -27,5 +27,13 @@ class LexiconData:
 
         return cls(path, lexicons)
 
-    def get_lexicon(self, language: Language):
-        return self.lexicons[language.get_code()]
+    def get_lexicon(self, language: Language) -> Lexicon | None:
+        """Get lexicon with the requested language."""
+
+        lexicons: list[Lexicon] = [
+            x for x in self.lexicons.values() if x.config.language == language
+        ]
+        if len(lexicons) == 1:
+            return lexicons[0]
+
+        return None
