@@ -6,13 +6,8 @@ from typing import Optional
 
 from emmio import ui
 from emmio.data import Data
-from emmio.dictionary.core import DictionaryItem, Dictionaries
-from emmio.language import (
-    Language,
-    construct_language,
-    LanguageNotFound,
-    GERMAN,
-)
+from emmio.dictionary.core import DictionaryItem, DictionaryCollection
+from emmio.language import GERMAN
 from emmio.learn.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.lexicon.core import (
     Lexicon,

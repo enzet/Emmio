@@ -9,7 +9,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from emmio.dictionary.core import Dictionaries, Dictionary, DictionaryItem
+from emmio.dictionary.core import (
+    DictionaryCollection,
+    Dictionary,
+    DictionaryItem,
+)
 from emmio.language import RUSSIAN, construct_language
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
@@ -534,7 +538,7 @@ class Lexicon:
         interface: Interface,
         word: str,
         word_list: list[str],
-        dictionaries: Dictionaries,
+        dictionaries: DictionaryCollection,
         skip_known: bool = False,
         skip_unknown: bool = False,
         log_name: str = "log",
@@ -611,7 +615,7 @@ class Lexicon:
         self,
         interface: Interface,
         frequency_list: FrequencyList,
-        dictionaries: Dictionaries,
+        dictionaries: DictionaryCollection,
     ) -> None:
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
@@ -648,7 +652,7 @@ class Lexicon:
         interface: Interface,
         frequency_list: FrequencyList,
         stop_at: Optional[int],
-        dictionaries: Dictionaries,
+        dictionaries: DictionaryCollection,
         log_type: str,
         skip_known: bool,
         skip_unknown: bool,
