@@ -382,7 +382,12 @@ class Teacher:
                     self.data.exclude_translation(w, t)
                     continue
 
-            if answer == "/no":
+            if answer in [
+                "/no",
+                "n",  # Short for no, non, nein.
+                "н",  # Short for нет.
+                "ո",  # Short for ոչ.
+            ]:
 
                 self.interface.box(word)
                 if items:
