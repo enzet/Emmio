@@ -56,6 +56,13 @@ def main():
     server_parser.add_argument("--mode", help="server mode", default="terminal")
     server_parser.add_argument("--token", help="Telegram messenger token")
 
+    # Command `dictionary <language 1> <language 2>`.
+    dictionary_parser: ArgumentParser = subparser.add_parser(
+        "dictionary", help="translate words"
+    )
+    dictionary_parser.add_argument("language_1", help="first language")
+    dictionary_parser.add_argument("language_2", help="second language")
+
     # Commands for frequency and word lists.
 
     # Command `list <command>`.
