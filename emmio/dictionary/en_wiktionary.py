@@ -229,3 +229,9 @@ class EnglishWiktionary(Dictionary):
 
         if item.has_definitions():
             return item
+
+    def check_from_language(self, language: Language) -> bool:
+        return self.from_language == language
+
+    def check_to_language(self, language: Language) -> bool:
+        return language == ENGLISH

@@ -385,6 +385,12 @@ class Dictionary:
 
         return forms
 
+    def check_from_language(self, language: Language) -> bool:
+        raise NotImplementedError()
+
+    def check_to_language(self, language: Language) -> bool:
+        raise NotImplementedError()
+
 
 @dataclass
 class SimpleDictionary(Dictionary):
@@ -421,6 +427,11 @@ class SimpleDictionary(Dictionary):
         )
         return item
 
+    def check_from_language(self, language: Language) -> Language:
+        return self.from_language == language
+
+    def check_to_language(self, language: Language) -> Language:
+        return self.to_language == language
 
 class Dictionaries:
     """A set of dictionaries for a language."""
