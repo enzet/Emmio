@@ -7,7 +7,7 @@ from pathlib import Path
 import coloredlogs as coloredlogs
 
 from emmio.data import Data
-from emmio.ui import TerminalInterface
+from emmio.ui import RichInterface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -106,8 +106,10 @@ def main():
         case "run":
             from emmio.main import Emmio
 
-            e: Emmio = Emmio(Path(arguments.data), TerminalInterface(), data)
-            e.run(arguments.user)
+            robot: Emmio = Emmio(
+                data_path, RichInterface(), data, arguments.user
+            )
+            robot.run()
 
         case _:
             logging.fatal(f"Unknown command `{arguments.command}`.")
