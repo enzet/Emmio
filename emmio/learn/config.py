@@ -30,3 +30,4 @@ class LearnConfig(BaseModel):
     lists: list[str]
     check_lexicon: bool = False
     ask_lexicon: bool = False
+    max_for_day: int = 100
