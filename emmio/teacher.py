@@ -1,29 +1,24 @@
 """Teacher."""
 import logging
 import math
-import random
 from datetime import timedelta
-from pathlib import Path
 from typing import Optional
 
-from emmio.dictionary.core import Dictionaries, DictionaryItem
-from emmio.language import Language, construct_language, GERMAN
+from emmio.data import Data
+from emmio.dictionary.core import DictionaryItem, DictionaryCollection
+from emmio.language import GERMAN
 from emmio.learn.core import Learning, ResponseType
 from emmio.lexicon.core import (
-    Lexicon,
     LexiconResponse,
     LexiconLog,
     WordSelection,
 )
-from emmio.sentence.core import SentenceTranslations
-from emmio.sentence.core import Sentences
-from emmio.sentence.database import SentenceDatabase
-from emmio.ui import log, Interface, debug
+from emmio.sentence.core import SentenceTranslations, SentencesCollection
+from emmio.ui import Interface
+from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
-from emmio.data import Data
 
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
@@ -31,52 +26,46 @@ SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 class Teacher:
     def __init__(
         self,
-        cache_directory_name: Path,
         interface: Interface,
         data: Data,
-        sentence_db: SentenceDatabase,
+        user_data: UserData,
         learning: Learning,
-        lexicon: Lexicon,
-        get_dictionaries=None,
     ) -> None:
         self.interface: Interface = interface
         self.data: Data = data
-        self.known_language: Language = learning.language
 
-        self.learning_language: Optional[Language]
-        try:
-            self.learning_language = construct_language(learning.subject)
-        except KeyError:
-            self.learning_language = None
-
-        self.max_for_day: int = learning.ratio
-        self.learning: Learning = learning
-        self.dictionaries: Dictionaries = Dictionaries(
-            get_dictionaries(self.learning_language)
-        )
-
-        self.lexicon: Lexicon = lexicon
-
-        self.sentences: Sentences = Sentences(
-            cache_directory_name,
-            sentence_db,
-            self.known_language,
-            self.learning_language,
-        )
-
-        self.words: list[tuple[int, str]] = []
-        log("getting words")
-        for frequency_list_id in learning.frequency_list_ids:
-            frequency_list_id: str
-            for index, word, _ in frequency_db.get_words(frequency_list_id):
-                index: int
-                word: str
-                self.words.append((index, word))
         self.word_index: int = 0
 
         self.skip = set()
 
+        self.learning = learning
+        self.lexicon = user_data.get_lexicon(self.learning.learning_language)
+
+        self.words: list[str] = []
+        for list_id in self.learning.config.lists:
+            self.words += data.get_words(list_id)
+
         self.stop_after_answer: bool = False
+
+        self.dictionaries: DictionaryCollection = data.get_dictionaries(
+            self.learning.config.dictionaries
+        )
+        self.sentences: SentencesCollection = data.get_sentences_collection(
+            self.learning.config.sentences
+        )
+        self.max_for_day: int = self.learning.config.max_for_day
+
+    @staticmethod
+    def get_smallest_interval() -> timedelta:
+        return timedelta(minutes=5)
+
+    @staticmethod
+    def increase_interval(interval: timedelta) -> timedelta:
+        if interval == timedelta(minutes=5):
+            return timedelta(hours=8)
+        elif interval == timedelta(hours=8):
+            return timedelta(days=1)
+        return interval * 2
 
     def start(self) -> bool:
 
@@ -113,7 +102,7 @@ class Teacher:
                 # Check user lexicon. Skip the word if it was mark as known by
                 # user while checking lexicon.
                 if (
-                    self.learning.check_lexicon
+                    self.learning.config.check_lexicon
                     and self.lexicon
                     and self.lexicon.has(word)
                     and self.lexicon.get(word) != LexiconResponse.DONT
@@ -124,11 +113,11 @@ class Teacher:
                 # Skip the word if it was skipped during the current learning
                 # session.
                 if word in self.skip:
-                    debug(f"[{index}] skipped")
+                    logging.debug(f"[{index}] skipped")
                     continue
 
                 items: list[DictionaryItem] = self.dictionaries.get_items(word)
-                if not items and self.learning_language == GERMAN:
+                if not items and self.learning.learning_language == GERMAN:
                     for item in self.dictionaries.get_items(
                         word[0].upper() + word[1:]
                     ):
@@ -141,11 +130,15 @@ class Teacher:
                     logging.debug(f"[{index}] no definition")
                     continue
 
-                if not items[0].has_common_definition(self.learning.language):
-                    debug(f"[{index}] not common")
+                if not items[0].has_common_definition(
+                    self.learning.base_language
+                ):
+                    logging.debug(f"[{index}] not common")
                     continue
 
-                if self.learning.check_lexicon and self.lexicon.has(word):
+                if self.learning.config.check_lexicon and self.lexicon.has(
+                    word
+                ):
                     if self.lexicon.get(word) != LexiconResponse.DONT:
                         logging.debug(f"[{index}] word is known")
                         continue
@@ -156,10 +149,11 @@ class Teacher:
                         LexiconLog("log_ex", WordSelection("top"))
                     )
 
-                has_new_word = True
+                has_new_word: bool = True
 
-                if self.learning.ask_lexicon and not self.lexicon.has(word):
-
+                if self.learning.config.ask_lexicon and not self.lexicon.has(
+                    word
+                ):
                     self.lexicon.write()
 
                     _, response, _ = self.lexicon.ask(
@@ -232,20 +226,20 @@ class Teacher:
 
             result: str = ""
 
-            w = ""
+            current_word: str = ""
             for position, char in enumerate(text):
                 position: int
                 char: str
-                if self.learning_language.has_symbol(char.lower()):
-                    w += char
+                if self.learning.learning_language.has_symbol(char.lower()):
+                    current_word += char
                 else:
-                    if w:
-                        if w.lower() == word:
+                    if current_word:
+                        if current_word.lower() == word:
                             result += "░" * len(word)
                         else:
-                            result += w
+                            result += current_word
                     result += char
-                    w = ""
+                    current_word = ""
 
             for i in range(max_translations):
                 if len(sentences[index].translations) > i:
@@ -253,7 +247,7 @@ class Teacher:
 
             self.interface.print(result)
 
-        def log_(interval):
+        def log_():
             if interval.total_seconds() == 0:
                 return 0
             return int(math.log(interval.total_seconds() / 60 / 60 / 24, 2)) + 1
@@ -262,7 +256,7 @@ class Teacher:
 
         statistics: str = ""
         if interval.total_seconds() > 0:
-            statistics += f"{'◕ ' * log_(interval)} "
+            statistics += f"{'◕ ' * log_()} "
         else:
             statistics += f"frequency index: {word_index}  "
         statistics += (
@@ -278,7 +272,7 @@ class Teacher:
 
         items: list[DictionaryItem] = self.dictionaries.get_items(word)
 
-        if self.learning_language == GERMAN:
+        if self.learning.learning_language == GERMAN:
             for item in self.dictionaries.get_items(word[0].upper() + word[1:]):
                 if item not in items:
                     items.append(item)
@@ -292,7 +286,7 @@ class Teacher:
         if items:
             translation_list = [
                 x.to_str(
-                    self.known_language,
+                    self.learning.base_language,
                     self.interface,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
@@ -314,22 +308,25 @@ class Teacher:
 
         while True:
             answer: str = self.interface.get_word(
-                word, alternative_forms, self.learning_language
+                word, alternative_forms, self.learning.learning_language
             )
             sentence_id: int = (
                 sentences[index].sentence.id_ if index < len(sentences) else 0
             )
 
             # Preprocess answer.
-            answer: str = self.learning_language.decode_text(answer)
+            answer: str = self.learning.learning_language.decode_text(answer)
 
             if answer == word:
                 self.learning.register(
-                    ResponseType.RIGHT, sentence_id, word, interval * 2
+                    ResponseType.RIGHT,
+                    sentence_id,
+                    word,
+                    self.increase_interval(interval),
                 )
                 if items:
                     string_items: list[str] = [
-                        x.to_str(self.known_language, self.interface)
+                        x.to_str(self.learning.base_language, self.interface)
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
@@ -390,7 +387,7 @@ class Teacher:
                 self.interface.box(word)
                 if items:
                     string_items: list[str] = [
-                        x.to_str(self.known_language, self.interface)
+                        x.to_str(self.learning.base_language, self.interface)
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
@@ -399,7 +396,10 @@ class Teacher:
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
-                        ResponseType.WRONG, sentence_id, word, SMALLEST_INTERVAL
+                        ResponseType.WRONG,
+                        sentence_id,
+                        word,
+                        self.get_smallest_interval(),
                     )
                 else:
                     self.learning.register(

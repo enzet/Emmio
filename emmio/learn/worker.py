@@ -37,20 +37,9 @@ class LearningWorker(Worker):
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
 
-        self.known_language: Language = construct_language(
-            learning.config.base_language
-        )
-        self.learning_language: Optional[Language]
-        try:
-            self.learning_language = construct_language(
-                learning.config.learning_language
-            )
-        except LanguageNotFound:
-            self.learning_language = None
-
         self.interface: ui.Interface = ui.TelegramInterface()
 
-        self.dictionaries: Dictionaries = data.get_dictionaries(
+        self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
         self.sentences: SentencesCollection = data.get_sentences_collection(
@@ -166,7 +155,7 @@ class LearningWorker(Worker):
             items: list[DictionaryItem] = self.dictionaries.get_items(
                 question_id
             )
-            if not items and self.learning_language == GERMAN:
+            if not items and self.learning.learning_language == GERMAN:
                 for item in self.dictionaries.get_items(
                     question_id[0].upper() + question_id[1:]
                 ):
@@ -258,7 +247,7 @@ class LearningWorker(Worker):
             self.word
         )
 
-        if self.learning_language == GERMAN:
+        if self.learning.learning_language == GERMAN:
             for item in self.dictionaries.get_items(
                 self.word[0].upper() + self.word[1:]
             ):
@@ -279,7 +268,7 @@ class LearningWorker(Worker):
         if self.items:
             translation_list = [
                 x.to_str(
-                    self.known_language,
+                    self.learning.base_language,
                     self.interface,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
@@ -344,7 +333,7 @@ class LearningWorker(Worker):
         )
 
         # Preprocess answer.
-        answer: str = self.learning_language.decode_text(message)
+        answer: str = self.learning.learning_language.decode_text(message)
 
         self.index += 1
 

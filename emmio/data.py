@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from emmio import ui
-from emmio.dictionary.core import Dictionary, Dictionaries
+from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
 from emmio.language import Language, construct_language
 from emmio.learn.core import Learning
@@ -31,7 +31,7 @@ class Data:
     lists: ListsData
     sentences: SentencesData
     dictionaries: DictionaryData
-    user_data: dict[str, UserData]
+    users_data: dict[str, UserData]
 
     @classmethod
     def from_directory(cls, path: Path) -> "Data":
@@ -85,7 +85,7 @@ class Data:
         self, language: Language
     ) -> FrequencyList:
         return self.get_frequency_list(
-            self.user_data[user_id].get_lexicon[language.get_code()]
+            self.users_data[user_id].get_lexicon[language.get_code()]
         )
 
     def get_lexicon_languages(self) -> Iterator[Language]:
@@ -100,7 +100,9 @@ class Data:
     def get_dictionary(self, usage_config: dict) -> Dictionary:
         return self.dictionaries.get_dictionary(usage_config)
 
-    def get_dictionaries(self, usage_configs: list[dict]) -> Dictionaries:
+    def get_dictionaries(
+        self, usage_configs: list[dict]
+    ) -> DictionaryCollection:
         return self.dictionaries.get_dictionaries(usage_configs)
 
     def get_sentences(self, usage_config: dict) -> Sentences:
@@ -111,33 +113,24 @@ class Data:
     ) -> SentencesCollection:
         return self.sentences.get_sentences_collection(usage_configs)
 
-    def get_words(self, list_id: str):
-        return self.get_list(list_id).get_words()
+    def get_words(self, id_: str) -> list[str]:
+        return self.get_list(id_).get_words()
 
-    def get_course(self, course_id: str) -> Learning:
-        if course_id not in self.courses:
-            file_path: Path = (
-                self.path / self.id_ / "learn" / f"{course_id}.json"
-            )
-            if file_path.is_file():
-                course_id: str = file_path.name[: -len(".json")]
-                config = self.learn_config[course_id]
-                self.courses[course_id] = Learning(file_path, config, course_id)
+    def get_learning(self, user_id: str, learning_id: str) -> Learning:
+        return self.users_data[user_id].get_learning(learning_id)
 
-        return self.courses[course_id]
+    def get_active_learnings(self, user_id: str):
+        return self.users_data[user_id].get_active_learnings()
 
-    def get_stat(self, interface: ui.Interface, user_data: UserData):
+    def get_stat(self, interface: ui.Interface, user_id: str):
 
-        sorted_ids: list[str] = sorted(
-            user_data.learnings,
-            key=lambda x: -self.get_course(x).to_repeat(),
+        learnings: list[Learning] = sorted(
+            self.get_active_learnings(user_id), key=lambda x: x.to_repeat()
         )
         stat: dict[int, int] = defaultdict(int)
         total: int = 0
-        for course_id in sorted_ids:
-            if not self.get_course(course_id).is_learning:
-                continue
-            k = self.get_course(course_id).knowledge
+        for learning in learnings:
+            k = learning.knowledge
             for word in k:
                 if k[word].interval.total_seconds() == 0:
                     continue
@@ -151,15 +144,17 @@ class Data:
         total_new: int = 0
         total_all: int = 0
 
-        for course_id in sorted_ids:
-            learning: Learning = self.get_course(course_id)
-            if not learning.is_learning:
-                continue
+        for learning in learnings:
             row = [
-                learning.name,
+                learning.config.name,
                 progress((to_repeat := learning.to_repeat())),
                 progress(
-                    (new := max(0, learning.ratio - learning.new_today()))
+                    (
+                        new := max(
+                            0,
+                            learning.config.max_for_day - learning.new_today(),
+                        )
+                    )
                 ),
                 str((all_ := learning.learning())),
             ]

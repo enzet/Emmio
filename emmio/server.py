@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime
 from enum import Enum
 from time import sleep
-from typing import Optional
+from typing import Iterator
 
 import telebot
 import telebot.apihelper
@@ -52,10 +52,10 @@ class EmmioServer:
     def __init__(self, data: Data, user_id: str):
 
         self.data: Data = data
-        self.user_data: UserData = data.user_data[user_id]
+        self.user_data: UserData = data.users_data[user_id]
 
-        learnings: list[Learning] = self.user_data.get_learnings()
-        self.learnings: list[LearningWorker] = [
+        learnings: Iterator[Learning] = self.user_data.get_active_learnings()
+        self.learnings: Iterator[LearningWorker] = (
             LearningWorker(
                 learning,
                 self.user_data.get_lexicon(
@@ -64,7 +64,7 @@ class EmmioServer:
                 data,
             )
             for learning in learnings
-        ]
+        )
         self.lexicons: list[LexiconWorker] = [
             # LexiconWorker(user_data.get_lexicon(x))
             # for x in user_data.get_lexicon_languages()
