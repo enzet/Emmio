@@ -404,7 +404,7 @@ class SimpleDictionary(Dictionary):
         cls, path: Path, config: DictionaryConfig
     ) -> "SimpleDictionary":
 
-        with (path / config.path).open() as input_file:
+        with (path / config.file_name).open() as input_file:
             data = json.load(input_file)
 
         return cls(

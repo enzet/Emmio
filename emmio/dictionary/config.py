@@ -7,8 +7,8 @@ from emmio.language import LanguageConfig
 
 class DictionaryConfig(BaseModel):
 
-    path: Path
-    """Path to file with dictionary."""
+    file_name: str
+    """Name of the file with dictionary."""
 
     from_language: LanguageConfig
     to_language: LanguageConfig
