@@ -73,7 +73,7 @@ class EmmioServer:
 
         # Current state.
 
-        self.worker: Optional[Worker] = None
+        self.worker: Worker | None = None
         self.state: ServerState = ServerState.NOTHING
 
     def send(self, message: str):
@@ -101,7 +101,7 @@ class EmmioServer:
         else:
             self.send("Alive.")
 
-    def step(self, message: Optional[str] = None) -> str:
+    def step(self, message: str | None = None) -> str:
         """Return true if server is left in awaiting answer status."""
 
         if message == "/stop":
@@ -259,11 +259,8 @@ class TelegramServer(EmmioServer):
 
 
 def start(data: Data, arguments: Namespace):
-    if arguments.user:
-        user_id: str = arguments.user
-    else:
-        user_id: str = getpass.getuser()
 
+    user_id: str = arguments.user if arguments.user else getpass.getuser()
     server: EmmioServer
 
     if arguments.mode == "messenger":
