@@ -433,7 +433,8 @@ class SimpleDictionary(Dictionary):
     def check_to_language(self, language: Language) -> Language:
         return self.to_language == language
 
-class Dictionaries:
+
+class DictionaryCollection:
     """A set of dictionaries for a language."""
 
     def __init__(self, dictionaries: Optional[list[Dictionary]] = None) -> None:
