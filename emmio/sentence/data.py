@@ -4,7 +4,7 @@ from pathlib import Path
 
 from emmio.language import construct_language
 from emmio.sentence.config import SentencesConfig
-from emmio.sentence.core import SentencesCollection, Sentences
+from emmio.sentence.core import SentencesCollection, Sentences, SimpleSentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.tatoeba import TatoebaSentences
 
@@ -29,7 +29,7 @@ class SentencesData:
         with (path / "config.json").open() as config_file:
             config: dict = json.load(config_file)
             for id_, data in config.items():
-                sentences[id_] = Sentences(path, SentencesConfig(**data))
+                sentences[id_] = SimpleSentences(path, SentencesConfig(**data))
 
         return cls(path, database, sentences)
 

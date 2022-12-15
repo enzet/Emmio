@@ -2,10 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from emmio.sentence.config import SentencesConfig
+
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
-from emmio.sentence.config import SentencesConfig
 
 
 @dataclass
@@ -32,27 +32,46 @@ class SentenceTranslations:
     translations: List[Sentence]
 
 
-@dataclass
 class Sentences:
+    def filter_(
+        self, word: str, ids_to_skip: set[int], max_length: int
+    ) -> list[SentenceTranslations]:
+        raise NotImplementedError()
+
+    def __len__(self) -> int:
+        return 0
+
+
+@dataclass
+class SimpleSentences(Sentences):
+
     path: Path
     config: SentencesConfig
 
     def filter_(
         self, word: str, ids_to_skip: set[int], max_length: int
-    ) -> SentenceTranslations | None:
-        return None
+    ) -> list[SentenceTranslations]:
+        return []
+
+    def __len__(self) -> int:
+        return 0
 
 
 @dataclass
 class SentencesCollection:
+
     collection: list[Sentences]
 
     def filter_(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
-        r = []
-        for sentences in self.collection:
-            st = sentences.filter_(word, ids_to_skip, max_length)
-            if st:
-                r.append(st)
-        return r
+
+        result: list[SentenceTranslations] = []
+
+        for s in self.collection:
+            result += s.filter_(word, ids_to_skip, max_length)
+
+        return result
+
+    def __len__(self):
+        return sum(len(x) for x in self.collection)

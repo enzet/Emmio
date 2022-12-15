@@ -7,7 +7,7 @@ from os.path import join
 from pathlib import Path
 
 from emmio.language import Language
-from emmio.sentence.core import Sentence, SentenceTranslations
+from emmio.sentence.core import Sentence, SentenceTranslations, Sentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.ui import progress_bar
 from emmio.util import download
@@ -17,7 +17,7 @@ __email__ = "me@enzet.ru"
 
 
 @dataclass
-class TatoebaSentences:
+class TatoebaSentences(Sentences):
     """Collection of sentences in two languages with translation relations."""
 
     path: Path
@@ -187,6 +187,7 @@ class TatoebaSentences:
         result: list[SentenceTranslations] = []
 
         if word not in self.cache:
+            logging.debug("Word is not in cache.")
             return result
 
         ids_to_check: list[int] = (
@@ -215,3 +216,6 @@ class TatoebaSentences:
                     )
                 )
         return result
+
+    def __len__(self):
+        raise NotImplementedError()
