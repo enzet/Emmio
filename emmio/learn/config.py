@@ -17,8 +17,12 @@ class LearnConfig(BaseModel):
     name: str
     """Name of the learning course."""
 
-    base_language: LanguageConfig | None = None
-    learning_language: LanguageConfig | None = None
+    learning_language: LanguageConfig
+    """Learning subject."""
+
+    base_language: LanguageConfig
+    """Language known by user."""
+
     is_active: bool = True
     type: LearnType
     sentences: list[dict]

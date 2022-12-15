@@ -99,13 +99,10 @@ class Knowledge:
         return self.interval.total_seconds() != 0
 
     def get_depth(self) -> int:
-        """
-        Get learning depth (length of the last consequence of right answers).
-        """
+        """Get learning depth (length of the last sequence of right answers)."""
         if ResponseType.WRONG in self.responses:
             return list(reversed(self.responses)).index(ResponseType.WRONG)
-        else:
-            return len(self.responses)
+        return len(self.responses)
 
     def get_last_answer(self) -> ResponseType:
         """Get last answer for the word."""
@@ -176,7 +173,7 @@ class Learning:
         time: datetime | None = None,
     ) -> None:
         """
-        Register student answer.
+        Register user answer.
 
         :param answer: user response
         :param sentence_id: sentence identifier was used to learn the word
@@ -189,11 +186,7 @@ class Learning:
             time = datetime.now()
 
         record: LearningRecord = LearningRecord(
-            question_id,
-            answer,
-            sentence_id,
-            time,
-            interval,
+            question_id, answer, sentence_id, time, interval
         )
         self.records.append(record)
         self._update_knowledge(record)

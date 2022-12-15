@@ -4,6 +4,9 @@ from pathlib import Path
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 
 @dataclass
 class LearnData:
@@ -13,6 +16,7 @@ class LearnData:
     """The directory managed by this class."""
 
     learnings: dict[str, Learning]
+    """Mapping from learning ids to learning processes."""
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "LearnData":

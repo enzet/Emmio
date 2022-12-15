@@ -157,8 +157,7 @@ class TerminalInterface(Interface):
     def colorize(self, text: str, color: str):
         if color in colors:
             return f"\033[{colors[color]}m{text}\033[0m"
-        else:
-            return text
+        return text
 
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language

@@ -97,8 +97,11 @@ class Teacher:
             has_new_word: bool = False
 
             for index, word in self.words[self.word_index :]:
+
                 self.word_index += 1
 
+                # Check whether the learning process already has the word:
+                # whether it was initially known or it is learning.
                 if self.learning.has(word):
                     if self.learning.is_initially_known(word):
                         debug(f"[{index}] was initially known")
@@ -106,6 +109,8 @@ class Teacher:
                         debug(f"[{index}] already learning")
                     continue
 
+                # Check user lexicon. Skip the word if it was mark as known by
+                # user while checking lexicon.
                 if (
                     self.learning.check_lexicon
                     and self.lexicon
@@ -115,6 +120,8 @@ class Teacher:
                     debug(f"[{index}] known in lexicon")
                     continue
 
+                # Skip the word if it was skipped during the current learning
+                # session.
                 if word in self.skip:
                     debug(f"[{index}] skipped")
                     continue

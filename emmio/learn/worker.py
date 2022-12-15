@@ -30,14 +30,14 @@ from emmio.text import sanitize
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
 
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
+
 
 class LearningWorker(Worker):
-    def __init__(
-        self,
-        learning: Learning,
-        lexicon: Lexicon,
-        data: Data,
-    ):
+    """Server worker for learning process."""
+
+    def __init__(self, learning: Learning, lexicon: Lexicon, data: Data):
         self.data: Data = data
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
@@ -307,6 +307,7 @@ class LearningWorker(Worker):
         return result
 
     def process_answer(self, message: str) -> str:
+        """Process answer provided by the user."""
 
         logging.debug("process_answer()")
         self.print_state()
@@ -359,9 +360,7 @@ class LearningWorker(Worker):
         )
 
         if answer == self.word:
-
             self.index = 0
-
             self.learning.register(
                 ResponseType.RIGHT, sentence_id, self.word, self.interval * 2
             )
@@ -388,12 +387,8 @@ class LearningWorker(Worker):
             return f"Skipped for this session{state}."
 
         elif answer in ["/no", "Don't know"]:
-
             self.learning.register(
-                ResponseType.WRONG,
-                sentence_id,
-                self.word,
-                SMALLEST_INTERVAL,
+                ResponseType.WRONG, sentence_id, self.word, SMALLEST_INTERVAL
             )
             self.learning.write()
             self.index = 0
