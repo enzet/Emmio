@@ -103,11 +103,16 @@ def main():
             logging.basicConfig(level=logging.DEBUG)
             start(data, arguments)
 
+        case "dictionary":
+            from emmio.dictionary.ui import start
+
+            start(data, arguments)
+
         case "list":
             process_list_command(data, arguments)
 
         case "run":
-            from emmio.main import Emmio
+            from emmio.run import Emmio
 
             robot: Emmio = Emmio(
                 data_path, RichInterface(), data, arguments.user
