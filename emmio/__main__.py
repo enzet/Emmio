@@ -15,6 +15,22 @@ __email__ = "me@enzet.ru"
 EMMIO_DEFAULT_DIRECTORY: str = ".emmio"
 
 
+def process_list_command(data, arguments):
+    match arguments.subcommand:
+        case "info":
+            print("Frequency lists:")
+            for key in data.lists.frequency_lists:
+                print(f"    {key}")
+            print("Word lists:")
+            for key in data.lists.word_lists:
+                print(f"    {key}")
+        case "show":
+            if list_ := data.get_list(arguments.id):
+                print(list_.get_info())
+            else:
+                print("No such list.")
+
+
 def main():
     """Emmio entry point."""
 
@@ -36,7 +52,6 @@ def main():
     server_parser: ArgumentParser = subparser.add_parser(
         "server", help="run Emmio server"
     )
-
     server_parser.add_argument("--user", help="user name")
     server_parser.add_argument("--mode", help="server mode", default="terminal")
     server_parser.add_argument("--token", help="Telegram messenger token")
@@ -89,19 +104,7 @@ def main():
             start(data, arguments)
 
         case "list":
-            match arguments.subcommand:
-                case "info":
-                    print("Frequency lists:")
-                    for key in data.lists.frequency_lists:
-                        print(f"    {key}")
-                    print("Word lists:")
-                    for key in data.lists.word_lists:
-                        print(f"    {key}")
-                case "show":
-                    if list_ := data.get_list(arguments.id):
-                        print(list_.get_info())
-                    else:
-                        print("No such list.")
+            process_list_command(data, arguments)
 
         case "run":
             from emmio.main import Emmio
