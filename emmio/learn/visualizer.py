@@ -26,7 +26,7 @@ def get_depth(interval: timedelta) -> int:
     if not (seconds := interval.total_seconds()):
         return 0
 
-    return int(np.log2(seconds / 60.0 / 60.0 / 24.0))
+    return max(0, int(np.log2(seconds / 60.0 / 60.0 / 24.0)))
 
 
 @dataclass

@@ -124,14 +124,19 @@ class Visualizer:
 
         for record in records:
             if record.interval:
-                depth = int(
-                    np.log2(record.interval.total_seconds() / 60 / 60 / 24)
+                depth: int = max(
+                    0,
+                    int(
+                        np.log2(record.interval.total_seconds() / 60 / 60 / 24)
+                    ),
                 )
                 data[depth + 1 + 2][point(record.time)] += 1
             else:
                 data[0 + 2][point(record.time)] += 1
 
         for lexicon in lexicons:
+            if not lexicon or "log" not in lexicon.logs:
+                continue
             last_record = lexicon.logs["log"].records[0]
             for record in lexicon.logs["log"].records:
                 if (
