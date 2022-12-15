@@ -136,7 +136,7 @@ class Learning:
         )
         self.base_language: Language = construct_language(config.base_language)
 
-        self.file_path: Path = path / config.path
+        self.file_path: Path = path / config.file_name
 
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
