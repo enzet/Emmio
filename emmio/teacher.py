@@ -1,4 +1,5 @@
 """Teacher."""
+import logging
 import math
 import random
 from datetime import timedelta
@@ -104,9 +105,9 @@ class Teacher:
                 # whether it was initially known or it is learning.
                 if self.learning.has(word):
                     if self.learning.is_initially_known(word):
-                        debug(f"[{index}] was initially known")
+                        logging.debug(f"[{index}] was initially known")
                     else:
-                        debug(f"[{index}] already learning")
+                        logging.debug(f"[{index}] already learning")
                     continue
 
                 # Check user lexicon. Skip the word if it was mark as known by
@@ -117,7 +118,7 @@ class Teacher:
                     and self.lexicon.has(word)
                     and self.lexicon.get(word) != LexiconResponse.DONT
                 ):
-                    debug(f"[{index}] known in lexicon")
+                    logging.debug(f"[{index}] known in lexicon")
                     continue
 
                 # Skip the word if it was skipped during the current learning
@@ -137,7 +138,7 @@ class Teacher:
                 # Skip word if current dictionaries has no definitions for it
                 # or the word is solely a form of other words.
                 if not items:
-                    debug(f"[{index}] no definition")
+                    logging.debug(f"[{index}] no definition")
                     continue
 
                 if not items[0].has_common_definition(self.learning.language):
@@ -146,7 +147,7 @@ class Teacher:
 
                 if self.learning.check_lexicon and self.lexicon.has(word):
                     if self.lexicon.get(word) != LexiconResponse.DONT:
-                        debug(f"[{index}] word is known")
+                        logging.debug(f"[{index}] word is known")
                         continue
                     # TODO: else start learning
 
@@ -168,7 +169,6 @@ class Teacher:
                         self.dictionaries,
                         log_name="log_ex",
                     )
-
                     if response is None:
                         return False
 
