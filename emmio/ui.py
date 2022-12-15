@@ -134,7 +134,7 @@ class StringMarkdownInterface(StringInterface):
 
 class TerminalInterface(Interface):
     def header(self, message: str) -> None:
-        pass
+        print(message)
 
     def run(self) -> None:
         pass
@@ -235,6 +235,8 @@ class RichInterface(TerminalInterface):
         self.console.print(table)
 
     def colorize(self, text: str, color: str):
+        if color in colors:
+            return f"\033[{colors[color]}m{text}\033[0m"
         return text
 
 
