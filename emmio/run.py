@@ -233,7 +233,7 @@ class Emmio:
             knowledge = {}
             for learning in self.user_data.get_active_learnings():
                 ratios += learning.config.max_for_day
-                learning_words += learning.learning()
+                learning_words += learning.count_questions_to_learn()
                 records += learning.records
                 knowledge |= learning.knowledge
 
@@ -305,7 +305,7 @@ class Emmio:
 
         for learning in learnings:
 
-            if learning.to_repeat() > 0:
+            if learning.count_questions_to_repeat() > 0:
                 self.interface.header(
                     f"Repeat learned for {learning.config.name}"
                 )
@@ -319,7 +319,10 @@ class Emmio:
                     return
 
         for learning in learnings:
-            if learning.config.max_for_day > learning.new_today():
+            if (
+                learning.config.max_for_day
+                > learning.count_questions_added_today()
+            ):
                 self.interface.header(
                     f"Learn new and repeat for {learning.config.name}"
                 )

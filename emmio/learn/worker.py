@@ -73,13 +73,13 @@ class LearningWorker(Worker):
         logging.debug(
             f"sent.: {self.index}/{len(self.current_sentences)}, "
             f"skip: {len(self.skip)}, "
-            f"to repeat: {self.learning.to_repeat(self.skip)}"
+            f"to repeat: {self.learning.count_questions_to_repeat(self.skip)}"
         )
 
     def __lt__(self, other: "LearningWorker") -> bool:
-        return self.learning.to_repeat(self.skip) > other.learning.to_repeat(
+        return self.learning.count_questions_to_repeat(
             self.skip
-        )
+        ) > other.learning.count_questions_to_repeat(self.skip)
 
     def is_ready(self) -> bool:
         if self.learning.is_ready(self.skip):
@@ -338,8 +338,8 @@ class LearningWorker(Worker):
         self.index += 1
 
         state: str = (
-            f", {self.learning.to_repeat()} to repeat"
-            if self.learning.to_repeat()
+            f", {self.learning.count_questions_to_repeat()} to repeat"
+            if self.learning.count_questions_to_repeat()
             else ""
         )
 

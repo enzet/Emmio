@@ -80,7 +80,7 @@ class Teacher:
 
                 continue
 
-            if self.learning.new_today() >= self.max_for_day:
+            if self.learning.count_questions_added_today() >= self.max_for_day:
                 return True
 
             has_new_word: bool = False
@@ -259,8 +259,8 @@ class Teacher:
         else:
             statistics += f"frequency index: {word_index}  "
         statistics += (
-            f"new today: {self.learning.new_today()}  "
-            f"to repeat: {self.learning.to_repeat()}"
+            f"new today: {self.learning.count_questions_added_today()}  "
+            f"to repeat: {self.learning.count_questions_to_repeat()}"
         )
 
         alternative_forms: set[str] = set()

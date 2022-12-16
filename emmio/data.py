@@ -125,7 +125,8 @@ class Data:
     def get_stat(self, interface: ui.Interface, user_id: str):
 
         learnings: list[Learning] = sorted(
-            self.get_active_learnings(user_id), key=lambda x: x.to_repeat()
+            self.get_active_learnings(user_id),
+            key=lambda x: x.count_questions_to_repeat(),
         )
         stat: dict[int, int] = defaultdict(int)
         total: int = 0
@@ -147,16 +148,15 @@ class Data:
         for learning in learnings:
             row = [
                 learning.config.name,
-                progress((to_repeat := learning.to_repeat())),
+                progress(to_repeat := learning.count_questions_to_repeat()),
                 progress(
-                    (
-                        new := max(
-                            0,
-                            learning.config.max_for_day - learning.new_today(),
-                        )
+                    new := max(
+                        0,
+                        learning.config.max_for_day
+                        - learning.count_questions_added_today(),
                     )
                 ),
-                str((all_ := learning.learning())),
+                str(all_ := learning.count_questions_to_learn()),
             ]
             rows.append(row)
             total_to_repeat += to_repeat

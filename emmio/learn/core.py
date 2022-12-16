@@ -199,15 +199,13 @@ class Learning:
     def get_nearest(self, skip: set[str] = None) -> datetime | None:
         """Get the nearest repetition time."""
         return min(
-            [
-                self.knowledge[word].get_next_time()
-                for word in self.knowledge
-                if self.knowledge[word].is_learning()
-                and (not skip or word not in skip)
-            ]
+            self.knowledge[word].get_next_time()
+            for word in self.knowledge
+            if self.knowledge[word].is_learning()
+            and (not skip or word not in skip)
         )
 
-    def new_today(self) -> int:
+    def count_questions_added_today(self) -> int:
         seen: set[str] = set()
         now: datetime = datetime.now()
         today_start: datetime = datetime(
@@ -224,26 +222,24 @@ class Learning:
             seen.add(record.word)
         return count
 
-    def to_repeat(self, skip: set[str] = None) -> int:
-        count: int = 0
+    def count_questions_to_repeat(self, skip: set[str] = None) -> int:
+        """
+        Return the number of learning items that are being learning, not
+        skipped, and ready to repeat at the current moment.
+        """
         now: datetime = datetime.now()
-        for word in self.knowledge:
-            record: Knowledge = self.knowledge[word]
-            if (
+        return sum(
+            (
                 record.is_learning()
                 and record.get_next_time() < now
                 and (not skip or word not in skip)
-            ):
-                count += 1
-        return count
+            )
+            for word, record in self.knowledge.items()
+        )
 
-    def learning(self) -> int:
-        count: int = 0
-        for word in self.knowledge:
-            record: Knowledge = self.knowledge[word]
-            if record.is_learning():
-                count += 1
-        return count
+    def count_questions_to_learn(self) -> int:
+        """Count the number of learning items that are being learning."""
+        return sum(x.is_learning() for x in self.knowledge.values())
 
     def write(self) -> None:
         """Serialize learning process to a file."""
