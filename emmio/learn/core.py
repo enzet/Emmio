@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+
+from pydantic.main import BaseModel
 
 from emmio.language import Language, construct_language
 from emmio.learn.config import LearnConfig
@@ -27,11 +28,10 @@ class ResponseType(Enum):
     SKIP = "s"
 
 
-@dataclass
-class LearningRecord:
+class LearningRecord(BaseModel):
     """Learning record for a question."""
 
-    question_id: str
+    word: str
     """
     Unique string question identifier.
 
@@ -47,7 +47,7 @@ class LearningRecord:
     time: datetime
     """Record time."""
 
-    interval: timedelta
+    interval: timedelta = SMALLEST_INTERVAL
     """
     Time interval for the next question.
 
@@ -57,32 +57,6 @@ class LearningRecord:
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
         return self.interval.total_seconds() != 0
-
-    @classmethod
-    def from_structure(cls, structure: dict[str, Any]) -> "LearningRecord":
-        """Parse learning record from the dictionary."""
-
-        interval = SMALLEST_INTERVAL
-        if "interval" in structure:
-            interval = timedelta(seconds=structure["interval"])
-        return cls(
-            structure["word"],
-            ResponseType(structure["answer"]),
-            structure["sentence_id"],
-            datetime.strptime(structure["time"], FORMAT),
-            interval,
-        )
-
-    def to_structure(self) -> dict[str, Any]:
-        """Export learning record as a dictionary."""
-
-        return {
-            "word": self.question_id,
-            "answer": self.answer.value,
-            "sentence_id": self.sentence_id,
-            "time": self.time.strftime(FORMAT),
-            "interval": self.interval.total_seconds(),
-        }
 
 
 @dataclass
@@ -142,23 +116,22 @@ class Learning:
         if not self.file_path.is_file():
             self.write()
 
+        logging.info(f"Reading {self.file_path}...")
         with self.file_path.open() as log_file:
             content = json.load(log_file)
             records = content["log"]
 
         for record_structure in records:
-            record: LearningRecord = LearningRecord.from_structure(
-                record_structure
-            )
+            record: LearningRecord = LearningRecord(**record_structure)
             self.records.append(record)
             self._update_knowledge(record)
 
     def _update_knowledge(self, record: LearningRecord) -> None:
         last_answers: list[ResponseType] = []
-        if record.question_id in self.knowledge:
-            last_answers = self.knowledge[record.question_id].responses
-        self.knowledge[record.question_id] = Knowledge(
-            record.question_id,
+        if record.word in self.knowledge:
+            last_answers = self.knowledge[record.word].responses
+        self.knowledge[record.word] = Knowledge(
+            record.word,
             last_answers + [record.answer],
             record.time,
             record.interval,
@@ -186,7 +159,11 @@ class Learning:
             time = datetime.now()
 
         record: LearningRecord = LearningRecord(
-            question_id, answer, sentence_id, time, interval
+            word=question_id,
+            answer=answer,
+            sentence_id=sentence_id,
+            time=time,
+            interval=interval,
         )
         self.records.append(record)
         self._update_knowledge(record)
@@ -239,12 +216,12 @@ class Learning:
         count: int = 0
         for record in self.records:
             if (
-                record.question_id not in seen
+                record.word not in seen
                 and record.is_learning()
                 and record.time > today_start
             ):
                 count += 1
-            seen.add(record.question_id)
+            seen.add(record.word)
         return count
 
     def to_repeat(self, skip: set[str] = None) -> int:
@@ -273,7 +250,8 @@ class Learning:
         logging.debug(f"saving learning process to {self.file_path}")
         structure = {"log": []}
         for record in self.records:
-            structure["log"].append(record.to_structure())
+            # FIXME: pretty dirty quick fix.
+            structure["log"].append(json.loads(record.json()))
         with self.file_path.open("w+") as output_file:
             json.dump(structure, output_file, ensure_ascii=False, indent=4)
 

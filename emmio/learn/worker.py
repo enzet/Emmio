@@ -9,15 +9,15 @@ from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
 from emmio.learn.core import Learning, ResponseType, SMALLEST_INTERVAL
 from emmio.lexicon.core import (
-    Lexicon,
-    WordSelection,
-    LexiconResponse,
-    LexiconLog,
     AnswerType,
+    Lexicon,
+    LexiconLog,
+    LexiconResponse,
+    WordSelection,
 )
 from emmio.sentence.core import (
-    SentenceTranslations,
     Sentence,
+    SentenceTranslations,
     SentencesCollection,
 )
 from emmio.text import sanitize
@@ -32,6 +32,7 @@ class LearningWorker(Worker):
     """Server worker for learning process."""
 
     def __init__(self, learning: Learning, lexicon: Lexicon, data: Data):
+
         self.data: Data = data
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon

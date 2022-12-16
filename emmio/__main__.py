@@ -34,7 +34,7 @@ def process_list_command(data, arguments):
 def main():
     """Emmio entry point."""
 
-    coloredlogs.install(level=logging.DEBUG, fmt="%(message)s")
+    coloredlogs.install(level=logging.INFO, fmt="%(message)s")
 
     parser: ArgumentParser = ArgumentParser("Emmio")
     parser.add_argument("--data", help="path to data directory")
