@@ -28,14 +28,14 @@ class Picture:
                     "language": language.get_code(),
                     "addTime": record.time,
                     "nextQuestionTime": record.time + record.interval,
-                    "vector": record.answer.value,
+                    "vector": record.response.value,
                     "index": frequency_list.get_index(record.question_id),
                 }
             elif record.question_id in words:
                 words[record.question_id]["nextQuestionTime"] = (
                     record.time + record.interval
                 )
-                words[record.question_id]["vector"] += record.answer.value
+                words[record.question_id]["vector"] += record.response.value
 
         lexicon: Lexicon = self.data.get_lexicon(language)
         for word in lexicon.words:

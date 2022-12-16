@@ -168,7 +168,7 @@ class Emmio:
             for learning in self.user_data.get_active_learnings():
                 rows.append([f"== {learning.config.name} =="])
                 for word, knowledge in learning.knowledge.items():
-                    if knowledge.get_last_answer() != ResponseType.WRONG:
+                    if knowledge.get_last_response() != ResponseType.WRONG:
                         continue
                     items = self.data.dictionaries.get_dictionaries(
                         learning.config.dictionaries

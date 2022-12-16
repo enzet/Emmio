@@ -66,7 +66,7 @@ class LearningVisualizer:
             if self.use_subtypes:
                 return (
                     f"{get_depth(knowledges[record.question_id].interval):05},"
-                    f"{knowledges[record.question_id].get_answers_number():05}"
+                    f"{knowledges[record.question_id].count_responses():05}"
                 )
             return get_depth(knowledges[record.question_id].interval)
 
@@ -99,7 +99,7 @@ class LearningVisualizer:
                 )
                 knowledges[record.question_id] = Knowledge(
                     record.question_id,
-                    last_answers + [record.answer],
+                    last_answers + [record.response],
                     record.time,
                     record.interval,
                 )

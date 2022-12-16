@@ -262,11 +262,11 @@ class Visualizer:
         lasts = defaultdict(int)
         for record in records:
             id_: str = f"{record.course_id}_{record.question_id}"
-            if record.answer == ResponseType.RIGHT:
+            if record.response == ResponseType.RIGHT:
                 if id_ in lasts:
                     ys[lasts[id_]] += 1
                 lasts[id_] += 1
-            elif record.answer == ResponseType.WRONG:
+            elif record.response == ResponseType.WRONG:
                 if id_ in lasts:
                     ns[lasts[id_]] += 1
                 lasts[id_] = 0
@@ -302,7 +302,9 @@ class Visualizer:
             interval: timedelta = record.time - last_record.time
             diff: int = int(interval.total_seconds() * steps)
             if interval.microseconds != 0 and diff / steps <= max_:
-                (y_y if record.answer == ResponseType.RIGHT else y_n)[diff] += 1
+                (y_y if record.response == ResponseType.RIGHT else y_n)[
+                    diff
+                ] += 1
             last_record = record
 
         plt.title("Response time")

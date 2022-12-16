@@ -1,6 +1,4 @@
-"""
-The learning process.
-"""
+"""The learning process."""
 import json
 import logging
 from dataclasses import dataclass
@@ -24,21 +22,25 @@ class ResponseType(Enum):
     """Possible user responses."""
 
     RIGHT = "y"
+    """Question was answered correctly."""
+
     WRONG = "n"
+    """Question was answered incorrectly."""
+
     SKIP = "s"
+    """Question was skipped."""
 
 
 class LearningRecord(BaseModel):
     """Learning record for a question."""
 
-    word: str
+    question_id: str
     """
-    Unique string question identifier.
-
-    For single word learning it should be a word itself.
+    Unique string question identifier. For single word learning it should be a
+    word itself.
     """
 
-    answer: ResponseType
+    response: ResponseType
     """Response type: fail or success."""
 
     sentence_id: int
@@ -49,9 +51,8 @@ class LearningRecord(BaseModel):
 
     interval: timedelta = SMALLEST_INTERVAL
     """
-    Time interval for the next question.
-
-    The question is ready to repeat after `time` + `interval` point in time.
+    Time interval for the next question. The question is ready to repeat after
+    `time` + `interval` point in time.
     """
 
     def is_learning(self) -> bool:
@@ -78,16 +79,16 @@ class Knowledge:
             return list(reversed(self.responses)).index(ResponseType.WRONG)
         return len(self.responses)
 
-    def get_last_answer(self) -> ResponseType:
-        """Get last answer for the word."""
+    def get_last_response(self) -> ResponseType:
+        """Get last response for the question."""
         return self.responses[-1]
 
-    def get_returns(self) -> int:
+    def count_wrong_answers(self) -> int:
         """Get number of times learning interval was set to minimal."""
         return self.responses.count(ResponseType.WRONG)
 
-    def get_answers_number(self) -> int:
-        """Get number of answers."""
+    def count_responses(self) -> int:
+        """Get number of responses."""
         return len(self.responses)
 
     def get_next_time(self) -> datetime:
@@ -127,28 +128,28 @@ class Learning:
             self._update_knowledge(record)
 
     def _update_knowledge(self, record: LearningRecord) -> None:
-        last_answers: list[ResponseType] = []
-        if record.word in self.knowledge:
-            last_answers = self.knowledge[record.word].responses
-        self.knowledge[record.word] = Knowledge(
-            record.word,
-            last_answers + [record.answer],
+        last_responses: list[ResponseType] = []
+        if record.question_id in self.knowledge:
+            last_responses = self.knowledge[record.question_id].responses
+        self.knowledge[record.question_id] = Knowledge(
+            record.question_id,
+            last_responses + [record.response],
             record.time,
             record.interval,
         )
 
     def register(
         self,
-        answer: ResponseType,
+        response: ResponseType,
         sentence_id: int,
         question_id: str,
         interval: timedelta,
         time: datetime | None = None,
     ) -> None:
         """
-        Register user answer.
+        Register user response.
 
-        :param answer: user response
+        :param response: user response
         :param sentence_id: sentence identifier was used to learn the word
         :param question_id: question identifier
         :param interval: repeat interval
@@ -159,8 +160,8 @@ class Learning:
             time = datetime.now()
 
         record: LearningRecord = LearningRecord(
-            word=question_id,
-            answer=answer,
+            question_id=question_id,
+            response=response,
             sentence_id=sentence_id,
             time=time,
             interval=interval,
@@ -182,13 +183,13 @@ class Learning:
             ):
                 return question_id
 
-    def has(self, word: str) -> bool:
-        """Check whether the word is in the learning process."""
-        return word in self.knowledge
+    def has(self, question_id: str) -> bool:
+        """Check whether the question is in the learning process."""
+        return question_id in self.knowledge
 
-    def is_initially_known(self, word: str) -> bool:
-        """Check whether the word was initially known."""
-        knowledge: Knowledge = self.knowledge[word]
+    def is_initially_known(self, question_id: str) -> bool:
+        """Check whether the answer to the question was initially known."""
+        knowledge: Knowledge = self.knowledge[question_id]
 
         return (
             not knowledge.is_learning()
@@ -199,10 +200,10 @@ class Learning:
     def get_nearest(self, skip: set[str] = None) -> datetime | None:
         """Get the nearest repetition time."""
         return min(
-            self.knowledge[word].get_next_time()
-            for word in self.knowledge
-            if self.knowledge[word].is_learning()
-            and (not skip or word not in skip)
+            self.knowledge[question_id].get_next_time()
+            for question_id in self.knowledge
+            if self.knowledge[question_id].is_learning()
+            and (not skip or question_id not in skip)
         )
 
     def count_questions_added_today(self) -> int:
@@ -214,12 +215,12 @@ class Learning:
         count: int = 0
         for record in self.records:
             if (
-                record.word not in seen
+                record.question_id not in seen
                 and record.is_learning()
                 and record.time > today_start
             ):
                 count += 1
-            seen.add(record.word)
+            seen.add(record.question_id)
         return count
 
     def count_questions_to_repeat(self, skip: set[str] = None) -> int:
@@ -232,9 +233,9 @@ class Learning:
             (
                 record.is_learning()
                 and record.get_next_time() < now
-                and (not skip or word not in skip)
+                and (not skip or question_id not in skip)
             )
-            for word, record in self.knowledge.items()
+            for question_id, record in self.knowledge.items()
         )
 
     def count_questions_to_learn(self) -> int:
@@ -252,5 +253,5 @@ class Learning:
             json.dump(structure, output_file, ensure_ascii=False, indent=4)
 
     def is_ready(self, skip) -> bool:
-        """Check whether the learning is ready for the next word."""
+        """Check whether the learning is ready for the next question."""
         return self.get_next(skip) is not None
