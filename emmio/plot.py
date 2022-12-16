@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 from colour import Color
@@ -101,7 +101,7 @@ class Graph:
 
     def plot(self, svg: Drawing) -> None:
 
-        recolor: Optional[str] = None
+        recolor: str | None = None
 
         if isinstance(self.color, list):
             linear_gradient: LinearGradient = svg.linearGradient(
@@ -154,7 +154,7 @@ class Graph:
                     self.canvas.workspace[1],
                 )
                 points.append(mapped)
-            previous_point: Optional[np.ndarray] = None
+            previous_point: np.ndarray | None = None
 
             for point in points:
                 if previous_point is not None:

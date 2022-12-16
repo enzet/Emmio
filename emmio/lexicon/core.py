@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 from emmio.dictionary.core import (
     DictionaryCollection,
@@ -114,9 +114,9 @@ class AnswerType(Enum):
 
 
 class WordKnowledge:
-    def __init__(self, knowing: LexiconResponse, to_skip: Optional[bool]):
+    def __init__(self, knowing: LexiconResponse, to_skip: bool | None):
         self.knowing: LexiconResponse = knowing
-        self.to_skip: Optional[bool] = to_skip
+        self.to_skip: bool | None = to_skip
 
     def to_structure(self) -> dict[str, Any]:
         """Serialize to structure."""
@@ -136,8 +136,8 @@ class LexiconLogRecord:
     time: datetime
     word: str
     response: LexiconResponse
-    answer_type: Optional[AnswerType] = None
-    to_skip: Optional[bool] = None
+    answer_type: AnswerType | None = None
+    to_skip: bool | None = None
 
     @classmethod
     def deserialize(cls, structure: Any) -> "LexiconLogRecord":
@@ -152,7 +152,7 @@ class LexiconLogRecord:
         if "answer_type" in structure:
             answer_type = AnswerType(structure["answer_type"])
 
-        to_skip: Optional[bool] = None
+        to_skip: bool | None = None
         if "to_skip" in structure:
             to_skip = structure["to_skip"]
 
@@ -183,7 +183,7 @@ class LexiconLogRecord:
         return json.dumps(self.serialize(), ensure_ascii=False)
 
 
-def rate(ratio: float) -> Optional[float]:
+def rate(ratio: float) -> float | None:
     if not ratio:
         return None
     return -math.log(ratio, 2)
@@ -202,7 +202,7 @@ class LexiconLog:
     id_: str
     selection: WordSelection
     records: list[LexiconLogRecord] = field(default_factory=list)
-    frequency_list_id: Optional[str] = None
+    frequency_list_id: str | None = None
 
     @classmethod
     def deserialize(cls, structure: dict[str, Any]):
@@ -242,8 +242,8 @@ class Lexicon:
         self.words: dict[str, WordKnowledge] = {}
         self.dates: list[datetime] = []
         self.responses: list[int] = []
-        self.start: Optional[datetime] = None
-        self.finish: Optional[datetime] = None
+        self.start: datetime | None = None
+        self.finish: datetime | None = None
 
         # Read data from file.
 
@@ -317,7 +317,7 @@ class Lexicon:
 
     def get_last_answer(
         self, word: str, log_name: str
-    ) -> Optional[LexiconLogRecord]:
+    ) -> LexiconLogRecord | None:
         for record in reversed(self.logs[log_name].records):
             if word == record.word:
                 return record
@@ -326,8 +326,8 @@ class Lexicon:
         self,
         word: str,
         response: LexiconResponse,
-        to_skip: Optional[bool],
-        date: Optional[datetime] = None,
+        to_skip: bool | None,
+        date: datetime | None = None,
         log_name: str = "log",
         answer_type: AnswerType = AnswerType.UNKNOWN,
     ) -> None:
@@ -416,8 +416,8 @@ class Lexicon:
         return min_index, max_index
 
     def get_average(
-        self, index_1: Optional[int] = None, index_2: Optional[int] = None
-    ) -> Optional[float]:
+        self, index_1: int | None = None, index_2: int | None = None
+    ) -> float | None:
         """
         Get average ratio.
 
@@ -465,14 +465,14 @@ class Lexicon:
 
         return dates, rates
 
-    def get_last_rate(self, precision: int = 100) -> Optional[float]:
+    def get_last_rate(self, precision: int = 100) -> float | None:
         dates, rates = self.construct_precise(precision)
         if rates:
             return rates[-1]
         return None
 
     def get_last_rate_number(self, precision: int = 100) -> float:
-        value: Optional[float] = self.get_last_rate(precision)
+        value: float | None = self.get_last_rate(precision)
         if value is None:
             return 0
         return value
@@ -491,7 +491,7 @@ class Lexicon:
 
     def get_rate(
         self, point_1: datetime, point_2: datetime
-    ) -> (Optional[float], Optional[float]):
+    ) -> (float | None, float | None):
         """
         Get rate for selected time interval.
 
@@ -542,7 +542,7 @@ class Lexicon:
         skip_known: bool = False,
         skip_unknown: bool = False,
         log_name: str = "log",
-    ) -> (bool, LexiconResponse, Optional[Dictionary]):
+    ) -> (bool, LexiconResponse, Dictionary | None):
         """Ask user if the word is known."""
         sys.stdout.write(f"\n    {word}\n")
 
@@ -573,7 +573,7 @@ class Lexicon:
             answer = get_char()
 
         response: LexiconResponse
-        skip_in_future: Optional[bool] = None
+        skip_in_future: bool | None = None
 
         if answer in "yY\r":
             response = LexiconResponse.KNOW
@@ -651,12 +651,12 @@ class Lexicon:
         self,
         interface: Interface,
         frequency_list: FrequencyList,
-        stop_at: Optional[int],
+        stop_at: int | None,
         dictionaries: DictionaryCollection,
         log_type: str,
         skip_known: bool,
         skip_unknown: bool,
-        stop_at_wrong: Optional[int],
+        stop_at_wrong: int | None,
         word_list: list[str] = None,
         learning=None,
     ) -> str:
@@ -736,7 +736,7 @@ class Lexicon:
                 wrong_answers += 1
             # self.write()
 
-            average: Optional[float] = self.get_average()
+            average: float | None = self.get_average()
 
             precision: float = self.count_unknowns(log_name) / 100
             rate_string = f"{rate(average):.2f}" if rate(average) else "unknown"
@@ -772,7 +772,7 @@ class Lexicon:
         log_name: str,
     ) -> bool:
 
-        last_response: Optional[LexiconResponse] = None
+        last_response: LexiconResponse | None = None
         if self.has(picked_word):
             last_response = self.get(picked_word)
 

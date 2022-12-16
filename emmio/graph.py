@@ -1,7 +1,7 @@
 import random
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Optional, Callable
+from typing import Callable
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -296,7 +296,7 @@ class Visualizer:
         y_y: list[float] = [0.0] * (max_ * steps + 1)
         y_n: list[float] = [0.0] * (max_ * steps + 1)
 
-        last_record: Optional[LearningRecord] = records[0] if records else None
+        last_record: LearningRecord | None = records[0] if records else None
 
         for record in records:
             interval: timedelta = record.time - last_record.time

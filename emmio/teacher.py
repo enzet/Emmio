@@ -2,7 +2,6 @@
 import logging
 import math
 from datetime import timedelta
-from typing import Optional
 
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
@@ -70,7 +69,7 @@ class Teacher:
     def start(self) -> bool:
 
         while True:
-            word: Optional[str] = self.learning.get_next(self.skip)
+            word: str | None = self.learning.get_next(self.skip)
 
             if word:
                 code: str = self.learn(
@@ -202,16 +201,16 @@ class Teacher:
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
         ids_to_skip: set[int] = set()
-        if word in self.data.exclude_sentences:
-            ids_to_skip = set(self.data.exclude_sentences[word])
+        # if word in self.data.exclude_sentences:
+        #     ids_to_skip = set(self.data.exclude_sentences[word])
 
         sentences: list[SentenceTranslations] = self.sentences.filter_(
             word, ids_to_skip, 120
         )
-        if interval.total_seconds() == 0:
-            sentences = sorted(sentences, key=lambda x: len(x.sentence.text))
-        else:
-            random.shuffle(sentences)
+        # if interval.total_seconds() == 0:
+        sentences = sorted(sentences, key=lambda x: len(x.sentence.text))
+        # else:
+        #     random.shuffle(sentences)
 
         def print_sentence(show_index: bool = False, max_translations: int = 3):
             """
@@ -267,8 +266,8 @@ class Teacher:
         alternative_forms: set[str] = set()
         exclude_translations: set[str] = set()
 
-        if word in self.data.exclude_translations:
-            exclude_translations = set(self.data.exclude_translations[word])
+        # if word in self.data.exclude_translations:
+        #     exclude_translations = set(self.data.exclude_translations[word])
 
         items: list[DictionaryItem] = self.dictionaries.get_items(word)
 

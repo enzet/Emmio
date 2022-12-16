@@ -4,7 +4,6 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
@@ -73,7 +72,7 @@ class DefinitionValue:
 
         return cls(text)
 
-    def to_str(self, to_hide: Optional[list[str]] = None) -> Optional[str]:
+    def to_str(self, to_hide: list[str] | None = None) -> str | None:
         """Get human-readable form of definition."""
 
         value: str = self.value
@@ -107,7 +106,7 @@ class Definition:
                 return False
         return True
 
-    def to_str(self, to_hide: Optional[list[str]] = None) -> Optional[str]:
+    def to_str(self, to_hide: list[str] | None = None) -> str | None:
         """Get human-readable form of definition."""
         if to_hide is not None and not self.is_common():
             return None
@@ -134,9 +133,9 @@ class Form:
     links: list[Link] = field(default_factory=list)
 
     # Optional characteristics.
-    gender: Optional[str] = None
-    verb_group: Optional[int] = None
-    is_singular: Optional[bool] = None
+    gender: str | None = None
+    verb_group: int | None = None
+    is_singular: bool | None = None
 
     def add_transcription(self, transcription: str) -> None:
         """Add word form IPA transcription."""
@@ -198,7 +197,7 @@ class Form:
         only_common: bool = True,
     ) -> str:
         """Get human-readable representation of the word form."""
-        to_hide: Optional[list[str]] = None
+        to_hide: list[str] | None = None
 
         if not show_word:
             to_hide = sorted(
@@ -217,7 +216,7 @@ class Form:
 
         if self.definitions and language in self.definitions:
             for translation in self.definitions[language]:
-                string: Optional[str] = translation.to_str(to_hide)
+                string: str | None = translation.to_str(to_hide)
                 if string is not None and string not in definitions:
                     definitions.append(string)
 
@@ -267,8 +266,8 @@ class DictionaryItem:
         language: Language,
         interface: Interface,
         show_word: bool = True,
-        words_to_hide: Optional[set[str]] = None,
-        hide_translations: Optional[set[str]] = None,
+        words_to_hide: set[str] | None = None,
+        hide_translations: set[str] | None = None,
     ) -> str:
         """
         Get human-readable representation of the dictionary item.
@@ -365,7 +364,7 @@ class Dictionary:
 
     def get_item(
         self, word: str, cache_only: bool = False
-    ) -> Optional[DictionaryItem]:
+    ) -> DictionaryItem | None:
         """Get word definition."""
 
         if word in self.__items:
@@ -437,7 +436,7 @@ class SimpleDictionary(Dictionary):
 class DictionaryCollection:
     """A set of dictionaries for a language."""
 
-    def __init__(self, dictionaries: Optional[list[Dictionary]] = None) -> None:
+    def __init__(self, dictionaries: list[Dictionary] | None = None) -> None:
         self.dictionaries: list[Dictionary] = (
             [] if dictionaries is None else dictionaries
         )

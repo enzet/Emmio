@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable
 
 from colour import Color
 from iso639 import languages as iso_languages
@@ -30,16 +30,16 @@ class Language:
         self,
         code: str,
         color: Color,
-        symbols: Optional[str] = None,
+        symbols: str | None = None,
         self_name: str = None,
-        tone: Optional[Color] = None,
-        checking: Optional[Callable] = None,
+        tone: Color | None = None,
+        checking: Callable | None = None,
     ):
         self.language: ISOLanguage = iso_languages.get(part1=code)
-        self.symbols: Optional[str] = symbols
-        self.color: Optional[Color] = color
+        self.symbols: str | None = symbols
+        self.color: Color | None = color
         self.self_name: str = self_name
-        self.tone: Optional[Color] = tone
+        self.tone: Color | None = tone
 
         if checking:
             self.has_symbol = checking

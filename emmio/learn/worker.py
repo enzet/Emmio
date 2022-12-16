@@ -2,7 +2,6 @@ import logging
 import math
 import random
 from datetime import timedelta
-from typing import Optional
 
 from emmio import ui
 from emmio.data import Data
@@ -56,7 +55,7 @@ class LearningWorker(Worker):
                 self.question_ids.append(word)
 
         # Current word status.
-        self.word: Optional[str] = None
+        self.word: str | None = None
         self.question_index: int = 0
         self.interval = None
 

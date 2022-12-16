@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable, Optional
+from typing import Callable
 
 import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
@@ -94,7 +94,7 @@ class LexiconVisualizer:
         graph.plot(Drawing("lexicon.svg", graph.canvas.size, fill="#101010"))
 
     def construct_lexicon_data(self, lexicons, margin):
-        x_min: Optional[datetime] = None
+        x_min: datetime | None = None
         data = []
 
         for lexicon in lexicons:
@@ -109,7 +109,7 @@ class LexiconVisualizer:
 
             xs: list[datetime] = []
             ys: list[float] = []
-            last: Optional[float] = None
+            last: float | None = None
 
             point: datetime = self.first_point(min(dates))
             x_min = min(point, x_min) if x_min else point

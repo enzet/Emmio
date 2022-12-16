@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Iterator
+from typing import Iterator
 
 from emmio import util
 from emmio.data import Data
@@ -109,7 +109,7 @@ class Emmio:
             ):
                 lexicon: Lexicon = self.user_data.get_lexicon(language)
                 now: datetime = datetime.now()
-                rate: Optional[float] = lexicon.get_last_rate()
+                rate: float | None = lexicon.get_last_rate()
                 last_week_precision: int = lexicon.count_unknowns(
                     "log", now - timedelta(days=7), now
                 )

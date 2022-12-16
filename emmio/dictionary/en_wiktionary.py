@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 from time import sleep
-from typing import Optional, Any, Union
+from typing import Any, Union
 
 from wiktionaryparser import WiktionaryParser
 
@@ -97,7 +97,7 @@ class EnglishWiktionary(Dictionary):
         if text.endswith("."):
             text = text[:-1]
 
-        matcher: Optional[re.Match] = LINK_PATTERN.match(text)
+        matcher: re.Match | None = LINK_PATTERN.match(text)
         if matcher:
             link: str = matcher.group("link")
             link_type: str = matcher.group("link_type")
@@ -157,7 +157,7 @@ class EnglishWiktionary(Dictionary):
 
     def get_item(
         self, word: str, cache_only: bool = False
-    ) -> Optional[DictionaryItem]:
+    ) -> DictionaryItem | None:
         """
         Parse dictionary item from English Wiktionary.
 
@@ -184,7 +184,7 @@ class EnglishWiktionary(Dictionary):
             logging.info(f"getting English Wiktionary item")
             sleep(1)
             try:
-                content: Optional[list[dict[str, Any]]] = self.parser.fetch(
+                content: list[dict[str, Any]] | None = self.parser.fetch(
                     word, self.from_language.get_name()
                 )
                 with open(path, "w+") as output_file:
