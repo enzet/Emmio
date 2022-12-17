@@ -71,7 +71,7 @@ Lexicon configuration:
 
   * `language` is 2-letters ISO 639-1 language code (e.g. `en` for
     English and `ru` for Russian).
-  * `frequency list id` is an idenrifier of [full frequency file](#frequency). 
+  * `frequency list id` is an identifier of [full frequency file](#frequency). 
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
 
