@@ -75,26 +75,6 @@ Lexicon configuration:
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
 
-## Frequency
-
-There are full and stripped frequency lists. Stripped list uses only top part of
-the full list. Some algorithms require full lists.
-
-There are a lot of projects with frequency lists.
-
-### FrequencyWords (Opensubtitles)
-
-There is [Hermit Dave](https://github.com/hermitdave)'s project
-[FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
-full and stripped frequency lists base on
-[Opensubtitles](https://www.opensubtitles.org) project. You can get frequency
-list using this command:
-
-```shell script
-wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/${LANGUAGE_CODE}/${LANGUAGE_CODE}_full.txt \
-    --output-document=${LANGUAGE_CODE}_opensubtitles_2018.txt
-```
-
 ### Wiktionary
 
 Wiktionary project contains
@@ -125,3 +105,17 @@ Emmio supports:
   - dictionaries stored in JSON files,
   - English Wiktionary (through
     [WiktionaryParser](https://github.com/Suyash458/WiktionaryParser)).
+
+### Frequency lists and word lists
+
+Frequency list is a relation between unique words and the number of their
+occurrences in some text of a corpus of texts.  Some frequency lists are
+stripped (e.g. 6,500-lemma list based on the New Corpus for Ireland).
+
+#### FrequencyWords (Opensubtitles)
+
+There is [Hermit Dave](https://github.com/hermitdave)'s project
+[FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
+full and stripped frequency lists extracted from subtitles in
+[Opensubtitles](https://www.opensubtitles.org) project.
+
