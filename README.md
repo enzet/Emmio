@@ -3,12 +3,17 @@
     <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
-__Emmio__ is an experimental project on languages and learning. It consists of:
-
-  * _Learning_:
+__Emmio__ is an experimental project on languages and learning.  It provides
+learning and testing algorithms:
+  - _learning_:
     [Leitner's algorithm](https://en.wikipedia.org/wiki/Leitner_system) based
-    flashcard learning system.
-  * _Lexicon_: check and track vocabulary level.
+    flashcard learning system,
+  - _lexicon_: check and track vocabulary level,
+
+and manages three kinds of artifacts:
+  - dictionaries,
+  - sentence translations,
+  - frequency and word lists.
 
 ## Installation
 
