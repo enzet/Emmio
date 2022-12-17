@@ -103,11 +103,25 @@ different languages.
 
 ## Data directory structure
 
-- `dictionaries` — single word translations.
-- `sentences` — whole sentence translations.
-- `lists` — frequency lists and simple word lists.
-- `users` — user data.
-  - `<user name>`
-    - `config.json` — user configuration file.
-    - `learn` — user learning process data.
-    - `lexicon` — user lexicon checking data.
+Emmio data directory is located by default in `~/.emmio` and contains all
+downloaded artifacts and their configuration files and collected user data.
+
+  - `dictionaries` — single word translations.
+  - `sentences` — whole sentence translations.
+  - `lists` — frequency lists and simple word lists.
+  - `users` — user data.
+    - `<user name>`
+      - `config.json` — user configuration file.
+      - `learn` — user learning process data.
+      - `lexicon` — user lexicon checking data.
+
+### Dictionaries
+
+Dictionaries are entities that provide definitions and translations for single
+words.  Artifacts are controlled by configuration file
+`dictionaries/config.json`.
+
+Emmio supports:
+  - dictionaries stored in JSON files,
+  - English Wiktionary (through
+    [WiktionaryParser](https://github.com/Suyash458/WiktionaryParser)).
