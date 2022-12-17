@@ -38,7 +38,7 @@ class TatoebaSentences(Sentences):
             self.read_link_sets(links_cache_path)
         else:
             self.read_links(self.path / "cache")
-            logging.info("writing link cache")
+            logging.info("Caching links...")
             with open(links_cache_path, "w+") as output_file:
                 content = {}
                 for key in self.links:
@@ -54,7 +54,7 @@ class TatoebaSentences(Sentences):
         # FIXME: remove cache file.
 
         if os.path.isfile(links_cache_path):
-            logging.debug("Reading word cache...")
+            logging.info("Reading word cache...")
             with open(links_cache_path) as input_file:
                 self.cache = json.load(input_file)
         else:
@@ -74,10 +74,10 @@ class TatoebaSentences(Sentences):
                 )
             with bz2.open(zip_path) as zip_file:
                 with file_path.open("wb+") as cache_file:
-                    logging.info("unzipping links")
+                    logging.info("Unzipping links file...")
                     cache_file.write(zip_file.read())
 
-        logging.debug("Reading links...")
+        logging.info("Reading links...")
         with file_path.open() as input_1:
             lines = input_1.readlines()
 
@@ -86,8 +86,8 @@ class TatoebaSentences(Sentences):
         size = len(lines)
 
         logging.info(
-            f"construct cache links for {self.language_1.get_name()} and "
-            f"{self.language_2.get_name()}"
+            f"Caching links between {self.language_1.get_name()} and "
+            f"{self.language_2.get_name()} Tatoeba sentences..."
         )
         for index, line in enumerate(lines):
             progress_bar(index, size)
@@ -133,7 +133,7 @@ class TatoebaSentences(Sentences):
 
     def read_link_sets(self, file_name: Path):
 
-        logging.debug("Reading link cache...")
+        logging.info("Reading link cache...")
         with file_name.open() as input_file:
             self.links = json.load(input_file)
 

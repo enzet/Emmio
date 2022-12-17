@@ -181,8 +181,9 @@ class EnglishWiktionary(Dictionary):
             if cache_only:
                 return None
 
-            logging.info(f"getting English Wiktionary item")
+            logging.info("Sleeping for 1 second...")
             sleep(1)
+            logging.info("Getting English Wiktionary item...")
             try:
                 content: list[dict[str, Any]] | None = self.parser.fetch(
                     word, self.from_language.get_name()

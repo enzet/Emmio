@@ -283,14 +283,14 @@ def progress_bar(
     :param text: short description
     """
     if number == -1:
-        sys.stdout.write(f"100 % {length * '█'}▏{text}\n")
+        sys.stdout.write(f" 100 % {length * '█'}▏{text}\n")
     elif number % step == 0:
         ratio: float = number / total
         parts: int = int(ratio * length * BOXES_LENGTH)
         fill_length: int = int(parts / BOXES_LENGTH)
         box: str = BOXES[int(parts - fill_length * BOXES_LENGTH)]
         sys.stdout.write(
-            f"{str(int(int(ratio * 1000.0) / 10.0)):>3} % "
+            f" {str(int(int(ratio * 1000.0) / 10.0)):>3} % "
             f"{fill_length * '█'}{box}"
             f"{int(length - fill_length - 1) * ' '}▏{text}\n\033[F"
         )
