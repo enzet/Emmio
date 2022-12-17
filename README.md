@@ -100,3 +100,14 @@ wget https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/
 Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
+
+## Data directory structure
+
+- `dictionaries` — single word translations.
+- `sentences` — whole sentence translations.
+- `lists` — frequency lists and simple word lists.
+- `users` — user data.
+  - `<user name>`
+    - `config.json` — user configuration file.
+    - `learn` — user learning process data.
+    - `lexicon` — user lexicon checking data.
