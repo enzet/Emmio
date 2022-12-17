@@ -6,7 +6,7 @@ from datetime import timedelta
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
-from emmio.learn.core import Learning, ResponseType
+from emmio.learn.core import Learning, Response
 from emmio.lexicon.core import (
     LexiconResponse,
     LexiconLog,
@@ -34,8 +34,6 @@ class Teacher:
         self.data: Data = data
 
         self.word_index: int = 0
-
-        self.skip = set()
 
         self.learning = learning
         self.lexicon = user_data.get_lexicon(self.learning.learning_language)
@@ -69,7 +67,7 @@ class Teacher:
     def start(self) -> bool:
 
         while True:
-            word: str | None = self.learning.get_next(self.skip)
+            word: str | None = self.learning.get_next()
 
             if word:
                 code: str = self.learn(
@@ -107,12 +105,6 @@ class Teacher:
                     and self.lexicon.get(word) != LexiconResponse.DONT
                 ):
                     logging.debug(f"[{index}] known in lexicon")
-                    continue
-
-                # Skip the word if it was skipped during the current learning
-                # session.
-                if word in self.skip:
-                    logging.debug(f"[{index}] skipped")
                     continue
 
                 items: list[DictionaryItem] = self.dictionaries.get_items(word)
@@ -181,13 +173,13 @@ class Teacher:
     def repeat(self) -> bool:
         while True:
             has_repeat: bool = False
-            word = self.learning.get_next(self.skip)
+            word = self.learning.get_next()
             if word:
                 code: str = self.learn(
                     word, self.learning.knowledge[word].interval, 0
                 )
                 if code == "bad question":
-                    self.skip.add(word)
+                    self.learning.skip(word)
                 else:
                     self.learning.write()
                 has_repeat = True
@@ -318,7 +310,7 @@ class Teacher:
 
             if answer == word:
                 self.learning.register(
-                    ResponseType.RIGHT,
+                    Response.RIGHT,
                     sentence_id,
                     word,
                     self.increase_interval(interval),
@@ -335,7 +327,7 @@ class Teacher:
                     while new_answer:
                         if new_answer == "s":
                             self.learning.register(
-                                ResponseType.SKIP,
+                                Response.SKIP,
                                 sentence_id,
                                 word,
                                 timedelta(),
@@ -348,13 +340,13 @@ class Teacher:
                 return "ok"
 
             if answer in ["s", "/skip"]:
-                self.skip.add(word)
+                self.learning.skip(word)
                 return "ok"
 
             if answer.startswith("/skip "):
                 _, word_to_skip = answer.split(" ")
                 self.learning.register(
-                    ResponseType.SKIP,
+                    Response.SKIP,
                     0,
                     word_to_skip,
                     timedelta(),
@@ -368,13 +360,13 @@ class Teacher:
             if answer.startswith("/"):
                 if answer == "/exclude":
                     self.data.exclude_sentence(word, sentence_id)
-                    self.skip.add(word)
+                    self.learning.skip(word)
                     return "ok"
                 elif answer.startswith("/hide "):
                     self.data.exclude_translation(
                         word, " ".join(answer.split(" ")[1:])
                     )
-                    self.skip.add(word)
+                    self.learning.skip(word)
                     return "ok"
                 elif answer.startswith("/btt "):
                     _, w, t = answer.split(" ")
@@ -400,14 +392,14 @@ class Teacher:
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
                     self.learning.register(
-                        ResponseType.WRONG,
+                        Response.WRONG,
                         sentence_id,
                         word,
                         self.get_smallest_interval(),
                     )
                 else:
                     self.learning.register(
-                        ResponseType.SKIP, sentence_id, word, timedelta()
+                        Response.SKIP, sentence_id, word, timedelta()
                     )
 
                 self.learning.write()

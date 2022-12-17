@@ -18,7 +18,7 @@ FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 
-class ResponseType(Enum):
+class Response(Enum):
     """Possible user responses."""
 
     RIGHT = "y"
@@ -40,7 +40,7 @@ class LearningRecord(BaseModel):
     word itself.
     """
 
-    response: ResponseType
+    response: Response
     """Response type: fail or success."""
 
     sentence_id: int
@@ -60,12 +60,17 @@ class LearningRecord(BaseModel):
         return self.interval.total_seconds() != 0
 
 
+class LearningProcess(BaseModel):
+    records: list[LearningRecord]
+    skipping: dict[str, int] = {}
+
+
 @dataclass
 class Knowledge:
     """Knowledge of the question."""
 
     question_id: str
-    responses: list[ResponseType]
+    responses: list[Response]
     last_record_time: datetime
     interval: timedelta
 
@@ -75,17 +80,17 @@ class Knowledge:
 
     def get_depth(self) -> int:
         """Get learning depth (length of the last sequence of right answers)."""
-        if ResponseType.WRONG in self.responses:
-            return list(reversed(self.responses)).index(ResponseType.WRONG)
+        if Response.WRONG in self.responses:
+            return list(reversed(self.responses)).index(Response.WRONG)
         return len(self.responses)
 
-    def get_last_response(self) -> ResponseType:
+    def get_last_response(self) -> Response:
         """Get last response for the question."""
         return self.responses[-1]
 
     def count_wrong_answers(self) -> int:
         """Get number of times learning interval was set to minimal."""
-        return self.responses.count(ResponseType.WRONG)
+        return self.responses.count(Response.WRONG)
 
     def count_responses(self) -> int:
         """Get number of responses."""
@@ -102,15 +107,11 @@ class Learning:
     def __init__(self, path: Path, config: LearnConfig) -> None:
 
         self.config: LearnConfig = config
-
-        self.records: list[LearningRecord] = []
         self.knowledge: dict[str, Knowledge] = {}
-
         self.learning_language: Language = construct_language(
             config.learning_language
         )
         self.base_language: Language = construct_language(config.base_language)
-
         self.file_path: Path = path / config.file_name
 
         # Create learning file if it doesn't exist.
@@ -119,16 +120,15 @@ class Learning:
 
         logging.info(f"Reading {self.file_path}...")
         with self.file_path.open() as log_file:
-            content = json.load(log_file)
-            records = content["log"]
+            content: dict = json.load(log_file)
 
-        for record_structure in records:
-            record: LearningRecord = LearningRecord(**record_structure)
-            self.records.append(record)
-            self._update_knowledge(record)
+        self.process: LearningProcess = LearningProcess(**content)
 
-    def _update_knowledge(self, record: LearningRecord) -> None:
-        last_responses: list[ResponseType] = []
+        for record in self.process.records:
+            self.__update_knowledge(record)
+
+    def __update_knowledge(self, record: LearningRecord) -> None:
+        last_responses: list[Response] = []
         if record.question_id in self.knowledge:
             last_responses = self.knowledge[record.question_id].responses
         self.knowledge[record.question_id] = Knowledge(
@@ -140,7 +140,7 @@ class Learning:
 
     def register(
         self,
-        response: ResponseType,
+        response: Response,
         sentence_id: int,
         question_id: str,
         interval: timedelta,
@@ -166,18 +166,22 @@ class Learning:
             time=time,
             interval=interval,
         )
-        self.records.append(record)
-        self._update_knowledge(record)
+        self.process.records.append(record)
+        self.__update_knowledge(record)
 
-    def get_next(self, skip: set[str]) -> str | None:
-        """
-        Get question identifier of the next question.
+    def skip(self, question_id: str) -> None:
+        self.process.skipping[question_id] = (
+            self.process.skipping.get(question_id, 0) + 1
+        )
 
-        :param skip: question identifiers to skip
-        """
+    def __is_not_skipped(self, question_id: str) -> bool:
+        return question_id not in self.process.skipping.keys()
+
+    def get_next(self) -> str | None:
+        """Get question identifier of the next question."""
         for question_id in self.knowledge:
             if (
-                question_id not in skip
+                self.__is_not_skipped(question_id)
                 and self.knowledge[question_id].is_learning() != 0
                 and datetime.now() > self.knowledge[question_id].get_next_time()
             ):
@@ -194,16 +198,16 @@ class Learning:
         return (
             not knowledge.is_learning()
             and len(knowledge.responses) == 1
-            and knowledge.responses[0] == ResponseType.RIGHT
+            and knowledge.responses[0] == Response.RIGHT
         )
 
-    def get_nearest(self, skip: set[str] = None) -> datetime | None:
+    def get_nearest(self) -> datetime | None:
         """Get the nearest repetition time."""
         return min(
             self.knowledge[question_id].get_next_time()
             for question_id in self.knowledge
             if self.knowledge[question_id].is_learning()
-            and (not skip or question_id not in skip)
+            and self.__is_not_skipped(question_id)
         )
 
     def count_questions_added_today(self) -> int:
@@ -213,7 +217,7 @@ class Learning:
             year=now.year, month=now.month, day=now.day
         )
         count: int = 0
-        for record in self.records:
+        for record in self.process.records:
             if (
                 record.question_id not in seen
                 and record.is_learning()
@@ -223,18 +227,14 @@ class Learning:
             seen.add(record.question_id)
         return count
 
-    def count_questions_to_repeat(self, skip: set[str] = None) -> int:
+    def count_questions_to_repeat(self) -> int:
         """
-        Return the number of learning items that are being learning, not
-        skipped, and ready to repeat at the current moment.
+        Return the number of learning items that are being learning and ready to
+        repeat at the current moment.
         """
         now: datetime = datetime.now()
         return sum(
-            (
-                record.is_learning()
-                and record.get_next_time() < now
-                and (not skip or question_id not in skip)
-            )
+            record.is_learning() and record.get_next_time() < now
             for question_id, record in self.knowledge.items()
         )
 
@@ -244,14 +244,12 @@ class Learning:
 
     def write(self) -> None:
         """Serialize learning process to a file."""
-        logging.debug(f"saving learning process to {self.file_path}")
-        structure = {"log": []}
-        for record in self.records:
-            # FIXME: pretty dirty quick fix.
-            structure["log"].append(json.loads(record.json()))
-        with self.file_path.open("w+") as output_file:
-            json.dump(structure, output_file, ensure_ascii=False, indent=4)
 
-    def is_ready(self, skip) -> bool:
+        logging.debug(f"Saving learning process to {self.file_path}...")
+
+        with self.file_path.open("w+") as output_file:
+            output_file.write(self.process.json(ensure_ascii=False, indent=4))
+
+    def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""
-        return self.get_next(skip) is not None
+        return self.get_next() is not None

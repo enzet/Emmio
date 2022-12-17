@@ -8,7 +8,7 @@ from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection
 from emmio.graph import Visualizer
 from emmio.language import construct_language
-from emmio.learn.core import Learning, LearningRecord, ResponseType
+from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.teacher import Teacher
@@ -168,7 +168,7 @@ class Emmio:
             for learning in self.user_data.get_active_learnings():
                 rows.append([f"== {learning.config.name} =="])
                 for word, knowledge in learning.knowledge.items():
-                    if knowledge.get_last_response() != ResponseType.WRONG:
+                    if knowledge.get_last_response() != Response.WRONG:
                         continue
                     items = self.data.dictionaries.get_dictionaries(
                         learning.config.dictionaries
@@ -234,7 +234,7 @@ class Emmio:
             for learning in self.user_data.get_active_learnings():
                 ratios += learning.config.max_for_day
                 learning_words += learning.count_questions_to_learn()
-                records += learning.records
+                records += learning.process.records
                 knowledge |= learning.knowledge
 
             visualizer = Visualizer(interactive=interactive)

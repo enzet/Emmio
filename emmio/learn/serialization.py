@@ -11,7 +11,7 @@ from typing import Union, Any
 
 import yaml
 
-from emmio.learn.core import Learning, ResponseType
+from emmio.learn.core import Learning, Response
 from emmio.serialization import Decoder, DATE_FORMAT, EPOCH, Encoder
 from emmio.util import MalformedFile
 
@@ -86,7 +86,7 @@ class LearningYAMLDecoder:
                     answer, interval
                 )
                 learning.register(
-                    ResponseType.RIGHT if answer == "y" else ResponseType.WRONG,
+                    Response.RIGHT if answer == "y" else Response.WRONG,
                     0,
                     question_id,
                     timedelta(seconds=interval * 60),

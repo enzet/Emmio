@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from emmio import util
-from emmio.learn.core import Knowledge, LearningRecord, ResponseType
+from emmio.learn.core import Knowledge, LearningRecord, Response
 from emmio.learn.visualizer import LearningVisualizer, DEPTH_COLORS
 from emmio.lexicon.core import Lexicon, AnswerType
 
@@ -262,11 +262,11 @@ class Visualizer:
         lasts = defaultdict(int)
         for record in records:
             id_: str = f"{record.course_id}_{record.question_id}"
-            if record.response == ResponseType.RIGHT:
+            if record.response == Response.RIGHT:
                 if id_ in lasts:
                     ys[lasts[id_]] += 1
                 lasts[id_] += 1
-            elif record.response == ResponseType.WRONG:
+            elif record.response == Response.WRONG:
                 if id_ in lasts:
                     ns[lasts[id_]] += 1
                 lasts[id_] = 0
@@ -302,9 +302,7 @@ class Visualizer:
             interval: timedelta = record.time - last_record.time
             diff: int = int(interval.total_seconds() * steps)
             if interval.microseconds != 0 and diff / steps <= max_:
-                (y_y if record.response == ResponseType.RIGHT else y_n)[
-                    diff
-                ] += 1
+                (y_y if record.response == Response.RIGHT else y_n)[diff] += 1
             last_record = record
 
         plt.title("Response time")

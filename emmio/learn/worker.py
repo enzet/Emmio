@@ -7,7 +7,7 @@ from emmio import ui
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
-from emmio.learn.core import Learning, ResponseType, SMALLEST_INTERVAL
+from emmio.learn.core import Learning, Response, SMALLEST_INTERVAL
 from emmio.lexicon.core import (
     AnswerType,
     Lexicon,
@@ -346,7 +346,7 @@ class LearningWorker(Worker):
         if answer == self.word:
             self.index = 0
             self.learning.register(
-                ResponseType.RIGHT, sentence_id, self.word, self.interval * 2
+                Response.RIGHT, sentence_id, self.word, self.interval * 2
             )
             transcriptions: list[str] = []
             if self.items:
@@ -372,7 +372,7 @@ class LearningWorker(Worker):
 
         elif answer in ["/no", "Don't know"]:
             self.learning.register(
-                ResponseType.WRONG, sentence_id, self.word, SMALLEST_INTERVAL
+                Response.WRONG, sentence_id, self.word, SMALLEST_INTERVAL
             )
             self.learning.write()
             self.index = 0
