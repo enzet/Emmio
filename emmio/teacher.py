@@ -400,16 +400,16 @@ class Teacher:
                 self.play(word)
 
                 new_answer = self.interface.input("Learn word? ")
-                if not new_answer:
+                if new_answer in ["s", "skip"]:
+                    self.learning.register(
+                        Response.SKIP, sentence_id, word, timedelta()
+                    )
+                else:
                     self.learning.register(
                         Response.WRONG,
                         sentence_id,
                         word,
                         self.get_smallest_interval(),
-                    )
-                else:
-                    self.learning.register(
-                        Response.SKIP, sentence_id, word, timedelta()
                     )
 
                 self.learning.write()
