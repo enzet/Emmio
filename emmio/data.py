@@ -43,7 +43,7 @@ class Data:
         dictionaries: DictionaryData = DictionaryData.from_config(
             path / "dictionaries"
         )
-        audio: AudioData = AudioData(path / "audio")
+        audio: AudioData = AudioData.from_config(path / "audio")
 
         users_path: Path = path / "users"
         user_data: dict[str, UserData] = {}

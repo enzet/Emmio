@@ -3,6 +3,7 @@ Emmio.
 
 Utility functions.
 """
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -64,11 +65,10 @@ def format_delta(delta: timedelta):
 
 
 def download(
-    address: str, cache_path: Path, buffer_size: int = 400_000
+    address: str, cache_path: Path, buffer_size: int = 0x80000
 ) -> bytes:
 
-    sys.stdout.write(f"Downloading {address}: ")
-    sys.stdout.flush()
+    logging.info(f"Downloading {address}: ")
 
     pool_manager: PoolManager = PoolManager()
     result: HTTPResponse = pool_manager.request(
@@ -76,6 +76,7 @@ def download(
     )
     pool_manager.clear()
     data: bytearray = bytearray()
+    sys.stdout.write(f"Downloading blocks of {buffer_size} bytes: ")
     while True:
         buffer: bytes = result.read(buffer_size)
         if not buffer:

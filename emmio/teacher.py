@@ -194,6 +194,9 @@ class Teacher:
 
         return True
 
+    def play(self, word: str):
+        self.audio.play(word, self.learning.learning_language)
+
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
         ids_to_skip: set[int] = set()
@@ -326,7 +329,7 @@ class Teacher:
                     ]
                     self.interface.print("\n".join(string_items))
 
-                self.audio.play(word, self.learning.learning_language)
+                self.play(word)
 
                 if self.stop_after_answer:
                     new_answer = self.interface.input(">>> ")
@@ -394,6 +397,7 @@ class Teacher:
                     ]
                     self.interface.print("\n".join(string_items))
                 self.interface.box(word)
+                self.play(word)
 
                 new_answer = self.interface.input("Learn word? ")
                 if not new_answer:
