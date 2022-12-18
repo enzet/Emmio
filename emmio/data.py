@@ -139,38 +139,30 @@ class Data:
                 stat[depth] += 1
                 total += 1 / (2**depth)
 
-        rows = []
-
-        total_to_repeat: int = 0
-        total_new: int = 0
-        total_all: int = 0
-
-        for learning in learnings:
-            row = [
+        rows = [
+            [
                 learning.config.name,
-                progress(to_repeat := learning.count_questions_to_repeat()),
-                progress(
-                    new := max(
-                        0,
-                        learning.config.max_for_day
-                        - learning.count_questions_added_today(),
-                    )
+                learning.count_questions_to_repeat(),
+                max(
+                    0,
+                    learning.config.max_for_day
+                    - learning.count_questions_added_today(),
                 ),
-                str(all_ := learning.count_questions_to_learn()),
+                len(learning.process.skipping),
+                learning.count_questions_to_learn(),
             ]
-            rows.append(row)
-            total_to_repeat += to_repeat
-            total_new += new
-            total_all += all_
+            for learning in learnings
+        ]
 
-        if total_to_repeat or total_new:
-            footer = [
-                "Total",
-                str(total_to_repeat),
-                str(total_new),
-                str(total_all),
-            ]
-            rows.append(footer)
+        footer = ["Total"] + [
+            str(sum(x[i] for x in rows)) for i in (1, 2, 3, 4)
+        ]
+        for row in rows:
+            for i in 1, 2, 3:
+                row[i] = progress(row[i])
+            row[4] = str(row[4])
+
+        rows.append(footer)
 
         interface.print(f"Pressure: {total:.2f}")
-        interface.table(["Course", "Repeat", "Add", "All"], rows)
+        interface.table(["Course", "Repeat", "Add", "Skipping", "All"], rows)
