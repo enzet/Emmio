@@ -28,6 +28,10 @@ class LearnConfig(BaseModel):
     sentences: list[dict]
     dictionaries: list[dict]
     lists: list[str]
+
+    audio: list[dict] = {}
+    """Configurations for voice-over."""
+
     check_lexicon: bool = False
     ask_lexicon: bool = False
     max_for_day: int = 100

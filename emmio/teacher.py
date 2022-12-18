@@ -3,6 +3,7 @@ import logging
 import math
 from datetime import timedelta
 
+from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
@@ -49,6 +50,9 @@ class Teacher:
         )
         self.sentences: SentencesCollection = data.get_sentences_collection(
             self.learning.config.sentences
+        )
+        self.audio: AudioCollection = data.get_audio_collection(
+            self.learning.config.audio
         )
         self.max_for_day: int = self.learning.config.max_for_day
 
@@ -321,6 +325,8 @@ class Teacher:
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
+
+                self.audio.play(word, self.learning.learning_language)
 
                 if self.stop_after_answer:
                     new_answer = self.interface.input(">>> ")

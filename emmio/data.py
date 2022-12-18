@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from emmio import ui
+from emmio.audio.data import AudioData
 from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
 from emmio.language import Language, construct_language
@@ -31,6 +32,7 @@ class Data:
     lists: ListsData
     sentences: SentencesData
     dictionaries: DictionaryData
+    audio: AudioData
     users_data: dict[str, UserData]
 
     @classmethod
@@ -41,6 +43,7 @@ class Data:
         dictionaries: DictionaryData = DictionaryData.from_config(
             path / "dictionaries"
         )
+        audio: AudioData = AudioData(path / "audio")
 
         users_path: Path = path / "users"
         user_data: dict[str, UserData] = {}
@@ -52,7 +55,7 @@ class Data:
                     user_path, config
                 )
 
-        return cls(lists, sentences, dictionaries, user_data)
+        return cls(lists, sentences, dictionaries, audio, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int):
         """
@@ -112,6 +115,12 @@ class Data:
         self, usage_configs: list[dict]
     ) -> SentencesCollection:
         return self.sentences.get_sentences_collection(usage_configs)
+
+    def get_audio_provider(self, usage_config: dict):
+        return self.audio.get_audio_provider(usage_config)
+
+    def get_audio_collection(self, usage_configs: list[dict]):
+        return self.audio.get_audio_collection(usage_configs)
 
     def get_words(self, id_: str) -> list[str]:
         return self.get_list(id_).get_words()
