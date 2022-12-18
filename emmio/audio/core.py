@@ -18,7 +18,7 @@ class AudioProvider:
 
 class WikimediaCommonsAudioProvider(AudioProvider):
     def __init__(self, cache_directory: Path):
-        self.cache_directory: Path = cache_directory / "en_wiktionary"
+        self.cache_directory: Path = cache_directory / "wikimedia_commons"
         self.player: mpv.MPV = mpv.MPV()
 
     def play(self, word: str, language: Language) -> None:
