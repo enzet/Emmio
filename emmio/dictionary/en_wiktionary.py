@@ -191,7 +191,7 @@ class EnglishWiktionary(Dictionary):
                 with open(path, "w+") as output_file:
                     json.dump(content, output_file)
             except (KeyError, AttributeError):
-                logging.error("malformed HTML")
+                logging.error("Malformed HTML.")
                 content = None
 
         if not content:

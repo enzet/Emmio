@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import urllib3 as urllib3
+import urllib3
 
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.core import List

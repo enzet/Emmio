@@ -34,4 +34,4 @@ class LearnConfig(BaseModel):
 
     check_lexicon: bool = False
     ask_lexicon: bool = False
-    max_for_day: int = 100
+    max_for_day: int = 10

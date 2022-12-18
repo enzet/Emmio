@@ -1,4 +1,5 @@
-// Frequency list reader.
+// Frequency list reader processes a text or a corpus of texts and produces a
+// list of unique words with the number of their occurrences.
 // Author: Sergey Vartanov <me@enzet.ru>
 package main
 

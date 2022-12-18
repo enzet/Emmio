@@ -37,7 +37,7 @@ def main():
     coloredlogs.install(
         level=logging.INFO,
         fmt="%(message)s",
-        level_styles=dict(info=dict(color="yellow")),
+        level_styles=dict(info=dict(color="yellow"), error=dict(color="red")),
     )
 
     parser: ArgumentParser = ArgumentParser("Emmio")

@@ -254,7 +254,7 @@ class Teacher:
 
         statistics: str = ""
         if interval.total_seconds() > 0:
-            statistics += f"{'◕ ' * log_()} "
+            statistics += f"{'★ ' * log_()} "
         else:
             statistics += f"frequency index: {word_index}  "
         statistics += (
