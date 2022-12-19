@@ -24,10 +24,24 @@ __email__ = "me@enzet.ru"
 EXCLUDE_SENTENCES_FILE_NAME: str = "exclude_sentences.json"
 EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
 
+DICTIONARIES_DIRECTORY_NAME: str = "dictionaries"
+SENTENCES_DIRECTORY_NAME: str = "sentences"
+LISTS_DIRECTORY_NAME: str = "lists"
+AUDIO_DIRECTORY_NAME: str = "audio"
+USERS_DIRECTORY_NAME: str = "users"
+CONFIGURATION_FILE_NAME: str = "config.json"
+
 
 @dataclass
 class Data:
-    """Registry of all available Emmio data."""
+    """
+    Registry of all available Emmio data.
+
+    This class manages Emmio data directory which is by default located in
+    ``~/.emmio``.  It expects to find directories ``lists``, ``sentences``,
+    ``dictionaries``, ``audio`` with artifacts and directory ``users`` with
+    user data.
+    """
 
     lists: ListsData
     sentences: SentencesData
@@ -38,23 +52,25 @@ class Data:
     @classmethod
     def from_directory(cls, path: Path) -> "Data":
 
-        lists: ListsData = ListsData.from_config(path / "lists")
-        sentences: SentencesData = SentencesData.from_config(path / "sentences")
-        dictionaries: DictionaryData = DictionaryData.from_config(
-            path / "dictionaries"
+        lists: ListsData = ListsData.from_config(path / LISTS_DIRECTORY_NAME)
+        sentences: SentencesData = SentencesData.from_config(
+            path / SENTENCES_DIRECTORY_NAME
         )
-        audio: AudioData = AudioData.from_config(path / "audio")
+        dictionaries: DictionaryData = DictionaryData.from_config(
+            path / DICTIONARIES_DIRECTORY_NAME
+        )
+        audio: AudioData = AudioData.from_config(path / AUDIO_DIRECTORY_NAME)
 
-        users_path: Path = path / "users"
+        users_path: Path = path / USERS_DIRECTORY_NAME
         user_data: dict[str, UserData] = {}
 
         for user_path in users_path.iterdir():
-            with (user_path / "config.json").open() as user_config_file:
-                config: dict = json.load(user_config_file)
+            with (
+                user_path / CONFIGURATION_FILE_NAME
+            ).open() as user_config_file:
                 user_data[user_path.name] = UserData.from_config(
-                    user_path, config
+                    user_path, json.load(user_config_file)
                 )
-
         return cls(lists, sentences, dictionaries, audio, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int):
@@ -162,8 +178,7 @@ class Data:
             ]
             for learning in learnings
         ]
-
-        footer = ["Total"] + [
+        footer: list[str] = ["Total"] + [
             str(sum(x[i] for x in rows)) for i in (1, 2, 3, 4)
         ]
         for row in rows:
