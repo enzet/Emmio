@@ -1,4 +1,17 @@
 {
+    "descriptors_of_words_to_ignore": [
+        "archaic",
+        "colloquial",
+        "dated",
+        "figuratively",
+        "informal",
+        "obsolete",
+        "rare",
+        "slang",
+        "spelling",
+        "US",
+        "Philippines"
+    ],
     "pronunciation_prefixes": [
         "rhymes",
         "syllabification",
