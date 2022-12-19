@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from time import sleep
 from typing import Iterator
 
 from emmio import util
+from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection
 from emmio.graph import Visualizer
@@ -86,8 +88,9 @@ class Emmio:
                 _, id_ = command.split(" ")
                 learnings = iter([self.data.get_learning(self.user_id, id_)])
             else:
-                learnings: Iterator[Learning] = self.data.get_active_learnings(
-                    self.user_id
+                learnings = sorted(
+                    self.data.get_active_learnings(self.user_id),
+                    key=lambda x: -x.count_questions_to_repeat(),
                 )
             self.learn(learnings)
 
@@ -95,7 +98,7 @@ class Emmio:
             self.run_lexicon(data, command[len("lexicon") :])
 
         if command == "stat learn":
-            self.data.get_stat(self.interface, self.user_id)
+            self.data.print_learning_statistics(self.interface, self.user_id)
 
         if command == "stat lexicon":
 

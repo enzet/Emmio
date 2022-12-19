@@ -186,7 +186,7 @@ class TerminalServer(EmmioServer):
 
     def statistics(self):
         interface = ui.StringInterface()
-        self.data.get_stat(interface, self.user_data)
+        self.data.print_learning_statistics(interface, self.user_data)
         self.send(interface.string)
 
     def receive_message(self, message: str):
@@ -221,7 +221,7 @@ class TelegramServer(EmmioServer):
 
     def statistics(self):
         interface = ui.StringMarkdownInterface()
-        self.data.get_stat(interface)
+        self.data.print_learning_statistics(interface)
         self.send(interface.string)
 
     def send(self, message: str, markup=None):

@@ -1,8 +1,7 @@
 import json
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Union
 
 from emmio import ui
 from emmio.audio.data import AudioData
@@ -147,32 +146,19 @@ class Data:
     def get_active_learnings(self, user_id: str):
         return self.users_data[user_id].get_active_learnings()
 
-    def get_stat(self, interface: ui.Interface, user_id: str):
+    def print_learning_statistics(
+        self, interface: ui.Interface, user_id: str
+    ) -> None:
 
         learnings: list[Learning] = sorted(
             self.get_active_learnings(user_id),
-            key=lambda x: x.count_questions_to_repeat(),
+            key=lambda x: -x.count_questions_to_repeat(),
         )
-        stat: dict[int, int] = defaultdict(int)
-        total: int = 0
-        for learning in learnings:
-            k = learning.knowledge
-            for word in k:
-                if k[word].interval.total_seconds() == 0:
-                    continue
-                depth = k[word].get_depth()
-                stat[depth] += 1
-                total += 1 / (2**depth)
-
-        rows = [
+        rows: list[list[Union[str, int]]] = [
             [
                 learning.config.name,
                 learning.count_questions_to_repeat(),
-                max(
-                    0,
-                    learning.config.max_for_day
-                    - learning.count_questions_added_today(),
-                ),
+                learning.count_questions_to_add(),
                 len(learning.process.skipping),
                 learning.count_questions_to_learn(),
             ]
