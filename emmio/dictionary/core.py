@@ -297,6 +297,16 @@ class DictionaryItem:
 
         return False
 
+    def get_one_word_definition(self, language: Language) -> str | None:
+
+        if forms := self.forms:
+            if definitions := forms[0].definitions:
+                if language in definitions:
+                    if values := definitions[language][0].values:
+                        return values[0].value
+
+        return None
+
     def get_short(self, language: Language, limit: int = 80) -> tuple[str, str]:
         """
         Try to get word definition that is shorter than the selected limit.
