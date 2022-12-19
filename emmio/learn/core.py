@@ -253,3 +253,22 @@ class Learning:
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""
         return self.get_next() is not None
+
+    def count_questions_to_add(self) -> int:
+        """Count the number of questions before reaching the maximum."""
+        return max(
+            0, self.config.max_for_day - self.count_questions_added_today()
+        )
+
+    def compute_pressure(self) -> float:
+        """
+        Compute the pressure of the learning process.
+
+        Pressure is a float characteristic of a learning process that somehow
+        reflects the amount of effort needed to repeat all the questions.
+        """
+        return sum(
+            1.0 / (2.0 ** knowledge.get_depth())
+            for knowledge in self.knowledge.values()
+            if knowledge.interval.total_seconds() > 0
+        )
