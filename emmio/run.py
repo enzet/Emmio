@@ -246,6 +246,41 @@ class Emmio:
             ]
             visualizer.process_command(command, records, knowledge, lexicons)
 
+        if command.startswith("listen "):
+            _, code = command.split(" ")
+            self.listen(self.data.get_learning(self.user_id, code))
+
+    def listen(self, learning: Learning):
+        audio_collection: AudioCollection = self.data.get_audio_collection(
+            learning.config.audio
+        )
+        dictionary_collection: DictionaryCollection = (
+            self.data.get_dictionaries(learning.config.dictionaries)
+        )
+        print(learning.config.name)
+        question_ids: list[str] = learning.get_safe_question_ids()
+        for question_id in question_ids:
+            translation: str | None = None
+            if items := dictionary_collection.get_items(question_id):
+                translation: str | None = items[0].get_one_word_definition(
+                    learning.base_language
+                )
+            if translation and " " not in translation:
+                print("   ", question_id, "—", translation)
+                if audio_collection.has(
+                    translation, learning.base_language
+                ) and audio_collection.has(
+                    question_id, learning.learning_language
+                ):
+                    for _ in range(2):
+                        audio_collection.play(
+                            translation, learning.base_language
+                        )
+                        audio_collection.play(
+                            question_id, learning.learning_language, 2
+                        )
+                        sleep(1)
+
     def run_lexicon(self, data: Data, code: str) -> None:
         """Check all user lexicons."""
 

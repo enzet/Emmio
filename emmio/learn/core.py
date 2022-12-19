@@ -272,3 +272,16 @@ class Learning:
             for knowledge in self.knowledge.values()
             if knowledge.interval.total_seconds() > 0
         )
+
+    def get_safe_question_ids(self) -> list[str]:
+        now = datetime.now()
+        ids = []
+        for k in self.knowledge.values():
+            if (
+                not self.is_initially_known(k.question_id)
+                and k.get_last_response() != Response.SKIP
+            ):
+                a = (now - k.last_record_time) / k.interval
+                if a < 0.2:
+                    ids.append(k.question_id)
+        return ids
