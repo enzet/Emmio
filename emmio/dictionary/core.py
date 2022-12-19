@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
 from emmio.text import sanitize
@@ -15,21 +16,10 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 
+DESCRIPTORS_OF_WORDS_TO_IGNORE: set[str] = set(
+    CONFIG["descriptors_of_words_to_ignore"]
+)
 SANITIZER: str = "_"
-
-DESCRIPTORS_OF_WORDS_TO_IGNORE: list[str] = [
-    "archaic",
-    "colloquial",  # TODO: remove
-    "dated",
-    "figuratively",
-    "informal",  # TODO: remove
-    "obsolete",
-    "rare",
-    "slang",
-    "spelling",
-    "US",
-    "Philippines",
-]
 
 
 @dataclass

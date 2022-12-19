@@ -15,6 +15,7 @@ from typing import Any, Union
 
 from wiktionaryparser import WiktionaryParser
 
+from emmio.dictionary import CONFIG
 from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
@@ -24,9 +25,6 @@ from emmio.dictionary.core import (
     DefinitionValue,
 )
 from emmio.language import Language, ENGLISH
-
-with (Path(__file__).parent / "config.json").open() as config_file:
-    CONFIG = json.load(config_file)
 
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
