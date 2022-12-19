@@ -1,4 +1,5 @@
 """Emmio entry point."""
+import getpass
 import logging
 import sys
 from argparse import Namespace, ArgumentParser
@@ -105,6 +106,7 @@ def main():
     data_path.mkdir(parents=True, exist_ok=True)
 
     data: Data = Data.from_directory(data_path)
+    user_id: str = arguments.user if arguments.user else getpass.getuser()
 
     match arguments.command:
 
@@ -125,9 +127,7 @@ def main():
         case "run":
             from emmio.run import Emmio
 
-            robot: Emmio = Emmio(
-                data_path, RichInterface(), data, arguments.user
-            )
+            robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
             robot.run()
 
         case _:
