@@ -119,10 +119,10 @@ ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
     "\u0531", "\u0556"
 )
 
-LATIN_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+LATIN_UPPER: str = letter_range("A", "Z")
 LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
 
-RU_UPPER: str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+RU_UPPER: str = letter_range("А", "Я") + "Ё"
 UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
 EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
 
