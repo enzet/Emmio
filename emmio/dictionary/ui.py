@@ -17,7 +17,7 @@ def start(data: Data, arguments: Namespace):
     for dictionary in dictionaries.dictionaries:
         print(dictionary)
 
-    dictionaries = DictionaryCollection(
+    dictionaries: DictionaryCollection = DictionaryCollection(
         [
             data.get_dictionary(
                 {"id": "en_wiktionary", "language": arguments.language_1}
@@ -27,8 +27,7 @@ def start(data: Data, arguments: Namespace):
 
     interface = TerminalInterface()
     while True:
-        word: str = input("> ")
-        if word == "q":
+        if (word := input("> ")) == "q":
             break
         for item in dictionaries.get_items(word):
             print(item.to_str(language_2, interface))

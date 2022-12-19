@@ -310,10 +310,7 @@ class Emmio:
                     f"Repeat learned for {learning.config.name}"
                 )
                 teacher: Teacher = Teacher(
-                    self.interface,
-                    self.data,
-                    self.user_data,
-                    learning,
+                    self.interface, self.data, self.user_data, learning
                 )
                 if not teacher.repeat():
                     return
@@ -327,10 +324,7 @@ class Emmio:
                     f"Learn new and repeat for {learning.config.name}"
                 )
                 teacher: Teacher = Teacher(
-                    self.interface,
-                    self.data,
-                    self.user_data,
-                    learning,
+                    self.interface, self.data, self.user_data, learning
                 )
                 proceed = teacher.start()
                 if not proceed:

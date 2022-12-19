@@ -8,14 +8,14 @@ from svgwrite import Drawing
 from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
 
-GRADIENT = [
+GRADIENT: list[Color] = [
     Color("#00D45E"),
     Color("#83E507"),
     Color("#EDF013"),
     Color("#E77809"),
     Color("#E20000"),
 ]
-GRADIENT_2 = [
+GRADIENT_2: list[Color] = [
     Color("#00D45E"),
     Color("#83E507"),
     Color("#EDF013"),
@@ -27,7 +27,7 @@ GRADIENT_2 = [
 def map_(value, current_min, current_max, target_min, target_max):
     """
     Map current value in bounds of current_min and current_max to bounds of
-    target_min and target_max.
+    ``target_min`` and ``target_max``.
     """
     if current_max - current_min == 0:
         return target_min
