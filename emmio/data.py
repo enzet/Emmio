@@ -172,5 +172,6 @@ class Data:
 
         rows.append(footer)
 
-        interface.print(f"Pressure: {total:.2f}")
+        pressure: float = self.users_data[user_id].learnings.compute_pressure()
+        interface.print(f"Pressure: {pressure:.2f}")
         interface.table(["Course", "Repeat", "Add", "Skipping", "All"], rows)
