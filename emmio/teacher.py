@@ -195,7 +195,7 @@ class Teacher:
         return True
 
     def play(self, word: str):
-        self.audio.play(word, self.learning.learning_language, repeat=2)
+        self.audio.play(word, self.learning.learning_language)
 
     def learn(self, word: str, interval: timedelta, word_index: int) -> str:
 
