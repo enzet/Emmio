@@ -88,9 +88,7 @@ class Data:
             json.dump(self.exclude_sentences, output_file)
 
     def exclude_translation(self, word: str, other_word: str):
-        """
-        Exclude some other word from the translation of the word.
-        """
+        """Exclude some other word from the translation of the word."""
         if word not in self.exclude_translations:
             self.exclude_translations[word] = []
         self.exclude_translations[word].append(other_word)

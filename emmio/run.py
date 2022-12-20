@@ -166,7 +166,6 @@ class Emmio:
                 )
 
         if command == "to learn":
-
             rows = []
             for learning in self.user_data.get_active_learnings():
                 rows.append([f"== {learning.config.name} =="])

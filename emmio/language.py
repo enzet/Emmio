@@ -34,7 +34,7 @@ class Language:
         self_name: str = None,
         tone: Color | None = None,
         checking: Callable | None = None,
-    ):
+    ) -> None:
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: str | None = symbols
         self.color: Color | None = color
@@ -46,11 +46,11 @@ class Language:
         else:
             self.has_symbol = lambda x: x in self.symbols
 
-    def __eq__(self, other: "Language"):
+    def __eq__(self, other: "Language") -> bool:
         assert isinstance(other, Language)
         return self.language == other.language
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.language.part1)
 
     def get_name(self) -> str:
@@ -84,7 +84,7 @@ class Language:
         """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
-    def get_symbols(self):
+    def get_symbols(self) -> str:
         """Get all symbols allowed in the language."""
         return self.symbols
 
@@ -101,7 +101,7 @@ class Language:
 
         return text
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.get_code()
 
 

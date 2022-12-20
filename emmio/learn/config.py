@@ -7,6 +7,11 @@ from emmio.language import LanguageConfig
 
 class LearnType(Enum):
     SENTENCES = "sentences"
+    """
+    In this learning scheme the teacher process provides a translation of the
+    word being studied from a dictionary and a number of sentences in the target
+    language
+    """
 
 
 class LearnConfig(BaseModel):
@@ -24,7 +29,11 @@ class LearnConfig(BaseModel):
     """Language known by user."""
 
     is_active: bool = True
+    """Whether the learning process is active now."""
+
     type: LearnType
+    """Learning scheme."""
+
     sentences: list[dict]
     dictionaries: list[dict]
     lists: list[str]
