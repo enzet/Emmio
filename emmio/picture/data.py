@@ -1,86 +1,70 @@
 import json
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from emmio.data import Data
-from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon, LexiconResponse
-from emmio.lists.core import FrequencyList
+from emmio.lists.frequency_list import FrequencyList
 
 
-@dataclass
-class Picture:
+def fill_data(
+    learning: Learning, lexicon: Lexicon, frequency_list: FrequencyList
+) -> None:
+    """Write the JSON file describing current learning process."""
 
-    data: Data
+    words = {}
+    for record in learning.process.records:
+        if record.question_id not in words:
+            words[record.question_id] = {
+                "word": record.question_id,
+                "language": learning.learning_language.get_code(),
+                "addTime": record.time,
+                "nextQuestionTime": record.time + record.interval,
+                "vector": record.response.value,
+                "index": frequency_list.get_index(record.question_id),
+            }
+        elif record.question_id in words:
+            words[record.question_id]["nextQuestionTime"] = (
+                record.time + record.interval
+            )
+            words[record.question_id]["vector"] += record.response.value
 
-    def fill_data(
-        self, language: Language, frequency_list: FrequencyList
-    ) -> None:
+    for word in lexicon.words:
+        if word in words:
+            continue
+        words[word] = {
+            "word": word,
+            "language": lexicon.language.get_code(),
+            "addTime": datetime.now(),
+            "nextQuestionTime": datetime.now(),
+            "vector": "N"
+            if lexicon.words[word].knowing == LexiconResponse.DONT
+            else "Y",
+            "index": frequency_list.get_index(word),
+        }
 
-        words = {}
-        learn: Learning = self.data.get_course(f"ru_{language.get_code()}")
-        for record in learn.records:
-            if record.question_id not in words:
-                words[record.question_id] = {
-                    "word": record.question_id,
-                    "language": language.get_code(),
-                    "addTime": record.time,
-                    "nextQuestionTime": record.time + record.interval,
-                    "vector": record.response.value,
-                    "index": frequency_list.get_index(record.question_id),
-                }
-            elif record.question_id in words:
-                words[record.question_id]["nextQuestionTime"] = (
-                    record.time + record.interval
-                )
-                words[record.question_id]["vector"] += record.response.value
+    min_add_time = min(words[x]["addTime"] for x in words)
+    min_next_question_time = min(words[x]["nextQuestionTime"] for x in words)
+    min_time = min(min_add_time, min_next_question_time)
 
-        lexicon: Lexicon = self.data.get_lexicon(language)
-        for word in lexicon.words:
-            if word not in words:
-                words[word] = {
-                    "word": word,
-                    "language": language.get_code(),
-                    "addTime": datetime.now(),
-                    "nextQuestionTime": datetime.now(),
-                    "vector": "N"
-                    if lexicon.words[word].knowing == LexiconResponse.DONT
-                    else "Y",
-                    "index": frequency_list.get_index(word),
-                }
+    for word in words:
+        words[word]["addTime"] = (
+            words[word]["addTime"] - min_add_time
+        ).total_seconds()
+        words[word]["nextQuestionTime"] = (
+            words[word]["nextQuestionTime"] - min_time
+        ).total_seconds()
 
-        min_add_time = min(words[x]["addTime"] for x in words)
-        max_add_time = max(words[x]["addTime"] for x in words)
-        min_next_question_time = min(
-            words[x]["nextQuestionTime"] for x in words
-        )
-        max_next_question_time = max(
-            words[x]["nextQuestionTime"] for x in words
-        )
+    result: list = []
 
-        min_time = min(min_add_time, min_next_question_time)
-        max_time = max(max_add_time, max_next_question_time)
+    for word in words:
+        result.append(words[word])
 
-        for word in words:
-            words[word]["addTime"] = (
-                words[word]["addTime"] - min_add_time
-            ).total_seconds()
-            words[word]["nextQuestionTime"] = (
-                words[word]["nextQuestionTime"] - min_time
-            ).total_seconds()
+    result = list(sorted(result, key=lambda x: x["index"]))
 
-        w = []
-
-        for word in words:
-            w.append(words[word])
-
-        w = list(sorted(w, key=lambda x: x["index"]))
-
-        with (Path("web") / f"{language.get_code()}.js").open(
-            "w"
-        ) as output_file:
-            output_file.write(f"{language.get_code()} = ")
-            json.dump(w, output_file)
-            output_file.write(";")
+    with (Path("web") / f"{lexicon.language.get_code()}.js").open(
+        "w"
+    ) as output_file:
+        output_file.write(f"{lexicon.language.get_code()} = ")
+        json.dump(result, output_file)
+        output_file.write(";")
