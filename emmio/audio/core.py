@@ -36,7 +36,9 @@ class DirectoryAudioProvider(AudioProvider):
     player: mpv.MPV = mpv.MPV()
 
     @classmethod
-    def from_config(cls, path: Path, config: AudioConfig):
+    def from_config(
+        cls, path: Path, config: AudioConfig
+    ) -> "DirectoryAudioProvider":
         return cls(path / config.directory_name, config.format)
 
     def get_path(self, word: str, path: Path) -> Path | None:
@@ -65,7 +67,7 @@ class DirectoryAudioProvider(AudioProvider):
 
 
 class WikimediaCommonsAudioProvider(AudioProvider):
-    def __init__(self, cache_directory: Path):
+    def __init__(self, cache_directory: Path) -> None:
         self.cache_directory: Path = cache_directory / "wikimedia_commons"
         self.player: mpv.MPV = mpv.MPV()
 
@@ -129,7 +131,7 @@ class AudioCollection:
                 return True
         return False
 
-    def has(self, word: str, language: Language):
+    def has(self, word: str, language: Language) -> bool:
         """Voice the word."""
         for audio in self.audio_providers:
             if audio.has(word, language):

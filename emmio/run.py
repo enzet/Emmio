@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
-from typing import Iterator
 
 from emmio import util
 from emmio.audio.core import AudioCollection
@@ -278,6 +277,7 @@ class Emmio:
                         audio_collection.play(
                             translation, learning.base_language
                         )
+                        sleep(1)
                         audio_collection.play(
                             question_id, learning.learning_language, 2
                         )

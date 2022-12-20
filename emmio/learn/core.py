@@ -274,14 +274,17 @@ class Learning:
         )
 
     def get_safe_question_ids(self) -> list[str]:
-        now = datetime.now()
-        ids = []
-        for k in self.knowledge.values():
+        """
+        Get list of identifiers of questions, that is being learning and not
+        close to be repeated.
+        """
+        now: datetime = datetime.now()
+        return [
+            x.question_id
+            for x in self.knowledge.values()
             if (
-                not self.is_initially_known(k.question_id)
-                and k.get_last_response() != Response.SKIP
-            ):
-                a = (now - k.last_record_time) / k.interval
-                if a < 0.2:
-                    ids.append(k.question_id)
-        return ids
+                not self.is_initially_known(x.question_id)
+                and x.get_last_response() != Response.SKIP
+                and ((now - x.last_record_time) / x.interval) < 0.8
+            )
+        ]
