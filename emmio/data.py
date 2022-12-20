@@ -43,13 +43,23 @@ class Data:
     """
 
     lists: ListsData
+    """Manager for frequency and word lists."""
+
     sentences: SentencesData
+    """Manager for sentences with translations."""
+
     dictionaries: DictionaryData
+    """Manager for dictionaries."""
+
     audio: AudioData
+    """Manager for audio files with pronunciation."""
+
     users_data: dict[str, UserData]
+    """Mapping from used unique identifiers to user data managers."""
 
     @classmethod
     def from_directory(cls, path: Path) -> "Data":
+        """Initialize Emmio data from its directory."""
 
         lists: ListsData = ListsData.from_config(path / LISTS_DIRECTORY_NAME)
         sentences: SentencesData = SentencesData.from_config(
@@ -98,7 +108,7 @@ class Data:
             json.dump(self.exclude_translations, output_file)
 
     def get_frequency_list_for_lexicon(
-        self, language: Language
+        self, user_id: str, language: Language
     ) -> FrequencyList:
         return self.get_frequency_list(
             self.users_data[user_id].get_lexicon[language.get_code()]

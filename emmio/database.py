@@ -1,6 +1,4 @@
-"""
-SQLite 3 utility.
-"""
+"""SQLite 3 utility."""
 import sqlite3
 from pathlib import Path
 from sqlite3.dbapi2 import Connection, Cursor
