@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 from colour import Color
@@ -74,7 +73,7 @@ class Graph:
         min_x,
         max_x,
         canvas: Canvas = Canvas(),
-        color: Union[Color, list[Color], str] = Color("black"),
+        color: Color | list[Color] | str = Color("black"),
         background_color: Color = Color("white"),
         grid_color: Color = Color("#DDDDDD"),
     ):
@@ -85,7 +84,7 @@ class Graph:
         self.min_y, self.max_y = 0, 7  # min(ys), max(ys)
         self.min_x_second = 0
         self.max_x_second = (max_x - min_x).total_seconds()
-        self.color: Union[Color, list[Color], str] = color
+        self.color: Color | list[Color] | str = color
         self.background_color: Color = background_color
         self.grid_color: Color = grid_color
 

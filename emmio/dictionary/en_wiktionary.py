@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 from time import sleep
-from typing import Any, Union
+from typing import Any
 
 from wiktionaryparser import WiktionaryParser
 
@@ -31,10 +31,11 @@ FORMS: set[str] = set(CONFIG["forms"])
 
 
 LINK_PATTERN: re.Pattern = re.compile(
-    "^(?P<preffix>\\(.*\\) )?(?P<link_type>.*) of "
-    "(?P<link>[^:;,. ]*)[:;,.]?"
-    '(?P<suffix1>[:;,] .*)?(?P<suffix2> \\(.*\\))?(?P<suffix3> ".*")?$'
+    r"^(?P<preffix>\(.*\) )?(?P<link_type>.*) of "
+    r"(?P<link>[^:;,. ]*)[:;,.]?"
+    r'(?P<suffix1>[:;,] .*)?(?P<suffix2> \(.*\))?(?P<suffix3> ".*")?$'
 )
+DESCRIPTOR_PATTERN: re.Pattern = re.compile(r"\((?P<descriptor>[^()]*)\) .*")
 
 
 def get_file_name(word: str):
@@ -42,7 +43,7 @@ def get_file_name(word: str):
     Get file name for cache JSON file.
 
     For this to work on case-insensitive operating systems, we add special
-    symbol `^` before the capitalized letter.
+    symbol ``^`` before the capitalized letter.
     """
     name: str = "".join(f"^{c.lower()}" if c.lower() != c else c for c in word)
 
@@ -77,8 +78,6 @@ class EnglishWiktionary(Dictionary):
 
     def __init__(self, cache_directory: Path, from_language: Language):
         """
-        Target language.
-
         :param cache_directory: directory for cache files
         :param from_language: target language
         """
@@ -88,24 +87,21 @@ class EnglishWiktionary(Dictionary):
         self.parser: WiktionaryParser = WiktionaryParser()
 
     @staticmethod
-    def process_definition(text: str) -> Union[Link, Definition]:
+    def process_definition(text: str) -> Link | Definition:
 
         # Preparsing.
         text = text.strip()
         if text.endswith("."):
             text = text[:-1]
 
-        matcher: re.Match | None = LINK_PATTERN.match(text)
-        if matcher:
-            link: str = matcher.group("link")
+        if matcher := LINK_PATTERN.match(text):
             link_type: str = matcher.group("link_type")
             if check_link_type(link_type):
-                return Link(link_type, link)
+                return Link(link_type, matcher.group("link"))
 
         descriptors: list[str] = []
 
-        matcher = re.match("\\((?P<descriptor>[^()]*)\\) .*", text)
-        if matcher:
+        if matcher := DESCRIPTOR_PATTERN.match(text):
             p = matcher.group("descriptor")
             descriptors = p.split(", ")
             text = text[len(p) + 3 :]
@@ -121,10 +117,7 @@ class EnglishWiktionary(Dictionary):
         return Definition(values, descriptors)
 
     def parse_form(
-        self,
-        word: str,
-        definition: dict[str, Any],
-        pronunciations: list[str],
+        self, word: str, definition: dict[str, Any], pronunciations: list[str]
     ) -> Form:
 
         form: Form = Form(word, definition["partOfSpeech"])

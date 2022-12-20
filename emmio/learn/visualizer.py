@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Union
 
 import numpy as np
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
@@ -62,7 +61,7 @@ class LearningVisualizer:
 
         knowledges = {}
 
-        def compute_data_id() -> Union[str, int]:
+        def compute_data_id() -> str | int:
             if self.use_subtypes:
                 return (
                     f"{get_depth(knowledges[record.question_id].interval):05},"

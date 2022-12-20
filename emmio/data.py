@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Union
+from typing import Iterator
 
 from emmio import ui
 from emmio.audio.data import AudioData
@@ -152,7 +152,7 @@ class Data:
             self.get_active_learnings(user_id),
             key=lambda x: -x.count_questions_to_repeat(),
         )
-        rows: list[list[Union[str, int]]] = [
+        rows: list[list[str | int]] = [
             [
                 learning.config.name,
                 learning.count_questions_to_repeat(),

@@ -7,7 +7,7 @@ Versions are:
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Union, Any
+from typing import Any
 
 import yaml
 
@@ -38,7 +38,7 @@ class LearningYAMLDecoder:
 
     @staticmethod
     def decode(
-        id_: str, path: Path, structure: dict[str, dict[str, Union[str, int]]]
+        id_: str, path: Path, structure: dict[str, dict[str, str | int]]
     ) -> Learning:
         """Decode learning process from structure."""
 
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     learning_directory: str = sys.argv[2]
 
     with Path(path).open() as input_file:
-        content: dict[str, dict[str, dict[str, Union[str, int]]]] = yaml.load(
+        content: dict[str, dict[str, dict[str, str | int]]] = yaml.load(
             input_file, Loader=yaml.FullLoader
         )
 
