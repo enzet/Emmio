@@ -83,9 +83,11 @@ class Emmio:
             self.interface.table(["Command", "Description"], HELP)
 
         if not command or command == "learn" or command.startswith("learn "):
+            # We cannot use iterators here!
+            learnings: list[Learning]
             if command.startswith("learn "):
                 _, id_ = command.split(" ")
-                learnings = iter([self.data.get_learning(self.user_id, id_)])
+                learnings = [self.data.get_learning(self.user_id, id_)]
             else:
                 learnings = sorted(
                     self.data.get_active_learnings(self.user_id),
@@ -338,7 +340,7 @@ class Emmio:
             )
             break
 
-    def learn(self, learnings) -> None:
+    def learn(self, learnings: list[Learning]) -> None:
 
         for learning in learnings:
 
