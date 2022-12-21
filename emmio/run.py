@@ -148,10 +148,7 @@ class Emmio:
 
         if command == "plot lexicon":
             LexiconVisualizer(interactive=interactive).graph_with_matplot(
-                [
-                    self.user_data.get_lexicon(language)
-                    for language in data.get_lexicon_languages()
-                ]
+                data.get_lexicons(self.user_id)
             )
 
         if command == "svg lexicon":

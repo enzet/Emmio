@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable
+from typing import Callable, Iterator
 
 import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
@@ -14,25 +14,27 @@ from emmio.util import first_day_of_week, year_start, year_end
 @dataclass
 class LexiconVisualizer:
 
-    # Plot marker for each user response.
     plot_precise_values: bool = False
+    """Plot marker for each user response."""
 
-    # How many wrong answers is needed to construct data point.
     precision: int = 100
+    """How many wrong answers is needed to construct data point."""
 
-    # Function to compute starting point in time based on the minimal point in
-    # time from data.
     first_point: Callable[[datetime], datetime] = first_day_of_week
+    """
+    Function to compute starting point in time based on the minimal point in
+    time from data.
+    """
 
-    # Function to compute next point in time.
     next_point: Callable[[datetime], datetime] = lambda x: x + timedelta(days=7)
+    """Function to compute next point in time."""
 
     impulses: bool = True
     interactive: bool = True
 
     def graph_with_matplot(
         self,
-        lexicons: list[Lexicon],
+        lexicons: Iterator[Lexicon],
         show_text: bool = False,
         margin: float = 0.0,
     ):
