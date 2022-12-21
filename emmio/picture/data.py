@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon, LexiconResponse
@@ -12,7 +13,7 @@ def fill_data(
 ) -> None:
     """Write the JSON file describing current learning process."""
 
-    words = {}
+    words: dict[str, dict[str, Any]] = {}
     for record in learning.process.records:
         if record.question_id not in words:
             words[record.question_id] = {
