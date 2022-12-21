@@ -75,7 +75,7 @@ class Teacher:
 
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledge[word].interval, 0
+                    word, self.learning.knowledge[word].interval
                 )
                 if code == "stop":
                     return False
@@ -87,7 +87,7 @@ class Teacher:
 
             has_new_word: bool = False
 
-            for index, word in self.words[self.word_index :]:
+            for word in self.words[self.word_index :]:
 
                 self.word_index += 1
 
@@ -95,9 +95,9 @@ class Teacher:
                 # whether it was initially known or it is learning.
                 if self.learning.has(word):
                     if self.learning.is_initially_known(word):
-                        logging.debug(f"[{index}] was initially known")
+                        logging.info(f"Was initially known")
                     else:
-                        logging.debug(f"[{index}] already learning")
+                        logging.info(f"Already learning")
                     continue
 
                 # Check user lexicon. Skip the word if it was mark as known by
@@ -108,7 +108,7 @@ class Teacher:
                     and self.lexicon.has(word)
                     and self.lexicon.get(word) != LexiconResponse.DONT
                 ):
-                    logging.debug(f"[{index}] known in lexicon")
+                    logging.info(f"Known in lexicon")
                     continue
 
                 items: list[DictionaryItem] = self.dictionaries.get_items(word)
@@ -122,20 +122,20 @@ class Teacher:
                 # Skip word if current dictionaries has no definitions for it
                 # or the word is solely a form of other words.
                 if not items:
-                    logging.debug(f"[{index}] no definition")
+                    logging.info(f"No definition")
                     continue
 
                 if not items[0].has_common_definition(
                     self.learning.base_language
                 ):
-                    logging.debug(f"[{index}] not common")
+                    logging.info(f"Not common")
                     continue
 
                 if self.learning.config.check_lexicon and self.lexicon.has(
                     word
                 ):
                     if self.lexicon.get(word) != LexiconResponse.DONT:
-                        logging.debug(f"[{index}] word is known")
+                        logging.info(f"Word is known")
                         continue
                     # TODO: else start learning
 
@@ -164,7 +164,7 @@ class Teacher:
                     if response != LexiconResponse.DONT:
                         continue
 
-                code: str = self.learn(word, timedelta(), index)
+                code: str = self.learn(word, timedelta())
                 if code == "stop":
                     return False
                 break
@@ -180,7 +180,7 @@ class Teacher:
             word = self.learning.get_next()
             if word:
                 code: str = self.learn(
-                    word, self.learning.knowledge[word].interval, 0
+                    word, self.learning.knowledge[word].interval
                 )
                 if code == "bad question":
                     self.learning.skip(word)
@@ -197,7 +197,7 @@ class Teacher:
     def play(self, word: str):
         self.audio.play(word, self.learning.learning_language)
 
-    def learn(self, word: str, interval: timedelta, word_index: int) -> str:
+    def learn(self, word: str, interval: timedelta) -> str:
 
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
@@ -255,8 +255,6 @@ class Teacher:
         statistics: str = ""
         if interval.total_seconds() > 0:
             statistics += f"{'★ ' * log_()} "
-        else:
-            statistics += f"frequency index: {word_index}  "
         statistics += (
             f"new today: {self.learning.count_questions_added_today()}  "
             f"to repeat: {self.learning.count_questions_to_repeat()}"

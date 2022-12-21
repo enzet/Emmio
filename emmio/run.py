@@ -8,7 +8,7 @@ from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection
 from emmio.graph import Visualizer
-from emmio.language import construct_language
+from emmio.language import construct_language, Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
@@ -96,7 +96,24 @@ class Emmio:
             self.learn(learnings)
 
         if command.startswith("lexicon"):
-            self.run_lexicon(data, command[len("lexicon") :])
+
+            code: str | None = None
+            if command.startswith("lexicon "):
+                code, _ = command.split(" ")
+
+            if code:
+                lexicons = [
+                    self.data.get_lexicon(
+                        self.user_id, construct_language(code)
+                    )
+                ]
+            else:
+                lexicons = sorted(
+                    data.get_lexicons(self.user_id),
+                    key=lambda x: -x.get_last_rate_number(),
+                )
+
+            self.run_lexicon(lexicons)
 
         if command == "stat learn":
             self.data.print_learning_statistics(self.interface, self.user_id)
@@ -285,39 +302,11 @@ class Emmio:
                         )
                         sleep(1)
 
-    def run_lexicon(self, data: Data, code: str) -> None:
-        """Check all user lexicons."""
+    def run_lexicon(self, lexicons: list[Lexicon]) -> None:
+        """Check user vocabulary."""
 
-        if code.endswith(" ra"):
-            language_code = code[1:3]
-            language = construct_language(language_code)
-            lexicon = data.get_lexicon(language)
-            lexicon.check(
-                self.interface,
-                data.get_frequency_list_for_lexicon(language),
-                None,
-                DictionaryCollection(self.get_dictionaries(language)),
-                "most frequent",
-                False,
-                False,
-                None,
-                learning=data.get_course(f"ru_{language_code}"),
-            )
-            return
-
-        priority_path: Path = self.path / "priority"
-        priority_path.mkdir(parents=True, exist_ok=True)
-
-        if code:
-            languages = [construct_language(code[1:])]
-        else:
-            languages = sorted(
-                data.get_lexicon_languages(),
-                key=lambda x: -data.get_lexicon(x).get_last_rate_number(),
-            )
-
-        for language in languages:
-            lexicon: Lexicon = data.get_lexicon(language)
+        for lexicon in lexicons:
+            language: Language = lexicon.language
             now: datetime = datetime.now()
             need: int = 5 - lexicon.count_unknowns(
                 "log", now - timedelta(days=7), now
@@ -330,9 +319,9 @@ class Emmio:
 
             lexicon.check(
                 self.interface,
-                data.get_frequency_list_for_lexicon(language),
+                self.data.get_frequency_list(lexicon.config.frequency_list),
                 None,
-                DictionaryCollection(self.get_dictionaries(language)),
+                self.data.get_dictionaries(),
                 "frequency",
                 False,
                 False,

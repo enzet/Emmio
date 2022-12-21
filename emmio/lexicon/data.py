@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 from emmio.language import Language
 from emmio.lexicon.config import LexiconConfig
@@ -26,6 +27,10 @@ class LexiconData:
             )
 
         return cls(path, lexicons)
+
+    def get_lexicons(self) -> Iterator[Lexicon]:
+
+        return iter(self.lexicons.values())
 
     def get_lexicon(self, language: Language) -> Lexicon | None:
         """Get lexicon with the requested language."""

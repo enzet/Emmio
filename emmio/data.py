@@ -9,6 +9,7 @@ from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
 from emmio.language import Language, construct_language
 from emmio.learn.core import Learning
+from emmio.lexicon.core import Lexicon
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
@@ -107,16 +108,6 @@ class Data:
         ) as output_file:
             json.dump(self.exclude_translations, output_file)
 
-    def get_frequency_list_for_lexicon(
-        self, user_id: str, language: Language
-    ) -> FrequencyList:
-        return self.get_frequency_list(
-            self.users_data[user_id].get_lexicon[language.get_code()]
-        )
-
-    def get_lexicon_languages(self) -> Iterator[Language]:
-        return map(construct_language, self.lexicon_config.keys())
-
     def get_list(self, id_) -> List | None:
         return self.lists.get_list(id_)
 
@@ -148,11 +139,17 @@ class Data:
     def get_words(self, id_: str) -> list[str]:
         return self.get_list(id_).get_words()
 
-    def get_learning(self, user_id: str, learning_id: str) -> Learning:
-        return self.users_data[user_id].get_learning(learning_id)
+    def get_learning(self, user_id: str, id_: str) -> Learning:
+        return self.users_data[user_id].get_learning(id_)
 
     def get_active_learnings(self, user_id: str):
         return self.users_data[user_id].get_active_learnings()
+
+    def get_lexicon(self, user_id: str, language: Language) -> Lexicon:
+        return self.users_data[user_id].get_lexicon(language)
+
+    def get_lexicons(self, user_id: str) -> Iterator[Lexicon]:
+        return self.users_data[user_id].get_lexicons()
 
     def print_learning_statistics(
         self, interface: ui.Interface, user_id: str
