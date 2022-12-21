@@ -548,13 +548,13 @@ class Lexicon:
 
         if word_list:
             if word + "\n" in word_list:
-                sys.stdout.write("In word list.", color="green")
+                sys.stdout.write("In word list.")
             else:
-                sys.stdout.write("Not in word list.", color="red")
+                sys.stdout.write("Not in word list.")
             if word[0].upper() + word[1:] + "\n" in word_list:
-                sys.stdout.write("Capitalized in word list.", color="green")
+                sys.stdout.write("Capitalized in word list.")
             else:
-                sys.stdout.write("Capitalized not in word list.", color="red")
+                sys.stdout.write("Capitalized not in word list.")
 
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
