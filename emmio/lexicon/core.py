@@ -237,7 +237,7 @@ class Lexicon:
         self.config: LexiconConfig = config
         self.logs: dict[str, LexiconLog] = {}
 
-        self.file_path = path / config.path
+        self.file_path = path / config.file_name
 
         self.words: dict[str, WordKnowledge] = {}
         self.dates: list[datetime] = []

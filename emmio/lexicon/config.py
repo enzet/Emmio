@@ -5,6 +5,6 @@ from emmio.language import LanguageConfig
 
 class LexiconConfig(BaseModel):
 
-    path: str
+    file_name: str
     language: LanguageConfig
     frequency_list: str
