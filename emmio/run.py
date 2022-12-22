@@ -99,14 +99,11 @@ class Emmio:
 
             code: str | None = None
             if command.startswith("lexicon "):
-                code, _ = command.split(" ")
+                _, code = command.split(" ")
 
             if code:
-                lexicons = [
-                    self.data.get_lexicon(
-                        self.user_id, construct_language(code)
-                    )
-                ]
+                language: Language = construct_language(code)
+                lexicons = [self.data.get_lexicon(self.user_id, language)]
             else:
                 lexicons = sorted(
                     data.get_lexicons(self.user_id),
