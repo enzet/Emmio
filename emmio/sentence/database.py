@@ -32,12 +32,13 @@ class SentenceDatabase(Database):
                     f"_sentences.tsv.bz2",
                     zip_path,
                 )
-            with bz2.open(zip_path) as zip_file:
-                with file_path.open("wb+") as cache_file:
-                    logging.info(
-                        f"unzipping sentences for {language.get_name()}"
-                    )
-                    cache_file.write(zip_file.read())
+            if zip_path.exists():
+                with bz2.open(zip_path) as zip_file:
+                    with file_path.open("wb+") as cache_file:
+                        logging.info(
+                            f"unzipping sentences for {language.get_name()}"
+                        )
+                        cache_file.write(zip_file.read())
 
         self.cursor.execute(
             f"CREATE TABLE {table_id} (id integer primary key, sentence text)"

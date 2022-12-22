@@ -7,6 +7,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import urllib3
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -66,14 +67,17 @@ def format_delta(delta: timedelta):
 
 def download(
     address: str, cache_path: Path, buffer_size: int = 0x80000
-) -> bytes:
+) -> bytes | None:
 
     logging.info(f"Downloading {address}: ")
 
     pool_manager: PoolManager = PoolManager()
-    result: HTTPResponse = pool_manager.request(
-        "GET", address, preload_content=False
-    )
+    try:
+        result: HTTPResponse = pool_manager.request(
+            "GET", address, preload_content=False
+        )
+    except urllib3.exceptions.MaxRetryError:
+        return None
     pool_manager.clear()
     data: bytearray = bytearray()
     sys.stdout.write(f"Downloading blocks of {buffer_size} bytes: ")

@@ -14,7 +14,7 @@ from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
 )
-from emmio.language import RUSSIAN, construct_language
+from emmio.language import construct_language, ENGLISH
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import get_char, Interface
@@ -564,7 +564,7 @@ class Lexicon:
         if items:
             print("[Show translation]")
             get_char()
-            print("\n".join(map(lambda x: x.to_str(RUSSIAN, interface), items)))
+            print("\n".join(map(lambda x: x.to_str(ENGLISH, interface), items)))
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
 

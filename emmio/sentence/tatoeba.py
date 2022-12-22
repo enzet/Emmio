@@ -72,10 +72,11 @@ class TatoebaSentences(Sentences):
                     "https://downloads.tatoeba.org/exports/links.tar.bz2",
                     zip_path,
                 )
-            with bz2.open(zip_path) as zip_file:
-                with file_path.open("wb+") as cache_file:
-                    logging.info("Unzipping links file...")
-                    cache_file.write(zip_file.read())
+            if zip_path.exists():
+                with bz2.open(zip_path) as zip_file:
+                    with file_path.open("wb+") as cache_file:
+                        logging.info("Unzipping links file...")
+                        cache_file.write(zip_file.read())
 
         logging.info("Reading links...")
         with file_path.open() as input_1:
