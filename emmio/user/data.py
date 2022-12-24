@@ -5,7 +5,7 @@ from typing import Iterator
 from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.learn.data import LearnData
-from emmio.lexicon.core import Lexicon
+from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
 
 
@@ -38,3 +38,6 @@ class UserData:
 
     def get_lexicon(self, language: Language) -> Lexicon:
         return self.lexicons.get_lexicon(language)
+
+    def get_word_status(self, word: str, language: Language) -> LexiconResponse:
+        return self.get_lexicon(language).get(word)
