@@ -49,7 +49,7 @@ class LexiconResponse(Enum):
     The string is not a dictionary word.
     
     This may be misspelling, non-dictionary onomatopoeic word, foreign word,
-    etc.  Frequency list may contain such words if it was not filtered using
+    etc.  A frequency list may contain such words if it was not filtered using
     the dictionary.
     """
 

@@ -8,11 +8,7 @@ from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
 from emmio.learn.core import Learning, Response
-from emmio.lexicon.core import (
-    LexiconResponse,
-    LexiconLog,
-    WordSelection,
-)
+from emmio.lexicon.core import LexiconLog, LexiconResponse, WordSelection
 from emmio.sentence.core import SentenceTranslations, SentencesCollection
 from emmio.ui import Interface
 from emmio.user.data import UserData

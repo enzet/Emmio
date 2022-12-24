@@ -7,7 +7,7 @@ from emmio import ui
 from emmio.audio.data import AudioData
 from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon
 from emmio.lists.core import List

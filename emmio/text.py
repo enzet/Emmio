@@ -25,8 +25,7 @@ class Text:
         print("Construct frequency list...")
         check = self.language.has_symbol
 
-        # frequency_list: FrequencyList = FrequencyList(update=False)
-        m = defaultdict(int)
+        result: dict[str, int] = defaultdict(int)
 
         word: str = ""
         for line in self.input_file:
@@ -42,10 +41,10 @@ class Text:
                 #     continue
                 else:
                     if word:
-                        m[word.lower()] += 1
+                        result[word.lower()] += 1
                     word = ""
 
-        return m
+        return result
 
 
 def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
