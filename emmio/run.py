@@ -153,12 +153,7 @@ class Emmio:
             ).graph_with_svg(data.get_lexicons(self.user_id), 0.5)
 
         if command == "svg lexicon week":
-            LexiconVisualizer().graph_with_svg(
-                [
-                    self.user_data.get_lexicon(language)
-                    for language in data.get_lexicon_languages()
-                ],
-            )
+            LexiconVisualizer().graph_with_svg(data.get_lexicons(self.user_id))
 
         if command == "data":
             for learning in self.user_data.get_active_learnings():
@@ -296,7 +291,7 @@ class Emmio:
             need: int = 5 - lexicon.count_unknowns(
                 "log", now - timedelta(days=7), now
             )
-            need = max(need, 100 - lexicon.count_unknowns("log"))
+            need = max(need, 101 - lexicon.count_unknowns("log"))
             if need <= 0:
                 continue
 
@@ -306,7 +301,7 @@ class Emmio:
                 self.interface,
                 self.data.get_frequency_list(lexicon.config.frequency_list),
                 None,
-                self.data.get_dictionaries(),
+                self.data.get_dictionaries(lexicon.config.dictionaries),
                 "frequency",
                 False,
                 False,
@@ -339,7 +334,7 @@ class Emmio:
                 teacher: Teacher = Teacher(
                     self.interface, self.data, self.user_data, learning
                 )
-                proceed = teacher.start()
+                proceed: bool = teacher.start()
                 if not proceed:
                     return
 
