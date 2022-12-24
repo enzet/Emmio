@@ -16,7 +16,7 @@ def test_lexicon() -> None:
     temp_directory.mkdir(exist_ok=True)
     lexicon: Lexicon = Lexicon(
         temp_directory,
-        LexiconConfig(path="en.json", language="en", frequency_list="en"),
+        LexiconConfig(file_name="en.json", language="en", frequency_list="en"),
     )
     lexicon.add_log(LexiconLog("log", WordSelection.ARBITRARY))
     lexicon.register("apple", LexiconResponse.KNOW, False, datetime(2000, 1, 1))

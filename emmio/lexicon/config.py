@@ -9,5 +9,5 @@ class LexiconConfig(BaseModel):
     language: LanguageConfig
     frequency_list: str
 
-    dictionaries: list[dict]
+    dictionaries: list[dict] = []
     """Dictionary usage configurations."""
