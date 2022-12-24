@@ -119,13 +119,10 @@ class Emmio:
 
             rows = []
 
-            for language in sorted(
-                data.get_lexicon_languages(),
-                key=lambda x: -self.user_data.get_lexicon(
-                    x
-                ).get_last_rate_number(),
+            for lexicon in sorted(
+                data.get_lexicons(self.user_id),
+                key=lambda x: -x.get_last_rate_number(),
             ):
-                lexicon: Lexicon = self.user_data.get_lexicon(language)
                 now: datetime = datetime.now()
                 rate: float | None = lexicon.get_last_rate()
                 last_week_precision: int = lexicon.count_unknowns(
@@ -133,7 +130,7 @@ class Emmio:
                 )
                 rows.append(
                     [
-                        language.get_name(),
+                        lexicon.language.get_name(),
                         progress(max(0, 5 - last_week_precision)),
                         f"{abs(rate):.1f}  " + progress(int(rate * 10))
                         if rate is not None
@@ -153,13 +150,7 @@ class Emmio:
                 first_point=util.year_start,
                 next_point=lambda x: x + timedelta(days=365.25),
                 impulses=False,
-            ).graph_with_svg(
-                [
-                    self.user_data.get_lexicon(language)
-                    for language in data.get_lexicon_languages()
-                ],
-                1.5,
-            )
+            ).graph_with_svg(data.get_lexicons(self.user_id), 0.5)
 
         if command == "svg lexicon week":
             LexiconVisualizer().graph_with_svg(
