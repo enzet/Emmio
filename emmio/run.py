@@ -12,7 +12,7 @@ from emmio.language import construct_language, Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
-from emmio.teacher import Teacher
+from emmio.learn.teacher import Teacher
 from emmio.ui import Interface, progress
 from emmio.user.data import UserData
 

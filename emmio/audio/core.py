@@ -10,7 +10,6 @@ from emmio.audio.config import AudioConfig
 from emmio.language import Language, ENGLISH
 from emmio.util import download
 
-
 MIN_AUDIO_FILE_SIZE: int = 500
 """File smaller than this number of bytes should be treated as empty."""
 

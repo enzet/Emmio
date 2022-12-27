@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from pydantic.main import BaseModel
 
 from emmio.language import LanguageConfig
