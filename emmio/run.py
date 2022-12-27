@@ -200,47 +200,37 @@ class Emmio:
 
             for learning in self.user_data.get_active_learnings():
                 for question_id, knowledge in learning.knowledge.items():
-                    if knowledge.is_learning():
-                        if (
-                            start
-                            <= knowledge.get_next_time()
-                            < start + timedelta(hours=24)
-                        ):
-                            hours[
-                                int(
-                                    (
-                                        knowledge.get_next_time() - start
-                                    ).total_seconds()
-                                    // 60
-                                    // 60
-                                )
-                            ] += 1
-                        elif knowledge.get_next_time() < now:
-                            hours[0] += 1
+                    if not knowledge.is_learning():
+                        continue
+                    if (
+                        start
+                        <= knowledge.get_next_time()
+                        < start + timedelta(hours=24)
+                    ):
+                        seconds = knowledge.get_next_time() - start
+                        hours[int(seconds.total_seconds() // 60 // 60)] += 1
+                    elif knowledge.get_next_time() < now:
+                        hours[0] += 1
 
             print(sum(hours))
-            for h in range(24):
-                time = start + timedelta(hours=h)
+            for hour in range(24):
+                time: datetime = start + timedelta(hours=hour)
                 print(
-                    f"{time.day:2} {time.hour:2}:00 {hours[h]:2} "
-                    f"{progress(hours[h])}"
+                    f"{time.day:2} {time.hour:2}:00 {hours[hour]:2} "
+                    f"{progress(hours[hour])}"
                 )
 
         if command in Visualizer.get_commands():
-            ratios = 0
-            learning_words = 0
             records: list[LearningRecord] = []
             knowledge = {}
             for learning in self.user_data.get_active_learnings():
-                ratios += learning.config.max_for_day
-                learning_words += learning.count_questions_to_learn()
                 records += learning.process.records
                 knowledge |= learning.knowledge
 
-            visualizer = Visualizer(interactive=interactive)
+            visualizer: Visualizer = Visualizer(interactive=interactive)
             records = sorted(records, key=lambda x: x.time)
 
-            lexicons = [
+            lexicons: list[Lexicon] = [
                 self.user_data.get_lexicon(learning.learning_language)
                 for learning in self.user_data.get_active_learnings()
             ]
