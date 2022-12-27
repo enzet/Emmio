@@ -1,12 +1,14 @@
+"""User interface for dictionaries."""
 from argparse import Namespace
 
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection
 from emmio.language import construct_language, Language
-from emmio.ui import TerminalInterface
+from emmio.ui import TerminalInterface, Interface
 
 
 def start(data: Data, arguments: Namespace):
+    """Run dictionary utility."""
     language_1: Language = construct_language(arguments.language_1)
     language_2: Language = construct_language(arguments.language_2)
     construct_language(arguments.language_2),
@@ -25,7 +27,7 @@ def start(data: Data, arguments: Namespace):
         ]
     )
 
-    interface = TerminalInterface()
+    interface: Interface = TerminalInterface()
     while True:
         if (word := input("> ")) == "q":
             break
