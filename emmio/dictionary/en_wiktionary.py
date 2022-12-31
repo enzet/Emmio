@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import requests
 from pathlib import Path
 from time import sleep
 from typing import Any
@@ -182,9 +183,12 @@ class EnglishWiktionary(Dictionary):
                 )
                 with open(path, "w+") as output_file:
                     json.dump(content, output_file)
+            except requests.exceptions.ConnectionError:
+                logging.error("Connection error.")
+                return None
             except (KeyError, AttributeError):
                 logging.error("Malformed HTML.")
-                content = None
+                return None
 
         if not content:
             return None
