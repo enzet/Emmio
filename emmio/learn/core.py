@@ -62,7 +62,11 @@ class LearningRecord(BaseModel):
 
 class LearningProcess(BaseModel):
     records: list[LearningRecord]
+
     skipping: dict[str, int] = {}
+    """
+    Mapping from question identifier to the number of times it was skipped.
+    """
 
 
 @dataclass

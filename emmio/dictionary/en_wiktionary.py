@@ -2,8 +2,6 @@
 Gate for English Wiktionary service.
 
 See https://en.wiktionary.org.
-
-Author: Sergey Vartanov (me@enzet.ru).
 """
 import json
 import logging
@@ -25,6 +23,9 @@ from emmio.dictionary.core import (
     DefinitionValue,
 )
 from emmio.language import Language, ENGLISH
+
+__author__ = "Sergey Vartanov"
+__email__ = "me@enzet.ru"
 
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
