@@ -181,15 +181,29 @@ class Learning:
     def __is_not_skipped(self, question_id: str) -> bool:
         return question_id not in self.process.skipping.keys()
 
-    def get_next(self) -> str | None:
-        """Get question identifier of the next question."""
-        for question_id in self.knowledge:
+    def __get_next_questions(self) -> list[str]:
+        return [
+            x
+            for x in self.knowledge
             if (
-                self.__is_not_skipped(question_id)
-                and self.knowledge[question_id].is_learning() != 0
-                and datetime.now() > self.knowledge[question_id].get_next_time()
-            ):
-                return question_id
+                self.knowledge[x].is_learning()
+                and datetime.now() > self.knowledge[x].get_next_time()
+            )
+        ]
+
+    def get_skipping_counter(self, question_id: str) -> int:
+        return (
+            self.process.skipping[question_id]
+            if question_id in self.process.skipping
+            else 0
+        )
+
+    def get_next_question(self) -> str | None:
+        """Get question identifier of the next question."""
+        ids: list[str] = self.__get_next_questions()
+        if not ids:
+            return None
+        return sorted(ids, key=lambda x: self.get_skipping_counter(x))[0]
 
     def has(self, question_id: str) -> bool:
         """Check whether the question is in the learning process."""
@@ -256,7 +270,7 @@ class Learning:
 
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""
-        return self.get_next() is not None
+        return self.get_next_question() is not None
 
     def count_questions_to_add(self) -> int:
         """Count the number of questions before reaching the maximum."""

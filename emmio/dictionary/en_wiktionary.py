@@ -15,12 +15,12 @@ from wiktionaryparser import WiktionaryParser
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.core import (
+    Definition,
+    DefinitionValue,
     Dictionary,
     DictionaryItem,
     Form,
     Link,
-    Definition,
-    DefinitionValue,
 )
 from emmio.language import Language, ENGLISH
 

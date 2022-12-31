@@ -200,7 +200,7 @@ class LearningWorker(Worker):
 
     def get_question(self) -> list[str]:
 
-        self.word = self.learning.get_next(self.skip)
+        self.word = self.learning.get_next_question(self.skip)
 
         if not self.word:
             self.word = self.get_new_question()

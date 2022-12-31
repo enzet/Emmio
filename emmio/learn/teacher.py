@@ -67,7 +67,7 @@ class Teacher:
     def start(self) -> bool:
 
         while True:
-            word: str | None = self.learning.get_next()
+            word: str | None = self.learning.get_next_question()
 
             if word:
                 code: str = self.learn(
@@ -173,7 +173,7 @@ class Teacher:
     def repeat(self) -> bool:
         while True:
             has_repeat: bool = False
-            word = self.learning.get_next()
+            word = self.learning.get_next_question()
             if word:
                 code: str = self.learn(
                     word, self.learning.knowledge[word].interval
@@ -252,6 +252,7 @@ class Teacher:
         if interval.total_seconds() > 0:
             statistics += f"{'★ ' * log_()} "
         statistics += (
+            f"skipped: {self.learning.get_skipping_counter(word)}  "
             f"new today: {self.learning.count_questions_added_today()}  "
             f"to repeat: {self.learning.count_questions_to_repeat()}"
         )
