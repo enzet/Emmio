@@ -13,7 +13,7 @@ from emmio.audio.core import (
 
 @dataclass
 class AudioData:
-    """Manager for the directory with dictionaries."""
+    """Manager for the directory with audio files."""
 
     path: Path
     """The directory managed by this class."""

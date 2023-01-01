@@ -17,8 +17,11 @@ MIN_AUDIO_FILE_SIZE: int = 500
 class AudioProvider:
     def play(self, word: str, language: Language, repeat: int = 1) -> bool:
         """
-        Voice the word.
+        Play pronunciation of the word.
 
+        :param word: word to play audio with pronunciation for
+        :param language: language of pronunciation
+        :param repeat: number of times to play the audio
         :return true iff an audio was played
         """
         raise NotImplementedError()
@@ -29,10 +32,16 @@ class AudioProvider:
 
 @dataclass
 class DirectoryAudioProvider(AudioProvider):
+    """Audio provider that manages the directory with audio files."""
 
     directory: Path
+    """Directory with audio files and subdirectories."""
+
     file_extension: str
+    """Audio file extensions, e.g. ``ogg``."""
+
     player: mpv.MPV = mpv.MPV()
+    """Wrapper for the MPV player."""
 
     @classmethod
     def from_config(
@@ -41,6 +50,7 @@ class DirectoryAudioProvider(AudioProvider):
         return cls(path / config.directory_name, config.format)
 
     def get_path(self, word: str, path: Path) -> Path | None:
+        """Return path of the audio file or ``None`` if file does not exist."""
         if path.is_file():
             if path.name == f"{word}.{self.file_extension}":
                 return path
@@ -71,6 +81,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         self.player: mpv.MPV = mpv.MPV()
 
     def get_path(self, word: str, language: Language) -> Path | None:
+        """Return path of the audio file or ``None`` if file does not exist."""
         directory: Path = self.cache_directory / language.get_code()
         directory.mkdir(exist_ok=True, parents=True)
         path: Path = directory / (word + ".ogg")
@@ -97,13 +108,6 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         return None
 
     def play(self, word: str, language: Language, repeat: int = 1) -> bool:
-        """
-        Voice the word.
-
-        :param word: word to play audio with pronunciation for
-        :param language: language of pronunciation
-        :param repeat: number of times to play the audio
-        """
         if path := self.get_path(word, language):
             for _ in range(repeat):
                 logging.info(f"Playing {path}...")
@@ -114,6 +118,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         return False
 
     def has(self, word: str, language: Language) -> bool:
+        """Check whether Wikimedia Commons has audio file for the word."""
         return self.get_path(word, language) is not None
 
 
@@ -122,6 +127,7 @@ class AudioCollection:
     """Collection of audio providers."""
 
     audio_providers: list[AudioProvider]
+    """List of audio providers sorted by priority."""
 
     def play(self, word: str, language: Language, repeat: int = 1) -> bool:
         """Voice the word."""
