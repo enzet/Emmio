@@ -15,6 +15,8 @@ MIN_AUDIO_FILE_SIZE: int = 500
 
 
 class AudioProvider:
+    """Provider that can play audio files with word pronunciations."""
+
     def play(self, word: str, language: Language, repeat: int = 1) -> bool:
         """
         Play pronunciation of the word.
@@ -27,6 +29,7 @@ class AudioProvider:
         raise NotImplementedError()
 
     def has(self, word: str, language: Language) -> bool:
+        """Check whether the audio provider has audio for the word."""
         raise NotImplementedError()
 
 
@@ -76,9 +79,23 @@ class DirectoryAudioProvider(AudioProvider):
 
 
 class WikimediaCommonsAudioProvider(AudioProvider):
+    """
+    Audio provider that downloads and plays audio files with word pronunciations
+    from Wikimedia Commons.
+    """
+
     def __init__(self, cache_directory: Path) -> None:
         self.cache_directory: Path = cache_directory / "wikimedia_commons"
         self.player: mpv.MPV = mpv.MPV()
+
+    @staticmethod
+    def get_file_name(word: str, language: Language) -> str:
+        """Get the name of the file in the Wikimedia Commons format."""
+        if language == ENGLISH:
+            return f"En-us-{word}.ogg"
+        else:
+            language_code: str = language.get_code()
+            return f"{language_code[0].upper()}{language_code[1]}-{word}.ogg"
 
     def get_path(self, word: str, language: Language) -> Path | None:
         """Return path of the audio file or ``None`` if file does not exist."""
@@ -87,14 +104,9 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         path: Path = directory / (word + ".ogg")
 
         if not path.exists():
-            language_code: str = language.get_code()
-            name: str
-            if language == ENGLISH:
-                name = f"En-us-{word}.ogg"
-            else:
-                name = (
-                    f"{language_code[0].upper()}{language_code[1]}-{word}.ogg"
-                )
+            name: str = WikimediaCommonsAudioProvider.get_file_name(
+                word, language
+            )
             hashcode: str = hashlib.md5(name.encode()).hexdigest()[:2]
             url: str = (
                 "https://upload.wikimedia.org/wikipedia/commons"
@@ -118,7 +130,10 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         return False
 
     def has(self, word: str, language: Language) -> bool:
-        """Check whether Wikimedia Commons has audio file for the word."""
+        """
+        Check whether Wikimedia Commons has audio file for the word and file is
+        downloadable (if there is at least internet connection).
+        """
         return self.get_path(word, language) is not None
 
 
