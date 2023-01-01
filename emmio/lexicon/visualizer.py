@@ -97,6 +97,7 @@ class LexiconVisualizer:
 
     def construct_lexicon_data(self, lexicons, margin):
         x_min: datetime | None = None
+        x_max: datetime | None = None
         data = []
 
         for lexicon in lexicons:
@@ -126,6 +127,7 @@ class LexiconVisualizer:
                     ys.append(rates[index])
                     last = rates[index]
                     point = self.next_point(point)
+                    x_max = max(point, x_max) if x_max else point
 
             if self.impulses and last is not None:
                 xs.append(point)
@@ -136,4 +138,4 @@ class LexiconVisualizer:
 
             data.append((xs, ys, lexicon.language.get_color(), language_name))
 
-        return x_min, point, sorted(data, key=lambda x: -x[1][-1])
+        return x_min, x_max, sorted(data, key=lambda x: -x[1][-1])
