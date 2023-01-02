@@ -9,11 +9,14 @@ from emmio.language import LanguageConfig
 class FrequencyListFileFormat(Enum):
     """File format of the frequency list."""
 
-    LIST = "list"
-    """File with lines `word occurrences`."""
+    CSV = "csv"
+    """File with CSV format."""
 
     JSON = "json"
-    """File with format `[[word, occurrences]]`."""
+    """File with format ``[[word, occurrences]]``."""
+
+    LIST = "list"
+    """File with lines ``word occurrences``."""
 
 
 class FrequencyListConfig(BaseModel):
@@ -25,6 +28,9 @@ class FrequencyListConfig(BaseModel):
     language: LanguageConfig
     path: Path
     url: str | None
+
+    csv_delimiter: str = ","
+    csv_header: list[str] = ["word", "count"]
 
     is_stripped: bool
     """False for a full frequency list for some text or corpus."""

@@ -2,7 +2,7 @@ import json
 import logging
 import random
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import urllib3
@@ -25,6 +25,8 @@ class FrequencyList(List):
     file_path: Path
     config: FrequencyListConfig
     data: dict[str, int] | None = None
+    _occurrences: int = 0
+    _sorted_keys: list[str] = field(default_factory=list)
 
     @classmethod
     def from_config(cls, path: Path, config: FrequencyListConfig):
@@ -157,17 +159,37 @@ class FrequencyList(List):
                 self.load_from_json_file()
             case FrequencyListFileFormat.LIST:
                 self.load_from_list_file()
+            case FrequencyListFileFormat.CSV:
+                self.load_from_csv_file(
+                    self.config.csv_delimiter, self.config.csv_header
+                )
             case _:
                 raise Exception(
                     f"unknown file format {self.config.file_format}"
                 )
+
+    def load_from_csv_file(self, delimiter: str, header: list[str]) -> None:
+
+        logging.debug(f"Loading frequency list from CSV file {self.file_path}.")
+        self.data: dict[str, int] = {}
+
+        count_index: int = header.index("count")
+        word_index: int = header.index("word")
+
+        with self.file_path.open() as input_file:
+            for line in input_file.readlines()[1:]:
+                parts = line.split(delimiter)
+                count: int = int(parts[count_index])
+                word: str = parts[word_index]
+                self.data[word] = count
+                self._occurrences += count
+                self._sorted_keys.append(word)
 
     def load_from_json_file(self) -> None:
 
         logging.debug(
             f"Loading frequency list from JSON file {self.file_path}."
         )
-
         with self.file_path.open() as input_file:
             structure: list[(str, int)] = json.load(input_file)
 
@@ -179,7 +201,6 @@ class FrequencyList(List):
         logging.debug(
             f"Loading frequency list from list file {self.file_path}."
         )
-
         self.data: dict[str, int] = {}
 
         with self.file_path.open() as input_file:
@@ -216,4 +237,4 @@ class FrequencyList(List):
         with self.file_path.open("bw+") as cache_file:
             cache_file.write(data)
 
-        self.load_from_list_file()
+        self.load_from_file()
