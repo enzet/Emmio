@@ -120,9 +120,12 @@ class EnglishWiktionary(Dictionary):
 
     def parse_form(
         self, word: str, definition: dict[str, Any], pronunciations: list[str]
-    ) -> Form:
+    ) -> Form | None:
 
         form: Form = Form(word, definition["partOfSpeech"])
+
+        if "text" not in definition or not definition["text"]:
+            return None
 
         first_definition: str = definition["text"][0]
         if re.split("[  ]", first_definition)[0] == word:
@@ -220,9 +223,11 @@ class EnglishWiktionary(Dictionary):
                     pronunciations.append(pronunciation.strip())
 
             for definition in element["definitions"]:
-                item.add_definition(
-                    self.parse_form(word, definition, pronunciations)
+                form: Form | None = self.parse_form(
+                    word, definition, pronunciations
                 )
+                if form is not None:
+                    item.add_definition(form)
 
         if item.has_definitions():
             return item
