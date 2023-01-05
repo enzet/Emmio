@@ -88,7 +88,7 @@ class FrequencyList(List):
     def get_words(self) -> list[str]:
         """Get all unique words."""
         self.load()
-        return sorted(self.data.keys(), key=lambda x: -self.data[x])
+        return self._sorted_keys
 
     def get_random_word(self) -> (str, int):
         """
@@ -96,7 +96,7 @@ class FrequencyList(List):
 
         :return word, number of its occurrences in text
         """
-        word = random.choice(list(self.data.keys()))
+        word: str = random.choice(list(self.data.keys()))
         return word, self.data[word]
 
     def get_word_by_occurrences(self, occurrences: int) -> (str, int):
@@ -110,6 +110,8 @@ class FrequencyList(List):
             if self.data[word] >= occurrences:
                 return word, self.data[word]
 
+        return "", 0
+
     def get_word_by_index(self, index: int) -> (str, int):
         """Get word of the specified index."""
         word: str = self._sorted_keys[index]
@@ -122,9 +124,9 @@ class FrequencyList(List):
 
         :return word, number of its occurrences in text
         """
-        number = random.randint(0, self._occurrences)
+        number: int = random.randint(0, self._occurrences)
 
-        index = 0
+        index: int = 0
         for word in self._sorted_keys:
             index += self.data[word]
             if index >= number:
@@ -135,8 +137,7 @@ class FrequencyList(List):
     def get_index(self, word: str) -> int:
         if word in self._sorted_keys:
             return self._sorted_keys.index(word)
-        else:
-            return -1
+        return -1
 
     def get_info(self) -> str:
         return f"  Length: {len(self)}\n" f"  Language: {self.config.language}"
