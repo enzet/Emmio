@@ -172,6 +172,8 @@ class Learning:
         )
         self.process.records.append(record)
         self.__update_knowledge(record)
+        if question_id in self.process.skipping:
+            self.process.skipping.pop(question_id)
 
     def skip(self, question_id: str) -> None:
         self.process.skipping[question_id] = (
