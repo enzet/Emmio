@@ -31,5 +31,6 @@ def start(data: Data, arguments: Namespace):
     while True:
         if (word := input("> ")) == "q":
             break
+        # TODO: check user input.
         for item in dictionaries.get_items(word):
             print(item.to_str(language_2, interface))

@@ -81,6 +81,7 @@ class LexiconVisualizer:
                 )
 
         plt.legend(bbox_to_anchor=(1.05, 0.5), loc="center left", frameon=False)
+        plt.title("Vocabulary level per language")
         plt.ylim(ymin=margin)
         plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
         plt.tight_layout()

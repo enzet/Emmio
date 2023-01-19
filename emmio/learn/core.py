@@ -62,6 +62,7 @@ class LearningRecord(BaseModel):
 
 class LearningProcess(BaseModel):
     records: list[LearningRecord]
+    """List of learning records ordered from the latest to the newest."""
 
     skipping: dict[str, int] = {}
     """

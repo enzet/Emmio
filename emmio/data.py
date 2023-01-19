@@ -170,10 +170,10 @@ class Data:
             for learning in learnings
         ]
         footer: list[str] = ["Total"] + [
-            str(sum(x[i] for x in rows)) for i in (1, 2, 3, 4)
+            str(sum(x[i] for x in rows)) for i in range(1, 5)
         ]
         for row in rows:
-            for i in 1, 2, 3:
+            for i in range(1, 4):
                 row[i] = progress(row[i])
             row[4] = str(row[4])
 

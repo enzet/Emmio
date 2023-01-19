@@ -98,7 +98,13 @@ class WikimediaCommonsAudioProvider(AudioProvider):
             return f"{language_code[0].upper()}{language_code[1]}-{word}.ogg"
 
     def get_path(self, word: str, language: Language) -> Path | None:
-        """Return path of the audio file or ``None`` if file does not exist."""
+        """
+        Return path of the audio file or ``None`` if file does not exist.
+
+        For Wikimedia Commons hashing scheme see
+        https://commons.wikimedia.org/wiki/Commons:FAQ, part
+        `What are the strangely named components in file paths?`
+        """
         directory: Path = self.cache_directory / language.get_code()
         directory.mkdir(exist_ok=True, parents=True)
         path: Path = directory / (word + ".ogg")
