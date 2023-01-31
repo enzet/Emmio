@@ -224,15 +224,15 @@ class RichInterface(TerminalInterface):
 
         show_footer: bool = rows[-1][0] == "Total"
 
-        table: Table = Table(box=box.ROUNDED, show_footer=show_footer)
+        element: Table = Table(box=box.ROUNDED, show_footer=show_footer)
         for index, column in enumerate(columns):
-            table.add_column(
+            element.add_column(
                 column, footer=rows[-1][index] if show_footer else ""
             )
         for row in rows[:-1] if show_footer else rows:
-            table.add_row(*row)
+            element.add_row(*row)
 
-        self.console.print(table)
+        self.console.print(element)
 
     def colorize(self, text: str, color: str):
         if color in colors:
