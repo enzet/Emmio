@@ -155,6 +155,13 @@ class Emmio:
         if command == "svg lexicon week":
             LexiconVisualizer().graph_with_svg(data.get_lexicons(self.user_id))
 
+        if command == "svg lexicon month":
+            LexiconVisualizer(
+                first_point=util.first_day_of_month,
+                next_point=util.plus_month,
+                impulses=False,
+            ).graph_with_svg(data.get_lexicons(self.user_id), 1.5)
+
         if command == "data":
             for learning in self.user_data.get_active_learnings():
                 logging.info(f"construct data for {learning.config.name}")
