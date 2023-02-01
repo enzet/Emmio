@@ -258,6 +258,7 @@ class DictionaryItem:
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
         hide_translations: set[str] | None = None,
+        only_common: bool = True,
     ) -> str:
         """
         Get human-readable representation of the dictionary item.
@@ -276,7 +277,12 @@ class DictionaryItem:
 
         for definition in self.forms:
             result += definition.to_str(
-                language, interface, show_word, words_to_hide, hide_translations
+                language,
+                interface,
+                show_word,
+                words_to_hide,
+                hide_translations,
+                only_common,
             )
 
         return result

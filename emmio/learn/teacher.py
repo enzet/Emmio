@@ -284,6 +284,7 @@ class Teacher:
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
                     hide_translations=exclude_translations,
+                    only_common=False,
                 )
                 for x in items
             ]
@@ -383,7 +384,6 @@ class Teacher:
                 "н",  # Short for нет.
                 "ո",  # Short for ոչ.
             ]:
-
                 self.interface.box(word)
                 if items:
                     string_items: list[str] = [
