@@ -197,50 +197,70 @@ class Visualizer:
         plt.plot(x, y)
         self.plot()
 
-    def graph_3(self, records: list[LearningRecord]):
-        x_list = [x.time for x in records]
-        min_x = min(x_list)
-        max_x = max(x_list)
-        point = util.day_start(min_x)
+    def graph_3(self, learnings: list[Learning]):
+        records: list[tuple[str, LearningRecord]] = []
 
+        for learning in learnings:
+            for record in learning.process.records:
+                if record.is_learning():
+                    records.append((learning.id_, record))
+
+        records = sorted(records, key=lambda x: x[1].time)
+
+        x_list: list[datetime] = [x.time for _, x in records]
+        min_x: datetime = min(x_list)
+        max_x: datetime = max(x_list)  # + timedelta(days=365)
+
+        # Mapping: learning id -> last learning record
         last_records: dict[str, LearningRecord] = {}
         data: dict[str, float] = {}
-        index: int = 0
 
         xs = []
         ys = []
-        ys2 = []
-        ys3 = []
+        ys_total = []
+        yys = {0.1: [], 0.15: [], 0.2: [], 0.25: [], 0.3: []}
+
+        point: datetime = util.day_start(min_x)
+        index: int = 0
 
         while point < max_x:
-            while records[index].time < point:
-                id_ = f"{records[index].course_id}_{records[index].question_id}"
-                last_records[id_] = records[index]
-                if records[index].is_learning():
-                    data[id_] = 1.0
-                index += 1
+            if index < len(records):
+                while records[index][1].time < point:
+                    learn_id, record = records[index]
+                    id_ = f"{learn_id}_{record.question_id}"
+                    last_records[id_] = record
+                    if record.is_learning():
+                        data[id_] = 1.0
+                    index += 1
+                    if index >= len(records):
+                        break
             xs.append(point)
             y = 0
-            y2 = 0
+            yy = {x: 0 for x in yys}
             for record in last_records.values():
                 if record.time + record.interval > point:
                     y += 1
                 if record.interval.total_seconds() > 0:
-                    y2 += 1 - 0.2 * min(
-                        5, (point - record.time) / record.interval
-                    )
-            y3 = 0
-            for id_ in data:
-                data[id_] *= 0.99
-                y3 += data[id_]
+                    for coef in yys:
+                        yy[coef] += max(
+                            0.0,
+                            1 - coef * (point - record.time) / record.interval,
+                        )
             ys.append(y)
-            ys2.append(y2)
-            ys3.append(y3)
+            for coef in yys:
+                yys[coef].append(yy[coef])
+            ys_total.append(len(last_records))
             point += timedelta(days=1)
 
-        plt.plot(xs, ys)
-        plt.plot(xs, ys2)
-        plt.plot(xs, ys3)
+        plt.fill_between(xs, yys[0.2], color="#0000FF", linewidth=0)
+        for y in yys.values():
+            plt.fill_between(
+                xs,
+                [v1 - v2 for v1, v2 in zip(y, ys_total)],
+                color="#FF000055",
+                linewidth=0,
+            )
+        plt.xlim([min_x, max_x])
         self.plot()
 
     def next_question_time(self, last_records: dict[str, Knowledge]):
