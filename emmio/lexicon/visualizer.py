@@ -93,7 +93,7 @@ class LexiconVisualizer:
 
     def graph_with_svg(self, lexicons, margin: float = 0.0):
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
-        graph = Graph(data, x_min, x_max)
+        graph = Graph(data, x_min, x_max, color=None)
         graph.plot(Drawing("lexicon.svg", graph.canvas.size, fill="#101010"))
 
     def construct_lexicon_data(self, lexicons, margin):
@@ -137,6 +137,6 @@ class LexiconVisualizer:
                 xs.append(point)
                 ys.append(rates[index])
 
-            data.append((xs, ys, lexicon.language.get_color(), language_name))
+            data.append([xs, ys, lexicon.language.get_color(), language_name])
 
         return x_min, x_max, sorted(data, key=lambda x: -x[1][-1])

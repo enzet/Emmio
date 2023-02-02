@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from emmio import util
-from emmio.learn.core import Knowledge, LearningRecord, Response
+from emmio.learn.core import Knowledge, LearningRecord, Response, Learning
 from emmio.learn.visualizer import LearningVisualizer, DEPTH_COLORS
 from emmio.lexicon.core import Lexicon, AnswerType
 
@@ -43,6 +43,7 @@ class Visualizer:
         command: str,
         records: list[LearningRecord],
         knowledges,
+        learnings: list[Learning],
         lexicons: list[Lexicon],
     ) -> bool:
         if command == "plot learn":
@@ -65,7 +66,7 @@ class Visualizer:
         if command == "graph 2":
             self.graph_2(records)
         if command == "graph 3":
-            self.graph_3(records)
+            self.graph_3(learnings)
         if command == "actions":
             self.actions(records)
         if command == "actions per day":

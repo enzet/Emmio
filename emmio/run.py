@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -89,10 +90,8 @@ class Emmio:
                 _, id_ = command.split(" ")
                 learnings = [self.data.get_learning(self.user_id, id_)]
             else:
-                learnings = sorted(
-                    self.data.get_active_learnings(self.user_id),
-                    key=lambda x: -x.count_questions_to_repeat(),
-                )
+                learnings = list(self.data.get_active_learnings(self.user_id))
+
             self.learn(learnings)
 
         if command.startswith("lexicon"):
@@ -230,7 +229,11 @@ class Emmio:
         if command in Visualizer.get_commands():
             records: list[LearningRecord] = []
             knowledge = {}
-            for learning in self.user_data.get_active_learnings():
+            learnings: list[Learning] = list(
+                self.user_data.get_active_learnings()
+            )
+
+            for learning in learnings:
                 records += learning.process.records
                 knowledge |= learning.knowledge
 
@@ -241,7 +244,9 @@ class Emmio:
                 self.user_data.get_lexicon(learning.learning_language)
                 for learning in self.user_data.get_active_learnings()
             ]
-            visualizer.process_command(command, records, knowledge, lexicons)
+            visualizer.process_command(
+                command, records, knowledge, learnings, lexicons
+            )
 
         if command.startswith("listen "):
             _, code = command.split(" ")
