@@ -7,7 +7,7 @@ numpy~=1.22.3
 pyTelegramBotAPI
 pydantic~=1.10.2
 rich~=12.3.0
-setuptools~=60.5.0
+setuptools~=65.5.1
 svgwrite~=1.4.2
 urllib3~=1.26.9
 wiktionaryparser~=0.0.97
