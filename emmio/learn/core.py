@@ -69,6 +69,9 @@ class LearningProcess(BaseModel):
     Mapping from question identifier to the number of times it was skipped.
     """
 
+    def skip(self, question_id: str) -> None:
+        self.skipping[question_id] = self.skipping.get(question_id, 0) + 1
+
 
 @dataclass
 class Knowledge:
@@ -178,9 +181,7 @@ class Learning:
             self.process.skipping.pop(question_id)
 
     def skip(self, question_id: str) -> None:
-        self.process.skipping[question_id] = (
-            self.process.skipping.get(question_id, 0) + 1
-        )
+        self.process.skip(question_id)
 
     def __is_not_skipped(self, question_id: str) -> bool:
         return question_id not in self.process.skipping.keys()
@@ -310,3 +311,9 @@ class Learning:
                 and ((now - x.last_record_time) / x.interval) < 0.8
             )
         ]
+
+    def compare_by_new(self) -> int:
+        return self.count_questions_added_today() - self.config.max_for_day
+
+    def compare_by_old(self) -> int:
+        return -self.count_questions_to_repeat()

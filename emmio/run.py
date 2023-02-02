@@ -313,32 +313,23 @@ class Emmio:
 
     def learn(self, learnings: list[Learning]) -> None:
 
-        for learning in learnings:
-
-            if learning.count_questions_to_repeat() > 0:
-                self.interface.header(
-                    f"Repeat learned for {learning.config.name}"
-                )
-                teacher: Teacher = Teacher(
-                    self.interface, self.data, self.user_data, learning
-                )
-                if not teacher.repeat():
-                    return
+        learnings = sorted(learnings, key=lambda x: x.compare_by_new())
 
         for learning in learnings:
-            if (
-                learning.config.max_for_day
-                > learning.count_questions_added_today()
-            ):
-                self.interface.header(
-                    f"Learn new and repeat for {learning.config.name}"
-                )
-                teacher: Teacher = Teacher(
-                    self.interface, self.data, self.user_data, learning
-                )
-                proceed: bool = teacher.start()
-                if not proceed:
-                    return
+            teacher: Teacher = Teacher(
+                self.interface, self.data, self.user_data, learning
+            )
+            if not teacher.learn_new():
+                return
+
+        learnings = sorted(learnings, key=lambda x: x.compare_by_old())
+
+        for learning in learnings:
+            teacher: Teacher = Teacher(
+                self.interface, self.data, self.user_data, learning
+            )
+            if not teacher.repeat():
+                return
 
         print()
 
