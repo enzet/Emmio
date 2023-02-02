@@ -28,7 +28,7 @@ class LearnData:
     def from_config(cls, path: Path, config: dict) -> "LearnData":
         """Initialize"""
         learnings: dict[str, Learning] = {
-            learn_id: Learning(path, LearnConfig(**learn_config))
+            learn_id: Learning(path, LearnConfig(**learn_config), learn_id)
             for learn_id, learn_config in config.items()
         }
         return cls(path, learnings)

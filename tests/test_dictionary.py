@@ -39,7 +39,7 @@ def test_russian_middle_accent() -> None:
 
 
 def test_ukrainian_accent() -> None:
-    """Test sanitizing an Ukrainian word with a diacritic symbol.
+    """Test sanitizing a Ukrainian word with a diacritic symbol.
 
     In Ukrainian accent is an additional diacritic symbol, which is not the part
     of the word.

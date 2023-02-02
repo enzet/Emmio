@@ -253,7 +253,7 @@ class Teacher:
             statistics += f"{'★ ' * log_()} "
         statistics += (
             f"skipped: {self.learning.get_skipping_counter(word)}  "
-            f"new today: {self.learning.count_questions_added_today()}  "
+            f"added today: {self.learning.count_questions_added_today()}  "
             f"to repeat: {self.learning.count_questions_to_repeat()}"
         )
 
