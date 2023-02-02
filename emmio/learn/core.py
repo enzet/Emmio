@@ -180,6 +180,16 @@ class Learning:
         if question_id in self.process.skipping:
             self.process.skipping.pop(question_id)
 
+    def verify(self) -> bool:
+        now: datetime = datetime.now()
+        question_ids = list(self.process.skipping.keys())
+        for question_id in question_ids:
+            knowledge = self.knowledge[question_id]
+            if knowledge.get_next_time() > now:
+                return False
+
+        return True
+
     def skip(self, question_id: str) -> None:
         self.process.skip(question_id)
 
