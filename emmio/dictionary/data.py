@@ -33,7 +33,6 @@ class DictionaryData:
         return cls(path, dictionaries)
 
     def get_dictionary(self, dictionary_usage_config: dict) -> Dictionary:
-
         match id_ := dictionary_usage_config["id"]:
             case "en_wiktionary":
                 return EnglishWiktionary(

@@ -65,9 +65,7 @@ class Teacher:
         return interval * 2
 
     def get_new_question(self) -> str | None:
-
         for question_id in self.words[self.word_index :]:
-
             self.word_index += 1
 
             # Check whether the learning process already has the word: whether
@@ -168,7 +166,6 @@ class Teacher:
             learning process was interrupted by the user.
         """
         while True:
-
             # Learn new questions.
 
             if (
@@ -222,7 +219,6 @@ class Teacher:
         self.audio.play(word, self.learning.learning_language)
 
     def learn(self, word: str, interval: timedelta) -> str:
-
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])

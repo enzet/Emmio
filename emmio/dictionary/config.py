@@ -4,7 +4,6 @@ from emmio.language import LanguageConfig
 
 
 class DictionaryConfig(BaseModel):
-
     file_name: str
     """Name of the file with dictionary."""
 

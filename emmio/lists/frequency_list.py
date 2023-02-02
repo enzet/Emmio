@@ -170,7 +170,6 @@ class FrequencyList(List):
                 )
 
     def load_from_csv_file(self, delimiter: str, header: list[str]) -> None:
-
         logging.debug(f"Loading frequency list from CSV file {self.file_path}.")
         self.data: dict[str, int] = {}
 
@@ -187,7 +186,6 @@ class FrequencyList(List):
                 self._sorted_keys.append(word)
 
     def load_from_json_file(self) -> None:
-
         logging.debug(
             f"Loading frequency list from JSON file {self.file_path}."
         )
@@ -198,7 +196,6 @@ class FrequencyList(List):
         self.__post_init__()
 
     def load_from_list_file(self) -> None:
-
         logging.debug(
             f"Loading frequency list from list file {self.file_path}."
         )
@@ -216,7 +213,6 @@ class FrequencyList(List):
         self.__post_init__()
 
     def load_from_url(self) -> None:
-
         logging.debug(f"Loading frequency list from url {self.config.url}.")
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()

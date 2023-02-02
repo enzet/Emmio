@@ -32,7 +32,6 @@ class AudioData:
         return cls(path, audio_providers)
 
     def get_audio_provider(self, usage_config: dict) -> AudioProvider:
-
         match id_ := usage_config["id"]:
             case "wikimedia_commons":
                 return WikimediaCommonsAudioProvider(self.path / "cache")

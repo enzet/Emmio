@@ -113,7 +113,6 @@ class Learning:
     """Learning process."""
 
     def __init__(self, path: Path, config: LearnConfig, id_: str) -> None:
-
         self.id_: str = id_
         self.config: LearnConfig = config
         self.knowledge: dict[str, Knowledge] = {}

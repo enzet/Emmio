@@ -32,7 +32,6 @@ class LearningWorker(Worker):
     """Server worker for learning process."""
 
     def __init__(self, learning: Learning, lexicon: Lexicon, data: Data):
-
         self.data: Data = data
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
@@ -114,7 +113,6 @@ class LearningWorker(Worker):
         )
 
     def get_next_question(self) -> list[str]:
-
         logging.debug("LearningWorker: get_next_question()")
         self.print_state()
 
@@ -189,7 +187,6 @@ class LearningWorker(Worker):
             if self.learning.config.ask_lexicon and not self.lexicon.has(
                 question_id
             ):
-
                 self.lexicon.write()
 
                 self.word = question_id
@@ -199,7 +196,6 @@ class LearningWorker(Worker):
             return question_id
 
     def get_question(self) -> list[str]:
-
         self.word = self.learning.get_next_question(self.skip)
 
         if not self.word:
@@ -297,7 +293,6 @@ class LearningWorker(Worker):
         self.print_state()
 
         if self.state == "waiting_lexicon_answer":
-
             to_skip: bool = False
 
             if message == "Show definition.":

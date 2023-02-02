@@ -50,7 +50,6 @@ class Emmio:
     def __init__(
         self, path: Path, interface: Interface, data: Data, user_id: str
     ) -> None:
-
         self.path: Path = path
         self.interface: Interface = interface
         self.data: Data = data
@@ -58,7 +57,6 @@ class Emmio:
         self.user_id: str = user_id
 
     def run(self):
-
         print("\nEmmio\n")
 
         print(
@@ -77,7 +75,6 @@ class Emmio:
             self.process_command(command)
 
     def process_command(self, command: str, interactive: bool = True) -> None:
-
         data: Data = self.data
 
         if command == "help":
@@ -95,7 +92,6 @@ class Emmio:
             self.learn(learnings)
 
         if command.startswith("lexicon"):
-
             code: str | None = None
             if command.startswith("lexicon "):
                 _, code = command.split(" ")
@@ -115,7 +111,6 @@ class Emmio:
             self.data.print_learning_statistics(self.interface, self.user_id)
 
         if command == "stat lexicon":
-
             rows = []
 
             for lexicon in sorted(
@@ -312,7 +307,6 @@ class Emmio:
             break
 
     def learn(self, learnings: list[Learning]) -> None:
-
         learnings = sorted(learnings, key=lambda x: x.compare_by_new())
 
         for learning in learnings:

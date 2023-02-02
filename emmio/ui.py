@@ -43,7 +43,6 @@ def colorize(text: str, color: str):
 
 
 def table(columns: list[str], rows: list[list[str]]) -> str:
-
     result: str = ""
 
     lengths: list[int] = [
@@ -221,7 +220,6 @@ class RichInterface(TerminalInterface):
         self.console.print(Panel(text, expand=False))
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
-
         show_footer: bool = rows[-1][0] == "Total"
 
         element: Table = Table(box=box.ROUNDED, show_footer=show_footer)

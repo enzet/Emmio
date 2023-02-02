@@ -18,7 +18,6 @@ class LexiconData:
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "LexiconData":
-
         lexicons: dict[str, Lexicon] = {}
 
         for lexicon_id, lexicon_config in config.items():
@@ -29,7 +28,6 @@ class LexiconData:
         return cls(path, lexicons)
 
     def get_lexicons(self) -> Iterator[Lexicon]:
-
         return iter(self.lexicons.values())
 
     def get_lexicon(self, language: Language) -> Lexicon | None:

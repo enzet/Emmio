@@ -49,7 +49,6 @@ class Link:
 
 @dataclass
 class DefinitionValue:
-
     value: str
     description: str = ""
 
@@ -79,7 +78,6 @@ class DefinitionValue:
 
 @dataclass
 class Definition:
-
     values: list[DefinitionValue]
     descriptors: list[str] = field(default_factory=list)
 
@@ -304,7 +302,6 @@ class DictionaryItem:
         return False
 
     def get_one_word_definition(self, language: Language) -> str | None:
-
         if forms := self.forms:
             if definitions := forms[0].definitions:
                 if language in definitions:
@@ -399,7 +396,6 @@ class Dictionary:
 
 @dataclass
 class SimpleDictionary(Dictionary):
-
     data: dict[str, str]
     from_language: Language
     to_language: Language
@@ -408,7 +404,6 @@ class SimpleDictionary(Dictionary):
     def from_config(
         cls, path: Path, config: DictionaryConfig
     ) -> "SimpleDictionary":
-
         with (path / config.file_name).open() as input_file:
             data = json.load(input_file)
 
@@ -421,7 +416,6 @@ class SimpleDictionary(Dictionary):
     def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
-
         if word not in self.data:
             return None
 

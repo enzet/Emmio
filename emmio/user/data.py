@@ -11,7 +11,6 @@ from emmio.lexicon.data import LexiconData
 
 @dataclass
 class UserData:
-
     path: Path
     user_name: str
     learnings: LearnData
@@ -19,7 +18,6 @@ class UserData:
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "UserData":
-
         return cls(
             path,
             config["name"],

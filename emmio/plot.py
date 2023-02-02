@@ -99,7 +99,6 @@ class Graph:
         )
 
     def plot(self, svg: Drawing) -> None:
-
         recolor: str | None = None
 
         if isinstance(self.color, list):
@@ -132,7 +131,6 @@ class Graph:
         last_text_y = 0
 
         for xs, ys, color, title in self.data:
-
             if recolor:
                 color = recolor
 
@@ -192,7 +190,6 @@ class Graph:
             svg.write(output_file)
 
     def draw_grid(self, svg):
-
         for index in range(8):
             mapped_1: np.ndarray = self.map_((0, index))
             mapped_2: np.ndarray = self.map_((self.max_x_second, index))

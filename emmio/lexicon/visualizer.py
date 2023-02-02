@@ -13,7 +13,6 @@ from emmio.util import first_day_of_week, year_start, year_end
 
 @dataclass
 class LexiconVisualizer:
-
     plot_precise_values: bool = False
     """Plot marker for each user response."""
 
@@ -102,7 +101,6 @@ class LexiconVisualizer:
         data = []
 
         for lexicon in lexicons:
-
             lexicon: Lexicon
             dates, rates = lexicon.construct_precise(self.precision)
 

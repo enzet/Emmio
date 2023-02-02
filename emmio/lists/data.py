@@ -20,7 +20,6 @@ class ListsData:
 
     @classmethod
     def from_config(cls, path: Path) -> "ListsData":
-
         frequency_lists: dict[str, FrequencyList] = {}
         word_lists: dict[str, WordList] = {}
 

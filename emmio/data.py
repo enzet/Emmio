@@ -154,7 +154,6 @@ class Data:
     def print_learning_statistics(
         self, interface: ui.Interface, user_id: str
     ) -> None:
-
         learnings: list[Learning] = sorted(
             self.get_active_learnings(user_id),
             key=lambda x: -x.count_questions_to_repeat(),

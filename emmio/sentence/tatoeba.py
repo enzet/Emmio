@@ -26,7 +26,6 @@ class TatoebaSentences(Sentences):
     database: SentenceDatabase
 
     def __post_init__(self):
-
         links_cache_path: Path = (
             self.path / "cache" / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"
@@ -61,7 +60,6 @@ class TatoebaSentences(Sentences):
             self.fill_cache(links_cache_path)
 
     def read_links(self, cache_path: Path):
-
         file_path: Path = cache_path / "links.csv"
 
         if not file_path.exists():
@@ -133,7 +131,6 @@ class TatoebaSentences(Sentences):
                 self.links.pop(id_1)
 
     def read_link_sets(self, file_name: Path):
-
         logging.info("Reading link cache...")
         with file_name.open() as input_file:
             self.links = json.load(input_file)

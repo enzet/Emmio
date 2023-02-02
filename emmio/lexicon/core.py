@@ -232,7 +232,6 @@ class Lexicon:
     """Tracking of lexicon for one particular language through time."""
 
     def __init__(self, path: Path, config: LexiconConfig):
-
         self.language = construct_language(config.language)
         self.config: LexiconConfig = config
         self.logs: dict[str, LexiconLog] = {}
@@ -401,7 +400,6 @@ class Lexicon:
     def get_bounds(
         self, point_1: datetime, point_2: datetime
     ) -> tuple[int, int]:
-
         min_value, max_value, min_index, max_index = None, None, None, None
 
         for i in range(len(self.dates)):
@@ -442,7 +440,6 @@ class Lexicon:
     def construct_precise(
         self, precision: int = 100
     ) -> (list[datetime], list[float]):
-
         dates: list[datetime] = []
         rates: list[float] = []
         left, right, knowns = 0, 0, 0
@@ -526,7 +523,6 @@ class Lexicon:
         for word in sorted(
             self.words.keys(), key=lambda x: -frequency_list.get_occurrences(x)
         ):
-
             word_knowledge = self.words[word]
             if word_knowledge.knowing == LexiconResponse.DONT:
                 result.append(word)
@@ -771,7 +767,6 @@ class Lexicon:
         skip_unknown: bool,
         log_name: str,
     ) -> bool:
-
         last_response: LexiconResponse | None = None
         if self.has(picked_word):
             last_response = self.get(picked_word)

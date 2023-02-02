@@ -50,7 +50,6 @@ class EmmioServer:
     """Server for Emmio learning and testing processes."""
 
     def __init__(self, data: Data, user_id: str):
-
         self.data: Data = data
         self.user_data: UserData = data.users_data[user_id]
 
@@ -111,7 +110,6 @@ class EmmioServer:
             return "stat"
 
         if self.state == ServerState.NOTHING:
-
             if self.learnings and (
                 (nearest := sorted(self.learnings)[0]).is_ready()
             ):
@@ -190,7 +188,6 @@ class TerminalServer(EmmioServer):
         self.send(interface.string)
 
     def receive_message(self, message: str):
-
         if message.startswith("/status"):
             self.status()
             return
@@ -225,7 +222,6 @@ class TelegramServer(EmmioServer):
         self.send(interface.string)
 
     def send(self, message: str, markup=None):
-
         if len(message) > MAXIMUM_MESSAGE_SIZE:
             message = message[:MAXIMUM_MESSAGE_SIZE] + "..."
 
@@ -237,7 +233,6 @@ class TelegramServer(EmmioServer):
             pass
 
     def receive_message(self, message: Message):
-
         print(f"Received {message.text}.")
 
         self.id_ = message.chat.id
@@ -259,7 +254,6 @@ class TelegramServer(EmmioServer):
 
 
 def start(data: Data, arguments: Namespace):
-
     user_id: str = arguments.user if arguments.user else getpass.getuser()
     server: EmmioServer
 

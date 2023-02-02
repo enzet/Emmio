@@ -44,7 +44,6 @@ class Sentences:
 
 @dataclass
 class SimpleSentences(Sentences):
-
     path: Path
     config: SentencesConfig
 
@@ -59,13 +58,11 @@ class SimpleSentences(Sentences):
 
 @dataclass
 class SentencesCollection:
-
     collection: list[Sentences]
 
     def filter_(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
-
         result: list[SentenceTranslations] = []
 
         for s in self.collection:

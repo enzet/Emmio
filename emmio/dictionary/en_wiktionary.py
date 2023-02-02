@@ -90,7 +90,6 @@ class EnglishWiktionary(Dictionary):
 
     @staticmethod
     def process_definition(text: str) -> Link | Definition:
-
         # Preparsing.
         text = text.strip()
         if text.endswith("."):
@@ -121,7 +120,6 @@ class EnglishWiktionary(Dictionary):
     def parse_form(
         self, word: str, definition: dict[str, Any], pronunciations: list[str]
     ) -> Form | None:
-
         form: Form = Form(word, definition["partOfSpeech"])
 
         if "text" not in definition or not definition["text"]:
@@ -199,7 +197,6 @@ class EnglishWiktionary(Dictionary):
         item: DictionaryItem = DictionaryItem(word)
 
         for element in content:
-
             pronunciations: list[str] = []
 
             if "pronunciations" in element:

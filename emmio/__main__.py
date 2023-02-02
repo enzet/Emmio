@@ -108,7 +108,6 @@ def main():
     data: Data = Data.from_directory(data_path)
 
     match arguments.command:
-
         case "server":
             from emmio.server import start
 

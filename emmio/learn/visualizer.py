@@ -30,7 +30,6 @@ def get_depth(interval: timedelta) -> int:
 
 @dataclass
 class LearningVisualizer:
-
     # User responses.
     records: list[LearningRecord]
 

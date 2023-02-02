@@ -22,7 +22,6 @@ class SentencesData:
 
     @classmethod
     def from_config(cls, path: Path) -> "SentencesData":
-
         database: SentenceDatabase = SentenceDatabase(path / "sentences.db")
         sentences: dict[str, Sentences] = {}
 
@@ -34,7 +33,6 @@ class SentencesData:
         return cls(path, database, sentences)
 
     def get_sentences(self, usage_config: dict):
-
         match id_ := usage_config["id"]:
             case "tatoeba":
                 language_1, language_2 = usage_config["languages"]
@@ -50,7 +48,6 @@ class SentencesData:
     def get_sentences_collection(
         self, usage_configs: list[dict]
     ) -> SentencesCollection:
-
         collection = []
 
         for usage_config in usage_configs:

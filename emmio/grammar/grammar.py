@@ -70,7 +70,6 @@ class GrammarRule:
 
 
 class NotInterchangeableSensesGrammarRule(GrammarRule):
-
     id_: str = "not_interchangeable_senses"
 
 
@@ -106,7 +105,6 @@ class FormToSentence:
 
 @dataclass
 class SentenceChecker:
-
     # Pattern for sentences in known (native) language.
     known_language_pattern: re.Pattern
 

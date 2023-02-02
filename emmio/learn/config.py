@@ -15,7 +15,6 @@ class LearnType(Enum):
 
 
 class LearnConfig(BaseModel):
-
     file_name: str
     """Name of the file with learning process."""
 

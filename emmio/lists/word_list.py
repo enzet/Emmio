@@ -8,7 +8,6 @@ from emmio.lists.core import List
 
 @dataclass
 class WordList(List):
-
     file_path: Path
     config: WordListConfig
     data: list[str] | None = None
@@ -26,7 +25,6 @@ class WordList(List):
             raise Exception(f"No file {self.config.path}")
 
     def load_from_file(self) -> None:
-
         logging.debug(f"Loading word list from list file {self.file_path}.")
 
         with self.file_path.open() as input_file:
