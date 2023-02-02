@@ -106,7 +106,6 @@ def main():
     data_path.mkdir(parents=True, exist_ok=True)
 
     data: Data = Data.from_directory(data_path)
-    user_id: str = arguments.user if arguments.user else getpass.getuser()
 
     match arguments.command:
 
@@ -127,6 +126,9 @@ def main():
         case "run":
             from emmio.run import Emmio
 
+            user_id: str = (
+                arguments.user if arguments.user else getpass.getuser()
+            )
             robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
             robot.run()
 
