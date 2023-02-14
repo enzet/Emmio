@@ -151,8 +151,8 @@ int main(int argc, char** argv) {
 
     process(binary_tree, str, 0, 0);
 
-    // Sort word from the most frequent to the least frequent. For words with
-    // the same number of occurrences, order is undefined.
+    // Sort word from the most frequent to the least frequent. The order of
+    // words with the same number of occurrences is undefined.
 
     printf("Sorting...\n");
 

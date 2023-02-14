@@ -5,6 +5,10 @@ __email__ = "me@enzet.ru"
 
 
 class List:
+    def get_name(self) -> str:
+        """Get list name."""
+        raise NotImplementedError()
+
     def get_info(self) -> str:
         """Get information about the list."""
         raise NotImplementedError()

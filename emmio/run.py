@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -307,15 +306,6 @@ class Emmio:
             break
 
     def learn(self, learnings: list[Learning]) -> None:
-        learnings = sorted(learnings, key=lambda x: x.compare_by_new())
-
-        for learning in learnings:
-            teacher: Teacher = Teacher(
-                self.interface, self.data, self.user_data, learning
-            )
-            if not teacher.learn_new():
-                return
-
         learnings = sorted(learnings, key=lambda x: x.compare_by_old())
 
         for learning in learnings:
@@ -323,6 +313,15 @@ class Emmio:
                 self.interface, self.data, self.user_data, learning
             )
             if not teacher.repeat():
+                return
+
+        learnings = sorted(learnings, key=lambda x: x.compare_by_new())
+
+        for learning in learnings:
+            teacher: Teacher = Teacher(
+                self.interface, self.data, self.user_data, learning
+            )
+            if not teacher.learn_new():
                 return
 
         print()

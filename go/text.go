@@ -65,13 +65,13 @@ func main() {
 	}
 	defer outputFile.Close()
 
-	sp := []byte(" ")
-	nl := []byte("\n")
+	space := []byte(" ")
+	newLine := []byte("\n")
 
 	for _, key := range keys {
 		outputFile.WriteString(key)
-		outputFile.Write(sp)
+		outputFile.Write(space)
 		outputFile.Write([]byte(strconv.Itoa(words[key])))
-		outputFile.Write(nl)
+		outputFile.Write(newLine)
 	}
 }

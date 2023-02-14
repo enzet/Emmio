@@ -93,7 +93,7 @@ class Visualizer:
         if command == "next question time":
             self.next_question_time(knowledges)
         if command == "mistakes":
-            self.graph_mistakes(records)
+            self.graph_mistakes(learnings)
         return False
 
     def plot(self):
@@ -209,7 +209,12 @@ class Visualizer:
 
         x_list: list[datetime] = [x.time for _, x in records]
         min_x: datetime = min(x_list)
-        max_x: datetime = max(x_list)  # + timedelta(days=365)
+        max_x: datetime = util.day_start(datetime.now())
+        days: int = int((max_x - min_x).total_seconds() / 3600 / 24)
+
+        points = [
+            util.day_start(min_x) + timedelta(days=i) for i in range(days)
+        ] + [datetime.now()]
 
         # Mapping: learning id -> last learning record
         last_records: dict[str, LearningRecord] = {}
@@ -223,7 +228,7 @@ class Visualizer:
         point: datetime = util.day_start(min_x)
         index: int = 0
 
-        while point < max_x:
+        for point in points:
             if index < len(records):
                 while records[index][1].time < point:
                     learn_id, record = records[index]
@@ -250,7 +255,6 @@ class Visualizer:
             for coef in yys:
                 yys[coef].append(yy[coef])
             ys_total.append(len(last_records))
-            point += timedelta(days=1)
 
         plt.fill_between(xs, yys[0.2], color="#0000FF", linewidth=0)
         for y in yys.values():
@@ -260,7 +264,7 @@ class Visualizer:
                 color="#FF000055",
                 linewidth=0,
             )
-        plt.xlim([min_x, max_x])
+        plt.xlim([min_x, points[-1]])
         self.plot()
 
     def next_question_time(self, last_records: dict[str, Knowledge]):
@@ -275,14 +279,21 @@ class Visualizer:
         plt.plot(x, y, "o", color="black", markersize=0.5)
         self.plot()
 
-    def graph_mistakes(self, records: list[LearningRecord]):
-        size: int = 7
+    def graph_mistakes(self, learnings):
+        records: list[tuple[str, LearningRecord]] = []
+
+        for learning in learnings:
+            for record in learning.process.records:
+                if record.is_learning():
+                    records.append((learning.id_, record))
+
+        size: int = 10
         xs = range(size)
         ys = [0] * size
         ns = [0] * size
         lasts = defaultdict(int)
-        for record in records:
-            id_: str = f"{record.course_id}_{record.question_id}"
+        for learning_id, record in records:
+            id_: str = f"{learning_id}_{record.question_id}"
             if record.response == Response.RIGHT:
                 if id_ in lasts:
                     ys[lasts[id_]] += 1

@@ -171,15 +171,15 @@ class Graph:
                     svg.add(line)
                 previous_point = point
 
-            for point in points:
-                svg.add(
-                    svg.circle(
-                        (point[0], point[1]),
-                        5.5,
-                        fill=self.background_color.hex,
-                    )
-                )
-                svg.add(svg.circle((point[0], point[1]), 3.5, fill=color))
+            # for point in points:
+            #     svg.add(
+            #         svg.circle(
+            #             (point[0], point[1]),
+            #             5.5,
+            #             fill=self.background_color.hex,
+            #         )
+            #     )
+            #     svg.add(svg.circle((point[0], point[1]), 3.5, fill=color))
 
             title: str
             text_y = max(last_text_y + 20, point[1] + 6)

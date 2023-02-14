@@ -30,6 +30,9 @@ class WordList(List):
         with self.file_path.open() as input_file:
             self.data = [x[:-1] for x in input_file.readlines()]
 
+    def get_name(self) -> str:
+        return self.config.name
+
     def get_info(self) -> str:
         return (
             f"  Length: {len(self.data)}\n"

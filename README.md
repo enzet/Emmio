@@ -22,22 +22,22 @@ Requires __Python 3.10__.
 pip install git+https://github.com/enzet/emmio
 ```
 
-## Server
+## Get started
+
+To run Emmio, just run
 
 ```shell
-emmio server
+emmio
 ```
 
-To run Emmio server on the Telegram, use
-
-```shell
-emmio server --mode telegram --token ${TELEGRAM_TOKEN}
-```
+You may specify data directory with `--data` option and username with `--user`
+option. If not specified data directory is assumed to be `~/.emmio` and username
+is assumed to be the current system username.
 
 ## Lexicon
 
-```shell
-emmio lexicon
+```
+> lexicon
 ```
 
 The algorithm will randomly (based on frequency) offer you words of the target
@@ -122,4 +122,3 @@ There is [Hermit Dave](https://github.com/hermitdave)'s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
 full and stripped frequency lists extracted from subtitles in
 [Opensubtitles](https://www.opensubtitles.org) project.
-

@@ -46,13 +46,6 @@ def main():
 
     subparser = parser.add_subparsers(dest="command")
 
-    # Command `learn`.
-    learn_parser: ArgumentParser = subparser.add_parser(
-        "learn", help="start learning process"
-    )
-
-    learn_parser.add_argument("--user", help="user name")
-
     # Command `server`.
     server_parser: ArgumentParser = subparser.add_parser(
         "server", help="run Emmio server"

@@ -8,7 +8,13 @@ from emmio.data import Data
 from emmio.dictionary.core import DictionaryItem, DictionaryCollection
 from emmio.language import GERMAN
 from emmio.learn.core import Learning, Response
-from emmio.lexicon.core import LexiconLog, LexiconResponse, WordSelection
+from emmio.lexicon.core import (
+    LexiconLog,
+    LexiconResponse,
+    WordSelection,
+    Lexicon,
+)
+from emmio.lists.core import List
 from emmio.sentence.core import SentenceTranslations, SentencesCollection
 from emmio.ui import Interface
 from emmio.user.data import UserData
@@ -30,14 +36,16 @@ class Teacher:
         self.interface: Interface = interface
         self.data: Data = data
 
+        self.learning: Learning = learning
+        self.lexicon: Lexicon = user_data.get_lexicon(
+            self.learning.learning_language
+        )
         self.word_index: int = 0
-
-        self.learning = learning
-        self.lexicon = user_data.get_lexicon(self.learning.learning_language)
-
-        self.words: list[str] = []
+        self.words: list[tuple[str, List, int]] = []
         for list_id in self.learning.config.lists:
-            self.words += data.get_words(list_id)
+            list_ = data.get_list(list_id)
+            for index, word in enumerate(list_.get_words()):
+                self.words.append((word, list_, index))
 
         self.stop_after_answer: bool = False
 
@@ -65,7 +73,9 @@ class Teacher:
         return interval * 2
 
     def get_new_question(self) -> str | None:
-        for question_id in self.words[self.word_index :]:
+        for question_id, list_, index in self.words[self.word_index :]:
+            logging.info(f"{index}th word from {list_.get_name()}")
+
             self.word_index += 1
 
             # Check whether the learning process already has the word: whether

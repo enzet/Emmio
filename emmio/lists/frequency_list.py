@@ -139,6 +139,9 @@ class FrequencyList(List):
             return self._sorted_keys.index(word)
         return -1
 
+    def get_name(self) -> str:
+        return self.config.name
+
     def get_info(self) -> str:
         return f"  Length: {len(self)}\n" f"  Language: {self.config.language}"
 
