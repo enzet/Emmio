@@ -213,19 +213,17 @@ class Visualizer:
         days: int = int((max_x - min_x).total_seconds() / 3600 / 24)
 
         points = [
-            util.day_start(min_x) + timedelta(days=i) for i in range(days)
+            util.day_start(min_x) + timedelta(days=i) for i in range(days + 1)
         ] + [datetime.now()]
 
-        # Mapping: learning id -> last learning record
+        # Mapping: learning id -> last learning record.
         last_records: dict[str, LearningRecord] = {}
         data: dict[str, float] = {}
 
         xs = []
-        ys = []
-        ys_total = []
-        yys = {0.1: [], 0.15: [], 0.2: [], 0.25: [], 0.3: []}
+        values_map = {0.1: [], 0.15: [], 0.2: [], 0.25: [], 0.3: []}
+        values_total = []
 
-        point: datetime = util.day_start(min_x)
         index: int = 0
 
         for point in points:
@@ -240,30 +238,33 @@ class Visualizer:
                     if index >= len(records):
                         break
             xs.append(point)
-            y = 0
-            yy = {x: 0 for x in yys}
-            for record in last_records.values():
-                if record.time + record.interval > point:
-                    y += 1
-                if record.interval.total_seconds() > 0:
-                    for coef in yys:
-                        yy[coef] += max(
-                            0.0,
-                            1 - coef * (point - record.time) / record.interval,
-                        )
-            ys.append(y)
-            for coef in yys:
-                yys[coef].append(yy[coef])
-            ys_total.append(len(last_records))
 
-        plt.fill_between(xs, yys[0.2], color="#0000FF", linewidth=0)
-        for y in yys.values():
-            plt.fill_between(
-                xs,
-                [v1 - v2 for v1, v2 in zip(y, ys_total)],
-                color="#FF000055",
-                linewidth=0,
-            )
+            values = {precision: 0 for precision in values_map}
+            for record in last_records.values():
+                if record.interval.total_seconds() > 0:
+                    for coef in values_map:
+                        values[coef] += max(
+                            0.0,
+                            (1 - coef)
+                            ** ((point - record.time) / record.interval),
+                        )
+            for coef in values_map:
+                values_map[coef].append(values[coef])
+            values_total.append(len(last_records))
+
+        values_map_bad = {
+            pr: [v1 - v2 for v1, v2 in zip(values_map[pr], values_total)]
+            for pr in values_map
+        }
+        plt.plot(xs, [0] * len(xs), color="black", linewidth=1)
+
+        for map_ in values_map, values_map_bad:
+            plt.plot(xs, map_[0.2], color="black", linewidth=1)
+            for bottom, top in ((0.15, 0.25), (0.1, 0.3)):
+                plt.fill_between(
+                    xs, map_[bottom], map_[top], color="#00000022", linewidth=0
+                )
+
         plt.xlim([min_x, points[-1]])
         self.plot()
 
