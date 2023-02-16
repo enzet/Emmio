@@ -4,6 +4,7 @@ from typing import Callable, Iterator
 
 import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
+from colour import Color
 from svgwrite import Drawing
 
 from emmio.lexicon.core import Lexicon
@@ -92,7 +93,7 @@ class LexiconVisualizer:
 
     def graph_with_svg(self, lexicons, margin: float = 0.0):
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
-        graph = Graph(data, x_min, x_max, color=None)
+        graph = Graph(data, x_min, x_max, color=Color("#000000"))
         graph.plot(Drawing("lexicon.svg", graph.canvas.size, fill="#101010"))
 
     def construct_lexicon_data(self, lexicons, margin):
