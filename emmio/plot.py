@@ -151,8 +151,8 @@ class Graph:
                     self.canvas.workspace[1],
                 )
                 points.append(mapped)
-            previous_point: np.ndarray | None = None
 
+            previous_point: np.ndarray | None = None
             for point in points:
                 if previous_point is not None:
                     line: Line = svg.line(
@@ -160,13 +160,20 @@ class Graph:
                         (point[0], point[1]),
                         stroke=self.background_color.hex,
                         stroke_width=6,
+                        stroke_linecap="round",
                     )
                     svg.add(line)
+                previous_point = point
+
+            previous_point: np.ndarray | None = None
+            for point in points:
+                if previous_point is not None:
                     line: Line = svg.line(
                         (previous_point[0], previous_point[1]),
                         (point[0], point[1]),
                         stroke=color,
                         stroke_width=2,
+                        stroke_linecap="round",
                     )
                     svg.add(line)
                 previous_point = point
@@ -182,7 +189,7 @@ class Graph:
             #     svg.add(svg.circle((point[0], point[1]), 3.5, fill=color))
 
             title: str
-            text_y = max(last_text_y + 20, point[1] + 6)
+            text_y = max(last_text_y + 15, point[1] + 5)
             self.text(svg, (point[0] + 15, text_y), title.upper(), color)
             last_text_y = text_y
 
@@ -231,6 +238,7 @@ class Graph:
         text = svg.text(
             text,
             point,
+            font_size=12,
             font_family="Montserrat",
             font_weight=600,
             letter_spacing=1,
