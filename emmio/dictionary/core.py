@@ -106,6 +106,10 @@ class Definition:
 
         result += "; ".join(x.to_str(to_hide) for x in self.values)
 
+        # FIXME: hack for the Ukrainian.
+        if to_hide and "•" in result:
+            return "•••"
+
         return result
 
 
