@@ -24,8 +24,8 @@ class LearnConfig(BaseModel):
     learning_language: LanguageConfig
     """Learning subject."""
 
-    base_language: LanguageConfig
-    """Language known by user."""
+    base_languages: list[LanguageConfig]
+    """Languages known by user."""
 
     is_active: bool = True
     """Whether the learning process is active now."""

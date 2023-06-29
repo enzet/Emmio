@@ -100,14 +100,8 @@ class Teacher:
 
             # Request word definition in the dictionary.
             items: list[DictionaryItem] = self.dictionaries.get_items(
-                question_id
+                question_id, self.learning.learning_language
             )
-            if not items and self.learning.learning_language == GERMAN:
-                for item in self.dictionaries.get_items(
-                    question_id[0].upper() + question_id[1:]
-                ):
-                    if item not in items:
-                        items.append(item)
 
             # Skip word if current dictionaries has no definitions for it.
             if not items:
@@ -115,7 +109,17 @@ class Teacher:
                 continue
 
             # Skip word if it is known that it is solely a form of other words.
-            if not items[0].has_common_definition(self.learning.base_language):
+            items_no_links: list[DictionaryItem] = self.dictionaries.get_items(
+                question_id, self.learning.learning_language, follow_links=False
+            )
+
+            not_common = False
+            for item in items_no_links:
+                for language in self.learning.base_languages:
+                    if item.has_definitions() and item.is_not_common(language):
+                        not_common = True
+                        break
+            if not_common:
                 logging.info("Not common")
                 continue
 
@@ -133,6 +137,9 @@ class Teacher:
                     continue
                 else:
                     logging.info("Lexicon response was DONT KNOW")
+                    # FIXME: user response may be DONT KNOW, but the word is
+                    #        still may be just a form or not common, so we don't
+                    #        want to learn it.
                     return question_id
 
             # If `ask_lexicon` option is enabled, show the word to user before
@@ -300,12 +307,9 @@ class Teacher:
         # if word in self.data.exclude_translations:
         #     exclude_translations = set(self.data.exclude_translations[word])
 
-        items: list[DictionaryItem] = self.dictionaries.get_items(word)
-
-        if self.learning.learning_language == GERMAN:
-            for item in self.dictionaries.get_items(word[0].upper() + word[1:]):
-                if item not in items:
-                    items.append(item)
+        items: list[DictionaryItem] = self.dictionaries.get_items(
+            word, self.learning.learning_language
+        )
 
         words_to_hide: set[str] = set()
         for item in items:
@@ -316,7 +320,7 @@ class Teacher:
         if items:
             translation_list = [
                 x.to_str(
-                    self.learning.base_language,
+                    self.learning.base_languages,
                     self.interface,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
@@ -357,7 +361,7 @@ class Teacher:
                 )
                 if items:
                     string_items: list[str] = [
-                        x.to_str(self.learning.base_language, self.interface)
+                        x.to_str(self.learning.base_languages, self.interface)
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))
@@ -424,7 +428,7 @@ class Teacher:
                 self.interface.box(word)
                 if items:
                     string_items: list[str] = [
-                        x.to_str(self.learning.base_language, self.interface)
+                        x.to_str(self.learning.base_languages, self.interface)
                         for x in items
                     ]
                     self.interface.print("\n".join(string_items))

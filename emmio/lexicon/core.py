@@ -555,12 +555,15 @@ class Lexicon:
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
 
-        items: list[DictionaryItem] = dictionaries.get_items(word)
-
+        items: list[DictionaryItem] = dictionaries.get_items(
+            word, self.language
+        )
         if items:
             print("[Show translation]")
             get_char()
-            print("\n".join(map(lambda x: x.to_str(ENGLISH, interface), items)))
+            print(
+                "\n".join(map(lambda x: x.to_str([ENGLISH], interface), items))
+            )
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
 
@@ -709,9 +712,7 @@ class Lexicon:
                 items: list[DictionaryItem] = dictionaries.get_items(
                     picked_word
                 )
-                if not items or not items[0].has_common_definition(
-                    learning.language
-                ):
+                if not items or items[0].is_not_common(learning.language):
                     continue
                 print(f"[{mf_index}]")
 

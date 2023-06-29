@@ -119,7 +119,9 @@ class Learning:
         self.learning_language: Language = construct_language(
             config.learning_language
         )
-        self.base_language: Language = construct_language(config.base_language)
+        self.base_languages: list[Language] = [
+            construct_language(x) for x in config.base_languages
+        ]
         self.file_path: Path = path / config.file_name
 
         # Create learning file if it doesn't exist.

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
-from emmio.language import Language, construct_language
+from emmio.language import Language, construct_language, GERMAN
 from emmio.text import sanitize
 from emmio.ui import Interface
 from emmio.util import flatten
@@ -163,20 +163,30 @@ class Form:
         """
         self.links.append(link)
 
-    def has_common_definition(self, language: Language) -> bool:
+    def is_not_common(self, language: Language) -> bool:
         """
-        Check whether the form has at least one common definition.
+        Check whether we can deduce from the present definitions that word is
+        not a common word of the language. E.g. it is misspelling, obsolete, or
+        slang.
 
-        Also check if it is not just a form of some another word.
+        Also check whether it is just a form of some another word.
         """
         if self.part_of_speech == "letter":
-            return False
+            return True
 
         if language in self.definitions:
             for definition in self.definitions[language]:
                 if definition.is_common():
-                    return True
+                    return False
+            return True
 
+        # If there are no definitions, but there are links to other forms, we
+        # decide that this is just a form of a word.
+        if self.links:
+            return True
+
+        # If there are no definitions and no links, we cannot decide if the word
+        # is not # common.
         return False
 
     def to_str(
@@ -255,7 +265,7 @@ class DictionaryItem:
 
     def to_str(
         self,
-        language: Language,
+        languages: list[Language],
         interface: Interface,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
@@ -265,12 +275,13 @@ class DictionaryItem:
         """
         Get human-readable representation of the dictionary item.
 
-        :param language: the language of translation
+        :param languages: the languages of translation
         :param interface: user interface provider
         :param show_word: if false, hide word transcription and word occurrences
             in examples
         :param words_to_hide: set of words to be hidden from the output
         :param hide_translations: list of translations that should be hidden
+        :param only_common: return only common words
         """
         result: str = ""
 
@@ -278,14 +289,15 @@ class DictionaryItem:
             result += self.word + "\n"
 
         for definition in self.forms:
-            result += definition.to_str(
-                language,
-                interface,
-                show_word,
-                words_to_hide,
-                hide_translations,
-                only_common,
-            )
+            for language in languages:
+                result += definition.to_str(
+                    language,
+                    interface,
+                    show_word,
+                    words_to_hide,
+                    hide_translations,
+                    only_common,
+                )
 
         return result
 
@@ -293,17 +305,17 @@ class DictionaryItem:
         """Check whether the dictionary item has at least one definition."""
         return len(self.forms) > 0
 
-    def has_common_definition(self, language: Language) -> bool:
+    def is_not_common(self, language: Language) -> bool:
         """
-        Check whether the form has at least one common definition.
+        Check whether all forms of the word are not common.
 
         Also check if it is not just a form of some another word.
         """
-        for definition in self.forms:
-            if definition.has_common_definition(language):
-                return True
+        for form in self.forms:
+            if not form.is_not_common(language):
+                return False
 
-        return False
+        return True
 
     def get_one_word_definition(self, language: Language) -> str | None:
         if forms := self.forms:
@@ -453,7 +465,9 @@ class DictionaryCollection:
         """
         self.dictionaries.append(dictionary)
 
-    def get_items(self, word: str) -> list[DictionaryItem]:
+    def get_items(
+        self, word: str, language: Language, follow_links: bool = True
+    ) -> list[DictionaryItem]:
         """Get dictionary items from all dictionaries."""
 
         items: list[DictionaryItem] = []
@@ -461,6 +475,8 @@ class DictionaryCollection:
         for dictionary in self.dictionaries:
             if item := dictionary.get_item(word):
                 items.append(item)
+                if not follow_links:
+                    continue
                 links: set[str] = set()
                 for definition in item.forms:
                     links |= set([x.link_value for x in definition.links])
@@ -468,5 +484,18 @@ class DictionaryCollection:
                     link_item: DictionaryItem = dictionary.get_item(link)
                     if link_item:
                         items.append(link_item)
+
+        # If no items are found and the word is German, and it starts with
+        # lowercase letter, try to find its variant with capitalized first
+        # letter.
+        if (
+            not items
+            and word
+            and word[0].lower() == word[0]
+            and language == GERMAN
+        ):
+            for item in self.get_items(word[0].upper() + word[1:], language):
+                if item not in items:
+                    items.append(item)
 
         return items
