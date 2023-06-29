@@ -17,11 +17,12 @@
 // prefix will be used as a whole word.
 #define MAX_WORD_SIZE 50
 
-enum Language {
-    HY = 0,
+enum Script {
+    ARMN = 0,
+    LATN = 1,
 };
 
-enum Language text_language = HY;
+enum Script language_script = LATN;
 
 struct Occurrences* occurrences; // Resulted frequency list.
 int occurrences_index = 0;
@@ -46,7 +47,7 @@ void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
         int code) {
 
     if (index > 0 && index % BITS_PER_CHARACTER == 0) {
-        word[index / BITS_PER_CHARACTER - 1] = code + L'\x0561';
+        word[index / BITS_PER_CHARACTER - 1] = code + L'a';  // FIXME: L'\x0561';
         word[index / BITS_PER_CHARACTER] = L'\0';
         code = 0;
     }
@@ -92,14 +93,23 @@ int main(int argc, char** argv) {
     while (fgetws(buffer, BUFFER_SIZE, input_file) != NULL) {
 
         int buffer_index = 0;
+        bool text_line = false;
         wchar_t character;
+        wchar_t start_symbol; // The symbol before the word.
 
         while ((character = buffer[buffer_index])) {
 
             int code = -1; // Case-insensitive encoding for the character.
 
-            switch (text_language) {
-                case HY:
+            switch (language_script) {
+                case LATN:
+                    if (L'A' <= character && character <= L'Z') {
+                        code = character - L'A';
+                    } else if (L'a' <= character && character <= L'z') {
+                        code = character - L'a';
+                    }
+                    break;
+                case ARMN:
                     if (L'\x0561' <= character && character <= L'\x0587') {
                         code = character - L'\x0561';
                     } else if (L'\x0531' <= character && character <= L'\x0556') {
