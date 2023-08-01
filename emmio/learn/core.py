@@ -328,3 +328,6 @@ class Learning:
 
     def compare_by_old(self) -> int:
         return -self.count_questions_to_repeat()
+
+    def get_knowledge(self, word: str) -> Knowledge | None:
+        return self.knowledge.get(word)

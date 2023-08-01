@@ -240,7 +240,7 @@ class Teacher:
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
 
-        sentences: list[SentenceTranslations] = self.sentences.filter_(
+        sentences: list[SentenceTranslations] = self.sentences.filter_by_word(
             word, ids_to_skip, 120
         )
         # if interval.total_seconds() == 0:
