@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from emmio.language import LanguageConfig
 
 
-class LearnType(Enum):
+class LearnScheme(Enum):
     """Learning scheme."""
 
     SENTENCES = "sentences"
@@ -37,7 +37,7 @@ class LearnConfig(BaseModel):
     is_active: bool = True
     """Whether the learning process is active now."""
 
-    type: LearnType
+    type: LearnScheme
     """Learning scheme."""
 
     sentences: list[dict]
