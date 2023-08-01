@@ -2,7 +2,7 @@ import bz2
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from os.path import join
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from emmio.language import Language
 from emmio.sentence.core import Sentence, SentenceTranslations, Sentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.ui import progress_bar
+from emmio.user.data import UserData
 from emmio.util import download
 
 __author__ = "Sergey Vartanov"
@@ -24,6 +25,12 @@ class TatoebaSentences(Sentences):
     language_1: Language
     language_2: Language
     database: SentenceDatabase
+
+    links: dict[int, set[int]] = field(default_factory=dict)
+    """
+    Mapping form sentence identifiers in language 2 to sets of sentence
+    identifiers in language 1.
+    """
 
     def __post_init__(self):
         links_cache_path: Path = (
@@ -165,7 +172,10 @@ class TatoebaSentences(Sentences):
             logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
 
-    def filter_(
+    def __len__(self):
+        raise NotImplementedError()
+
+    def filter_by_word(
         self,
         word: str,
         ids_to_skip: set[int],
@@ -215,5 +225,50 @@ class TatoebaSentences(Sentences):
                 )
         return result
 
-    def __len__(self):
-        raise NotImplementedError()
+    def get_most_known(self, user_data: UserData) -> list[SentenceTranslations]:
+        sentences: dict[str, Sentence] = self.database.get_sentences(
+            self.language_2, self.path / "cache"
+        )
+        rates: list[tuple[str, float]] = []
+        for sentence_id, sentence in sentences.items():
+            words: list[str] = sentence.text.split(" ")
+            rate: float = 0
+            for word in words:
+                word = word.lower()
+                if (
+                    word.endswith(".")
+                    or word.endswith("?")
+                    or word.endswith("։")
+                ):
+                    word = word[:-1]
+                if user_data.is_known(word, self.language_2):
+                    rate += 1
+                else:
+                    rate += 0
+            if rate / len(words) > 0.9 and len(words) > 1:
+                r = (rate + 1) / len(words)
+                rates.append((sentence_id, r))
+
+        for sentence_id, rate in sorted(rates, key=lambda x: -x[1]):
+            text = self.database.get_sentence(self.language_2, sentence_id).text
+            hidden: str = ""
+            for c in text:
+                if c not in " .?,":
+                    hidden += "*"
+                else:
+                    hidden += c
+            if str(sentence_id) in self.links and self.links[str(sentence_id)]:
+                for sentence_id_2 in self.links[str(sentence_id)]:
+                    print(
+                        "   ",
+                        self.database.get_sentence(
+                            self.language_1, sentence_id_2
+                        ).text,
+                    )
+                print(f"{rate:.2f} {hidden}")
+                a = input()
+                while a != text:
+                    if a == "":
+                        print(text)
+                        break
+                    a = input()

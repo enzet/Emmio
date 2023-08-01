@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
 
@@ -48,3 +49,10 @@ class LearnData:
         See ``Learning.compute_pressure``.
         """
         return sum(x.compute_pressure() for x in self.learnings.values())
+
+    def get_learnings_by_language(self, language: Language) -> list[Learning]:
+        return [
+            learning
+            for learning in self.learnings.values()
+            if learning.learning_language == language
+        ]

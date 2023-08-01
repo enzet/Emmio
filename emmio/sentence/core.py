@@ -7,6 +7,8 @@ from emmio.sentence.config import SentencesConfig
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+from emmio.user.data import UserData
+
 
 @dataclass
 class Sentence:
@@ -62,8 +64,9 @@ class Sentences:
         """
         raise NotImplementedError()
 
-    def __len__(self) -> int:
-        return 0
+    def get_most_known(self, user_data: UserData) -> list[SentenceTranslations]:
+        """Get top most known sentences."""
+        raise NotImplementedError()
 
 
 @dataclass
