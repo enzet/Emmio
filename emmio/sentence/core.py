@@ -33,7 +33,21 @@ class SentenceTranslations:
 
 
 class Sentences:
-    def filter_(
+    excluded_sentences_file_path: Path
+    """
+    Mapping from words to number identifiers of sentences that cannot be used
+    for word learning. 
+    
+    E.g. if the learning word is "potter", all sentences containing "Potter" as
+    a name (e.g. "Harry Potter"), should be excluded, because back translation
+    is trivial.
+    """
+
+    def __len__(self) -> int:
+        """Return the total number of sentences."""
+        return 0
+
+    def filter_by_word(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
         raise NotImplementedError()
@@ -47,7 +61,7 @@ class SimpleSentences(Sentences):
     path: Path
     config: SentencesConfig
 
-    def filter_(
+    def filter_by_word(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
         return []
@@ -60,13 +74,13 @@ class SimpleSentences(Sentences):
 class SentencesCollection:
     collection: list[Sentences]
 
-    def filter_(
+    def filter_by_word(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
         result: list[SentenceTranslations] = []
 
-        for s in self.collection:
-            result += s.filter_(word, ids_to_skip, max_length)
+        for sentence in self.collection:
+            result += sentence.filter_by_word(word, ids_to_skip, max_length)
 
         return result
 
