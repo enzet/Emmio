@@ -68,7 +68,11 @@ class SentenceDatabase(Database):
     def get_sentences(
         self, language: Language, cache_path: Path
     ) -> dict[str, Sentence]:
-        """Get all sentences written in the specified language."""
+        """
+        Get all sentences written in the specified language.
+
+        :returns: a mapping from sentence identifiers to sentences
+        """
         result = {}
         table_id: str = f"{language.get_code()}_sentences"
         if not self.has_table(table_id):

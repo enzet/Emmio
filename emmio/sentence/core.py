@@ -50,6 +50,16 @@ class Sentences:
     def filter_by_word(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceTranslations]:
+        """
+        Get list of sentences with translations that contain requested word.
+
+        It is assumed that list order doesn't change from request to request,
+        but the order is specified by implementation.
+
+        :param word: word to be presented in the resulting sentences
+        :param ids_to_skip: identifiers of sentences to not include
+        :param max_length: maximum length of the sentence to include
+        """
         raise NotImplementedError()
 
     def __len__(self) -> int:

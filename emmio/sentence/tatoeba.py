@@ -137,7 +137,7 @@ class TatoebaSentences(Sentences):
 
     def fill_cache(self, file_name: str) -> None:
         """Construct dictionary from words to sentences."""
-        logging.info("fill word cache")
+        logging.info("Fill word cache...")
         size = len(self.links)
         for index, id_ in enumerate(self.links.keys()):
             id_ = int(id_)
@@ -162,7 +162,7 @@ class TatoebaSentences(Sentences):
                 self.cache[word].append(id_)
         progress_bar(-1, size)
         with open(file_name, "w+") as output_file:
-            logging.info("writing word cache")
+            logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
 
     def filter_(
@@ -174,9 +174,9 @@ class TatoebaSentences(Sentences):
     ) -> list[SentenceTranslations]:
         """
         Get sentences that contain the specified word and their translations to
-        the second language.
+        the first language.
 
-        :param word: word in the first language
+        :param word: word in the second language
         :param ids_to_skip: identifiers of sentences that should not be added to
             the result
         :param max_length: maximum sentence length
