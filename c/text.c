@@ -86,7 +86,8 @@ int main(int argc, char** argv) {
     int word_index = 0; // Index of current character in word.
     int unique_words = 0; // Number of unique words in text so far.
 
-    // Read text from the file and store words and occurrences into binary tree.
+    // Read text from the file and store words and occurrences into a binary
+    // tree.
 
     printf("Reading...\n");
 
@@ -120,6 +121,9 @@ int main(int argc, char** argv) {
 
             // If character is of interest.
             if (code >= 0) {
+                if (word_index == 0) {
+                    start_symbol = buffer[buffer_index - 1];
+                }
                 if (word_index > MAX_WORD_SIZE - 1) {
                     buffer_index++;
                     continue;
