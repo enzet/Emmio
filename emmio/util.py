@@ -9,13 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import urllib3
+from pathlib import Path
+from urllib3 import PoolManager, HTTPResponse, Timeout
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
-
-from pathlib import Path
-
-from urllib3 import PoolManager, HTTPResponse
 
 HIDE_SYMBOL: str = "░"
 
@@ -71,7 +69,8 @@ def download(
 ) -> bytes | None:
     logging.info(f"Downloading {address}: ")
 
-    pool_manager: PoolManager = PoolManager()
+    timeout = Timeout(connect=1.0, read=2.0)
+    pool_manager: PoolManager = PoolManager(timeout=timeout)
     try:
         result: HTTPResponse = pool_manager.request(
             "GET", address, preload_content=False
