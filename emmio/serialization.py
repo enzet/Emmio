@@ -25,8 +25,8 @@ class Encoder:
         self.encode_int(self.VERSION_MINOR, 1)
 
     def encode_string(self, text: str) -> None:
-        """
-        Encode string value into 4-bytes integer of the length and UTF-8 value.
+        """Encode string value into 4-bytes integer of the length and UTF-8
+        value.
         """
         text_code: bytes = text.encode()
         self.code.write(
@@ -55,8 +55,7 @@ class Encoder:
             self.encode_boolean(value)
 
     def encode_enum(self, value: str, values: list[str]) -> None:
-        """
-        Encode value of an enum.
+        """Encode value of an enum.
 
         Store number of the entry in the entry list starting with 1 (0 is used
         if value is not specified).

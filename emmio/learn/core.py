@@ -19,7 +19,7 @@ SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 
 
 class Response(Enum):
-    """Possible user responses."""
+    """User response to a question."""
 
     RIGHT = "y"
     """Question was answered correctly."""
@@ -28,7 +28,7 @@ class Response(Enum):
     """Question was answered incorrectly."""
 
     SKIP = "s"
-    """Question was skipped."""
+    """Question was excluded from the learning process."""
 
 
 class LearningRecord(BaseModel):
@@ -295,8 +295,7 @@ class Learning:
         )
 
     def compute_pressure(self) -> float:
-        """
-        Compute the pressure of the learning process.
+        """Compute the pressure of the learning process.
 
         Pressure is a float characteristic of a learning process that somehow
         reflects the amount of effort needed to repeat all the questions.
@@ -308,8 +307,7 @@ class Learning:
         )
 
     def get_safe_question_ids(self) -> list[str]:
-        """
-        Get list of identifiers of questions, that is being learning and not
+        """Get list of identifiers of questions, that is being learning and not
         close to be repeated.
         """
         now: datetime = datetime.now()

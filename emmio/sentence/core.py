@@ -24,8 +24,7 @@ class Sentence:
 
 @dataclass
 class SentenceTranslations:
-    """
-    Some part of a text written in a single language and its translations.
+    """Some part of a text written in a single language and its translations.
 
     Some translations may be transitive.
     """
@@ -36,8 +35,7 @@ class SentenceTranslations:
 
 class Sentences:
     excluded_sentences_file_path: Path
-    """
-    Mapping from words to number identifiers of sentences that cannot be used
+    """Mapping from words to number identifiers of sentences that cannot be used
     for word learning. 
     
     E.g. if the learning word is "potter", all sentences containing "Potter" as

@@ -88,7 +88,7 @@ class Data:
         Exclude the sentence from the learning process of the word.
 
         :param word: word in sentence
-        :param sentence_id: sentence unique identifier
+        :param sentence_id: a sentence unique identifier
         """
         if word not in self.exclude_sentences:
             self.exclude_sentences[word] = []

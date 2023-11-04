@@ -175,9 +175,8 @@ class Teacher:
 
         return None
 
-    def start(self) -> bool:
-        """
-        Start the learning process: repeat old questions and learn new ones.
+    def __start(self) -> bool:
+        """Start the learning process: repeat old questions and learn new ones.
 
         :return: true if the learning process was finished, false if the
             learning process was interrupted by the user.

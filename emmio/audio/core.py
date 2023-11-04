@@ -71,7 +71,7 @@ class DirectoryAudioProvider(AudioProvider):
                 self.player.wait_for_playback()
             return True
 
-        logging.info(f"Audio was not found in {self.directory}.")
+        logging.debug(f"Audio was not found in {self.directory}.")
         return False
 
     def has(self, word: str, language: Language) -> bool:

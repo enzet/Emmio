@@ -12,11 +12,10 @@ __email__ = "me@enzet.ru"
 
 @dataclass
 class LearnData:
-    """
-    Manages the directory with the learning data for a user.
+    """Manages the directory with the learning data for a user.
 
-    The directory is usually located in Emmio root directory → user directory →
-    `learn` and contains JSON files with learning process.
+    The directory is usually located in Emmio root directory →
+    user directory → `learn` and contains JSON files with learning process.
     """
 
     path: Path
@@ -27,7 +26,7 @@ class LearnData:
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "LearnData":
-        """Initialize"""
+        """Initialize learn data from the configuration."""
         learnings: dict[str, Learning] = {
             learn_id: Learning(path, LearnConfig(**learn_config), learn_id)
             for learn_id, learn_config in config.items()
@@ -43,8 +42,7 @@ class LearnData:
         return (x for x in self.learnings.values() if x.config.is_active)
 
     def compute_pressure(self):
-        """
-        Compute the sum of pressures of all learning processes.
+        """Compute the sum of pressures of all learning processes.
 
         See ``Learning.compute_pressure``.
         """
