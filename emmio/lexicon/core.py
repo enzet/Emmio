@@ -305,6 +305,8 @@ class Lexicon:
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""
+        if word not in self.words:
+            return False
         return self.words[word].knowing in [
             LexiconResponse.KNOW,
             LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
