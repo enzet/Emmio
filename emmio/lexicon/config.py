@@ -15,3 +15,6 @@ class LexiconConfig(BaseModel):
 
     dictionaries: list[dict] = []
     """Dictionary usage configurations."""
+
+    sentences: list[dict] = []
+    """Sentences configurations."""

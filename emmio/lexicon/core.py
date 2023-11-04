@@ -17,6 +17,7 @@ from emmio.dictionary.core import (
 from emmio.language import construct_language, ENGLISH
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
+from emmio.sentence.core import SentencesCollection
 from emmio.ui import get_char, Interface
 
 __author__ = "Sergey Vartanov"
@@ -537,6 +538,7 @@ class Lexicon:
         word: str,
         word_list: list[str],
         dictionaries: DictionaryCollection,
+        sentences: SentencesCollection,
         skip_known: bool = False,
         skip_unknown: bool = False,
         log_name: str = "log",
@@ -556,6 +558,15 @@ class Lexicon:
 
         if self.has(word):
             print("Last response was: " + self.get(word).get_message() + ".")
+
+        if sentences is not None:
+            sentence_translations = sentences.filter_by_word(word, set(), 120)
+            if sentence_translations:
+                print(
+                    sentence_translations[0].sentence.text.replace(
+                        word, f"\033[32m{word}\033[0m"
+                    )
+                )
 
         items: list[DictionaryItem] = dictionaries.get_items(
             word, self.language
@@ -628,7 +639,8 @@ class Lexicon:
                 interface,
                 picked_word,
                 [],
-                dictionaries,
+                dictionaries=dictionaries,
+                sentences=None,
                 log_name="log_binary_search",
             )
             if not response:
@@ -654,6 +666,7 @@ class Lexicon:
         frequency_list: FrequencyList,
         stop_at: int | None,
         dictionaries: DictionaryCollection,
+        sentences: SentencesCollection | None,
         log_type: str,
         skip_known: bool,
         skip_unknown: bool,
@@ -668,6 +681,7 @@ class Lexicon:
         :param frequency_list: list of the words with frequency to check.
         :param stop_at: stop after a number of actions.
         :param dictionaries: offer a translation from one of dictionaries.
+        :param sentences: offer a sentence from one of sentence collections.
         :param log_type: the method of picking words.
         :param skip_known: skip this word in the future if it is known.
         :param skip_unknown: skip this word in the future if it is unknown.
@@ -726,6 +740,7 @@ class Lexicon:
                 picked_word,
                 word_list,
                 dictionaries,
+                sentences,
                 skip_known,
                 skip_unknown,
                 log_name=log_name,

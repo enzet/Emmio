@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from emmio.language import Language
 from emmio.sentence.config import SentencesConfig
 
 __author__ = "Sergey Vartanov"
@@ -20,6 +21,32 @@ class Sentence:
 
     id_: int
     text: str
+
+    def get_words(self, language: Language) -> list[tuple[str, str]]:
+        words: list[tuple[str, str]] = []
+        current: str = ""
+        for position, symbol in enumerate(self.text):
+            if language.has_symbol(symbol.lower()):
+                current += symbol
+            else:
+                if current:
+                    words.append((current, "word"))
+                words.append((symbol, "symbol"))
+                current = ""
+        return words
+
+    def rate(self, language: Language, user_data: "UserData") -> float:
+        words: list[tuple[str, str]] = self.get_words(language)
+        rating: int = 0
+        word_number: int = 0
+        for word, type_ in words:
+            if type_ == "word":
+                word_number += 1
+                if user_data.is_known(word, language):
+                    rating += 1
+        if word_number == 0:
+            return 0.0
+        return rating / word_number
 
 
 @dataclass

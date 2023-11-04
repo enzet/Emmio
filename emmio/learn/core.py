@@ -156,8 +156,7 @@ class Learning:
         interval: timedelta,
         time: datetime | None = None,
     ) -> None:
-        """
-        Register user response.
+        """Register user response.
 
         :param response: user response
         :param sentence_id: sentence identifier was used to learn the word
@@ -262,9 +261,8 @@ class Learning:
         return count
 
     def count_questions_to_repeat(self) -> int:
-        """
-        Return the number of learning items that are being learning and ready to
-        repeat at the current moment.
+        """Return the number of learning items that are being learning and ready
+        to repeat at the current moment.
         """
         now: datetime = datetime.now()
         return sum(
