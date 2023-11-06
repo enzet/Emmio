@@ -46,6 +46,14 @@ class Language:
         else:
             self.has_symbol = lambda x: x in self.symbols
 
+    @classmethod
+    def from_code(cls, code: str):
+        for language in KNOWN_LANGUAGES:
+            if code == language.get_code():
+                return language
+
+        raise LanguageNotFound(code)
+
     def __eq__(self, other: "Language") -> bool:
         assert isinstance(other, Language)
         return self.language == other.language
@@ -103,6 +111,9 @@ class Language:
 
     def __repr__(self) -> str:
         return self.get_code()
+
+    def get_random_color(self) -> str:
+        return "#" + str(hex(abs(hash(self.get_code()))))[2:8]
 
 
 def letter_range(start: str, stop: str) -> str:

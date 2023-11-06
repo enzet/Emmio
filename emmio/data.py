@@ -142,6 +142,9 @@ class Data:
     def get_learning(self, user_id: str, id_: str) -> Learning:
         return self.users_data[user_id].get_learning(id_)
 
+    def get_learnings(self, user_id: str) -> Iterator[Learning]:
+        return self.users_data[user_id].get_learnings()
+
     def get_active_learnings(self, user_id: str) -> Iterator[Learning]:
         return self.users_data[user_id].get_active_learnings()
 

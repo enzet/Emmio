@@ -25,6 +25,9 @@ class UserData:
             LexiconData.from_config(path / "lexicon", config["lexicon"]),
         )
 
+    def get_learnings(self) -> Iterator[Learning]:
+        return self.learnings.get_learnings()
+
     def get_active_learnings(self) -> Iterator[Learning]:
         return self.learnings.get_active_learnings()
 
@@ -41,6 +44,19 @@ class UserData:
         learning_responses, lexicon_response = self.get_word_status(
             word, language
         )
+        if learning_responses:
+            return True
+        return lexicon_response == LexiconResponse.KNOW
+
+    def is_known_or_not_a_word(self, word: str, language: Language) -> bool:
+        learning_responses, lexicon_response = self.get_word_status(
+            word, language
+        )
+        if lexicon_response in [
+            LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
+            LexiconResponse.NOT_A_WORD,
+        ]:
+            return True
         if learning_responses:
             return True
         return lexicon_response == LexiconResponse.KNOW

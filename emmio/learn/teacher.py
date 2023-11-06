@@ -418,6 +418,38 @@ class Teacher:
                     self.data.exclude_translation(w, t)
                     continue
 
+            if answer.startswith("/know "):
+                command, command_word = answer.split(" ")
+                lexicon: Lexicon = self.user_data.get_lexicon(
+                    self.learning.learning_language
+                )
+                if not self.lexicon.has_log("log_ex"):
+                    self.lexicon.add_log(
+                        LexiconLog("log_ex", WordSelection("top"))
+                    )
+                lexicon.register(
+                    command_word,
+                    LexiconResponse.KNOW,
+                    to_skip=False,
+                    log_name="log_ex",
+                    answer_type=AnswerType.USER_ANSWER,
+                )
+                lexicon.write()
+
+            if answer.startswith("/not_a_word "):
+                command, command_word = answer.split(" ")
+                lexicon: Lexicon = self.user_data.get_lexicon(
+                    self.learning.learning_language
+                )
+                lexicon.register(
+                    command_word,
+                    LexiconResponse.NOT_A_WORD,
+                    to_skip=False,
+                    log_name="log_ex",
+                    answer_type=AnswerType.USER_ANSWER,
+                )
+                lexicon.write()
+
             if answer in [
                 "/no",
                 "n",  # Short for no, non, nein.
@@ -457,3 +489,31 @@ class Teacher:
                     print_sentence()
                 elif index == len(sentences):
                     self.interface.print("No more sentences.")
+
+    def process_command(self, command: str, word: str, sentence_id: int):
+        if command in ["s", "/skip"]:
+            self.learning.register(
+                Response.SKIP, sentence_id, word, timedelta()
+            )
+            print(f'Word "{word}" is no longer in the learning process.')
+        elif command.startswith("/hint "):
+            _, language, definition = command.split(" ", maxsplit=2)
+            dictionary_id: str = (
+                f"{self.learning.learning_language}_{language}_"
+                f"{self.user_data.user_id}"
+            )
+            dictionary: Dictionary | None = self.dictionaries.get_dictionary(
+                dictionary_id
+            )
+            if dictionary and isinstance(dictionary, SimpleDictionary):
+                dictionary.add_simple(word, definition)
+                dictionary.write()
+                print(f"Hint written to `{dictionary_id}`.")
+            else:
+                print(f"No personal dictionary `{dictionary_id}` found.")
+        elif command.startswith("/define "):
+            _, language_code, word_to_define = command.split(" ", maxsplit=2)
+            language = construct_language(language_code)
+            items = self.dictionaries.get_items(word_to_define, language)
+            for item in items:
+                item.to_str([language], self.interface)

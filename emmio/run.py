@@ -106,6 +106,24 @@ class Emmio:
 
             self.run_lexicon(lexicons)
 
+        if command == "read":
+            read = self.data.get_read_processes(self.user_id)[
+                "mahari___barbed_wires_in_blossom"
+            ]  # FIXME
+            self.read(read)
+
+        if command == "stat actions":
+            stat = defaultdict(int)
+            for learning in self.data.get_learnings(self.user_id):
+                stat[learning.learning_language] += learning.get_actions()
+            self.interface.table(
+                ["Language", "Actions"],
+                [
+                    [x.get_name(), str(y)]
+                    for x, y in sorted(stat.items(), key=lambda x: -x[1])
+                ],
+            )
+
         if command == "stat learn":
             self.data.print_learning_statistics(self.interface, self.user_id)
 

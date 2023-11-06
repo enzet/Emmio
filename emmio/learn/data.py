@@ -41,6 +41,10 @@ class LearnData:
         """Get all learnings marked as active."""
         return (x for x in self.learnings.values() if x.config.is_active)
 
+    def get_learnings(self) -> Iterator[Learning]:
+        """Get all learnings marked as active."""
+        return iter(self.learnings.values())
+
     def compute_pressure(self):
         """Compute the sum of pressures of all learning processes.
 
