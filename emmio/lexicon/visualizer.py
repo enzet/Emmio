@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable, Iterator
+from typing import Callable
 
 import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
-from colour import Color
 from svgwrite import Drawing
 
 from emmio.lexicon.core import Lexicon
@@ -34,7 +33,7 @@ class LexiconVisualizer:
 
     def graph_with_matplot(
         self,
-        lexicons: Iterator[Lexicon],
+        lexicons: list[Lexicon],
         show_text: bool = False,
         margin: float = 0.0,
     ):
@@ -52,39 +51,69 @@ class LexiconVisualizer:
         locator = mdates.YearLocator()
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)
 
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
 
         for xs, ys, color, title in data:
-            plt.plot(xs, ys, color=color.hex, linewidth=1, label=title)
+            plt.plot(
+                xs,
+                [sum(a) / len(a) for a in ys],
+                color=color.hex,
+                linewidth=1,
+                label=title,
+            )
+            for step in 0, 0.25, 0.5, 0.75:
+                plt.plot(
+                    xs,
+                    [a[int(len(a) * step)] for a in ys],
+                    color=color.hex,
+                    linewidth=1,
+                    alpha=0.2,
+                )
+            plt.plot(
+                xs, [a[-1] for a in ys], color=color.hex, linewidth=1, alpha=0.2
+            )
+            plt.fill_between(
+                xs,
+                [min(a) for a in ys],
+                [max(a) for a in ys],
+                color=color.hex,
+                alpha=0.1,
+            )
+            if show_text:
+                trans_offset = mtransforms.offset_copy(
+                    ax.transData, fig=fig, x=0.1, y=0
+                )
+                plt.text(
+                    xs[-1],
+                    sum(ys[-1]) / len(ys[-1]),
+                    title,
+                    transform=trans_offset,
+                    color=color.hex,
+                )
 
         for lexicon in lexicons:
             dates, rates = lexicon.construct_precise(self.precision)
-            language_name: str = lexicon.language.get_name()
 
             if self.plot_precise_values:
                 plt.plot(
                     dates,
                     rates,
                     "o",
-                    alpha=0.01,
+                    alpha=0.1,
                     markersize=0.5,
-                    color=lexicon.language.get_color(),
+                    color=lexicon.language.get_color().hex,
                 )
 
-            if show_text:
-                trans_offset = mtransforms.offset_copy(
-                    ax.transData, fig=fig, x=0.1, y=0
-                )
-                plt.text(
-                    dates[-1], rates[-1], language_name, transform=trans_offset
-                )
-
-        plt.legend(bbox_to_anchor=(1.05, 0.5), loc="center left", frameon=False)
         plt.title("Vocabulary level per language")
         plt.ylim(ymin=margin)
         plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
-        plt.tight_layout()
+        # plt.tight_layout()
+        plt.subplots_adjust(left=0.3, right=0.7)
 
         if self.interactive:
             plt.show()
@@ -93,8 +122,10 @@ class LexiconVisualizer:
 
     def graph_with_svg(self, lexicons, margin: float = 0.0):
         x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
-        graph = Graph(data, x_min, x_max, color=Color("#000000"))
-        graph.plot(Drawing("lexicon.svg", graph.canvas.size, fill="#101010"))
+        graph = Graph(data, x_min, x_max)  # , color=Color("#000000"))
+        graph.plot(
+            Drawing("lexicon.svg", graph.canvas.size)
+        )  # , fill="#101010"))
 
     def construct_lexicon_data(self, lexicons, margin):
         x_min: datetime | None = None
@@ -111,31 +142,33 @@ class LexiconVisualizer:
             language_name: str = lexicon.language.get_name()
 
             xs: list[datetime] = []
-            ys: list[float] = []
-            last: float | None = None
+            ys: list[list[float]] = []
 
             point: datetime = self.first_point(min(dates))
             x_min = min(point, x_min) if x_min else point
+            current = [rates[0]]
 
             index: int = 0
             for index, current_point in enumerate(dates):
-                while current_point > point:
-                    if self.impulses and last is not None:
+                if point < current_point:
+                    while point < current_point:
                         xs.append(point)
-                        ys.append(last)
-                    xs.append(point)
-                    ys.append(rates[index])
-                    last = rates[index]
-                    point = self.next_point(point)
-                    x_max = max(point, x_max) if x_max else point
+                        ys.append(current)
+                        point = self.next_point(point)
+                        x_max = max(point, x_max) if x_max else point
 
-            if self.impulses and last is not None:
-                xs.append(point)
-                ys.append(last)
+                    current = []
+
+                current.append(rates[index])
+
             if index < len(rates):
                 xs.append(point)
-                ys.append(rates[index])
+                ys.append(current)
 
             data.append([xs, ys, lexicon.language.get_color(), language_name])
 
-        return x_min, x_max, sorted(data, key=lambda x: -x[1][-1])
+        return (
+            x_min,
+            x_max,
+            sorted(data, key=lambda x: -sum(x[1][-1]) / len(x[1][-1])),
+        )
