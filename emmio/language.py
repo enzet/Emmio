@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from colour import Color
 from iso639 import languages as iso_languages
@@ -33,7 +33,7 @@ class Language:
         symbols: str | None = None,
         self_name: str = None,
         tone: Color | None = None,
-        checking: Callable | None = None,
+        checking: Optional[Callable] = None,
     ) -> None:
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: str | None = symbols
@@ -222,7 +222,7 @@ UKRAINIAN: Language = Language(
     tone=Color("#F8D648"),
 )
 
-known_languages = [
+KNOWN_LANGUAGES: set[Language] = {
     ARABIC,
     ARMENIAN,
     CHINESE,
@@ -242,7 +242,7 @@ known_languages = [
     SPANISH,
     SWEDISH,
     UKRAINIAN,
-]
+}
 
 
 def decode_ukrainian(text: str) -> str:
@@ -264,7 +264,7 @@ class LanguageNotFound(Exception):
 
 
 def construct_language(code: str) -> Language:
-    for language in known_languages:
+    for language in KNOWN_LANGUAGES:
         if code == language.get_code():
             return language
 
