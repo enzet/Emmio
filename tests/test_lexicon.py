@@ -12,7 +12,7 @@ from emmio.lexicon.core import (
 
 def test_lexicon() -> None:
     """Test lexicon checking process."""
-    temp_directory: Path = Path("tests") / "temp"
+    temp_directory: Path = Path("/tmp") / "emmio_test_temp_directory"
     temp_directory.mkdir(exist_ok=True)
     lexicon: Lexicon = Lexicon(
         temp_directory,
