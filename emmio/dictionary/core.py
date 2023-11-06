@@ -374,7 +374,8 @@ class DictionaryItem:
 class Dictionary:
     """Dictionary of word definitions."""
 
-    def __init__(self) -> None:
+    def __init__(self, id_: str) -> None:
+        self.id_: str = id_
         self.__items: dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
@@ -410,20 +411,34 @@ class Dictionary:
         raise NotImplementedError()
 
 
-@dataclass
 class SimpleDictionary(Dictionary):
-    data: dict[str, str]
-    from_language: Language
-    to_language: Language
+    def __init__(
+        self,
+        id_: str,
+        path: Path,
+        data: dict[str, str],
+        from_language: Language,
+        to_language: Language,
+    ) -> None:
+        super().__init__(id_)
+        self.path: Path = path
+        self.data: dict[str, str] = data
+        self.from_language: Language = from_language
+        self.to_language: Language = to_language
+
+    def add_simple(self, word: str, definition: str) -> None:
+        self.data[word] = definition
 
     @classmethod
     def from_config(
-        cls, path: Path, config: DictionaryConfig
+        cls, path: Path, id_: str, config: DictionaryConfig
     ) -> "SimpleDictionary":
         with (path / config.file_name).open() as input_file:
-            data = json.load(input_file)
+            data: dict[str, str] = json.load(input_file)
 
         return cls(
+            id_,
+            path / config.file_name,
             data,
             construct_language(config.from_language),
             construct_language(config.to_language),

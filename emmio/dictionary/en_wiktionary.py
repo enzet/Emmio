@@ -83,7 +83,7 @@ class EnglishWiktionary(Dictionary):
         :param cache_directory: directory for cache files
         :param from_language: target language
         """
-        super().__init__()
+        super().__init__("en_wiktionary")
         self.from_language: Language = from_language
         self.cache_directory: Path = cache_directory
         self.parser: WiktionaryParser = WiktionaryParser()

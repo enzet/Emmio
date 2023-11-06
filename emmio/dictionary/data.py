@@ -28,7 +28,7 @@ class DictionaryData:
         dictionaries: dict[str, Dictionary] = {}
         for id_, data in config.items():
             dictionaries[id_] = SimpleDictionary.from_config(
-                path, DictionaryConfig(**data)
+                path, id_, DictionaryConfig(**data)
             )
         return cls(path, dictionaries)
 
