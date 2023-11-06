@@ -8,7 +8,7 @@ from pathlib import Path
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language, GERMAN
-from emmio.text import sanitize
+from emmio.text_util import sanitize
 from emmio.ui import Interface
 from emmio.util import flatten
 

@@ -1,6 +1,6 @@
 import pytest
 
-from emmio.text import sanitize
+from emmio.text_util import sanitize
 
 
 def check(sentence: str, hidden: str, words_to_hide: list[str]) -> None:
