@@ -224,7 +224,7 @@ class EnglishWiktionary(Dictionary):
                     word, definition, pronunciations
                 )
                 if form is not None:
-                    item.add_definition(form)
+                    item.add_form(form)
 
         if item.has_definitions():
             return item

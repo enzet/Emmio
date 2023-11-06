@@ -253,7 +253,7 @@ class DictionaryItem:
     word: str
     forms: list[Form] = field(default_factory=list)
 
-    def add_definition(self, form: Form):
+    def add_form(self, form: Form):
         """Add word form to dictionary item."""
         self.forms.append(form)
 
@@ -272,8 +272,7 @@ class DictionaryItem:
         hide_translations: set[str] | None = None,
         only_common: bool = True,
     ) -> str:
-        """
-        Get human-readable representation of the dictionary item.
+        """Get human-readable representation of the dictionary item.
 
         :param languages: the languages of translation
         :param interface: user interface provider
@@ -306,8 +305,7 @@ class DictionaryItem:
         return len(self.forms) > 0
 
     def is_not_common(self, language: Language) -> bool:
-        """
-        Check whether all forms of the word are not common.
+        """Check whether all forms of the word are not common.
 
         Also check if it is not just a form of some another word.
         """
@@ -327,8 +325,7 @@ class DictionaryItem:
         return None
 
     def get_short(self, language: Language, limit: int = 80) -> tuple[str, str]:
-        """
-        Try to get word definition that is shorter than the selected limit.
+        """Try to get word definition that is shorter than the selected limit.
 
         This method is trying to remove values, remove definitions and
         eventually remove forms to fit the specified limit.  It assumes that
@@ -338,6 +335,8 @@ class DictionaryItem:
 
         If the first value of the first form of the first definition is longer
         than the limit, it will return it as is.
+
+        :returns (transcription, translation)
         """
         # Forms, definitions, values.
         texts: list[list[list[str]]] = []
@@ -391,6 +390,9 @@ class Dictionary:
             return self.__items[word]
 
         return None
+
+    def get_items(self) -> dict[str, DictionaryItem]:
+        return self.__items
 
     def get_forms(self) -> dict[str, set[str]]:
         """Get all possible forms of all words."""
@@ -452,9 +454,7 @@ class SimpleDictionary(Dictionary):
 
         item = DictionaryItem(word)
         definitions = [Definition([DefinitionValue(self.data[word])])]
-        item.add_definition(
-            Form(word, definitions={self.to_language: definitions})
-        )
+        item.add_form(Form(word, definitions={self.to_language: definitions}))
         return item
 
     def check_from_language(self, language: Language) -> Language:
@@ -484,8 +484,7 @@ class DictionaryCollection:
         )
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
-        """
-        Add dictionary to the list.
+        """Add dictionary to the list.
 
         It will have lower priority than previously added dictionaries.
         """
