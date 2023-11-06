@@ -448,6 +448,17 @@ class SimpleDictionary(Dictionary):
     def check_to_language(self, language: Language) -> Language:
         return self.to_language == language
 
+    def write(self):
+        print(f"dumped to {self.path}")
+        with self.path.open("w") as output_file:
+            json.dump(
+                self.data,
+                output_file,
+                ensure_ascii=False,
+                indent=4,
+                sort_keys=True,
+            )
+
 
 class DictionaryCollection:
     """A set of dictionaries for a language."""
@@ -499,3 +510,10 @@ class DictionaryCollection:
                     items.append(item)
 
         return items
+
+    def get_dictionary(self, dictionary_id: str) -> Dictionary | None:
+        for dictionary in self.dictionaries:
+            if dictionary.id_ == dictionary_id:
+                return dictionary
+
+        return None
