@@ -1,11 +1,14 @@
 """The learning process."""
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
+import yaml
 from pydantic.main import BaseModel
 
 from emmio.language import Language, construct_language
@@ -276,11 +279,12 @@ class Learning:
 
     def write(self) -> None:
         """Serialize learning process to a file."""
-
-        logging.debug(f"Saving learning process to {self.file_path}...")
-
-        with self.file_path.open("w+") as output_file:
-            output_file.write(self.process.json(ensure_ascii=False, indent=4))
+        if self.file_path.name.endswith(".json"):
+            logging.debug(f"Saving learning process to {self.file_path}...")
+            with self.file_path.open("w+") as output_file:
+                output_file.write(
+                    self.process.json(ensure_ascii=False, indent=4)
+                )
 
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""
@@ -327,3 +331,57 @@ class Learning:
 
     def get_knowledge(self, word: str) -> Knowledge | None:
         return self.knowledge.get(word)
+
+    def get_actions(self) -> int:
+        a = 0
+        for record in self.process.records:
+            if record.response in [Response.RIGHT, Response.WRONG]:
+                a += 1
+        return a
+
+
+def time_format(minutes: int) -> datetime:
+    return datetime(1970, 1, 1) + timedelta(seconds=minutes * 60)
+
+
+def load_old_format(path: Path):
+    with path.open() as input_file:
+        process: dict[str, dict[str, Any]] = yaml.load(
+            input_file, Loader=yaml.FullLoader
+        )
+    added = set()
+    learning_records: list[LearningRecord] = []
+    for question_id, records in process.items():
+        if (
+            "answers" in records
+            and records["answers"] != "y"
+            and records["plan"] != 1_000_000_000
+        ):
+            if "added" in records:
+                added.add(time_format(records["added"]))
+            answers: str = records["answers"]
+            interval: int = 1
+            intervals: list[int] = []
+            time: int = 0
+            array: list[int] = []
+            for letter in answers:
+                interval = 1 if letter == "n" else interval * 2
+                array.append(time)
+                intervals.append(interval)
+                time += interval
+            times = [
+                time_format(records["last"])
+                + timedelta(seconds=(x - array[-1]) * 24 * 60 * 60)
+                for x in array
+            ]
+            for time, answer, interval in zip(times, answers, intervals):
+                record: LearningRecord = LearningRecord(
+                    question_id=question_id,
+                    response=answer,
+                    sentence_id=0,
+                    time=time,
+                    interval=timedelta(seconds=interval * 24 * 60 * 60),
+                )
+                learning_records.append(record)
+
+    return LearningProcess(records=learning_records)
