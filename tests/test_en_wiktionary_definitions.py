@@ -149,6 +149,11 @@ def test_link() -> None:
     check_link("plural of média", "plural", "média")
 
 
+def test_link_misspelling() -> None:
+    """Test link."""
+    check_link("Misspelling of pec", "Misspelling", "pec")
+
+
 def test_link_with_description() -> None:
     """Test link with simple description before."""
     check_link("(dated) genitive of er", "genitive", "er")

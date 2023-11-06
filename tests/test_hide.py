@@ -1,3 +1,5 @@
+import pytest
+
 from emmio.text import sanitize
 
 
@@ -45,3 +47,8 @@ def test_ukrainian_accent() -> None:
     of the word.
     """
     check("яки́й", "____", ["який"])
+
+
+@pytest.mark.skip(reason="Not implemented yet.")
+def test_francais() -> None:
+    check("reward; recompense", "reward; __________", ["récompense"])
