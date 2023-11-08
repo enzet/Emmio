@@ -60,7 +60,10 @@ class LearningRecord(BaseModel):
 
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
-        return self.interval.total_seconds() != 0
+        return (
+            self.response != Response.SKIP
+            and self.interval.total_seconds() != 0
+        )
 
 
 class LearningProcess(BaseModel):
@@ -87,7 +90,10 @@ class Knowledge:
 
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
-        return self.interval.total_seconds() != 0
+        return (
+            self.get_last_response() != Response.SKIP
+            and self.interval.total_seconds() != 0
+        )
 
     def get_depth(self) -> int:
         """Get learning depth (length of the last sequence of right answers)."""
