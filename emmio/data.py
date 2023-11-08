@@ -166,7 +166,7 @@ class Data:
                 learning.config.name,
                 learning.count_questions_to_repeat(),
                 learning.count_questions_to_add(),
-                len(learning.process.skipping),
+                len(learning.process.postpone),
                 learning.count_questions_to_learn(),
             ]
             for learning in learnings
@@ -183,4 +183,7 @@ class Data:
 
         pressure: float = self.users_data[user_id].learnings.compute_pressure()
         interface.print(f"Pressure: {pressure:.2f}")
-        interface.table(["Course", "Repeat", "Add", "Skipping", "All"], rows)
+        interface.table(["Course", "Repeat", "Add", "Postpone", "All"], rows)
+
+    def get_read_processes(self, user_id: str) -> dict[str, Read]:
+        return self.users_data[user_id].get_read_processes()

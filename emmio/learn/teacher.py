@@ -380,13 +380,17 @@ class Teacher:
                             break
                         new_answer = self.interface.input(">>> ")
 
+                return "continue"
+
+            if answer in ["p", "/postpone"]:
+                self.learning.postpone(word)
+                return "continue"
+
+            if answer == "/skip":
+                self.learning.register(Response.SKIP, 0, word, timedelta())
                 self.learning.write()
-
-                return "ok"
-
-            if answer in ["s", "/skip"]:
-                self.learning.skip(word)
-                return "ok"
+                print(f"Word is no longer in the learning process.")
+                return "continue"
 
             if answer.startswith("/skip "):
                 _, word_to_skip = answer.split(" ")
@@ -397,26 +401,27 @@ class Teacher:
                     timedelta(),
                 )
                 self.learning.write()
-                return "ok"
+                return "continue"
 
             if answer == "/stop":
                 return "stop"
 
-            if answer.startswith("/"):
-                if answer == "/exclude":
-                    self.data.exclude_sentence(word, sentence_id)
-                    self.learning.skip(word)
-                    return "ok"
-                elif answer.startswith("/hide "):
-                    self.data.exclude_translation(
-                        word, " ".join(answer.split(" ")[1:])
-                    )
-                    self.learning.skip(word)
-                    return "ok"
-                elif answer.startswith("/btt "):
-                    _, w, t = answer.split(" ")
-                    self.data.exclude_translation(w, t)
-                    continue
+            if answer == "/exclude":
+                self.data.exclude_sentence(word, sentence_id)
+                self.learning.postpone(word)
+                return "continue"
+
+            if answer.startswith("/hide "):
+                self.data.exclude_translation(
+                    word, " ".join(answer.split(" ")[1:])
+                )
+                self.learning.postpone(word)
+                return "continue"
+
+            if answer.startswith("/btt "):
+                _, w, t = answer.split(" ")
+                self.data.exclude_translation(w, t)
+                continue
 
             if answer.startswith("/know "):
                 command, command_word = answer.split(" ")
@@ -481,7 +486,7 @@ class Teacher:
 
                 self.learning.write()
 
-                return "ok"
+                return "continue"
 
             if answer == "":
                 index += 1

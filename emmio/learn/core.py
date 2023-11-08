@@ -70,13 +70,12 @@ class LearningProcess(BaseModel):
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 
-    skipping: dict[str, int] = {}
-    """
-    Mapping from question identifier to the number of times it was skipped.
+    postpone: dict[str, int] = {}
+    """Mapping from question identifier to the number of times it was skipped.
     """
 
-    def skip(self, question_id: str) -> None:
-        self.skipping[question_id] = self.skipping.get(question_id, 0) + 1
+    def postpone_question(self, question_id: str) -> None:
+        self.postpone[question_id] = self.postpone.get(question_id, 0) + 1
 
 
 @dataclass
@@ -186,12 +185,12 @@ class Learning:
         )
         self.process.records.append(record)
         self.__update_knowledge(record)
-        if question_id in self.process.skipping:
-            self.process.skipping.pop(question_id)
+        if question_id in self.process.postpone:
+            self.process.postpone.pop(question_id)
 
     def verify(self) -> bool:
         now: datetime = datetime.now()
-        question_ids = list(self.process.skipping.keys())
+        question_ids = list(self.process.postpone.keys())
         for question_id in question_ids:
             knowledge = self.knowledge[question_id]
             if knowledge.get_next_time() > now:
@@ -199,11 +198,11 @@ class Learning:
 
         return True
 
-    def skip(self, question_id: str) -> None:
-        self.process.skip(question_id)
+    def postpone(self, question_id: str) -> None:
+        self.process.postpone_question(question_id)
 
     def __is_not_skipped(self, question_id: str) -> bool:
-        return question_id not in self.process.skipping.keys()
+        return question_id not in self.process.postpone.keys()
 
     def __get_next_questions(self) -> list[str]:
         return [
@@ -217,8 +216,8 @@ class Learning:
 
     def get_skipping_counter(self, question_id: str) -> int:
         return (
-            self.process.skipping[question_id]
-            if question_id in self.process.skipping
+            self.process.postpone[question_id]
+            if question_id in self.process.postpone
             else 0
         )
 
