@@ -136,11 +136,20 @@ class Learning:
         if not self.file_path.is_file():
             self.write()
 
-        logging.info(f"Reading {self.file_path}...")
-        with self.file_path.open() as log_file:
-            content: dict = json.load(log_file)
-
-        self.process: LearningProcess = LearningProcess(**content)
+        self.process: LearningProcess
+        if self.file_path.name.endswith(".json"):
+            logging.info(f"Reading {self.file_path}...")
+            with self.file_path.open() as log_file:
+                try:
+                    self.process = LearningProcess(**(json.load(log_file)))
+                except json.decoder.JSONDecodeError:
+                    logging.fatal(f"Cannot process file {self.file_path}.")
+                    sys.exit(1)
+        elif self.file_path.name.endswith(".yml"):
+            logging.info(f"Reading {self.file_path}...")
+            self.process = load_old_format(self.file_path)
+        else:
+            self.process = None
 
         for record in self.process.records:
             self.__update_knowledge(record)
