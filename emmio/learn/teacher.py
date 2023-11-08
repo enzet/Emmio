@@ -5,14 +5,20 @@ from datetime import timedelta
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
-from emmio.dictionary.core import DictionaryItem, DictionaryCollection
-from emmio.language import GERMAN
+from emmio.dictionary.core import (
+    DictionaryItem,
+    DictionaryCollection,
+    Dictionary,
+    SimpleDictionary,
+)
+from emmio.language import construct_language
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.core import (
     LexiconLog,
     LexiconResponse,
     WordSelection,
     Lexicon,
+    AnswerType,
 )
 from emmio.lists.core import List
 from emmio.sentence.core import SentenceTranslations, SentencesCollection
@@ -23,6 +29,7 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
+ESCAPE_CHARACTER: str = "_"  # "░"
 
 
 class Teacher:
@@ -234,52 +241,68 @@ class Teacher:
     def play(self, word: str):
         self.audio.play(word, self.learning.learning_language)
 
+    def print_sentence(
+        self,
+        word: str,
+        rated_sentences: list[tuple[float, SentenceTranslations]],
+        index,
+        show_index: bool = False,
+        max_translations: int = 3,
+    ):
+        """Print sentence and its translations.
+
+        :param word: learning word that should be hidden
+        :param rated_sentences: example sentences with the learning word
+        :param index: current index in rated sentences
+        :param show_index: show current sentence index
+        :param max_translations: maximum number of translations to show
+        """
+        rating, sentence_translations = rated_sentences[index]
+        text: str = sentence_translations.sentence.text
+        if show_index:
+            text += f" ({index + 1}/{len(rated_sentences)})"
+
+        result: str = ""
+
+        sentence_translations: SentenceTranslations
+        words: list[tuple[str, str]] = sentence_translations.sentence.get_words(
+            self.learning.learning_language
+        )
+        all_known: bool = True
+
+        for current_word, type_ in words:
+            if type_ == "symbol":
+                result += current_word
+            elif current_word.lower() == word:
+                result += ESCAPE_CHARACTER * len(current_word)
+            elif self.user_data.is_known_or_not_a_word(
+                current_word.lower(), self.learning.learning_language
+            ):
+                result += "\033[32m" + current_word + "\033[0m"
+            else:
+                result += "\033[2m" + current_word + "\033[0m"
+                all_known = False
+
+        self.interface.print(result)
+
+        translations: list[text] = [
+            x.text
+            for x in sentence_translations.translations[:max_translations]
+        ]
+        if all_known:
+            input("[reveal translations]")
+        print("\n".join(translations))
+
     def learn(self, word: str, interval: timedelta) -> str:
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
 
-        sentences: list[SentenceTranslations] = self.sentences.filter_by_word(
-            word, ids_to_skip, 120
+        rated_sentences: list[
+            tuple[float, SentenceTranslations]
+        ] = self.sentences.filter_by_word_and_rate(
+            word, self.user_data, ids_to_skip, 120
         )
-        # if interval.total_seconds() == 0:
-        sentences = sorted(sentences, key=lambda x: len(x.sentence.text))
-        # else:
-        #     random.shuffle(sentences)
-
-        def print_sentence(show_index: bool = False, max_translations: int = 3):
-            """
-            Print sentence and its translations.
-
-            :param show_index: show current sentence index
-            :param max_translations: maximum number of translations to show
-            """
-            text: str = sentences[index].sentence.text
-            if show_index:
-                text += f" ({index + 1}/{len(sentences)})"
-
-            result: str = ""
-
-            current_word: str = ""
-            for position, char in enumerate(text):
-                position: int
-                char: str
-                if self.learning.learning_language.has_symbol(char.lower()):
-                    current_word += char
-                else:
-                    if current_word:
-                        if current_word.lower() == word:
-                            result += "░" * len(word)
-                        else:
-                            result += current_word
-                    result += char
-                    current_word = ""
-
-            for i in range(max_translations):
-                if len(sentences[index].translations) > i:
-                    result += "\n" + sentences[index].translations[i].text
-
-            self.interface.print(result)
 
         def log_():
             if interval.total_seconds() == 0:
@@ -337,15 +360,17 @@ class Teacher:
         else:
             self.interface.print(statistics + "\n" + "No translations.")
 
-        if index < len(sentences):
-            print_sentence()
+        if index < len(rated_sentences):
+            self.print_sentence(word, rated_sentences, index)
 
         while True:
             answer: str = self.interface.get_word(
                 word, alternative_forms, self.learning.learning_language
             )
             sentence_id: int = (
-                sentences[index].sentence.id_ if index < len(sentences) else 0
+                rated_sentences[index][1].sentence.id_
+                if index < len(rated_sentences)
+                else 0
             )
 
             # Preprocess answer.
@@ -490,9 +515,9 @@ class Teacher:
 
             if answer == "":
                 index += 1
-                if index < len(sentences):
-                    print_sentence()
-                elif index == len(sentences):
+                if index < len(rated_sentences):
+                    self.print_sentence(word, rated_sentences, index)
+                elif index == len(rated_sentences):
                     self.interface.print("No more sentences.")
 
     def process_command(self, command: str, word: str, sentence_id: int):

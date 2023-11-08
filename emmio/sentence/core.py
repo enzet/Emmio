@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Literal
 
 from emmio.language import Language
 from emmio.sentence.config import SentencesConfig
@@ -8,13 +8,41 @@ from emmio.sentence.config import SentencesConfig
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-from emmio.user.data import UserData
+
+def split_sentence(
+    text: str, language: Language
+) -> list[tuple[str, Literal["word", "symbol"]]]:
+    """Split sentence by words and symbols.
+
+    :return tuples of text parts and its types, e.g. for `Hello, world!` the
+        result should be
+          - ("Hello", word),
+          - (",", symbol),
+          - (" ", symbol),
+          - ("world", word),
+          - ("!", symbol),
+    """
+    words: list[tuple[str, Literal["word", "symbol"]]] = []
+    current: str = ""
+
+    for position, symbol in enumerate(text):
+        if language.has_symbol(symbol.lower()):
+            current += symbol
+        else:
+            if current:
+                words.append((current, "word"))
+            words.append((symbol, "symbol"))
+            current = ""
+
+    if current:
+        words.append((current, "word"))
+
+    return words
 
 
 @dataclass
 class Sentence:
-    """
-    Some part of a text written in a single language.
+    """Some part of a text written in a single language.
 
     Sometimes it may contain two or more sentences or not be complete.
     """
@@ -23,17 +51,7 @@ class Sentence:
     text: str
 
     def get_words(self, language: Language) -> list[tuple[str, str]]:
-        words: list[tuple[str, str]] = []
-        current: str = ""
-        for position, symbol in enumerate(self.text):
-            if language.has_symbol(symbol.lower()):
-                current += symbol
-            else:
-                if current:
-                    words.append((current, "word"))
-                words.append((symbol, "symbol"))
-                current = ""
-        return words
+        return split_sentence(self.text, language)
 
     def rate(self, language: Language, user_data: "UserData") -> float:
         words: list[tuple[str, str]] = self.get_words(language)
@@ -59,6 +77,9 @@ class SentenceTranslations:
     sentence: Sentence
     translations: List[Sentence]
 
+    def rate(self, language: Language, user_data: "UserData") -> float:
+        return self.sentence.rate(language, user_data)
+
 
 class Sentences:
     excluded_sentences_file_path: Path
@@ -75,7 +96,11 @@ class Sentences:
         return 0
 
     def filter_by_word(
-        self, word: str, ids_to_skip: set[int], max_length: int
+        self,
+        word: str,
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
     ) -> list[SentenceTranslations]:
         """
         Get list of sentences with translations that contain requested word.
@@ -86,10 +111,23 @@ class Sentences:
         :param word: word to be presented in the resulting sentences
         :param ids_to_skip: identifiers of sentences to not include
         :param max_length: maximum length of the sentence to include
+        :param max_number: maximum size of the resulting list
         """
         raise NotImplementedError()
 
-    def get_most_known(self, user_data: UserData) -> list[SentenceTranslations]:
+    def filter_by_word_and_rate(
+        self,
+        word: str,
+        user_data: "UserData",
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
+    ) -> list[tuple[float, SentenceTranslations]]:
+        raise NotImplementedError()
+
+    def get_most_known(
+        self, user_data: "UserData"
+    ) -> list[SentenceTranslations]:
         """Get top most known sentences."""
         raise NotImplementedError()
 
@@ -100,8 +138,22 @@ class SimpleSentences(Sentences):
     config: SentencesConfig
 
     def filter_by_word(
-        self, word: str, ids_to_skip: set[int], max_length: int
+        self,
+        word: str,
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
     ) -> list[SentenceTranslations]:
+        return []
+
+    def filter_by_word_and_rate(
+        self,
+        word: str,
+        user_data: "UserData",
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
+    ) -> list[tuple[float, SentenceTranslations]]:
         return []
 
     def __len__(self) -> int:
@@ -117,8 +169,25 @@ class SentencesCollection:
     ) -> list[SentenceTranslations]:
         result: list[SentenceTranslations] = []
 
-        for sentence in self.collection:
-            result += sentence.filter_by_word(word, ids_to_skip, max_length)
+        for sentences in self.collection:
+            result += sentences.filter_by_word(word, ids_to_skip, max_length)
+
+        return result
+
+    def filter_by_word_and_rate(
+        self,
+        word: str,
+        user_data: "UserData",
+        ids_to_skip: set[int],
+        max_length: int,
+    ) -> list[tuple[float, SentenceTranslations]]:
+        result: list[tuple[float, SentenceTranslations]] = []
+
+        for sentences in self.collection:
+            result += sentences.filter_by_word_and_rate(
+                word, user_data, ids_to_skip, max_length
+            )
+        result.sort(key=lambda x: -x[0])
 
         return result
 

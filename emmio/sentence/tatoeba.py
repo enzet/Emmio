@@ -225,50 +225,24 @@ class TatoebaSentences(Sentences):
                 )
         return result
 
-    def get_most_known(self, user_data: UserData) -> list[SentenceTranslations]:
-        sentences: dict[str, Sentence] = self.database.get_sentences(
-            self.language_2, self.path / "cache"
+    def filter_by_word_and_rate(
+        self,
+        word: str,
+        user_data: UserData,
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
+    ) -> list[tuple[float, SentenceTranslations]]:
+        sentence_translations: list[SentenceTranslations] = self.filter_by_word(
+            word, ids_to_skip, max_length, max_number
         )
-        rates: list[tuple[str, float]] = []
-        for sentence_id, sentence in sentences.items():
-            words: list[str] = sentence.text.split(" ")
-            rate: float = 0
-            for word in words:
-                word = word.lower()
-                if (
-                    word.endswith(".")
-                    or word.endswith("?")
-                    or word.endswith("։")
-                ):
-                    word = word[:-1]
-                if user_data.is_known(word, self.language_2):
-                    rate += 1
-                else:
-                    rate += 0
-            if rate / len(words) > 0.9 and len(words) > 1:
-                r = (rate + 1) / len(words)
-                rates.append((sentence_id, r))
-
-        for sentence_id, rate in sorted(rates, key=lambda x: -x[1]):
-            text = self.database.get_sentence(self.language_2, sentence_id).text
-            hidden: str = ""
-            for c in text:
-                if c not in " .?,":
-                    hidden += "*"
-                else:
-                    hidden += c
-            if str(sentence_id) in self.links and self.links[str(sentence_id)]:
-                for sentence_id_2 in self.links[str(sentence_id)]:
-                    print(
-                        "   ",
-                        self.database.get_sentence(
-                            self.language_1, sentence_id_2
-                        ).text,
-                    )
-                print(f"{rate:.2f} {hidden}")
-                a = input()
-                while a != text:
-                    if a == "":
-                        print(text)
-                        break
-                    a = input()
+        result: list[tuple[float, SentenceTranslations]] = []
+        for sentence_translation in sentence_translations:
+            result.append(
+                (
+                    sentence_translation.rate(self.language_2, user_data),
+                    sentence_translation,
+                )
+            )
+        result.sort(key=lambda x: -x[0])
+        return result
