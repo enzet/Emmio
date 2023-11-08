@@ -12,14 +12,16 @@ from emmio.lexicon.data import LexiconData
 @dataclass
 class UserData:
     path: Path
+    user_id: str
     user_name: str
     learnings: LearnData
     lexicons: LexiconData
 
     @classmethod
-    def from_config(cls, path: Path, config: dict) -> "UserData":
+    def from_config(cls, user_id: str, path: Path, config: dict) -> "UserData":
         return cls(
             path,
+            user_id,
             config["name"],
             LearnData.from_config(path / "learn", config["learn"]),
             LexiconData.from_config(path / "lexicon", config["lexicon"]),

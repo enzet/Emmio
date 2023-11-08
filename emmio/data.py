@@ -79,7 +79,7 @@ class Data:
                 user_path / CONFIGURATION_FILE_NAME
             ).open() as user_config_file:
                 user_data[user_path.name] = UserData.from_config(
-                    user_path, json.load(user_config_file)
+                    user_path.name, user_path, json.load(user_config_file)
                 )
         return cls(lists, sentences, dictionaries, audio, user_data)
 
