@@ -39,9 +39,11 @@ class Teacher:
         data: Data,
         user_data: UserData,
         learning: Learning,
+        stop_after_answer: bool = False,
     ) -> None:
         self.interface: Interface = interface
         self.data: Data = data
+        self.user_data: UserData = user_data
 
         self.learning: Learning = learning
         self.lexicon: Lexicon = user_data.get_lexicon(
@@ -54,7 +56,7 @@ class Teacher:
             for index, word in enumerate(list_.get_words()):
                 self.words.append((word, list_, index))
 
-        self.stop_after_answer: bool = False
+        self.stop_after_answer: bool = stop_after_answer
 
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
@@ -211,30 +213,38 @@ class Teacher:
 
         return True
 
-    def repeat(self) -> bool:
+    def repeat(self, max_actions: int | None = None) -> bool:
+        actions: int = 0
         while True:
             if word := self.learning.get_next_question():
                 code: str = self.learn(
                     word, self.learning.knowledge[word].interval
                 )
+                actions += 1
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
                     return False
+                if max_actions is not None and actions >= max_actions:
+                    return True
             else:
                 return True
 
-    def learn_new(self) -> bool:
+    def learn_new(self, max_actions: int | None = None) -> bool:
+        actions: int = 0
         while True:
             if (
                 self.learning.count_questions_added_today() < self.max_for_day
                 and (question_id := self.get_new_question()) is not None
             ):
                 code: str = self.learn(question_id, timedelta())
+                actions += 1
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
                     return False
+                if max_actions is not None and actions >= max_actions:
+                    return True
             else:
                 return True
 
@@ -393,17 +403,12 @@ class Teacher:
                 self.play(word)
 
                 if self.stop_after_answer:
-                    new_answer = self.interface.input(">>> ")
+                    new_answer = self.interface.input("> ")
                     while new_answer:
-                        if new_answer == "s":
-                            self.learning.register(
-                                Response.SKIP,
-                                sentence_id,
-                                word,
-                                timedelta(),
-                            )
-                            break
-                        new_answer = self.interface.input(">>> ")
+                        self.process_command(new_answer, word, sentence_id)
+                        new_answer = self.interface.input("> ")
+
+                self.learning.write()
 
                 return "continue"
 
@@ -496,18 +501,24 @@ class Teacher:
                 self.interface.box(word)
                 self.play(word)
 
-                new_answer = self.interface.input("Learn word? ")
-                if new_answer in ["s", "skip"]:
-                    self.learning.register(
-                        Response.SKIP, sentence_id, word, timedelta()
-                    )
-                else:
-                    self.learning.register(
-                        Response.WRONG,
-                        sentence_id,
-                        word,
-                        self.get_smallest_interval(),
-                    )
+                self.learning.register(
+                    Response.WRONG,
+                    sentence_id,
+                    word,
+                    self.get_smallest_interval(),
+                )
+                new_answer = self.interface.input("> ")
+                while new_answer:
+                    if new_answer in ["s", "skip"]:
+                        self.learning.register(
+                            Response.SKIP,
+                            sentence_id,
+                            word,
+                            self.get_smallest_interval(),
+                        )
+                        break
+                    self.process_command(new_answer, word, sentence_id)
+                    new_answer = self.interface.input("> ")
 
                 self.learning.write()
 

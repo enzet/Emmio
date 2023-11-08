@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
@@ -324,23 +325,35 @@ class Emmio:
             break
 
     def learn(self, learnings: list[Learning]) -> None:
-        learnings = sorted(learnings, key=lambda x: x.compare_by_old())
-
-        for learning in learnings:
-            teacher: Teacher = Teacher(
-                self.interface, self.data, self.user_data, learning
-            )
-            if not teacher.repeat():
-                return
-
-        learnings = sorted(learnings, key=lambda x: x.compare_by_new())
-
-        for learning in learnings:
-            teacher: Teacher = Teacher(
-                self.interface, self.data, self.user_data, learning
-            )
-            if not teacher.learn_new():
-                return
+        while True:
+            learnings = sorted(learnings, key=lambda x: x.compare_by_old())
+            if learnings[0].count_questions_to_repeat() > 0:
+                teacher: Teacher = Teacher(
+                    self.interface,
+                    self.data,
+                    self.user_data,
+                    learnings[0],
+                    stop_after_answer=True,
+                )
+                do_continue: bool = teacher.repeat(max_actions=10)
+                if not do_continue:
+                    return
+            else:
+                learnings = sorted(learnings, key=lambda x: x.compare_by_new())
+                learning: Learning = learnings[0]
+                if learning.count_questions_to_add() > 0:
+                    teacher: Teacher = Teacher(
+                        self.interface,
+                        self.data,
+                        self.user_data,
+                        learning,
+                        stop_after_answer=True,
+                    )
+                    do_continue: bool = teacher.learn_new(max_actions=10)
+                    if not do_continue:
+                        return
+                else:
+                    break
 
         print()
 
