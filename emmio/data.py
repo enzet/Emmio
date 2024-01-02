@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
@@ -16,6 +17,7 @@ from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
 from emmio.ui import progress
+from emmio.util import day_start, first_day_of_week
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -82,7 +84,7 @@ class Data:
                 )
         return cls(lists, sentences, dictionaries, audio, user_data)
 
-    def exclude_sentence(self, word: str, sentence_id: int):
+    def exclude_sentence(self, word: str, sentence_id: int) -> None:
         """Exclude the sentence from the learning process of the word.
 
         :param word: word in sentence
@@ -96,7 +98,7 @@ class Data:
         ) as output_file:
             json.dump(self.exclude_sentences, output_file)
 
-    def exclude_translation(self, word: str, other_word: str):
+    def exclude_translation(self, word: str, other_word: str) -> None:
         """Exclude some other word from the translation of the word."""
         if word not in self.exclude_translations:
             self.exclude_translations[word] = []
@@ -106,7 +108,7 @@ class Data:
         ) as output_file:
             json.dump(self.exclude_translations, output_file)
 
-    def get_list(self, id_) -> List | None:
+    def get_list(self, id_: str) -> List | None:
         return self.lists.get_list(id_)
 
     def get_frequency_list(self, id_: str) -> FrequencyList | None:
@@ -149,8 +151,10 @@ class Data:
     def get_lexicon(self, user_id: str, language: Language) -> Lexicon:
         return self.users_data[user_id].get_lexicon(language)
 
-    def get_lexicons(self, user_id: str) -> Iterator[Lexicon]:
-        return self.users_data[user_id].get_lexicons()
+    def get_lexicons(
+        self, user_id: str, languages: list[Language] | None = None
+    ) -> list[Lexicon]:
+        return self.users_data[user_id].get_lexicons(languages)
 
     def print_learning_statistics(
         self, interface: ui.Interface, user_id: str
