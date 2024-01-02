@@ -194,6 +194,7 @@ class Form:
         words_to_hide: set[str] = None,
         hide_translations: set[str] = None,
         only_common: bool = True,
+        max_definitions: int = 5,
     ) -> str:
         """Get human-readable representation of the word form."""
         to_hide: list[str] | None = None
@@ -219,12 +220,15 @@ class Form:
                 if string is not None and string not in definitions:
                     definitions.append(string)
 
+        if max_definitions:
+            definitions = definitions[:max_definitions]
+
         links: list[Link] = self.get_links(only_common)
 
         if not definitions and not links:
             return ""
 
-        result: str = interface.colorize(description, "grey") + "\n"
+        result: str = "  " + interface.colorize(description, "grey") + "\n"
 
         if definitions:
             result += "    " + "\n    ".join(definitions) + "\n"
@@ -266,6 +270,7 @@ class DictionaryItem:
         words_to_hide: set[str] | None = None,
         hide_translations: set[str] | None = None,
         only_common: bool = True,
+        max_definitions_per_form: int = 5,
     ) -> str:
         """Get human-readable representation of the dictionary item.
 
@@ -276,21 +281,24 @@ class DictionaryItem:
         :param words_to_hide: set of words to be hidden from the output
         :param hide_translations: list of translations that should be hidden
         :param only_common: return only common words
+        :param max_definitions_per_form: maximum number of definitions to be
+            returned for each form
         """
         result: str = ""
 
         if show_word:
-            result += self.word + "\n"
+            result += "  " + self.word + "\n"
 
-        for definition in self.forms:
+        for form in self.forms:
             for language in languages:
-                result += definition.to_str(
+                result += form.to_str(
                     language,
                     interface,
                     show_word,
                     words_to_hide,
                     hide_translations,
                     only_common,
+                    max_definitions_per_form,
                 )
 
         return result
