@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator
 
+from pydantic import BaseModel
+
 from emmio.dictionary.core import (
     DictionaryCollection,
     Dictionary,
@@ -60,6 +62,19 @@ class LexiconResponse(Enum):
     @classmethod
     def from_string(cls, string: str) -> "LexiconResponse":
         return cls[string.upper()]
+
+    def get_symbol(self) -> str:
+        match self:
+            case self.KNOW:
+                return "K"
+            case self.DONT:
+                return "D"
+            case self.KNOW_OR_NOT_A_WORD:
+                return "?"
+            case self.DONT_BUT_PROPER_NOUN_TOO:
+                return "B"
+            case self.NOT_A_WORD:
+                return "N"
 
     def get_message(self) -> str:
         match self:
@@ -139,6 +154,12 @@ class LexiconLogRecord:
     response: LexiconResponse
     answer_type: AnswerType | None = None
     to_skip: bool | None = None
+
+    def get_time(self) -> datetime:
+        return self.time
+
+    def get_symbol(self) -> str:
+        return self.response.get_symbol()
 
     @classmethod
     def deserialize(cls, structure: Any) -> "LexiconLogRecord":
@@ -440,7 +461,7 @@ class Lexicon:
         return int(100 / self.get_average())
 
     def construct_precise(
-        self, precision: int = 100
+        self, precision: int = 100, before: datetime | None = None
     ) -> (list[datetime], list[float]):
         dates: list[datetime] = []
         rates: list[float] = []
@@ -449,6 +470,8 @@ class Lexicon:
         while right < len(self.dates) - 1:
             knowns += 1 if self.responses[right] else 0
             right += 1
+            if before and self.dates[right] > before:
+                break
             length: int = right - left
 
             if length - knowns > precision:
@@ -464,8 +487,10 @@ class Lexicon:
 
         return dates, rates
 
-    def get_last_rate(self, precision: int = 100) -> float | None:
-        dates, rates = self.construct_precise(precision)
+    def get_last_rate(
+        self, precision: int = 100, before: datetime | None = None
+    ) -> float | None:
+        dates, rates = self.construct_precise(precision, before)
         if rates:
             return rates[-1]
         return None
@@ -562,20 +587,19 @@ class Lexicon:
             sentence_translations = sentences.filter_by_word(word, set(), 120)
             if sentence_translations:
                 print(
-                    sentence_translations[0].sentence.text.replace(
+                    "Usage example: "
+                    + sentence_translations[0].sentence.text.replace(
                         word, f"\033[32m{word}\033[0m"
                     )
                 )
 
-        items: list[DictionaryItem] = dictionaries.get_items(
-            word, self.language
+        translation = dictionaries.to_str(
+            word, self.language, [ENGLISH, RUSSIAN], interface
         )
-        if items:
+        if translation:
             print("[Show translation]")
             get_char()
-            print(
-                "\n".join(map(lambda x: x.to_str([ENGLISH], interface), items))
-            )
+            print(translation)
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
 
@@ -881,3 +905,20 @@ class Lexicon:
 
     def __repr__(self) -> str:
         return f"<User lexicon {self.language.get_name()}>"
+
+    def get_user_records(self, word: str) -> list[LexiconLogRecord]:
+        records = []
+        for log in self.logs.values():
+            for record in log.records:
+                if (
+                    record.word == word
+                    and record.answer_type == AnswerType.USER_ANSWER
+                ):
+                    records.append(record)
+        return records
+
+    def get_records(self) -> list[LexiconLogRecord]:
+        records: list[LexiconLogRecord] = []
+        for log in self.logs.values():
+            records += log.records
+        return records
