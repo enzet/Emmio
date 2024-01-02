@@ -121,11 +121,53 @@ class LexiconVisualizer:
             plt.savefig("out/graph.svg")
 
     def graph_with_svg(self, lexicons, margin: float = 0.0):
-        x_min, x_max, data = self.construct_lexicon_data(lexicons, margin)
-        graph = Graph(data, x_min, x_max)  # , color=Color("#000000"))
-        graph.plot(
-            Drawing("lexicon.svg", graph.canvas.size)
-        )  # , fill="#101010"))
+        x_min, x_max, lexicon_data = self.construct_lexicon_data(
+            lexicons, margin
+        )
+        data = []
+        for xs, y_ranges, color, title in lexicon_data:
+            element = (
+                xs,
+                [
+                    sorted(y_range)[int(0.5 * len(y_range))]
+                    for y_range in y_ranges
+                ],
+                color,
+                title,
+            )
+            data.append(element)
+        data2 = []
+        for xs, y_ranges, color, title in lexicon_data:
+            element = (
+                xs,
+                [
+                    [min(y_range) for y_range in y_ranges],
+                    [max(y_range) for y_range in y_ranges],
+                ],
+                color,
+                None,
+            )
+            data2.append(element)
+        graph = Graph(x_min, x_max)  # , color=Color("#000000"))
+        svg = Drawing("lexicon.svg", graph.canvas.size)
+        graph.grid(svg)
+        graph.plot(svg, data)
+        for xs, y_ranges, color, title in lexicon_data:
+            for left, right, opacity in (0.25, 0.75, 0.2), (0, 1, 0.1):
+                ys_1 = [
+                    sorted(y_range)[int(left * len(y_range))]
+                    for y_range in y_ranges
+                ]
+                ys_2 = [
+                    sorted(y_range)[
+                        min(int(right * len(y_range)), len(y_range) - 1)
+                    ]
+                    for y_range in y_ranges
+                ]
+                graph.fill_between(
+                    svg, xs, ys_1, ys_2, color=color, opacity=opacity
+                )
+        graph.write(svg)
 
     def construct_lexicon_data(self, lexicons, margin):
         x_min: datetime | None = None
@@ -139,10 +181,11 @@ class LexiconVisualizer:
             if not rates or max(rates) < margin:
                 continue
 
-            language_name: str = lexicon.language.get_name()
+            language_name: str = lexicon.language.get_self_name()
+            language_name = language_name[0].upper() + language_name[1:]
 
             xs: list[datetime] = []
-            ys: list[list[float]] = []
+            y_ranges: list[list[float]] = []
 
             point: datetime = self.first_point(min(dates))
             x_min = min(point, x_min) if x_min else point
@@ -153,7 +196,7 @@ class LexiconVisualizer:
                 if point < current_point:
                     while point < current_point:
                         xs.append(point)
-                        ys.append(current)
+                        y_ranges.append(current)
                         point = self.next_point(point)
                         x_max = max(point, x_max) if x_max else point
 
@@ -163,9 +206,16 @@ class LexiconVisualizer:
 
             if index < len(rates):
                 xs.append(point)
-                ys.append(current)
+                y_ranges.append(current)
 
-            data.append([xs, ys, lexicon.language.get_color(), language_name])
+            data.append(
+                [
+                    xs,
+                    y_ranges,
+                    lexicon.language.get_color(),
+                    language_name,
+                ]
+            )
 
         return (
             x_min,
