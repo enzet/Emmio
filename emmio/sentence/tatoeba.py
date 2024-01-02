@@ -6,10 +6,11 @@ from dataclasses import dataclass, field
 from os.path import join
 from pathlib import Path
 
+from tqdm import tqdm
+
 from emmio.language import Language
 from emmio.sentence.core import Sentence, SentenceTranslations, Sentences
 from emmio.sentence.database import SentenceDatabase
-from emmio.ui import progress_bar
 from emmio.user.data import UserData
 from emmio.util import download
 
@@ -89,15 +90,11 @@ class TatoebaSentences(Sentences):
 
         links: dict[int, set[int]] = {}
 
-        size = len(lines)
-
         logging.info(
             f"Caching links between {self.language_1.get_name()} and "
             f"{self.language_2.get_name()} Tatoeba sentences..."
         )
-        for index, line in enumerate(lines):
-            progress_bar(index, size)
-
+        for index, line in enumerate(tqdm(lines)):
             try:
                 id_1, id_2 = map(int, line[:-1].split("\t"))
             except ValueError:
@@ -117,8 +114,6 @@ class TatoebaSentences(Sentences):
                 set_ = links[id_2]
                 set_.add(id_1)
                 links[id_1] = set_
-
-        progress_bar(-1, size)
 
         sentences_1: dict[str, Sentence] = self.database.get_sentences(
             self.language_1, cache_path
@@ -145,10 +140,8 @@ class TatoebaSentences(Sentences):
     def fill_cache(self, file_name: str) -> None:
         """Construct dictionary from words to sentences."""
         logging.info("Fill word cache...")
-        size = len(self.links)
-        for index, id_ in enumerate(self.links.keys()):
+        for index, id_ in enumerate(tqdm(self.links.keys())):
             id_ = int(id_)
-            progress_bar(index, size)
             word: str = ""
             sentence_words: set[str] = set()
             sentence: str = self.database.get_sentence(
@@ -167,7 +160,6 @@ class TatoebaSentences(Sentences):
                 if word not in self.cache:
                     self.cache[word] = []
                 self.cache[word].append(id_)
-        progress_bar(-1, size)
         with open(file_name, "w+") as output_file:
             logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
