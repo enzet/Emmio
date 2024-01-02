@@ -1,12 +1,14 @@
 import random
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Callable
+from typing import Callable, Any, Iterator
 
 import numpy as np
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from emmio import util
+from emmio.language import Language, construct_language
 from emmio.learn.core import Knowledge, LearningRecord, Response, Learning
 from emmio.learn.visualizer import LearningVisualizer, DEPTH_COLORS
 from emmio.lexicon.core import Lexicon, AnswerType
@@ -14,25 +16,23 @@ from emmio.lexicon.core import Lexicon, AnswerType
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+HATCHES: list[str] = [x + x for x in ".oO/\\|-+x*"]
+
 
 class Visualizer:
     def __init__(self, interactive: bool = True):
         self.interactive: bool = interactive
 
     @staticmethod
-    def get_commands() -> set[str]:
-        return {
+    def check_command(command: str) -> bool:
+        for prefix in ("plot learn ", "actions ", "knowing "):
+            if command.startswith(prefix):
+                return True
+        return command in {
             "plot learn",
-            "plot learn by time",
-            "plot learn by depth",
-            "plot learn by time by depth",
             "graph 2",
-            "graph 3",
+            "knowing",
             "actions",
-            "actions per day",
-            "actions per week",
-            "actions per month",
-            "actions per year",
             "response time",
             "next question time",
             "mistakes",
@@ -41,53 +41,52 @@ class Visualizer:
     def process_command(
         self,
         command: str,
-        records: list[LearningRecord],
+        records: list[tuple[LearningRecord, Learning]],
         knowledges,
         learnings: list[Learning],
         lexicons: list[Lexicon],
     ) -> bool:
-        if command == "plot learn":
-            LearningVisualizer(records, interactive=self.interactive).draw()
-        if command == "plot learn by time":
-            LearningVisualizer(
-                records, interactive=self.interactive, is_time=True
-            ).draw()
-        if command == "plot learn by depth":
-            LearningVisualizer(
-                records, interactive=self.interactive, count_by_depth=True
-            ).draw()
-        if command == "plot learn by time by depth":
+        if command == "plot learn" or command.startswith("plot learn "):
+            args = command.split(" ")[2:]
             LearningVisualizer(
                 records,
                 interactive=self.interactive,
-                is_time=True,
-                count_by_depth=True,
+                is_time="time" in args,
+                count_by_depth="depth" in args,
+                by_language="language" in args,
             ).draw()
         if command == "graph 2":
             self.graph_2(records)
-        if command == "graph 3":
-            self.graph_3(learnings)
+        if command == "knowing":
+            self.knowing(learnings)
+        if command.startswith("knowing "):
+            _, language = command.split(" ")
+            ll = [
+                x
+                for x in learnings
+                if x.learning_language == construct_language(language)
+            ]
+            self.knowing(ll)
         if command == "actions":
             self.actions(records)
-        if command == "actions per day":
+        if command.startswith("actions "):
+            args = command.split(" ")[1:]
+
+            def locator(x):
+                return datetime(day=x.day, month=x.month, year=x.year)
+
+            days = 1
+            if "week" in args:
+                locator, days = util.first_day_of_week, 7
+            elif "month" in args:
+                locator, days = util.first_day_of_month, 31
+            elif "year" in args:
+                locator, days = util.year_start, 365 * 0.6
+
             self.cumulative_actions(
-                records,
-                lexicons,
-                lambda x: datetime(day=x.day, month=x.month, year=x.year),
-                1,
+                records, lexicons, locator, days, "language" in args
             )
-        if command == "actions per week":
-            self.cumulative_actions(
-                records, lexicons, util.first_day_of_week, 7
-            )
-        if command == "actions per month":
-            self.cumulative_actions(
-                records, lexicons, util.first_day_of_month, 31
-            )
-        if command == "actions per year":
-            self.cumulative_actions(
-                records, lexicons, util.year_start, 365 * 0.6
-            )
+
         if command == "response time":
             self.response_time(records)
         if command == "next question time":
@@ -102,10 +101,10 @@ class Visualizer:
         else:
             plt.savefig("out/graph.svg")
 
-    def actions(self, records: list[LearningRecord]):
+    def actions(self, records: list[tuple[LearningRecord, Learning]]):
         x, y = [], []
         count_learning: int = 0
-        for record in records:
+        for record, learning in records:
             if record.is_learning():
                 count_learning += 1
             x.append(record.time)
@@ -115,22 +114,33 @@ class Visualizer:
 
     def cumulative_actions(
         self,
-        records: list[LearningRecord],
+        records: list[tuple[LearningRecord, Learning]],
         lexicons: list[Lexicon],
         point: Callable,
         width: float,
+        by_language: bool = False,
     ):
-        size: int = 20
-        data: list[dict[str, int]] = [defaultdict(int) for _ in range(size)]
+        if by_language:
+            learnings = {x[1] for x in records}
+            data: dict[Any, [dict[str, int]]] = {
+                x.learning_language.get_code(): defaultdict(int)
+                for x in learnings
+            }
+            size = len(data)
+        else:
+            size: int = 20
+            data: dict[Any, [dict[str, int]]] = {
+                index: defaultdict(int) for index in range(size)
+            }
 
-        for record in records:
-            if record.interval:
-                depth: int = max(
-                    0,
-                    int(
-                        np.log2(record.interval.total_seconds() / 60 / 60 / 24)
-                    ),
-                )
+        for record, learning in records:
+            if by_language:
+                data[learning.learning_language.get_code()][
+                    point(record.time)
+                ] += 1
+            elif record.interval:
+                days: float = record.interval.total_seconds() / 60 / 60 / 24
+                depth: int = max(0, int(np.log2(days)))
                 data[depth + 1 + 2][point(record.time)] += 1
             else:
                 data[0 + 2][point(record.time)] += 1
@@ -145,7 +155,8 @@ class Visualizer:
                     or record.answer_type == AnswerType.UNKNOWN
                     and (record.time - last_record.time).total_seconds() > 0
                 ):
-                    data[0][point(record.time)] += 1
+                    if not by_language:
+                        data[0][point(record.time)] += 1
                 last_record = record
             if "log_ex" in lexicon.logs:
                 for record in lexicon.logs["log_ex"].records:
@@ -153,16 +164,32 @@ class Visualizer:
                         AnswerType.UNKNOWN,
                         AnswerType.USER_ANSWER,
                     ]:
-                        data[1][point(record.time)] += 1
+                        if not by_language:
+                            data[1][point(record.time)] += 1
 
         keys = set()
-        for i in range(size):
+        for i in data:
             keys |= data[i].keys()
 
         xs = sorted(keys)
 
-        for i in range(size):
-            if i == 0:  # log
+        if by_language:
+            categories = list(data.keys())
+        else:
+            categories = range(size)
+
+        for category in categories:
+            for x in xs:
+                if x not in data[category]:
+                    data[category][x] = 0
+
+        for index, i in enumerate(categories):
+            if by_language:
+                language = construct_language(i)
+                color = util.get_color(i)
+                # color = language.get_color().hex
+                label = language.get_name()
+            elif i == 0:  # log
                 color = "#E8F0F8"
                 label = "Checking lexicon"
             elif i == 1:  # log_ex
@@ -172,7 +199,11 @@ class Visualizer:
                 color = DEPTH_COLORS[i + 1 - 2]
                 label = f"Learning level {i + 1 - 2}"
 
-            ys = [sum(data[y][x] for y in range(i, size)) for x in xs]
+            ys = []
+            for x in xs:
+                ys.append(
+                    sum(data[categories[y]][x] for y in range(index, size))
+                )
 
             if np.any(ys):
                 plt.bar(
@@ -183,12 +214,13 @@ class Visualizer:
                     width=width,
                     label=label,
                 )
+        plt.legend()
         self.plot()
 
-    def graph_2(self, records: list[LearningRecord]):
+    def graph_2(self, records: list[tuple[LearningRecord, Learning]]):
         x = []
         count: int = 0
-        for record in records:
+        for record, learning in records:
             if record.time + record.interval > datetime.now():
                 count += 1
                 x.append(record.time + record.interval)
@@ -197,13 +229,12 @@ class Visualizer:
         plt.plot(x, y)
         self.plot()
 
-    def graph_3(self, learnings: list[Learning]):
+    def knowing(self, learnings: list[Learning]):
         records: list[tuple[str, LearningRecord]] = []
 
         for learning in learnings:
             for record in learning.process.records:
-                if record.is_learning():
-                    records.append((learning.id_, record))
+                records.append((learning.learning_language.get_code(), record))
 
         records = sorted(records, key=lambda x: x[1].time)
 
@@ -213,110 +244,170 @@ class Visualizer:
         days: int = int((max_x - min_x).total_seconds() / 3600 / 24)
 
         points = [
-            util.day_start(min_x) + timedelta(days=i) for i in range(days + 1)
+            util.day_start(min_x) + timedelta(days=i) for i in range(days + 2)
         ] + [datetime.now()]
+        print(f"Construct {days + 2} days...")
 
         # Mapping: learning id -> last learning record.
-        last_records: dict[str, LearningRecord] = {}
+        knowledge: dict[str, Knowledge] = {}
         data: dict[str, float] = {}
 
         xs = []
         values_map = {0.1: [], 0.15: [], 0.2: [], 0.25: [], 0.3: []}
+        values_language: dict[str, list] = {
+            x.learning_language.get_code(): [] for x in learnings
+        }
         values_total = []
 
         index: int = 0
 
-        for point in points:
+        for point in tqdm(points):
             if index < len(records):
                 while records[index][1].time < point:
                     learn_id, record = records[index]
-                    id_ = f"{learn_id}_{record.question_id}"
-                    last_records[id_] = record
-                    if record.is_learning():
-                        data[id_] = 1.0
+                    id_ = f"{learn_id}///{record.question_id}"
+                    if id_ not in knowledge:
+                        knowledge[id_] = Knowledge(record.question_id)
+                    knowledge[id_].add_record(record)
+                    data[id_] = 1.0
                     index += 1
                     if index >= len(records):
                         break
             xs.append(point)
 
-            values = {precision: 0 for precision in values_map}
-            for record in last_records.values():
-                if record.interval.total_seconds() > 0:
+            values_c = {precision: 0 for precision in values_map}
+            values_l = {x.learning_language.get_code(): 0 for x in learnings}
+            for id_, word_knowledge in knowledge.items():
+                if word_knowledge.is_learning():
                     for coef in values_map:
-                        values[coef] += max(
-                            0.0,
-                            (1 - coef)
-                            ** ((point - record.time) / record.interval),
+                        values_c[coef] += max(
+                            0.0, (1 - coef) ** word_knowledge.estimate(point)
                         )
+                    values_l[id_.split("///")[0]] += max(
+                        0.0, 0.8 ** word_knowledge.estimate(point)
+                    )
+                else:
+                    for coef in values_map:
+                        values_c[coef] += 0.0
+                    values_l[id_.split("///")[0]] += 0.0
             for coef in values_map:
-                values_map[coef].append(values[coef])
-            values_total.append(len(last_records))
+                values_map[coef].append(values_c[coef])
+            for id_ in values_language:
+                values_language[id_].append(values_l[id_])
+            values_total.append(
+                len([x for x in knowledge.values() if x.is_learning()])
+            )
 
         values_map_bad = {
             pr: [v1 - v2 for v1, v2 in zip(values_map[pr], values_total)]
             for pr in values_map
         }
-        plt.plot(xs, [0] * len(xs), color="black", linewidth=1)
 
-        for map_ in values_map, values_map_bad:
-            plt.plot(xs, map_[0.2], color="black", linewidth=1)
-            for bottom, top in ((0.15, 0.25), (0.1, 0.3)):
-                plt.fill_between(
-                    xs, map_[bottom], map_[top], color="#00000022", linewidth=0
-                )
+        fig, ax = plt.subplots()
 
-        plt.xlim([min_x, points[-1]])
+        plt.plot(xs, values_map_bad[0.2], color="black", linewidth=1)
+
+        for coef, hatch in (0.1, "/"), (0.2, "///"):
+            plt.fill_between(
+                xs,
+                [-x * coef for x in values_total],
+                [
+                    min(x, -y * 0.2)
+                    for x, y in zip(values_map_bad[0.2], values_total)
+                ],
+                hatch=hatch,
+                color="none",
+                edgecolor="red",
+                linewidth=1,
+            )
+
+        # Plot number of all words in the learning process.
+        plt.plot(xs, values_total, color="#888888", linewidth=1)
+
+        total = [0.0] * len(xs)
+        index = 0
+        for id_, data in values_language.items():
+            language: Language = construct_language(id_)
+            color = language.get_random_color()
+            color = language.get_color().hex
+            title = language.get_name()
+            new_total = [x + y for x, y in zip(data, total)]
+            plt.fill_between(
+                xs,
+                total,
+                new_total,
+                hatch=HATCHES[index % len(HATCHES)],
+                label=title,
+                color="white",
+                edgecolor=color,
+            )
+            total = new_total
+            index += 1
+
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(
+            reversed(handles),
+            reversed(labels),
+            title="Language",
+            loc="upper left",
+        )
         self.plot()
 
-    def next_question_time(self, last_records: dict[str, Knowledge]):
+    def next_question_time(self, learnings: Iterator[Learning]):
         data = {}
-        for word in last_records:
-            record = last_records[word]
-            if record.interval.total_seconds() != 0:
-                time = record.get_next_time()
-                data[time] = random.random()  # time.hour * 60 + time.minute
+        for learning in learnings:
+            for word in learning.knowledge:
+                record = learning.knowledge[word]
+                if record.is_learning():
+                    time = learning.get_next_time(record)
+                    data[time] = random.random()  # time.hour * 60 + time.minute
         x = sorted(data.keys())
         y = list(map(lambda z: data[z], x))
         plt.plot(x, y, "o", color="black", markersize=0.5)
         self.plot()
 
     def graph_mistakes(self, learnings):
-        records: list[tuple[str, LearningRecord]] = []
-
         for learning in learnings:
+            records: list[tuple[str, LearningRecord]] = []
             for record in learning.process.records:
                 if record.is_learning():
                     records.append((learning.id_, record))
 
-        size: int = 10
-        xs = range(size)
-        ys = [0] * size
-        ns = [0] * size
-        lasts = defaultdict(int)
-        for learning_id, record in records:
-            id_: str = f"{learning_id}_{record.question_id}"
-            if record.response == Response.RIGHT:
-                if id_ in lasts:
-                    ys[lasts[id_]] += 1
-                lasts[id_] += 1
-            elif record.response == Response.WRONG:
-                if id_ in lasts:
-                    ns[lasts[id_]] += 1
-                lasts[id_] = 0
-        # plt.plot(xs, [(ns[i] + ys[i]) for i in range(size)])
-        plt.plot(
-            xs,
-            [
-                (ns[i] / (ns[i] + ys[i]) * 100 if (ns[i] + ys[i] > 0) else 0)
-                for i in range(size)
-            ],
-        )
+            size: int = 10
+            xs = range(size)
+            ys = [0] * size
+            ns = [0] * size
+            lasts = defaultdict(int)
+            for learning_id, record in records:
+                id_: str = f"{learning_id}_{record.question_id}"
+                if record.response == Response.RIGHT:
+                    if id_ in lasts:
+                        ys[lasts[id_]] += 1
+                    lasts[id_] += 1
+                elif record.response == Response.WRONG:
+                    if id_ in lasts:
+                        ns[lasts[id_]] += 1
+                    lasts[id_] = 0
+            plt.plot(
+                xs,
+                [
+                    (
+                        ns[i] / (ns[i] + ys[i]) * 100
+                        if (ns[i] + ys[i] > 0)
+                        else 0
+                    )
+                    for i in range(size)
+                ],
+            )
         plt.ylim(ymin=0)
         plt.xlim([0, size - 1])
         self.plot()
 
     def response_time(
-        self, records: list[LearningRecord], steps: int = 10, max_: int = 60
+        self,
+        records: list[tuple[LearningRecord, Learning]],
+        steps: int = 5,
+        max_: int = 60,
     ) -> None:
         """
         Draw user response time histogram.
@@ -329,9 +420,9 @@ class Visualizer:
         y_y: list[float] = [0.0] * (max_ * steps + 1)
         y_n: list[float] = [0.0] * (max_ * steps + 1)
 
-        last_record: LearningRecord | None = records[0] if records else None
+        last_record: LearningRecord | None = records[0][0] if records else None
 
-        for record in records:
+        for record, learning in records:
             interval: timedelta = record.time - last_record.time
             diff: int = int(interval.total_seconds() * steps)
             if interval.microseconds != 0 and diff / steps <= max_:
