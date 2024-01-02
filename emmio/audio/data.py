@@ -9,6 +9,7 @@ from emmio.audio.core import (
     DirectoryAudioProvider,
     WikimediaCommonsAudioProvider,
 )
+from emmio.language import Language
 
 
 @dataclass
@@ -34,7 +35,10 @@ class AudioData:
     def get_audio_provider(self, usage_config: dict) -> AudioProvider:
         match id_ := usage_config["id"]:
             case "wikimedia_commons":
-                return WikimediaCommonsAudioProvider(self.path / "cache")
+                return WikimediaCommonsAudioProvider(
+                    Language.from_code(usage_config["language"]),
+                    self.path / "cache",
+                )
             case _:
                 return self.audio_providers[id_]
 
