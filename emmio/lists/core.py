@@ -3,6 +3,8 @@
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+from dataclasses import dataclass
+
 
 class List:
     def get_name(self) -> str:
@@ -16,3 +18,8 @@ class List:
     def get_words(self) -> list[str]:
         """Get ordered list of words."""
         raise NotImplementedError()
+
+
+@dataclass
+class ListCollection:
+    collection: list[List]

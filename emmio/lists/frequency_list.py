@@ -4,11 +4,12 @@ import random
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Iterator
 
 import urllib3
 
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
-from emmio.lists.core import List
+from emmio.lists.core import List, ListCollection
 
 
 class WordOccurrences:
@@ -212,7 +213,7 @@ class FrequencyList(List):
                     occurrences: int = int(line[position + 1 :])
                     self.data[word] = occurrences
                 except ValueError:
-                    print(f"failed on {line}")
+                    pass
         self.__post_init__()
 
     def load_from_url(self) -> None:
@@ -238,3 +239,13 @@ class FrequencyList(List):
             cache_file.write(data)
 
         self.load_from_file()
+
+
+@dataclass
+class FrequencyListCollection(ListCollection):
+    def get_words_by_turn(self, minimum_frequency: int = 0) -> Iterator[str]:
+        index: int = 0
+        for frequency_list in self.collection:
+            if len(frequency_list) > index:
+                yield frequency_list.get_words()[index]
+            index += 1
