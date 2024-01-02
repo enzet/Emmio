@@ -63,9 +63,7 @@ class Canvas:
 
 
 class Graph:
-    """
-    Graph with line and dots.
-    """
+    """Graph with line and dots."""
 
     def __init__(
         self,

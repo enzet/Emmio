@@ -67,7 +67,7 @@ def format_delta(delta: timedelta):
 def download(
     address: str, cache_path: Path, buffer_size: int = 0x80000
 ) -> bytes | None:
-    logging.info(f"Downloading {address}: ")
+    logging.info(f"Downloading {address}...")
 
     timeout = Timeout(connect=1.0, read=2.0)
     pool_manager: PoolManager = PoolManager(timeout=timeout)

@@ -34,8 +34,7 @@ CONFIGURATION_FILE_NAME: str = "config.json"
 
 @dataclass
 class Data:
-    """
-    Registry of all available Emmio data.
+    """Registry of all available Emmio data.
 
     This class manages Emmio data directory which is by default located in
     ``~/.emmio``.  It expects to find directories ``lists``, ``sentences``,
@@ -84,8 +83,7 @@ class Data:
         return cls(lists, sentences, dictionaries, audio, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int):
-        """
-        Exclude the sentence from the learning process of the word.
+        """Exclude the sentence from the learning process of the word.
 
         :param word: word in sentence
         :param sentence_id: a sentence unique identifier

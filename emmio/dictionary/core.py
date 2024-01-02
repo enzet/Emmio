@@ -143,8 +143,7 @@ class Form:
     def add_translation(
         self, translation: Definition, language: Language
     ) -> None:
-        """
-        Add word translation.
+        """Add word translation.
 
         It is assumed that translations are sorted by usage frequency.
 
@@ -156,16 +155,14 @@ class Form:
         self.definitions[language].append(translation)
 
     def add_link(self, link: Link) -> None:
-        """
-        Add link to another dictionary item if the word is a form of other word.
+        """Add link to another dictionary item if the word is a form.
 
         :param link: link to another dictionary item
         """
         self.links.append(link)
 
     def is_not_common(self, language: Language) -> bool:
-        """
-        Check whether we can deduce from the present definitions that word is
+        """Check whether we can deduce from the present definitions that word is
         not a common word of the language. E.g. it is misspelling, obsolete, or
         slang.
 
@@ -258,9 +255,7 @@ class DictionaryItem:
         self.forms.append(form)
 
     def get_links(self) -> set[Link]:
-        """
-        Get keys to other dictionary items this dictionary item is linked to.
-        """
+        """Get keys to other dictionary items this dictionary item is linked to."""
         return set([link for form in self.forms for link in form.get_links()])
 
     def to_str(

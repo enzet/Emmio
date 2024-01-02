@@ -79,9 +79,8 @@ class DirectoryAudioProvider(AudioProvider):
 
 
 class WikimediaCommonsAudioProvider(AudioProvider):
-    """
-    Audio provider that downloads and plays audio files with word pronunciations
-    from Wikimedia Commons.
+    """Audio provider that downloads and plays audio files with word
+    pronunciations from Wikimedia Commons.
     """
 
     def __init__(self, cache_directory: Path) -> None:
@@ -98,8 +97,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
             return f"{language_code[0].upper()}{language_code[1]}-{word}.ogg"
 
     def get_path(self, word: str, language: Language) -> Path | None:
-        """
-        Return path of the audio file or ``None`` if file does not exist.
+        """Return path of the audio file or ``None`` if file does not exist.
 
         For Wikimedia Commons hashing scheme see
         https://commons.wikimedia.org/wiki/Commons:FAQ, part

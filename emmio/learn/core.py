@@ -38,9 +38,9 @@ class LearningRecord(BaseModel):
     """Learning record for a question."""
 
     question_id: str
-    """
-    Unique string question identifier. For single word learning it should be a
-    word itself.
+    """Unique string question identifier.
+    
+    For single word learning it should be a word itself.
     """
 
     response: Response

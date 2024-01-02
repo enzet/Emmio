@@ -41,6 +41,8 @@ class LearnConfig(BaseModel):
     """Learning scheme."""
 
     sentences: list[dict]
+    """Sentences usage configurations."""
+
     dictionaries: list[dict]
     lists: list[str]
 

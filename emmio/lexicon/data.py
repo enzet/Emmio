@@ -15,6 +15,7 @@ class LexiconData:
     """The directory managed by this class."""
 
     lexicons: dict[str, Lexicon]
+    """Mapping from lexicon identifier to lexicon."""
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "LexiconData":

@@ -41,8 +41,7 @@ DESCRIPTOR_PATTERN: re.Pattern = re.compile(r"\((?P<descriptor>[^()]*)\) .*")
 
 
 def get_file_name(word: str):
-    """
-    Get file name for cache JSON file.
+    """Get file name for cache JSON file.
 
     For this to work on case-insensitive operating systems, we add special
     symbol ``^`` before the capitalized letter.

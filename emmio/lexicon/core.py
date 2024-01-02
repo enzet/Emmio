@@ -419,8 +419,7 @@ class Lexicon:
     def get_average(
         self, index_1: int | None = None, index_2: int | None = None
     ) -> float | None:
-        """
-        Get average ratio.
+        """Get average ratio.
 
         :param index_1: start index.
         :param index_2: finish index.
