@@ -42,6 +42,10 @@ def colorize(text: str, color: str):
         return text
 
 
+def button():
+    pass
+
+
 def table(columns: list[str], rows: list[list[str]]) -> str:
     result: str = ""
 
@@ -98,6 +102,9 @@ class Interface:
         pass
 
     def stop(self) -> None:
+        pass
+
+    def choice(self, options: list[str]) -> str:
         pass
 
 
@@ -236,6 +243,14 @@ class RichInterface(TerminalInterface):
         if color in colors:
             return f"\033[{colors[color]}m{text}\033[0m"
         return text
+
+    def choice(self, options: list[str]) -> str:
+        print(" ".join(f"[{x}]" for x in options))
+        self.console.print(" ".join(f"[{x}]" for x in options))
+        char: str = get_char()
+        for option in options:
+            if option[0] == char:
+                return option
 
 
 def get_char() -> str:

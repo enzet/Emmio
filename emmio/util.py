@@ -79,15 +79,11 @@ def download(
         return None
     pool_manager.clear()
     data: bytearray = bytearray()
-    sys.stdout.write(f"Downloading blocks of {buffer_size} bytes: ")
     while True:
         buffer: bytes = result.read(buffer_size)
         if not buffer:
             break
-        sys.stdout.write("█")
-        sys.stdout.flush()
         data.extend(buffer)
-    sys.stdout.write("\n")
 
     with cache_path.open("wb+") as temp_file:
         temp_file.write(data)
@@ -132,3 +128,7 @@ def flatten(
         for j in i[:limit_2]:
             result += ("; " if result else "") + ", ".join(j[:limit_3])
     return result
+
+
+def get_color(prompt):
+    return "#" + str(hex(abs(hash(prompt))))[2:8]
