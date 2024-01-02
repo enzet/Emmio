@@ -7,7 +7,7 @@ from pathlib import Path
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
-from emmio.language import Language, construct_language, GERMAN
+from emmio.language import Language, construct_language
 from emmio.text_util import sanitize
 from emmio.ui import Interface
 from emmio.util import flatten
@@ -259,7 +259,9 @@ class DictionaryItem:
         self.forms.append(form)
 
     def get_links(self) -> set[Link]:
-        """Get keys to other dictionary items this dictionary item is linked to."""
+        """Get keys to other dictionary items this dictionary item is linked
+        to.
+        """
         return set([link for form in self.forms for link in form.get_links()])
 
     def to_str(
@@ -318,14 +320,17 @@ class DictionaryItem:
 
         return True
 
-    def get_one_word_definition(self, language: Language) -> str | None:
-        if forms := self.forms:
-            if definitions := forms[0].definitions:
-                if language in definitions:
-                    if values := definitions[language][0].values:
-                        return values[0].value
+    def get_one_word_definitions(self, language: Language) -> list[str]:
+        result: list[str] = []
 
-        return None
+        for form in self.forms:
+            if language in form.definitions:
+                for definition in form.definitions[language]:
+                    for value in definition.values:
+                        if " " not in value.value and value.value not in result:
+                            result.append(value.value)
+
+        return result
 
     def get_short(self, language: Language, limit: int = 80) -> tuple[str, str]:
         """Try to get word definition that is shorter than the selected limit.
@@ -486,13 +491,12 @@ class SimpleDictionary(Dictionary):
     def get_name(self) -> str:
         return self.name
 
+
+@dataclass
 class DictionaryCollection:
     """A set of dictionaries for a language."""
 
-    def __init__(self, dictionaries: list[Dictionary] | None = None) -> None:
-        self.dictionaries: list[Dictionary] = (
-            [] if dictionaries is None else dictionaries
-        )
+    dictionaries: list[Dictionary] = field(default=list)
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
         """Add dictionary to the list.
@@ -501,40 +505,43 @@ class DictionaryCollection:
         """
         self.dictionaries.append(dictionary)
 
-    def get_items(
+    def get_items_marked(
         self, word: str, language: Language, follow_links: bool = True
-    ) -> list[DictionaryItem]:
+    ) -> list[tuple[Dictionary, DictionaryItem]]:
         """Get dictionary items from all dictionaries."""
 
-        items: list[DictionaryItem] = []
+        if not word:
+            return []
+
+        items: list[tuple[Dictionary, DictionaryItem]] = []
 
         for dictionary in self.dictionaries:
             if item := dictionary.get_item(word):
-                items.append(item)
+                items.append((dictionary, item))
                 if not follow_links:
                     continue
                 links: set[str] = set()
-                for definition in item.forms:
-                    links |= set([x.link_value for x in definition.links])
+                for form in item.forms:
+                    links |= set([x.link_value for x in form.links])
                 for link in links:
-                    link_item: DictionaryItem = dictionary.get_item(link)
-                    if link_item:
-                        items.append(link_item)
+                    if link_item := dictionary.get_item(link):
+                        items.append((dictionary, link_item))
+                    if variant := language.get_variant(link):
+                        if link_item := dictionary.get_item(variant):
+                            items.append((dictionary, link_item))
 
-        # If no items are found and the word is German, and it starts with
-        # lowercase letter, try to find its variant with capitalized first
-        # letter.
-        if (
-            not items
-            and word
-            and word[0].lower() == word[0]
-            and language == GERMAN
-        ):
-            for item in self.get_items(word[0].upper() + word[1:], language):
-                if item not in items:
-                    items.append(item)
+        # If the word may be written in different way, try to find this variant.
+        if variant := language.get_variant(word):
+            items += self.get_items_marked(variant, language)
 
         return items
+
+    def get_items(
+        self, word: str, language: Language, follow_links: bool = True
+    ) -> list[DictionaryItem]:
+        return [
+            x[1] for x in self.get_items_marked(word, language, follow_links)
+        ]
 
     def get_dictionary(self, dictionary_id: str) -> Dictionary | None:
         for dictionary in self.dictionaries:
@@ -542,3 +549,17 @@ class DictionaryCollection:
                 return dictionary
 
         return None
+
+    def to_str(self, word, language, languages, interface) -> str:
+        items: list[tuple[Dictionary, DictionaryItem]] = self.get_items_marked(
+            word, language
+        )
+        dictionary_name: str = ""
+        result = ""
+        for dictionary, item in items:
+            if dictionary.get_name() != dictionary_name:
+                dictionary_name = dictionary.get_name()
+                result += dictionary_name + "\n"
+            result += item.to_str(languages, interface) + "\n"
+
+        return result
