@@ -407,18 +407,23 @@ class Dictionary:
     def check_to_language(self, language: Language) -> bool:
         raise NotImplementedError()
 
+    def get_name(self) -> str:
+        raise NotImplementedError()
+
 
 class SimpleDictionary(Dictionary):
     def __init__(
         self,
         id_: str,
         path: Path,
+        name: str,
         data: dict[str, str],
         from_language: Language,
         to_language: Language,
     ) -> None:
         super().__init__(id_)
         self.path: Path = path
+        self.name: str = name
         self.data: dict[str, str] = data
         self.from_language: Language = from_language
         self.to_language: Language = to_language
@@ -436,6 +441,7 @@ class SimpleDictionary(Dictionary):
         return cls(
             id_,
             path / config.file_name,
+            config.name,
             data,
             construct_language(config.from_language),
             construct_language(config.to_language),
@@ -469,6 +475,8 @@ class SimpleDictionary(Dictionary):
                 sort_keys=True,
             )
 
+    def get_name(self) -> str:
+        return self.name
 
 class DictionaryCollection:
     """A set of dictionaries for a language."""

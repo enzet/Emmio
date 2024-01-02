@@ -233,3 +233,6 @@ class EnglishWiktionary(Dictionary):
 
     def check_to_language(self, language: Language) -> bool:
         return language == ENGLISH
+
+    def get_name(self) -> str:
+        return "English Wiktionary"
