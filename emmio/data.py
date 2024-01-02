@@ -164,24 +164,35 @@ class Data:
                 learning.config.name,
                 learning.count_questions_to_repeat(),
                 learning.count_questions_to_add(),
-                len(learning.process.postpone),
                 learning.count_questions_to_learn(),
             ]
             for learning in learnings
         ]
         footer: list[str] = ["Total"] + [
-            str(sum(x[i] for x in rows)) for i in range(1, 5)
+            str(sum(x[i] for x in rows)) for i in range(1, 4)
         ]
         for row in rows:
-            for i in range(1, 4):
+            for i in range(1, 3):
                 row[i] = progress(row[i])
-            row[4] = str(row[4])
+            row[3] = str(row[3])
 
         rows.append(footer)
 
-        pressure: float = self.users_data[user_id].learnings.compute_pressure()
+        user_data: UserData = self.users_data[user_id]
+
+        pressure: float = user_data.learnings.compute_pressure()
+        postponed: float = user_data.learnings.count_postponed()
+        actions_today: int = user_data.learnings.count_actions(
+            since=day_start(datetime.now())
+        )
+        actions_week: int = user_data.learnings.count_actions(
+            since=first_day_of_week(datetime.now())
+        )
+        interface.print(f"Actions today: {actions_today}")
+        interface.print(f"Actions week: {actions_week}")
         interface.print(f"Pressure: {pressure:.2f}")
-        interface.table(["Course", "Repeat", "Add", "Postpone", "All"], rows)
+        interface.print(f"Postponed: {postponed}")
+        interface.table(["Course", "Repeat", "Add", "All"], rows)
 
     def get_read_processes(self, user_id: str) -> dict[str, Read]:
         return self.users_data[user_id].get_read_processes()
