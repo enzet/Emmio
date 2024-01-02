@@ -43,8 +43,9 @@ def main():
 
     parser: ArgumentParser = ArgumentParser("Emmio")
     parser.add_argument("--data", help="path to data directory")
+    parser.add_argument("--user", help="user name")
 
-    subparser = parser.add_subparsers(dest="command")
+    subparser = parser.add_subparsers(dest="command", required=False)
 
     # Command `server`.
     server_parser: ArgumentParser = subparser.add_parser(
@@ -115,7 +116,7 @@ def main():
         case "list":
             process_list_command(data, arguments)
 
-        case "run":
+        case _:
             from emmio.run import Emmio
 
             user_id: str = (
@@ -123,9 +124,6 @@ def main():
             )
             robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
             robot.run()
-
-        case _:
-            logging.fatal(f"Unknown command `{arguments.command}`.")
 
 
 if __name__ == "__main__":
