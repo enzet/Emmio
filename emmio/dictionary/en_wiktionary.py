@@ -198,25 +198,35 @@ class EnglishWiktionary(Dictionary):
         for element in content:
             pronunciations: list[str] = []
 
-            if "pronunciations" in element:
-                for pronunciation in element["pronunciations"]["text"]:
-                    pronunciation = pronunciation.strip()
-                    if pronunciation.startswith("IPA: "):
-                        pronunciation = pronunciation[5:]
+            if "pronunciations" not in element:
+                continue
 
-                    found_prefix: bool = False
+            for pronunciation in element["pronunciations"]["text"]:
+                pronunciation = pronunciation.strip()
+                for prefix in [
+                    "IPA: ",
+                    "(Eastern Armenian, standard) IPA:",
+                ]:
+                    if pronunciation.startswith(prefix):
+                        pronunciation = pronunciation[len(prefix) :]
+                if pronunciation.startswith(
+                    "(Western Armenian, standard) IPA:"
+                ):
+                    continue
 
-                    for prefix in PRONUNCIATION_PREFIXES:
-                        if pronunciation.startswith(
-                            prefix[0].upper() + prefix[1:] + ": "
-                        ):
-                            found_prefix = True
-                            break
+                found_prefix: bool = False
 
-                    if found_prefix:
-                        continue
+                for prefix in PRONUNCIATION_PREFIXES:
+                    if pronunciation.startswith(
+                        prefix[0].upper() + prefix[1:] + ": "
+                    ):
+                        found_prefix = True
+                        break
 
-                    pronunciations.append(pronunciation.strip())
+                if found_prefix:
+                    continue
+
+                pronunciations.append(pronunciation.strip())
 
             for definition in element["definitions"]:
                 form: Form | None = self.parse_form(
