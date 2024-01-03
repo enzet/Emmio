@@ -1,8 +1,9 @@
 """The learning process."""
 import json
 import logging
+import random
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -19,6 +20,7 @@ __email__ = "me@enzet.ru"
 
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 SMALLEST_INTERVAL: timedelta = timedelta(days=1)
+MULTIPLIER: float = 2.0
 
 
 class Response(Enum):
@@ -32,6 +34,8 @@ class Response(Enum):
 
     SKIP = "s"
     """Question was excluded from the learning process."""
+
+    POSTPONE = "p"
 
 
 class LearningRecord(BaseModel):
@@ -83,38 +87,79 @@ class Knowledge:
     """Knowledge of the question."""
 
     question_id: str
-    responses: list[Response]
-    last_record_time: datetime
-    interval: timedelta
+    records: list[LearningRecord] = field(default_factory=list)
+
+    def __post_init__(self):
+        self.__responses = [x.response for x in self.records]
+
+    def get_last_record(self) -> LearningRecord:
+        return self.records[-1]
+
+    def get_responses(self) -> list[Response]:
+        return self.__responses
+
+    def get_last_response(self) -> Response:
+        """Get last response for the question."""
+        return self.records[-1].response
 
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
-        return (
-            self.get_last_response() != Response.SKIP
-            and self.interval.total_seconds() != 0
+        return self.get_last_response() != Response.SKIP and not (
+            len(self.__responses) == 1 and self.__responses[0] == Response.RIGHT
         )
 
     def get_depth(self) -> int:
         """Get learning depth (length of the last sequence of right answers)."""
-        if Response.WRONG in self.responses:
-            return list(reversed(self.responses)).index(Response.WRONG)
-        return len(self.responses)
-
-    def get_last_response(self) -> Response:
-        """Get last response for the question."""
-        return self.responses[-1]
+        if Response.WRONG in self.__responses:
+            return list(reversed(self.__responses)).index(Response.WRONG)
+        return len(self.__responses)
 
     def count_wrong_answers(self) -> int:
         """Get number of times learning interval was set to minimal."""
-        return self.responses.count(Response.WRONG)
+        return self.__responses.count(Response.WRONG)
+
+    def count_right_streak(self) -> int:
+        result: int = 0
+        for response in self.__responses[::-1]:
+            if response == Response.RIGHT:
+                result += 1
+            elif response == Response.POSTPONE:
+                continue
+            else:
+                break
+        return result
 
     def count_responses(self) -> int:
         """Get number of responses."""
-        return len(self.responses)
+        return len(self.__responses)
 
-    def get_next_time(self) -> datetime:
-        """Get next point in time question should be repeated."""
-        return self.last_record_time + self.interval
+    def add_record(self, record: LearningRecord) -> None:
+        self.records.append(record)
+        self.__responses.append(record.response)
+
+    def added_time(self):
+        return self.records[0].time
+
+    def get_records(self) -> list[LearningRecord]:
+        return self.records
+
+    def estimate(self, point: datetime) -> float:
+        last_record = self.get_last_record()
+        right_streak: int = self.count_right_streak()
+        if right_streak == 0:
+            seconds = 300.0
+        elif right_streak == 1:
+            seconds = 86400.0
+        else:
+            right_records: list[LearningRecord] = [
+                x for x in self.get_records() if x.response == Response.RIGHT
+            ]
+            seconds = (
+                right_records[-1].time - right_records[-2].time
+            ).total_seconds() * MULTIPLIER
+        if not seconds:
+            return 0.0
+        return (point - last_record.time).total_seconds() / seconds
 
 
 class Learning:
@@ -132,12 +177,13 @@ class Learning:
         ]
         self.file_path: Path = path / config.file_name
 
+        self.process: LearningProcess | None = None
+
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
+            self.process = LearningProcess(records=[])
             self.write()
-
-        self.process: LearningProcess
-        if self.file_path.name.endswith(".json"):
+        elif self.file_path.name.endswith(".json"):
             logging.info(f"Reading {self.file_path}...")
             with self.file_path.open() as log_file:
                 try:
@@ -155,22 +201,16 @@ class Learning:
             self.__update_knowledge(record)
 
     def __update_knowledge(self, record: LearningRecord) -> None:
-        last_responses: list[Response] = []
-        if record.question_id in self.knowledge:
-            last_responses = self.knowledge[record.question_id].responses
-        self.knowledge[record.question_id] = Knowledge(
-            record.question_id,
-            last_responses + [record.response],
-            record.time,
-            record.interval,
-        )
+        question_id: str = record.question_id
+        if question_id not in self.knowledge:
+            self.knowledge[question_id] = Knowledge(question_id)
+        self.knowledge[question_id].add_record(record)
 
     def register(
         self,
         response: Response,
         sentence_id: int,
         question_id: str,
-        interval: timedelta,
         time: datetime | None = None,
     ) -> None:
         """Register user response.
@@ -178,7 +218,6 @@ class Learning:
         :param response: user response
         :param sentence_id: sentence identifier was used to learn the word
         :param question_id: question identifier
-        :param interval: repeat interval
         :param time: a moment in time what the action was performed, if time is
             None, use method call time
         """
@@ -190,28 +229,37 @@ class Learning:
             response=response,
             sentence_id=sentence_id,
             time=time,
-            interval=interval,
         )
         self.process.records.append(record)
         self.__update_knowledge(record)
-        if question_id in self.process.postpone:
-            self.process.postpone.pop(question_id)
-
-    def verify(self) -> bool:
-        now: datetime = datetime.now()
-        question_ids = list(self.process.postpone.keys())
-        for question_id in question_ids:
-            knowledge = self.knowledge[question_id]
-            if knowledge.get_next_time() > now:
-                return False
-
-        return True
 
     def postpone(self, question_id: str) -> None:
-        self.process.postpone_question(question_id)
+        self.register(Response.POSTPONE, 0, question_id)
 
-    def __is_not_skipped(self, question_id: str) -> bool:
-        return question_id not in self.process.postpone.keys()
+    def get_postpone_time(self) -> timedelta:
+        if self.config.scheme and self.config.scheme.postpone_time:
+            return timedelta(seconds=self.config.scheme.postpone_time)
+        return timedelta(days=2)
+
+    def get_next_time(self, knowledge: Knowledge) -> datetime:
+        if knowledge.get_last_response() == Response.POSTPONE:
+            return knowledge.get_last_record().time + self.get_postpone_time()
+        seconds: float
+        right_streak: int = knowledge.count_right_streak()
+        if right_streak == 0:
+            seconds = 3600.0
+        elif right_streak == 1:
+            seconds = 86400.0
+        else:
+            right_records: list[LearningRecord] = [
+                x
+                for x in knowledge.get_records()
+                if x.response == Response.RIGHT
+            ]
+            seconds = (
+                right_records[-1].time - right_records[-2].time
+            ).total_seconds() * (MULTIPLIER + ((random.random() - 0.5) * 0.0))
+        return knowledge.get_last_record().time + timedelta(seconds=seconds)
 
     def __get_next_questions(self) -> list[str]:
         return [
@@ -219,23 +267,16 @@ class Learning:
             for x in self.knowledge
             if (
                 self.knowledge[x].is_learning()
-                and datetime.now() > self.knowledge[x].get_next_time()
+                and datetime.now() > self.get_next_time(self.knowledge[x])
             )
         ]
-
-    def get_skipping_counter(self, question_id: str) -> int:
-        return (
-            self.process.postpone[question_id]
-            if question_id in self.process.postpone
-            else 0
-        )
 
     def get_next_question(self) -> str | None:
         """Get question identifier of the next question."""
         ids: list[str] = self.__get_next_questions()
         if not ids:
             return None
-        return sorted(ids, key=lambda x: self.get_skipping_counter(x))[0]
+        return ids[0]
 
     def has(self, question_id: str) -> bool:
         """Check whether the question is in the learning process."""
@@ -247,35 +288,35 @@ class Learning:
 
         return (
             not knowledge.is_learning()
-            and len(knowledge.responses) == 1
-            and knowledge.responses[0] == Response.RIGHT
+            and len(knowledge.get_responses()) == 1
+            and knowledge.get_responses()[0] == Response.RIGHT
         )
 
     def get_nearest(self) -> datetime | None:
         """Get the nearest repetition time."""
-        return min(
-            self.knowledge[question_id].get_next_time()
+        if times := [
+            self.get_next_time(self.knowledge[question_id])
             for question_id in self.knowledge
             if self.knowledge[question_id].is_learning()
-            and self.__is_not_skipped(question_id)
-        )
+        ]:
+            return min(times)
+
+        return None
 
     def count_questions_added_today(self) -> int:
-        seen: set[str] = set()
+        """Count questions added today and in learning process."""
         now: datetime = datetime.now()
         today_start: datetime = datetime(
             year=now.year, month=now.month, day=now.day
         )
-        count: int = 0
-        for record in self.process.records:
-            if (
-                record.question_id not in seen
-                and record.is_learning()
-                and record.time > today_start
-            ):
-                count += 1
-            seen.add(record.question_id)
-        return count
+        return len(
+            [
+                knowledge
+                for knowledge in self.knowledge.values()
+                if knowledge.is_learning()
+                and knowledge.added_time() > today_start
+            ]
+        )
 
     def count_questions_to_repeat(self) -> int:
         """Return the number of learning items that are being learning and ready
@@ -283,8 +324,8 @@ class Learning:
         """
         now: datetime = datetime.now()
         return sum(
-            record.is_learning() and record.get_next_time() < now
-            for question_id, record in self.knowledge.items()
+            x.is_learning() and self.get_next_time(x) < now
+            for x in self.knowledge.values()
         )
 
     def count_questions_to_learn(self) -> int:
@@ -317,9 +358,9 @@ class Learning:
         reflects the amount of effort needed to repeat all the questions.
         """
         return sum(
-            1.0 / (2.0 ** knowledge.get_depth())
+            1.0 / (MULTIPLIER ** knowledge.get_depth())
             for knowledge in self.knowledge.values()
-            if knowledge.interval.total_seconds() > 0
+            if knowledge.is_learning()
         )
 
     def get_safe_question_ids(self) -> list[str]:
@@ -330,11 +371,7 @@ class Learning:
         return [
             x.question_id
             for x in self.knowledge.values()
-            if (
-                not self.is_initially_known(x.question_id)
-                and x.get_last_response() != Response.SKIP
-                and ((now - x.last_record_time) / x.interval) < 0.8
-            )
+            if x.is_learning() and x.estimate(now) < 0.5
         ]
 
     def compare_by_new(self) -> int:
@@ -350,6 +387,24 @@ class Learning:
         a = 0
         for record in self.process.records:
             if record.response in [Response.RIGHT, Response.WRONG]:
+                a += 1
+        return a
+
+    def count_postponed(self):
+        a = 0
+        for knowledge in self.knowledge.values():
+            if knowledge.get_last_response() == Response.POSTPONE:
+                a += 1
+        return a
+
+    def count_actions(self, since: datetime):
+        a = 0
+        for record in self.process.records:
+            record: LearningRecord
+            if (
+                record.response in [Response.RIGHT, Response.WRONG]
+                and record.time > since
+            ):
                 a += 1
         return a
 

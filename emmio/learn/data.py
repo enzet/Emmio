@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
@@ -58,3 +59,11 @@ class LearnData:
             for learning in self.learnings.values()
             if learning.learning_language == language
         ]
+
+    def count_postponed(self):
+        return sum(x.count_postponed() for x in self.learnings.values())
+
+    def count_actions(self, since: datetime):
+        return sum(
+            x.count_actions(since=since) for x in self.learnings.values()
+        )

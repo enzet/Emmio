@@ -340,9 +340,7 @@ class LearningWorker(Worker):
 
         if answer == self.word:
             self.index = 0
-            self.learning.register(
-                Response.RIGHT, sentence_id, self.word, self.interval * 2
-            )
+            self.learning.register(Response.RIGHT, sentence_id, self.word)
             transcriptions: list[str] = []
             if self.items:
                 for item in self.items:
@@ -366,9 +364,7 @@ class LearningWorker(Worker):
             return f"Skipped for this session{state}."
 
         elif answer in ["/no", "Don't know"]:
-            self.learning.register(
-                Response.WRONG, sentence_id, self.word, SMALLEST_INTERVAL
-            )
+            self.learning.register(Response.WRONG, sentence_id, self.word)
             self.learning.write()
             self.index = 0
 

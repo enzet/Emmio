@@ -89,7 +89,6 @@ class LearningYAMLDecoder:
                     Response.RIGHT if answer == "y" else Response.WRONG,
                     0,
                     question_id,
-                    timedelta(seconds=interval * 60),
                     time=point,
                 )
                 point += interval * unit

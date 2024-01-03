@@ -1,7 +1,6 @@
 """Teacher."""
 import logging
-import math
-from datetime import timedelta
+from datetime import datetime
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -12,7 +11,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.language import construct_language
-from emmio.learn.core import Learning, Response
+from emmio.learn.core import Learning, Response, Knowledge, LearningSession
 from emmio.lexicon.core import (
     LexiconLog,
     LexiconResponse,
@@ -28,7 +27,6 @@ from emmio.user.data import UserData
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 ESCAPE_CHARACTER: str = "_"  # "░"
 
 
@@ -217,10 +215,7 @@ class Teacher:
         actions: int = 0
         while True:
             if word := self.learning.get_next_question():
-                code: str = self.learn(
-                    word, self.learning.knowledge[word].interval
-                )
-                actions += 1
+                code: str = self.learn(word, self.learning.knowledge[word])
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -237,8 +232,7 @@ class Teacher:
                 self.learning.count_questions_added_today() < self.max_for_day
                 and (question_id := self.get_new_question()) is not None
             ):
-                code: str = self.learn(question_id, timedelta())
-                actions += 1
+                code: str = self.learn(question_id, None)
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -303,27 +297,17 @@ class Teacher:
             input("[reveal translations]")
         print("\n".join(translations))
 
-    def learn(self, word: str, interval: timedelta) -> str:
+    def learn(self, word: str, knowledge: Knowledge | None) -> str:
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
 
-        rated_sentences: list[
-            tuple[float, SentenceTranslations]
-        ] = self.sentences.filter_by_word_and_rate(
-            word, self.user_data, ids_to_skip, 120
-        )
-
-        def log_():
-            if interval.total_seconds() == 0:
-                return 0
-            return int(math.log(interval.total_seconds() / 60 / 60 / 24, 2)) + 1
-
-        index: int = 0
-
-        statistics: str
-        if interval.total_seconds() > 0:
-            statistics = f"{'★ ' * log_()} "
+        statistics: str = ""
+        if knowledge:
+            statistics += (
+                "".join(x.get_symbol() for x in knowledge.get_responses())
+                + "\n"
+            )
         else:
             statistics = "New question  "
 
@@ -387,12 +371,7 @@ class Teacher:
             answer: str = self.learning.learning_language.decode_text(answer)
 
             if answer == word:
-                self.learning.register(
-                    Response.RIGHT,
-                    sentence_id,
-                    word,
-                    self.increase_interval(interval),
-                )
+                self.learning.register(Response.RIGHT, sentence_id, word)
                 if items:
                     string_items: list[str] = [
                         x.to_str(self.learning.base_languages, self.interface)
@@ -417,19 +396,14 @@ class Teacher:
                 return "continue"
 
             if answer == "/skip":
-                self.learning.register(Response.SKIP, 0, word, timedelta())
+                self.learning.register(Response.SKIP, 0, word)
                 self.learning.write()
                 print(f"Word is no longer in the learning process.")
                 return "continue"
 
             if answer.startswith("/skip "):
                 _, word_to_skip = answer.split(" ")
-                self.learning.register(
-                    Response.SKIP,
-                    0,
-                    word_to_skip,
-                    timedelta(),
-                )
+                self.learning.register(Response.SKIP, 0, word_to_skip)
                 self.learning.write()
                 return "continue"
 
@@ -501,21 +475,11 @@ class Teacher:
                 self.interface.box(word)
                 self.play(word)
 
-                self.learning.register(
-                    Response.WRONG,
-                    sentence_id,
-                    word,
-                    self.get_smallest_interval(),
-                )
+                self.learning.register(Response.WRONG, sentence_id, word)
                 new_answer = self.interface.input("> ")
                 while new_answer:
                     if new_answer in ["s", "skip"]:
-                        self.learning.register(
-                            Response.SKIP,
-                            sentence_id,
-                            word,
-                            self.get_smallest_interval(),
-                        )
+                        self.learning.register(Response.SKIP, sentence_id, word)
                         break
                     self.process_command(new_answer, word, sentence_id)
                     new_answer = self.interface.input("> ")
@@ -533,9 +497,7 @@ class Teacher:
 
     def process_command(self, command: str, word: str, sentence_id: int):
         if command in ["s", "/skip"]:
-            self.learning.register(
-                Response.SKIP, sentence_id, word, timedelta()
-            )
+            self.learning.register(Response.SKIP, sentence_id, word)
             print(f'Word "{word}" is no longer in the learning process.')
         elif command.startswith("/hint "):
             _, language, definition = command.split(" ", maxsplit=2)
