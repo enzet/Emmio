@@ -11,6 +11,7 @@ from typing import Any, Iterator
 
 from pydantic import BaseModel
 
+from emmio.core import Session, Record
 from emmio.dictionary.core import (
     DictionaryCollection,
     Dictionary,
@@ -145,6 +146,20 @@ class WordKnowledge:
         return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
+class LexiconLogSession(BaseModel, Session):
+    start: datetime
+    end: datetime | None = None
+
+    def get_start(self) -> datetime:
+        return self.start
+
+    def get_end(self) -> datetime:
+        return self.end
+
+    def end_session(self, time: datetime, actions: int = 0):
+        self.end = time
+
+
 @dataclass
 class LexiconLogRecord:
     """Record of user's answer."""
@@ -224,14 +239,18 @@ class LexiconLog:
     id_: str
     selection: WordSelection
     records: list[LexiconLogRecord] = field(default_factory=list)
+    sessions: list[LexiconLogSession] = field(default_factory=list)
     frequency_list_id: str | None = None
 
     @classmethod
     def deserialize(cls, structure: dict[str, Any]):
+        if "sessions" not in structure:
+            structure["sessions"] = []
         return cls(
             structure["id"],
             WordSelection(structure["selection"]),
             [LexiconLogRecord.deserialize(x) for x in structure["log"]],
+            [LexiconLogSession(**x) for x in structure["sessions"]],
             structure["frequency_list"]
             if "frequency_list" in structure
             else None,
@@ -713,6 +732,8 @@ class Lexicon:
         :return: exit code.
         """
 
+        session: LexiconLogSession = LexiconLogSession(start=datetime.now())
+
         # Actions during current session:
         actions: int = 0
         wrong_answers: int = 0
@@ -797,6 +818,8 @@ class Lexicon:
                 exit_code = "limit"
                 break
 
+        session.end_session(datetime.now())
+        self.logs[log_name].sessions.append(session)
         self.write()
 
         return exit_code
@@ -922,3 +945,9 @@ class Lexicon:
         for log in self.logs.values():
             records += log.records
         return records
+
+    def get_sessions(self):
+        sessions: list[LexiconLogRecord] = []
+        for log in self.logs.values():
+            sessions += log.sessions
+        return sessions

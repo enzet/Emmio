@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+from emmio.core import Record, Session
 from emmio.language import Language
 from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
@@ -96,3 +97,12 @@ class UserData:
         lexicon_response = lexicon.get(word) if lexicon.has(word) else None
 
         return learning_responses, lexicon_response
+
+    def get_session(self):
+        sessions: list = []
+        for learning in self.get_active_learnings():
+            sessions += learning.get_sessions()
+        for lexicon in self.lexicons.get_lexicons():
+            sessions += lexicon.get_sessions()
+        sessions = sorted(sessions, key=lambda x: x.start)
+        return sessions
