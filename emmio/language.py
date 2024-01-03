@@ -115,6 +115,17 @@ class Language:
     def get_random_color(self) -> str:
         return "#" + str(hex(abs(hash(self.get_code()))))[2:8]
 
+    def get_variant(self, word: str) -> str | None:
+        """Get another way to write the word."""
+        if self == LATIN:
+            decoded = self.decode_text(word)
+            if decoded != word:
+                return decoded
+        if self == GERMAN and word[0].upper() != word[0]:
+            return word[0].upper() + word[1:]
+
+        return None
+
 
 def letter_range(start: str, stop: str) -> str:
     return "".join(chr(x) for x in range(ord(start), ord(stop) + 1))
@@ -255,7 +266,9 @@ def decode_ukrainian(text: str) -> str:
 
 
 def decode_latin(text: str) -> str:
-    return text.replace("ā", "a").replace("ō", "o")
+    for symbol, replacement in LATIN_CODE.items():
+        text = text.replace(symbol, replacement)
+    return text
 
 
 @dataclass
