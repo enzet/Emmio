@@ -19,6 +19,15 @@ with (Path(__file__).parent / "digraphs.json").open() as config_file:
     DIGRAPHS = json.load(config_file)
 
 
+LATIN_CODE: dict[str, str] = {
+    "ā": "a",
+    "ē": "e",
+    "ī": "i",
+    "ō": "o",
+    "ū": "u",
+}
+
+
 class LanguageConfig(str):
     pass
 
@@ -166,6 +175,7 @@ ARMENIAN: Language = Language(
     Color("#888800"),
     ARMENIAN_LETTERS,
     checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
+    self_name="հայերեն",
 )
 CHINESE: Language = Language("zh", Color("#444400"), self_name="中文")
 ENGLISH: Language = Language(
@@ -197,7 +207,12 @@ GERMAN: Language = Language(
     self_name="deutsch",
     tone=Color("#F7D046"),
 )  # #FED12E
-ICELANDIC: Language = Language("is", Color("#008844"), self_name="íslenska")
+ICELANDIC: Language = Language(
+    "is",
+    Color("#008844"),
+    "AÁBDÐEÉFGHIÍJKLMNOÓPRSTUÚVXYÝÞÆÖaábdðeéfghiíjklmnoóprstuúvxyýþæö",
+    self_name="íslenska",
+)
 ITALIAN: Language = Language(
     "it", Color("#008888"), LATIN_LETTERS, self_name="italiano"
 )
@@ -211,9 +226,24 @@ LATIN: Language = Language(
     LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
     self_name="latīna",
 )
-MODERN_GREEK: Language = Language("el", Color("#444444"), self_name="ελληνικά")
-PORTUGUESE: Language = Language("pt", Color("#00AA00"), self_name="português")
-POLISH: Language = Language("pl", Color("#00AA00"), self_name="polski")
+MODERN_GREEK: Language = Language(
+    "el",
+    Color("#444444"),
+    "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω",
+    self_name="ελληνικά",
+)
+PORTUGUESE: Language = Language(
+    "pt",
+    Color("#00AA00"),
+    LATIN_LETTERS + "ÁÂÃ̃ÀÇÉÊÍÓÔÕÚáâã̃àçéêíóôõú",
+    self_name="português",
+)
+POLISH: Language = Language(
+    "pl",
+    Color("#00AA00"),
+    "AĄBCĆDEĘFGHIJKLŁMNŃOÓPQRSŚTUVWXYZŹŻaąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż",
+    self_name="polski",
+)
 RUSSIAN: Language = Language(
     "ru", Color("#AAAAAA"), RU_UPPER + RU_UPPER.lower(), self_name="русский"
 )
@@ -224,7 +254,9 @@ SPANISH: Language = Language(
     self_name="español",
     tone=Color("#9E2823"),
 )
-SWEDISH: Language = Language("sv", color=Color("#004488"), self_name="svenska")
+SWEDISH: Language = Language(
+    "sv", Color("#004488"), LATIN_LETTERS + "ÅÄÖåäö", self_name="svenska"
+)
 UKRAINIAN: Language = Language(
     "uk",
     Color("#E5D144"),
