@@ -213,20 +213,40 @@ class Teacher:
 
     def repeat(self, max_actions: int | None = None) -> bool:
         actions: int = 0
+        to_continue: bool
+        session: LearningSession = LearningSession(
+            type="repeat", start=datetime.now()
+        )
         while True:
             if word := self.learning.get_next_question():
                 code: str = self.learn(word, self.learning.knowledge[word])
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
-                    return False
+                    to_continue = False
+                    break
+                actions += 1
                 if max_actions is not None and actions >= max_actions:
-                    return True
+                    to_continue = True
+                    break
             else:
-                return True
+                to_continue = True
+                break
+
+        if actions:
+            session.end_session(datetime.now(), actions)
+            self.learning.process.sessions.append(session)
+            self.learning.write()
+            self.interface.box(f"{actions} actions made")
+
+        return to_continue
 
     def learn_new(self, max_actions: int | None = None) -> bool:
         actions: int = 0
+        to_continue: bool
+        session: LearningSession = LearningSession(
+            type="learn_new", start=datetime.now()
+        )
         while True:
             if (
                 self.learning.count_questions_added_today() < self.max_for_day
@@ -236,11 +256,23 @@ class Teacher:
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
-                    return False
+                    to_continue = False
+                    break
+                actions += 1
                 if max_actions is not None and actions >= max_actions:
-                    return True
+                    to_continue = True
+                    break
             else:
-                return True
+                to_continue = True
+                break
+
+        if actions:
+            session.end_session(datetime.now(), actions)
+            self.learning.process.sessions.append(session)
+            self.learning.write()
+            self.interface.box(f"{actions} actions made")
+
+        return to_continue
 
     def play(self, word: str):
         self.audio.play(word, self.learning.learning_language)

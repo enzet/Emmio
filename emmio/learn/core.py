@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 from pydantic.main import BaseModel
 
+from emmio.core import Session, Record
 from emmio.language import Language, construct_language
 from emmio.learn.config import LearnConfig
 
@@ -38,7 +39,8 @@ class Response(Enum):
     POSTPONE = "p"
 
 
-class LearningRecord(BaseModel):
+
+class LearningRecord(BaseModel, Record):
     """Learning record for a question."""
 
     question_id: str
@@ -56,30 +58,39 @@ class LearningRecord(BaseModel):
     time: datetime
     """Record time."""
 
-    interval: timedelta = SMALLEST_INTERVAL
-    """
-    Time interval for the next question. The question is ready to repeat after
-    `time` + `interval` point in time.
-    """
+    def get_time(self) -> datetime:
+        return self.time
 
-    def is_learning(self) -> bool:
-        """Is the question should be repeated in the future."""
-        return (
-            self.response != Response.SKIP
-            and self.interval.total_seconds() != 0
-        )
+    def get_symbol(self) -> str:
+        return self.response.get_symbol()
+
+
+class LearningSession(BaseModel, Session):
+    type: str
+    start: datetime
+    end: datetime = None
+    actions: int = None
+
+    def get_start(self) -> datetime:
+        return self.start
+
+    def get_end(self) -> datetime:
+        return self.end
+
+    def end_session(self, time: datetime, actions: int) -> None:
+        self.actions = actions
+        self.end = datetime.now()
 
 
 class LearningProcess(BaseModel):
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 
-    postpone: dict[str, int] = {}
-    """Mapping from question identifier to the number of times it was skipped.
-    """
+    sessions: list[LearningSession] = []
+    """Recorded leaning sessions."""
 
-    def postpone_question(self, question_id: str) -> None:
-        self.postpone[question_id] = self.postpone.get(question_id, 0) + 1
+    def __len__(self) -> int:
+        return len(self.records)
 
 
 @dataclass
@@ -407,6 +418,9 @@ class Learning:
             ):
                 a += 1
         return a
+
+    def get_sessions(self) -> list[LearningSession]:
+        return self.process.sessions
 
 
 def time_format(minutes: int) -> datetime:
