@@ -98,6 +98,22 @@ class UserData:
 
         return learning_responses, lexicon_response
 
+    def get_read_processes(self) -> dict[str, Read]:
+        return self.read_processes.get_read_processes()
+
+    def get_listening(self, listening_id: str) -> Listening:
+        return self.listenings.get_listening(listening_id)
+
+    def get_records(self) -> list:
+        """Get all user records from all processes."""
+        records: list = []
+        for learning in self.get_active_learnings():
+            records += learning.get_records()
+        for lexicon in self.lexicons.get_lexicons():
+            records += lexicon.get_records()
+        records = sorted(records, key=lambda x: x.time)
+        return records
+
     def get_session(self):
         sessions: list = []
         for learning in self.get_active_learnings():
@@ -106,3 +122,38 @@ class UserData:
             sessions += lexicon.get_sessions()
         sessions = sorted(sessions, key=lambda x: x.start)
         return sessions
+
+    def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
+        records: list[Record] = self.get_records()
+        sessions: list[Session] = self.get_session()
+
+        result = []
+        session_index = 0
+        record_index = 0
+        current = (sessions[0], [])
+
+        while True:
+            session = sessions[session_index]
+            record = records[record_index]
+
+            if record.get_time() < session.get_start():
+                record_index += 1
+                if record_index == len(records):
+                    break
+                continue
+
+            if session.get_start() <= record.get_time() <= session.get_end():
+                current[1].append(record)
+                record_index += 1
+                if record_index == len(records):
+                    break
+                continue
+
+            if record.get_time() > session.get_end():
+                session_index += 1
+                result.append(current)
+                if session_index == len(sessions):
+                    break
+                current = (sessions[session_index], [])
+
+        return result

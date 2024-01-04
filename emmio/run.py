@@ -1,21 +1,27 @@
+import argparse
 import logging
+import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from time import sleep
+
+import coloredlogs
 
 from emmio import util
-from emmio.audio.core import AudioCollection
+from emmio.analyze import Analysis
 from emmio.data import Data
-from emmio.dictionary.core import DictionaryCollection
 from emmio.graph import Visualizer
 from emmio.language import construct_language, Language
 from emmio.learn.core import Learning, LearningRecord, Response
+from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.learn.teacher import Teacher
+from emmio.listen.listener import Listener
+from emmio.read.config import ReadConfig
+from emmio.read.core import Read
 from emmio.ui import Interface, progress
-from emmio.user.data import UserData
+from emmio.user.data import UserData, Record, Session
 
 LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word
@@ -29,19 +35,10 @@ LEXICON_HELP: str = """
 <q>             exit
 """
 
-HELP: list[list[str]] = [
-    ["help", "print this message"],
-    ["exit / quit", "close Emmio"],
-    ["learn / <Enter>", "start learning process"],
-    ["stat learn", "print learning statistics"],
-    ["plot learn [by time] [by depth]", "plot graph of the learning process"],
-    ["response time", "show response time graph"],
-    ["next question time", "show next question time graph"],
-    ["actions [per day]", "show actions graph"],
-    ["lexicon", "check lexicons"],
-    ["stat lexicon", "print lexicon statistics"],
-    ["plot lexicon", "draw lexicon graph"],
-]
+
+class ArgumentParser(argparse.ArgumentParser):
+    def help(self, _):
+        self.print_help(sys.stdout)
 
 
 class Emmio:
@@ -67,112 +64,356 @@ class Emmio:
         )
 
         while True:
-            command: str = input("> ")
+            command: str = input("Emmio > ")
 
             if command in ["q", "quit", "exit"]:
                 return
 
+            # try:
             self.process_command(command)
+            # except Exception:
+            #     logging.error("There was an error in command processing.")
 
     def process_command(self, command: str, interactive: bool = True) -> None:
         data: Data = self.data
 
-        if command == "help":
-            self.interface.table(["Command", "Description"], HELP)
+        parser: ArgumentParser = ArgumentParser(
+            exit_on_error=False, add_help=False
+        )
+        subparsers = parser.add_subparsers(dest="command")
 
-        if not command or command == "learn" or command.startswith("learn "):
+        help_parser = subparsers.add_parser("help", help="print help message")
+        help_parser.add_argument("subcommand", nargs="?")
+
+        learn_parser = subparsers.add_parser("learn", help="learn topics")
+        learn_parser.add_argument("topic", nargs="?")
+
+        lexicon_parser = subparsers.add_parser("lexicon", help="check lexicon")
+        lexicon_parser.add_argument("language", nargs="?")
+
+        stat_parser = subparsers.add_parser("stat", help="show statistics")
+        stat_parser.add_argument(
+            "process",
+            choices=["actions", "learn", "lexicon"],
+            default="learn",
+            help="what print statistics for",
+        )
+
+        plot_parser = subparsers.add_parser("plot", help="plot a graph")
+        plot_subparsers = plot_parser.add_subparsers(dest="process")
+
+        plot_lexicon_parser = plot_subparsers.add_parser(
+            "lexicon",
+            help="plot lexicon rate",
+            description="""
+                Plot lexicon rate. Lexicon rate is `-log_2(x)`, where `x` is a 
+                number of words the user don't know in a random text.
+            """,
+        )
+        plot_lexicon_parser.add_argument(
+            "--show-text",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="show language names at the right side of the graphs",
+        )
+        plot_lexicon_parser.add_argument(
+            "--interval",
+            default="year",
+            choices=["day", "week", "month", "year"],
+            help="interval of X axis",
+        )
+        plot_lexicon_parser.add_argument(
+            "--margin", default=0.0, type=float, help="minimum Y value"
+        )
+        plot_lexicon_parser.add_argument(
+            "--svg", action=argparse.BooleanOptionalAction
+        )
+        plot_lexicon_parser.add_argument("--languages", type=str)
+
+        plot_learn_parser = plot_subparsers.add_parser(
+            "learn", help="plot learning questions"
+        )
+        plot_learn_parser.add_argument(
+            "--interactive",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="show interactive Matplotlib window",
+        )
+        plot_learn_parser.add_argument(
+            "--actions",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="use number of actions for the X axis instead of time",
+        )
+        plot_learn_parser.add_argument(
+            "--depth",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="group by question depth instead of learning topic",
+        )
+        plot_learn_parser.add_argument(
+            "--pressure",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="count pressure instead of question number",
+        )
+
+        plot_actions_parser = plot_subparsers.add_parser(
+            "actions", help="plot number of user actions"
+        )
+        plot_actions_parser.add_argument("--interval", default="year")
+        plot_actions_parser.add_argument(
+            "--depth",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="group by question depth instead of learning topic",
+        )
+
+        plot_knowing_parser = plot_subparsers.add_parser(
+            "knowing", help="plot cumulative amount of learned questions"
+        )
+
+        plot_schedule_parser = plot_subparsers.add_parser(
+            "schedule", help="plot scheduled question time"
+        )
+
+        audio_parser = subparsers.add_parser(
+            "audio", aliases=["listen", "play"], help="play audio learning"
+        )
+        audio_parser.add_argument("id", help="listening process identifier")
+        audio_parser.add_argument(
+            "--start-from",
+            help="start from the word in the list with that index",
+            type=int,
+            default=0,
+        )
+        audio_parser.add_argument("--repeat", type=int, default=1)
+
+        analyze_parser = subparsers.add_parser("analyze")
+        analyze_parser.add_argument("language")
+
+        subparsers.add_parser("debug")
+
+        if command:
+            try:
+                arguments = parser.parse_args(command.split(" "))
+            except argparse.ArgumentError:
+                arguments = argparse.Namespace(command="no")
+                pass
+            except SystemExit:
+                arguments = argparse.Namespace(command="no")
+                pass
+        else:
+            arguments = argparse.Namespace(command="learn", topic=None)
+
+        if arguments.command == "help":
+            if arguments.subcommand == "learn":
+                learn_parser.print_help()
+            else:
+                parser.print_help()
+
+        if arguments.command == "debug":
+            self.debug()
+
+        if arguments.command == "analyze":
+            analysis = Analysis(self.data, self.user_data)
+            analysis.analyze(
+                Language.from_code(arguments.language),
+                self.data.get_frequency_list("hy_wortschatz_community_2017"),
+            )
+
+        if arguments.command == "read":
+            read = Read.from_config(path, ReadConfig(**data))
+            self.read(read)
+
+        if arguments.command == "learn":
             # We cannot use iterators here!
             learnings: list[Learning]
-            if command.startswith("learn "):
-                _, id_ = command.split(" ")
-                learnings = [self.data.get_learning(self.user_id, id_)]
+            if arguments.topic:
+                learnings = [
+                    self.data.get_learning(self.user_id, arguments.topic)
+                ]
             else:
                 learnings = list(self.data.get_active_learnings(self.user_id))
 
             self.learn(learnings)
 
-        if command.startswith("lexicon"):
-            code: str | None = None
-            if command.startswith("lexicon "):
-                _, code = command.split(" ")
-
-            if code:
-                language: Language = construct_language(code)
+        if arguments.command == "lexicon":
+            if arguments.language:
+                language: Language = construct_language(arguments.language)
                 lexicons = [self.data.get_lexicon(self.user_id, language)]
             else:
                 lexicons = sorted(
                     data.get_lexicons(self.user_id),
                     key=lambda x: -x.get_last_rate_number(),
                 )
-
             self.run_lexicon(lexicons)
 
-        if command == "read":
-            read = self.data.get_read_processes(self.user_id)[
-                "mahari___barbed_wires_in_blossom"
-            ]  # FIXME
-            self.read(read)
+        if command.startswith("read "):
+            _, request = command.split(" ")
+            read_processes = self.data.get_read_processes(self.user_id)
+            for id_, read in read_processes.items():
+                if id_.startswith(request):
+                    self.read(read)
+                    break
 
-        if command == "stat actions":
-            stat = defaultdict(int)
-            for learning in self.data.get_learnings(self.user_id):
-                stat[learning.learning_language] += learning.get_actions()
-            self.interface.table(
-                ["Language", "Actions"],
-                [
-                    [x.get_name(), str(y)]
-                    for x, y in sorted(stat.items(), key=lambda x: -x[1])
-                ],
-            )
-
-        if command == "stat learn":
-            self.data.print_learning_statistics(self.interface, self.user_id)
-
-        if command == "stat lexicon":
-            rows = []
-
-            for lexicon in sorted(
-                data.get_lexicons(self.user_id),
-                key=lambda x: -x.get_last_rate_number(),
-            ):
-                now: datetime = datetime.now()
-                rate: float | None = lexicon.get_last_rate()
-                last_week_precision: int = lexicon.count_unknowns(
-                    "log", now - timedelta(days=7), now
-                )
-                rows.append(
+        if arguments.command == "stat":
+            if arguments.process == "actions":
+                stat = defaultdict(int)
+                for learning in self.data.get_learnings(self.user_id):
+                    stat[learning.learning_language] += learning.get_actions()
+                self.interface.table(
+                    ["Language", "Actions"],
                     [
-                        lexicon.language.get_name(),
-                        progress(max(0, 5 - last_week_precision)),
-                        f"{abs(rate):.1f}  " + progress(int(rate * 10))
-                        if rate is not None
-                        else "N/A",
-                    ]
+                        [x.get_name(), str(y)]
+                        for x, y in sorted(stat.items(), key=lambda x: -x[1])
+                    ],
                 )
 
-            self.interface.table(["Language", "Need", "Rate"], rows)
+            elif arguments.process == "learn":
+                self.data.print_learning_statistics(
+                    self.interface, self.user_id
+                )
 
-        if command == "plot lexicon":
-            LexiconVisualizer(interactive=interactive).graph_with_matplot(
-                data.get_lexicons(self.user_id)
-            )
+            elif arguments.process == "lexicon":
+                rows = []
 
-        if command == "svg lexicon":
-            LexiconVisualizer(
-                first_point=util.year_start,
-                next_point=lambda x: x + timedelta(days=365.25),
-                impulses=False,
-            ).graph_with_svg(data.get_lexicons(self.user_id), 0.5)
+                for lexicon in sorted(
+                    data.get_lexicons(self.user_id),
+                    key=lambda x: -x.get_last_rate_number(),
+                ):
+                    now: datetime = datetime.now()
+                    rate: float | None = lexicon.get_last_rate()
+                    rate_year_before: float | None = lexicon.get_last_rate(
+                        before=now - timedelta(days=365.25 * 2)
+                    )
+                    last_week_precision: int = lexicon.count_unknowns(
+                        "log", now - timedelta(days=7), now
+                    )
+                    need = progress(max(0, 5 - last_week_precision))
+                    if max(0, 5 - last_week_precision) == 0:
+                        need = (
+                            (
+                                timedelta(days=7)
+                                - (
+                                    datetime.now()
+                                    - lexicon.logs["log"].records[-1].time
+                                )
+                            ).total_seconds()
+                            / 60
+                            / 60
+                        )
+                        need = f"{need:.1f}"
+                    change = (
+                        abs(rate) - abs(rate_year_before)
+                        if rate_year_before is not None and rate is not None
+                        else 0
+                    )
+                    if change >= 0.1:
+                        change = f"[green]▲ +{change:.1f}"
+                    elif change <= -0.1:
+                        change = f"[red]▼ {change:.1f}"
+                    else:
+                        change = ""
+                    if not rate:
+                        continue
+                    rows.append(
+                        [
+                            lexicon.language.get_name(),
+                            need,
+                            f"{abs(rate):.1f}  " + progress(int(rate * 10))
+                            if rate is not None
+                            else "N/A",
+                            change,
+                        ]
+                    )
 
-        if command == "svg lexicon week":
-            LexiconVisualizer().graph_with_svg(data.get_lexicons(self.user_id))
+                self.interface.table(
+                    ["Language", "Need", "Rate", "2 y. change"], rows
+                )
 
-        if command == "svg lexicon month":
-            LexiconVisualizer(
-                first_point=util.first_day_of_month,
-                next_point=util.plus_month,
-                impulses=False,
-            ).graph_with_svg(data.get_lexicons(self.user_id), 1.5)
+        if arguments.command == "plot":
+            if arguments.process == "lexicon":
+                first_point = util.year_start
+                next_point = lambda x: x + timedelta(days=365.25)
+                if arguments.interval == "week":
+                    first_point = util.first_day_of_week
+                    next_point = lambda x: x + timedelta(days=7)
+                if arguments.interval == "month":
+                    first_point = util.first_day_of_month
+                    next_point = util.plus_month
+                if arguments.languages:
+                    languages = [
+                        Language.from_code(x)
+                        for x in arguments.languages.split(";")
+                    ]
+                    lexicons = list(
+                        data.get_lexicons(self.user_id, languages=languages)
+                    )
+                else:
+                    lexicons = list(data.get_lexicons(self.user_id))
+                lexicon_visualizer = LexiconVisualizer(
+                    interactive=interactive,
+                    first_point=first_point,
+                    next_point=next_point,
+                    impulses=False,
+                )
+                if arguments.svg:
+                    lexicon_visualizer.graph_with_svg(
+                        lexicons, margin=arguments.margin
+                    )
+                else:
+                    lexicon_visualizer.graph_with_matplot(
+                        lexicons,
+                        show_text=arguments.show_text,
+                        margin=arguments.margin,
+                    )
+            elif arguments.process == "learn":
+                records: list[tuple[LearningRecord, Learning]] = []
+                for learning in self.user_data.get_active_learnings():
+                    records += [(x, learning) for x in learning.process.records]
+                records = sorted(records, key=lambda x: x[0].time)
+                LearningVisualizer(
+                    records,
+                    interactive=arguments.interactive,
+                    is_time=not arguments.actions,
+                    count_by_depth=arguments.pressure,
+                    by_language=not arguments.depth,
+                ).draw()
+            elif arguments.process == "knowing":
+                Visualizer().knowing(
+                    list(self.user_data.get_active_learnings())
+                )
+            elif arguments.process == "schedule":
+                Visualizer().next_question_time(
+                    self.user_data.get_active_learnings()
+                )
+            elif arguments.process == "actions":
+                records: list[tuple[LearningRecord, Learning]] = []
+                for learning in self.user_data.get_active_learnings():
+                    records += [(x, learning) for x in learning.process.records]
+                records = sorted(records, key=lambda x: x[0].time)
+
+                def locator(x):
+                    return datetime(day=x.day, month=x.month, year=x.year)
+
+                days = 1
+                if arguments.interval == "week":
+                    locator, days = util.first_day_of_week, 7
+                elif arguments.interval == "month":
+                    locator, days = util.first_day_of_month, 31
+                elif arguments.interval == "year":
+                    locator, days = util.year_start, 365 * 0.6
+                Visualizer().cumulative_actions(
+                    records,
+                    list(self.user_data.get_lexicons()),
+                    point=locator,
+                    width=days,
+                    by_language=not arguments.depth,
+                )
+
+        if arguments.command == "audio":
+            self.listen(arguments.id, arguments.start_from, arguments.repeat)
 
         if command == "data":
             for learning in self.user_data.get_active_learnings():
@@ -191,21 +432,17 @@ class Emmio:
                         continue
                     items = self.data.dictionaries.get_dictionaries(
                         learning.config.dictionaries
-                    ).get_items(word)
+                    ).get_items(word, learning.learning_language)
 
                     if not items:
                         rows.append([word])
                         continue
 
                     transcription, text = items[0].get_short(
-                        learning.base_language
+                        learning.base_languages[0]
                     )
                     if transcription:
-                        text = (
-                            self.interface.colorize(transcription, "yellow")
-                            + " "
-                            + text
-                        )
+                        text = f"[yellow]{transcription} [black]{text}"
                     rows.append([word, text])
 
             self.interface.table(["Word", "Translation"], rows)
@@ -217,41 +454,46 @@ class Emmio:
                 year=now.year, month=now.month, day=now.day, hour=now.hour
             )
 
+            rows = []
             for learning in self.user_data.get_active_learnings():
                 for question_id, knowledge in learning.knowledge.items():
                     if not knowledge.is_learning():
                         continue
                     if (
                         start
-                        <= knowledge.get_next_time()
+                        <= learning.get_next_time(knowledge)
                         < start + timedelta(hours=24)
                     ):
-                        seconds = knowledge.get_next_time() - start
+                        seconds = learning.get_next_time(knowledge) - start
                         hours[int(seconds.total_seconds() // 60 // 60)] += 1
-                    elif knowledge.get_next_time() < now:
+                    elif learning.get_next_time(knowledge) < now:
                         hours[0] += 1
 
             print(sum(hours))
             for hour in range(24):
                 time: datetime = start + timedelta(hours=hour)
-                print(
-                    f"{time.day:2} {time.hour:2}:00 {hours[hour]:2} "
-                    f"{progress(hours[hour])}"
+                rows.append(
+                    [
+                        f"{time.day:2}",
+                        f"{time.hour:2}:00",
+                        f"{hours[hour]:2} {progress(hours[hour])}",
+                    ]
                 )
+            self.interface.table(["Day", "Time", "To repeat"], rows)
 
-        if command in Visualizer.get_commands():
-            records: list[LearningRecord] = []
+        if Visualizer.check_command(command):
+            records: list[tuple[LearningRecord, Learning]] = []
             knowledge = {}
             learnings: list[Learning] = list(
                 self.user_data.get_active_learnings()
             )
 
             for learning in learnings:
-                records += learning.process.records
+                records += [(x, learning) for x in learning.process.records]
                 knowledge |= learning.knowledge
 
             visualizer: Visualizer = Visualizer(interactive=interactive)
-            records = sorted(records, key=lambda x: x.time)
+            records = sorted(records, key=lambda x: x[0].time)
 
             lexicons: list[Lexicon] = [
                 self.user_data.get_lexicon(learning.learning_language)
@@ -260,42 +502,6 @@ class Emmio:
             visualizer.process_command(
                 command, records, knowledge, learnings, lexicons
             )
-
-        if command.startswith("listen "):
-            _, code = command.split(" ")
-            self.listen(self.data.get_learning(self.user_id, code))
-
-    def listen(self, learning: Learning):
-        audio_collection: AudioCollection = self.data.get_audio_collection(
-            learning.config.audio
-        )
-        dictionary_collection: DictionaryCollection = (
-            self.data.get_dictionaries(learning.config.dictionaries)
-        )
-        print(learning.config.name)
-        question_ids: list[str] = learning.get_safe_question_ids()
-        for question_id in question_ids:
-            translation: str | None = None
-            if items := dictionary_collection.get_items(question_id):
-                translation: str | None = items[0].get_one_word_definition(
-                    learning.base_language
-                )
-            if translation and " " not in translation:
-                print("   ", question_id, "—", translation)
-                if audio_collection.has(
-                    translation, learning.base_language
-                ) and audio_collection.has(
-                    question_id, learning.learning_language
-                ):
-                    for _ in range(2):
-                        audio_collection.play(
-                            translation, learning.base_language
-                        )
-                        sleep(1)
-                        audio_collection.play(
-                            question_id, learning.learning_language, 2
-                        )
-                        sleep(1)
 
     def run_lexicon(self, lexicons: list[Lexicon]) -> None:
         """Check user vocabulary."""
@@ -317,6 +523,7 @@ class Emmio:
                 self.data.get_frequency_list(lexicon.config.frequency_list),
                 None,
                 self.data.get_dictionaries(lexicon.config.dictionaries),
+                self.data.get_sentences_collection(lexicon.config.sentences),
                 "frequency",
                 False,
                 False,
@@ -324,19 +531,43 @@ class Emmio:
             )
             break
 
+    def read(self, read: Read):
+        coloredlogs.install(
+            level=logging.ERROR,
+            fmt="%(message)s",
+            level_styles=dict(
+                info=dict(color="yellow"), error=dict(color="red")
+            ),
+        )
+        read.read(
+            self.interface,
+            self.user_data,
+            self.data.get_dictionaries(read.config.dictionaries),
+            self.data.get_text(read.config.text),
+        )
+
     def learn(self, learnings: list[Learning]) -> None:
         while True:
             learnings = sorted(learnings, key=lambda x: x.compare_by_old())
-            if learnings[0].count_questions_to_repeat() > 0:
+            learning: Learning = learnings[0]
+            if learning.count_questions_to_repeat() > 0:
                 teacher: Teacher = Teacher(
                     self.interface,
                     self.data,
                     self.user_data,
-                    learnings[0],
+                    learning,
                     stop_after_answer=True,
                 )
+                self.interface.box(
+                    "Repeat questions for "
+                    + learning.learning_language.get_name()
+                )
                 do_continue: bool = teacher.repeat(max_actions=10)
-                if not do_continue:
+                self.data.print_learning_statistics(
+                    self.interface, self.user_id
+                )
+                reply: str = self.interface.choice(["continue", "stop"])
+                if reply == "stop" or not do_continue:
                     return
             else:
                 learnings = sorted(learnings, key=lambda x: x.compare_by_new())
@@ -349,8 +580,17 @@ class Emmio:
                         learning,
                         stop_after_answer=True,
                     )
-                    do_continue: bool = teacher.learn_new(max_actions=10)
-                    if not do_continue:
+                    self.interface.box(
+                        "Learn new words for "
+                        + learning.learning_language.get_name()
+                    )
+                    do_continue: bool = teacher.learn_new()
+                    self.interface.box("All new words added")
+                    self.data.print_learning_statistics(
+                        self.interface, self.user_id
+                    )
+                    reply: str = self.interface.choice(["continue", "stop"])
+                    if reply == "stop" or not do_continue:
                         return
                 else:
                     break
@@ -362,6 +602,7 @@ class Emmio:
             min(
                 x.get_nearest()
                 for x in self.user_data.learnings.learnings.values()
+                if x.config.is_active and x.get_nearest()
             )
             - now
         )
@@ -371,3 +612,10 @@ class Emmio:
         else:
             print(f"    New question in {time_to_new}.")
         print()
+
+    def listen(self, listening_id: str, start_from: int, repeat: int) -> None:
+        Listener(
+            self.user_data.get_listening(listening_id),
+            self.data,
+            self.user_data,
+        ).listen(start_from, repeat)
