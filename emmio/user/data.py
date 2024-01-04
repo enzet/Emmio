@@ -59,8 +59,10 @@ class UserData:
     def get_learning(self, id_: str) -> Learning:
         return self.learnings.get_learning(id_)
 
-    def get_lexicons(self) -> Iterator[Lexicon]:
-        return self.lexicons.get_lexicons()
+    def get_lexicons(
+        self, languages: list[Language] | None = None
+    ) -> list[Lexicon]:
+        return self.lexicons.get_lexicons(languages)
 
     def get_lexicon(self, language: Language) -> Lexicon:
         return self.lexicons.get_lexicon(language)

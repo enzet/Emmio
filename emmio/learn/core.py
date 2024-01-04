@@ -38,6 +38,16 @@ class Response(Enum):
 
     POSTPONE = "p"
 
+    def get_symbol(self):
+        match self:
+            case Response.RIGHT:
+                return "-"
+            case Response.WRONG:
+                return "/"
+            case Response.SKIP:
+                return "X"
+            case Response.POSTPONE:
+                return ">"
 
 
 class LearningRecord(BaseModel, Record):
@@ -418,6 +428,9 @@ class Learning:
             ):
                 a += 1
         return a
+
+    def get_records(self) -> list[LearningRecord]:
+        return self.process.records
 
     def get_sessions(self) -> list[LearningSession]:
         return self.process.sessions

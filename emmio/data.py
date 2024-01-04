@@ -17,7 +17,12 @@ from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
 from emmio.ui import progress
-from emmio.util import day_start, first_day_of_week
+from emmio.util import (
+    day_start,
+    first_day_of_week,
+    year_start,
+    first_day_of_month,
+)
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"

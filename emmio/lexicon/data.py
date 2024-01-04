@@ -28,8 +28,17 @@ class LexiconData:
 
         return cls(path, lexicons)
 
-    def get_lexicons(self) -> Iterator[Lexicon]:
-        return iter(self.lexicons.values())
+    def get_lexicons(
+        self, languages: list[Language] | None = None
+    ) -> list[Lexicon]:
+        if languages:
+            result = []
+            for lexicon in self.lexicons.values():
+                if lexicon.language in languages:
+                    result.append(lexicon)
+            return result
+        else:
+            return list(self.lexicons.values())
 
     def get_lexicon(self, language: Language) -> Lexicon | None:
         """Get lexicon with the requested language."""

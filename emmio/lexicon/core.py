@@ -17,7 +17,7 @@ from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
 )
-from emmio.language import construct_language, ENGLISH
+from emmio.language import construct_language, ENGLISH, RUSSIAN
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
@@ -161,7 +161,7 @@ class LexiconLogSession(BaseModel, Session):
 
 
 @dataclass
-class LexiconLogRecord:
+class LexiconLogRecord(Record):
     """Record of user's answer."""
 
     time: datetime
