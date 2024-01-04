@@ -11,6 +11,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.language import construct_language
+from emmio.learn.config import Scheme
 from emmio.learn.core import Learning, Response, Knowledge, LearningSession
 from emmio.lexicon.core import (
     LexiconLog,
@@ -44,15 +45,34 @@ class Teacher:
         self.user_data: UserData = user_data
 
         self.learning: Learning = learning
-        self.lexicon: Lexicon = user_data.get_lexicon(
-            self.learning.learning_language
-        )
-        self.word_index: int = 0
-        self.words: list[tuple[str, List, int]] = []
-        for list_id in self.learning.config.lists:
+
+        self.scheme: Scheme = self.learning.config.scheme
+
+        # Load lexicons.
+        self.check_lexicon: Lexicon | None = None
+        if self.scheme.new_question.check_lexicon:
+            self.check_lexicon = user_data.get_lexicon(
+                construct_language(self.scheme.new_question.check_lexicon["id"])
+            )
+        self.ask_lexicon: Lexicon | None = None
+        if self.scheme.new_question.ask_lexicon:
+            self.ask_lexicon = user_data.get_lexicon(
+                construct_language(self.scheme.new_question.ask_lexicon["id"])
+            )
+
+        # Load question lists.
+        self.question_index: int = 0
+        self.question_ids: list[tuple[str, List, int]] = []
+        for list_config in self.scheme.new_question.pick_from:
+            list_id = list_config["id"]
             list_ = data.get_list(list_id)
             for index, word in enumerate(list_.get_words()):
-                self.words.append((word, list_, index))
+                self.question_ids.append((word, list_, index))
+
+        # Load dictionaries for checking questions.
+        self.dictionaries_to_check: DictionaryCollection = (
+            data.get_dictionaries(self.scheme.new_question.ignore_not_common)
+        )
 
         self.stop_after_answer: bool = stop_after_answer
 
@@ -67,147 +87,111 @@ class Teacher:
         )
         self.max_for_day: int = self.learning.config.max_for_day
 
-    @staticmethod
-    def get_smallest_interval() -> timedelta:
-        return timedelta(minutes=5)
-
-    @staticmethod
-    def increase_interval(interval: timedelta) -> timedelta:
-        if interval == timedelta(minutes=5):
-            return timedelta(hours=8)
-        elif interval == timedelta(hours=8):
-            return timedelta(days=1)
-        return interval * 2
-
     def get_new_question(self) -> str | None:
-        for question_id, list_, index in self.words[self.word_index :]:
+        for question_id, list_, index in self.question_ids[
+            self.question_index :
+        ]:
             logging.info(f"{index}th word from {list_.get_name()}")
+            self.question_index += 1
 
-            self.word_index += 1
+            good_question_id: bool = self.check_question_id(question_id)
+            if good_question_id:
+                return question_id
 
-            # Check whether the learning process already has the word: whether
-            # it was initially known or it is learning.
-            if self.learning.has(question_id):
-                if self.learning.is_initially_known(question_id):
-                    logging.info("Was initially known")
-                else:
-                    logging.info("Already learning")
-                continue
+    def check_question_id(self, question_id) -> bool:
+        # Check whether the learning process already has the word: whether
+        # it was initially known or it is learning.
+        if self.learning.has(question_id):
+            if self.learning.is_initially_known(question_id):
+                logging.info("Was initially known")
+            else:
+                logging.info("Already learning")
+            return False
 
-            # Check user lexicon. Skip the word if it was mark as known by user
-            # while checking lexicon.
-            if (
-                self.learning.config.check_lexicon
-                and self.lexicon
-                and self.lexicon.has(question_id)
-            ):
-                if self.lexicon.get(question_id) != LexiconResponse.DONT:
-                    logging.info("Known in lexicon")
-                    continue
+        if self.check_lexicon and self.check_lexicon.has(question_id):
+            if self.check_lexicon.get(question_id) != LexiconResponse.DONT:
+                logging.info("Known in lexicon")
+                return False
 
-            # Request word definition in the dictionary.
-            items: list[DictionaryItem] = self.dictionaries.get_items(
-                question_id, self.learning.learning_language
-            )
+        if self.dictionaries_to_check.dictionaries:
+            if not self.check_common(question_id):
+                return False
 
-            # Skip word if current dictionaries has no definitions for it.
-            if not items:
-                logging.info("No definition")
-                continue
+        return self.check2(question_id)
 
-            # Skip word if it is known that it is solely a form of other words.
-            items_no_links: list[DictionaryItem] = self.dictionaries.get_items(
-                question_id, self.learning.learning_language, follow_links=False
-            )
+    def check2(self, question_id: str) -> bool:
+        # Check user lexicon. Skip the word if it was mark as known by user
+        # while checking lexicon. This should be done after checking
+        # definitions in dictionary, because if user answer is "no", the
+        # learning process starts immediately.
+        if self.check_lexicon and self.check_lexicon.has(question_id):
+            if self.check_lexicon.get(question_id) != LexiconResponse.DONT:
+                logging.info("Known in lexicon")
+                return False
+            else:
+                logging.info("Lexicon response was DONT KNOW")
+                # FIXME: user response may be DONT KNOW, but the word is
+                #     still may be just a form or not common, so we
+                #     don't want to learn it.
+                return True
 
-            not_common = False
-            for item in items_no_links:
-                for language in self.learning.base_languages:
-                    if item.has_definitions() and item.is_not_common(language):
-                        not_common = True
-                        break
-            if not_common:
-                logging.info("Not common")
-                continue
-
-            # Check user lexicon. Skip the word if it was mark as known by user
-            # while checking lexicon. This should be done after checking
-            # definitions in dictionary, because if user answer is "no", the
-            # learning process starts immediately.
-            if (
-                self.learning.config.check_lexicon
-                and self.lexicon
-                and self.lexicon.has(question_id)
-            ):
-                if self.lexicon.get(question_id) != LexiconResponse.DONT:
-                    logging.info("Known in lexicon")
-                    continue
-                else:
-                    logging.info("Lexicon response was DONT KNOW")
-                    # FIXME: user response may be DONT KNOW, but the word is
-                    #        still may be just a form or not common, so we don't
-                    #        want to learn it.
-                    return question_id
-
-            # If `ask_lexicon` option is enabled, show the word to user before
-            # testing.
-            if self.learning.config.ask_lexicon and not self.lexicon.has(
-                question_id
-            ):
-                if not self.lexicon.has_log("log_ex"):
-                    self.lexicon.add_log(
-                        LexiconLog("log_ex", WordSelection("top"))
-                    )
-                self.lexicon.write()
-
-                _, response, _ = self.lexicon.ask(
-                    self.interface,
-                    question_id,
-                    [],
-                    self.dictionaries,
-                    log_name="log_ex",
+        # If `ask_lexicon` option is enabled, show the word to user before
+        # testing.
+        if self.ask_lexicon and not self.ask_lexicon.has(question_id):
+            if not self.ask_lexicon.has_log("log_ex"):
+                self.ask_lexicon.add_log(
+                    LexiconLog("log_ex", WordSelection("top"))
                 )
-                if response is None:
-                    return None
+            self.ask_lexicon.write()
 
-                if response == LexiconResponse.DONT:
-                    logging.info("Lexicon response was DONT KNOW")
-                    return question_id
-                else:
-                    logging.info("Lexicon response was KNOW")
-                    continue
+            _, response, _ = self.ask_lexicon.ask(
+                self.interface,
+                question_id,
+                [],
+                self.dictionaries,
+                self.sentences,
+                log_name="log_ex",
+            )
+            if response is None:
+                return False
 
-            logging.info("Nothing is known about the word")
-            return question_id
+            if response == LexiconResponse.DONT:
+                logging.info("Lexicon response was DONT KNOW")
+                return question_id
+            else:
+                logging.info("Lexicon response was KNOW")
+                return False
 
-        return None
+        logging.info("Nothing is known about the word")
+        return True
 
-    def __start(self) -> bool:
-        """Start the learning process: repeat old questions and learn new ones.
+    def check_common(self, question_id: str) -> bool:
+        # Request word definition in the dictionary.
+        items: list[DictionaryItem] = self.dictionaries_to_check.get_items(
+            question_id, self.learning.learning_language
+        )
 
-        :return: true if the learning process was finished, false if the
-            learning process was interrupted by the user.
-        """
-        while True:
-            # Learn new questions.
+        # Skip word if current dictionaries has no definitions for it.
+        if not items:
+            logging.info("No definition")
+            return False
 
-            if (
-                self.learning.count_questions_added_today() < self.max_for_day
-                and (question_id := self.get_new_question()) is not None
-            ):
-                code: str = self.learn(question_id, timedelta())
-                if code == "stop":
-                    return False
-                continue
+        # Skip word if it is known that it is solely a form of other words.
+        items_no_links: list[
+            DictionaryItem
+        ] = self.dictionaries_to_check.get_items(
+            question_id, self.learning.learning_language, follow_links=False
+        )
 
-            # Repeat old questions.
-
-            if (question_id := self.learning.get_next_question()) is not None:
-                code: str = self.learn(
-                    question_id, self.learning.knowledge[question_id].interval
-                )
-                if code == "stop":
-                    return False
+        not_common = False
+        for item in items_no_links:
+            for language in self.learning.base_languages:
+                if item.has_definitions() and item.is_not_common(language):
+                    not_common = True
+                    break
+        if not_common:
+            logging.info("Not common")
+            return False
 
         return True
 
@@ -275,7 +259,7 @@ class Teacher:
         return to_continue
 
     def play(self, word: str):
-        self.audio.play(word, self.learning.learning_language)
+        self.audio.play(word)
 
     def print_sentence(
         self,
@@ -314,9 +298,9 @@ class Teacher:
             elif self.user_data.is_known_or_not_a_word(
                 current_word.lower(), self.learning.learning_language
             ):
-                result += "\033[32m" + current_word + "\033[0m"
+                result += "[green]" + current_word + "[/green]"
             else:
-                result += "\033[2m" + current_word + "\033[0m"
+                result += "[grey]" + current_word + "[/grey]"
                 all_known = False
 
         self.interface.print(result)
@@ -341,12 +325,11 @@ class Teacher:
                 + "\n"
             )
         else:
-            statistics = "New question  "
+            statistics = "New question.\n"
 
         statistics += (
-            f"skipped: {self.learning.get_skipping_counter(word)}  "
-            f"added today: {self.learning.count_questions_added_today()}  "
-            f"to repeat: {self.learning.count_questions_to_repeat()}"
+            f"Added today: {self.learning.count_questions_added_today()}, "
+            f"to repeat: {self.learning.count_questions_to_repeat()}."
         )
 
         alternative_forms: set[str] = set()
@@ -386,6 +369,12 @@ class Teacher:
         else:
             self.interface.print(statistics + "\n" + "No translations.")
 
+        index: int = 0
+        rated_sentences: list[
+            tuple[float, SentenceTranslations]
+        ] = self.sentences.filter_by_word_and_rate(
+            word, self.user_data, ids_to_skip, 120
+        )
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
 
@@ -464,10 +453,8 @@ class Teacher:
                 lexicon: Lexicon = self.user_data.get_lexicon(
                     self.learning.learning_language
                 )
-                if not self.lexicon.has_log("log_ex"):
-                    self.lexicon.add_log(
-                        LexiconLog("log_ex", WordSelection("top"))
-                    )
+                if not lexicon.has_log("log_ex"):
+                    lexicon.add_log(LexiconLog("log_ex", WordSelection("top")))
                 lexicon.register(
                     command_word,
                     LexiconResponse.KNOW,

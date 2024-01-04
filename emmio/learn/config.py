@@ -21,6 +21,21 @@ class LearnScheme(Enum):
     FULL_SENTENCES = "full_sentences"
 
 
+class NewQuestionScheme(BaseModel):
+    pick_from: list[dict]
+    """Which question lists use to pick new question."""
+
+    check_lexicon: dict | None = None
+    ask_lexicon: dict | None = None
+    ignore_not_common: list[dict]
+
+
+class Scheme(BaseModel):
+    new_question: NewQuestionScheme | None = None
+    show_question: list[dict] | None = None
+    postpone_time: float | None = None
+
+
 class LearnConfig(BaseModel):
     file_name: str
     """Name of the file with learning process."""
@@ -37,14 +52,14 @@ class LearnConfig(BaseModel):
     is_active: bool = True
     """Whether the learning process is active now."""
 
-    type: LearnScheme
+    scheme: Scheme | None
     """Learning scheme."""
 
     sentences: list[dict]
     """Sentences usage configurations."""
 
     dictionaries: list[dict]
-    lists: list[str]
+    """Dictionary usage configurations."""
 
     audio: list[dict] = {}
     """Configurations for voice-over."""
