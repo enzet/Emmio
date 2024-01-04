@@ -40,6 +40,12 @@ class UserData:
     lexicons: LexiconData
     """Data about user's lexicon checking processes."""
 
+    read_processes: ReadData
+    """Data about user's reading processes."""
+
+    listenings: ListenData
+    """Data about user's listening processes."""
+
     @classmethod
     def from_config(cls, user_id: str, path: Path, config: dict) -> "UserData":
         return cls(
