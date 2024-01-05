@@ -218,7 +218,7 @@ class RichInterface(TerminalInterface):
         self.console = Console()
 
     def print(self, text: str) -> None:
-        print(text)
+        self.console.print(text)
 
     def header(self, text: str) -> None:
         self.console.print(Panel(text))
@@ -241,7 +241,7 @@ class RichInterface(TerminalInterface):
 
     def colorize(self, text: str, color: str):
         if color in colors:
-            return f"\033[{colors[color]}m{text}\033[0m"
+            return f"[{color}]{text}[/{color}]"
         return text
 
     def choice(self, options: list[str]) -> str:

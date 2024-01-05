@@ -191,14 +191,25 @@ class Data:
 
         pressure: float = user_data.learnings.compute_pressure()
         postponed: float = user_data.learnings.count_postponed()
-        actions_today: int = user_data.learnings.count_actions(
-            since=day_start(datetime.now())
-        )
-        actions_week: int = user_data.learnings.count_actions(
-            since=first_day_of_week(datetime.now())
-        )
-        interface.print(f"Actions today: {actions_today}")
-        interface.print(f"Actions week: {actions_week}")
+        for name, locator, span in (
+            ("today", day_start, 100),
+            ("week", first_day_of_week, 700),
+            ("month", first_day_of_month, 3000),
+            ("year", year_start, 36500),
+        ):
+            actions: int = user_data.learnings.count_actions(
+                since=locator(datetime.now())
+            )
+            value = actions
+            if (
+                value
+                >= ((datetime.now() - locator(datetime.now())).days + 1) * 100
+            ):
+                value = f"[green] {value}"
+            else:
+                value = f"[red] {value}"
+            interface.print(f"Actions {name}: {value}")
+
         interface.print(f"Pressure: {pressure:.2f}")
         interface.print(f"Postponed: {postponed}")
         interface.table(["Course", "Repeat", "Add", "All"], rows)
