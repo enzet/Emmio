@@ -8,6 +8,8 @@ from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
 from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
+from emmio.read.core import Read
+from emmio.read.data import ReadData
 
 
 @dataclass
@@ -54,6 +56,7 @@ class UserData:
             config["name"],
             LearnData.from_config(path / "learn", config["learn"]),
             LexiconData.from_config(path / "lexicon", config["lexicon"]),
+            ReadData.from_config(path / "read", config["read"]),
         )
 
     def get_learnings(self) -> Iterator[Learning]:

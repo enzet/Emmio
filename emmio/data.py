@@ -14,6 +14,7 @@ from emmio.lexicon.core import Lexicon
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
+from emmio.read.core import Read
 from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
