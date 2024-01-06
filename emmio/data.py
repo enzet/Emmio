@@ -16,6 +16,8 @@ from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
+from emmio.text.core import Texts
+from emmio.text.data import TextData
 from emmio.ui import progress
 from emmio.util import (
     day_start,
@@ -35,6 +37,7 @@ DICTIONARIES_DIRECTORY_NAME: str = "dictionaries"
 SENTENCES_DIRECTORY_NAME: str = "sentences"
 LISTS_DIRECTORY_NAME: str = "lists"
 AUDIO_DIRECTORY_NAME: str = "audio"
+TEXTS_DIRECTORY_NAME: str = "texts"
 USERS_DIRECTORY_NAME: str = "users"
 CONFIGURATION_FILE_NAME: str = "config.json"
 
@@ -45,8 +48,8 @@ class Data:
 
     This class manages Emmio data directory which is by default located in
     ``~/.emmio``.  It expects to find directories ``lists``, ``sentences``,
-    ``dictionaries``, ``audio`` with artifacts and directory ``users`` with
-    user data.
+    ``dictionaries``, ``audio``, and ``texts`` with artifacts and directory
+    ``users`` with user data.
     """
 
     lists: ListsData
@@ -60,6 +63,9 @@ class Data:
 
     audio: AudioData
     """Manager for audio files with pronunciation."""
+
+    texts: TextData
+    """Manager for texts and translations."""
 
     users_data: dict[str, UserData]
     """Mapping from used unique identifiers to user data managers."""
@@ -76,6 +82,7 @@ class Data:
             path / DICTIONARIES_DIRECTORY_NAME
         )
         audio: AudioData = AudioData.from_config(path / AUDIO_DIRECTORY_NAME)
+        texts: TextData = TextData.from_config(path / TEXTS_DIRECTORY_NAME)
 
         users_path: Path = path / USERS_DIRECTORY_NAME
         user_data: dict[str, UserData] = {}
@@ -87,7 +94,7 @@ class Data:
                 user_data[user_path.name] = UserData.from_config(
                     user_path.name, user_path, json.load(user_config_file)
                 )
-        return cls(lists, sentences, dictionaries, audio, user_data)
+        return cls(lists, sentences, dictionaries, audio, texts, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int) -> None:
         """Exclude the sentence from the learning process of the word.
@@ -129,6 +136,9 @@ class Data:
 
     def get_sentences(self, usage_config: dict) -> Sentences:
         return self.sentences.get_sentences(usage_config)
+
+    def get_text(self, text_id: str) -> Texts:
+        return self.texts.get_text(text_id)
 
     def get_sentences_collection(
         self, usage_configs: list[dict]
