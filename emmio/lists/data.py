@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,11 +21,22 @@ class ListsData:
 
     @classmethod
     def from_config(cls, path: Path) -> "ListsData":
+        """Initialize lists from a directory."""
+        config: dict
+
+        if not path.exists():
+            if path.parent.exists():
+                path.mkdir()
+                config = {}
+            else:
+                logging.fatal(f"{path.parent} doesn't exist.")
+                raise FileNotFoundError()
+        else:
+            with (path / "config.json").open() as config_file:
+                config = json.load(config_file)
+
         frequency_lists: dict[str, FrequencyList] = {}
         word_lists: dict[str, WordList] = {}
-
-        with (path / "config.json").open() as config_file:
-            config = json.load(config_file)
 
         for list_id, list_config in config.items():
             match list_config["type"]:

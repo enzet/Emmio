@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,8 +24,19 @@ class AudioData:
 
     @classmethod
     def from_config(cls, path: Path) -> "AudioData":
-        with (path / "config.json").open() as config_file:
-            config: dict = json.load(config_file)
+        config: dict
+
+        if not path.exists():
+            if path.parent.exists():
+                path.mkdir()
+                config = {}
+            else:
+                logging.fatal(f"{path.parent} doesn't exist.")
+                raise FileNotFoundError()
+        else:
+            with (path / "config.json").open() as config_file:
+                config = json.load(config_file)
+
         audio_providers: dict[str, AudioProvider] = {}
         for id_, data in config.items():
             audio_providers[id_] = DirectoryAudioProvider.from_config(

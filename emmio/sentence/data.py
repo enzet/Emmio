@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,13 +23,24 @@ class SentencesData:
 
     @classmethod
     def from_config(cls, path: Path) -> "SentencesData":
+        """Initialize sentences from a directory."""
+        config: dict
+
+        if not path.exists():
+            if path.parent.exists():
+                path.mkdir()
+                config = {}
+            else:
+                logging.fatal(f"{path.parent} doesn't exist.")
+                raise FileNotFoundError()
+        else:
+            with (path / "config.json").open() as config_file:
+                config = json.load(config_file)
+
         database: SentenceDatabase = SentenceDatabase(path / "sentences.db")
         sentences: dict[str, Sentences] = {}
-
-        with (path / "config.json").open() as config_file:
-            config: dict = json.load(config_file)
-            for id_, data in config.items():
-                sentences[id_] = SimpleSentences(path, SentencesConfig(**data))
+        for id_, data in config.items():
+            sentences[id_] = SimpleSentences(path, SentencesConfig(**data))
 
         return cls(path, database, sentences)
 

@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,11 +21,24 @@ class DictionaryData:
     """The directory managed by this class."""
 
     dictionaries: dict[str, Dictionary]
+    """Mapping from unique dictionary string identifier to dictionary."""
 
     @classmethod
     def from_config(cls, path: Path) -> "DictionaryData":
-        with (path / "config.json").open() as config_file:
-            config: dict = json.load(config_file)
+        """Initialize dictionaries from a directory."""
+        config: dict
+
+        if not path.exists():
+            if path.parent.exists():
+                path.mkdir()
+                config = {}
+            else:
+                logging.fatal(f"{path.parent} doesn't exist.")
+                raise FileNotFoundError()
+        else:
+            with (path / "config.json").open() as config_file:
+                config = json.load(config_file)
+
         dictionaries: dict[str, Dictionary] = {}
         for id_, data in config.items():
             dictionaries[id_] = SimpleDictionary.from_config(
@@ -32,7 +46,10 @@ class DictionaryData:
             )
         return cls(path, dictionaries)
 
-    def get_dictionary(self, dictionary_usage_config: dict) -> Dictionary:
+    def get_dictionary(
+        self, dictionary_usage_config: dict
+    ) -> Dictionary | None:
+        """Get dictionary by dictionary usage configuration."""
         match id_ := dictionary_usage_config["id"]:
             case "en_wiktionary":
                 return EnglishWiktionary(
@@ -40,7 +57,10 @@ class DictionaryData:
                     construct_language(dictionary_usage_config["language"]),
                 )
             case _:
-                return self.dictionaries[id_]
+                if id_ in self.dictionaries:
+                    return self.dictionaries[id_]
+
+        return None
 
     def get_dictionaries(
         self, dictionary_usage_configs: list[dict]
