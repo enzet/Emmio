@@ -1,15 +1,15 @@
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
+from emmio.core import ArtifactData
 from emmio.text.config import TextConfig, TextTranslationConfig
 from emmio.text.core import Texts
 
 
 @dataclass
-class TextData:
+class TextData(ArtifactData):
     """Manages data inside texts directory."""
 
     path: Path
@@ -17,18 +17,7 @@ class TextData:
 
     @classmethod
     def from_config(cls, path: Path) -> "TextData":
-        config: dict
-
-        if not path.exists():
-            if path.parent.exists():
-                path.mkdir()
-                config = {}
-            else:
-                logging.fatal(f"{path.parent} doesn't exist.")
-                raise FileNotFoundError()
-        else:
-            with (path / "config.json").open() as config_file:
-                config = json.load(config_file)
+        config: dict = ArtifactData.read_config(path)
 
         texts: dict[str, Texts] = {}
 

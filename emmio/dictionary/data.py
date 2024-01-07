@@ -1,8 +1,7 @@
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from emmio.core import ArtifactData
 from emmio.dictionary.config import DictionaryConfig
 from emmio.dictionary.core import (
     Dictionary,
@@ -14,7 +13,7 @@ from emmio.language import construct_language, Language
 
 
 @dataclass
-class DictionaryData:
+class DictionaryData(ArtifactData):
     """Manager for the directory with dictionaries."""
 
     path: Path
@@ -26,18 +25,7 @@ class DictionaryData:
     @classmethod
     def from_config(cls, path: Path) -> "DictionaryData":
         """Initialize dictionaries from a directory."""
-        config: dict
-
-        if not path.exists():
-            if path.parent.exists():
-                path.mkdir()
-                config = {}
-            else:
-                logging.fatal(f"{path.parent} doesn't exist.")
-                raise FileNotFoundError()
-        else:
-            with (path / "config.json").open() as config_file:
-                config = json.load(config_file)
+        config: dict = ArtifactData.read_config(path)
 
         dictionaries: dict[str, Dictionary] = {}
         for id_, data in config.items():

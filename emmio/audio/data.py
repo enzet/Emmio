@@ -1,5 +1,3 @@
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,11 +8,12 @@ from emmio.audio.core import (
     DirectoryAudioProvider,
     WikimediaCommonsAudioProvider,
 )
+from emmio.core import ArtifactData
 from emmio.language import Language
 
 
 @dataclass
-class AudioData:
+class AudioData(ArtifactData):
     """Manager for the directory with audio files."""
 
     path: Path
@@ -24,18 +23,7 @@ class AudioData:
 
     @classmethod
     def from_config(cls, path: Path) -> "AudioData":
-        config: dict
-
-        if not path.exists():
-            if path.parent.exists():
-                path.mkdir()
-                config = {}
-            else:
-                logging.fatal(f"{path.parent} doesn't exist.")
-                raise FileNotFoundError()
-        else:
-            with (path / "config.json").open() as config_file:
-                config = json.load(config_file)
+        config: dict = ArtifactData.read_config(path)
 
         audio_providers: dict[str, AudioProvider] = {}
         for id_, data in config.items():

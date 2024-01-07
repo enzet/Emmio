@@ -1,8 +1,7 @@
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from emmio.core import ArtifactData
 from emmio.language import construct_language
 from emmio.sentence.config import SentencesConfig
 from emmio.sentence.core import SentencesCollection, Sentences, SimpleSentences
@@ -11,7 +10,7 @@ from emmio.sentence.tatoeba import TatoebaSentences
 
 
 @dataclass
-class SentencesData:
+class SentencesData(ArtifactData):
     """Manager for the directory with sentences."""
 
     path: Path
@@ -24,18 +23,7 @@ class SentencesData:
     @classmethod
     def from_config(cls, path: Path) -> "SentencesData":
         """Initialize sentences from a directory."""
-        config: dict
-
-        if not path.exists():
-            if path.parent.exists():
-                path.mkdir()
-                config = {}
-            else:
-                logging.fatal(f"{path.parent} doesn't exist.")
-                raise FileNotFoundError()
-        else:
-            with (path / "config.json").open() as config_file:
-                config = json.load(config_file)
+        config: dict = ArtifactData.read_config(path)
 
         database: SentenceDatabase = SentenceDatabase(path / "sentences.db")
         sentences: dict[str, Sentences] = {}
