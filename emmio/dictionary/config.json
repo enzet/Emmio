@@ -1,14 +1,16 @@
 {
     "descriptors_of_words_to_ignore": [
         "archaic",
-        "colloquial",
         "dated",
-        "figuratively",
-        "informal",
         "obsolete",
         "rare",
+        "spelling"
+    ],
+    "descriptors_of_words_possibly_to_ignore": [
+        "colloquial",
+        "figuratively",
+        "informal",
         "slang",
-        "spelling",
         "US",
         "Philippines"
     ],
