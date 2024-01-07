@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -12,6 +13,11 @@ from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
 from emmio.read.core import Read
 from emmio.read.data import ReadData
+
+LEARN_DIRECTORY_NAME: str = "learn"
+LEXICON_DIRECTORY_NAME: str = "lexicon"
+READ_DIRECTORY_NAME: str = "read"
+LISTEN_DIRECTORY_NAME: str = "listen"
 
 
 @dataclass
@@ -56,10 +62,14 @@ class UserData:
             path,
             user_id,
             config["name"],
-            LearnData.from_config(path / "learn", config["learn"]),
-            LexiconData.from_config(path / "lexicon", config["lexicon"]),
-            ReadData.from_config(path / "read", config["read"]),
-            ListenData.from_config(path / "listen", config["listen"]),
+            LearnData.from_config(path / LEARN_DIRECTORY_NAME, config["learn"]),
+            LexiconData.from_config(
+                path / LEXICON_DIRECTORY_NAME, config["lexicon"]
+            ),
+            ReadData.from_config(path / READ_DIRECTORY_NAME, config["read"]),
+            ListenData.from_config(
+                path / LISTEN_DIRECTORY_NAME, config["listen"]
+            ),
         )
 
     def get_learnings(self) -> Iterator[Learning]:
@@ -171,3 +181,46 @@ class UserData:
                 current = (sessions[session_index], [])
 
         return result
+
+    @classmethod
+    def create(cls, path: Path, user_id: str, user_name: str) -> "UserData":
+        """Create new user."""
+        (path / LEARN_DIRECTORY_NAME).mkdir()
+        (path / LEXICON_DIRECTORY_NAME).mkdir()
+        (path / READ_DIRECTORY_NAME).mkdir()
+        (path / LISTEN_DIRECTORY_NAME).mkdir()
+
+        result: "UserData" = cls(
+            path,
+            user_id,
+            user_name,
+            LearnData(path / LEARN_DIRECTORY_NAME),
+            LexiconData(path / LEXICON_DIRECTORY_NAME),
+            ReadData(path / READ_DIRECTORY_NAME),
+            ListenData(path / LISTEN_DIRECTORY_NAME),
+        )
+        result.write_config()
+
+        return result
+
+    def write_config(self) -> None:
+        """Write configuration to the JSON file."""
+        with (self.path / "config.json").open("w+") as output_file:
+            config: dict = {
+                "id": self.user_id,
+                "name": self.user_name,
+                "learn": {},
+                "lexicon": {},
+                "read": {},
+                "listen": {},
+            }
+            for learn_id, learning in self.learnings.learnings.items():
+                config["learn"][learn_id] = learning.config.dict()
+            for lexicon_id, lexicon in self.lexicons.lexicons.items():
+                config["lexicon"][lexicon_id] = lexicon.config.dict()
+            for read_id, reading in self.read_processes.read_processes.items():
+                config["read"][read_id] = reading.config.dict()
+            for listen_id, listening in self.listenings.listenings.items():
+                config["listen"][listen_id] = listening.config.dict()
+
+            json.dump(config, output_file, ensure_ascii=False, indent=4)

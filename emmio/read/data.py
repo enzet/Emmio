@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -16,7 +16,7 @@ class ReadData:
     """Manages directory with reading processes."""
 
     path: Path
-    read_processes: dict[str, Read]
+    read_processes: dict[str, Read] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, path: Path, config: dict):

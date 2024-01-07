@@ -53,6 +53,9 @@ class Data:
     ``users`` with user data.
     """
 
+    path: Path
+    """Managed directory."""
+
     lists: ListsData
     """Manager for frequency and word lists."""
 
@@ -88,6 +91,9 @@ class Data:
         users_path: Path = path / USERS_DIRECTORY_NAME
         user_data: dict[str, UserData] = {}
 
+        if not users_path.exists():
+            users_path.mkdir()
+
         for user_path in users_path.iterdir():
             with (
                 user_path / CONFIGURATION_FILE_NAME
@@ -95,7 +101,9 @@ class Data:
                 user_data[user_path.name] = UserData.from_config(
                     user_path.name, user_path, json.load(user_config_file)
                 )
-        return cls(lists, sentences, dictionaries, audio, texts, user_data)
+        return cls(
+            path, lists, sentences, dictionaries, audio, texts, user_data
+        )
 
     def exclude_sentence(self, word: str, sentence_id: int) -> None:
         """Exclude the sentence from the learning process of the word.
@@ -227,3 +235,13 @@ class Data:
 
     def get_read_processes(self, user_id: str) -> dict[str, Read]:
         return self.users_data[user_id].get_read_processes()
+
+    def has_user(self, user_id: str) -> bool:
+        """Check whether the user exists."""
+        return user_id in self.users_data
+
+    def create_user(self, user_id: str, user_name: str) -> None:
+        """Create new user."""
+        path: Path = self.path / USERS_DIRECTORY_NAME / user_id
+        path.mkdir()
+        self.users_data[user_id] = UserData.create(path, user_id, user_name)

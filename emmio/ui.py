@@ -86,8 +86,7 @@ class Interface:
         raise NotImplementedError()
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        """
-        Add table.  Length of `columns` should be equal of length of each
+        """Add table.  Length of `columns` should be equal of length of each
         element of `rows`.
         """
         raise NotImplementedError()
@@ -99,13 +98,13 @@ class Interface:
         self.print(message)
 
     def run(self) -> None:
-        pass
+        raise NotImplementedError()
 
     def stop(self) -> None:
-        pass
+        raise NotImplementedError()
 
-    def choice(self, options: list[str]) -> str:
-        pass
+    def choice(self, options: list[str], prompt: str | None = None) -> str:
+        raise NotImplementedError()
 
 
 class StringInterface(Interface):
@@ -227,7 +226,7 @@ class RichInterface(TerminalInterface):
         self.console.print(Panel(text, expand=False))
 
     def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        show_footer: bool = rows[-1][0] == "Total"
+        show_footer: bool = rows and rows[-1][0] == "Total"
 
         element: Table = Table(box=box.ROUNDED, show_footer=show_footer)
         for index, column in enumerate(columns):
@@ -244,13 +243,21 @@ class RichInterface(TerminalInterface):
             return f"[{color}]{text}[/{color}]"
         return text
 
-    def choice(self, options: list[str]) -> str:
-        print(" ".join(f"[{x}]" for x in options))
-        self.console.print(" ".join(f"[{x}]" for x in options))
-        char: str = get_char()
-        for option in options:
-            if option[0] == char:
-                return option
+    def choice(self, options: list[str], prompt: str | None = None) -> str:
+        self.console.print(
+            ((prompt + " ") if prompt else "")
+            + " ".join(f"\\[{x}]" for x in options)
+        )
+        while True:
+            char: str = get_char()
+            for option in options:
+                if not option:
+                    raise RuntimeError()
+                for c in option:
+                    if "A" <= c <= "Z":
+                        break
+                if c.lower() == char:
+                    return option.lower()
 
 
 def get_char() -> str:

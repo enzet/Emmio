@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from emmio.listen.config import ListenConfig
@@ -8,7 +8,7 @@ from emmio.listen.core import Listening
 @dataclass
 class ListenData:
     path: Path
-    listenings: dict[str, Listening]
+    listenings: dict[str, Listening] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, path: Path, config: dict) -> "ListenData":

@@ -50,6 +50,19 @@ class Emmio:
         self.path: Path = path
         self.interface: Interface = interface
         self.data: Data = data
+
+        if not data.has_user(user_id):
+            answer: str = self.interface.choice(
+                ["Yes", "No"],
+                f"User with id `{user_id}` does not exist. Do you want to "
+                "create new user?",
+            )
+            if answer == "yes":
+                user_name = self.interface.input("Enter user name: ")
+            else:
+                return
+            data.create_user(user_id, user_name)
+
         self.user_data: UserData = data.users_data[user_id]
         self.user_id: str = user_id
 

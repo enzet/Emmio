@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
@@ -22,7 +22,7 @@ class LearnData:
     path: Path
     """Path to the directory managed by this class."""
 
-    learnings: dict[str, Learning]
+    learnings: dict[str, Learning] = field(default_factory=dict)
     """Mapping from learning identifiers to learning processes."""
 
     @classmethod

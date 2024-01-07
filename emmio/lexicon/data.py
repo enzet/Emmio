@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
@@ -14,7 +14,7 @@ class LexiconData:
     path: Path
     """The directory managed by this class."""
 
-    lexicons: dict[str, Lexicon]
+    lexicons: dict[str, Lexicon] = field(default_factory=dict)
     """Mapping from lexicon identifier to lexicon."""
 
     @classmethod
