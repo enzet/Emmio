@@ -43,12 +43,14 @@ class Language:
         self_name: str = None,
         tone: Color | None = None,
         checking: Optional[Callable] = None,
+        sentence_end: str | None = None,
     ) -> None:
         self.language: ISOLanguage = iso_languages.get(part1=code)
         self.symbols: str | None = symbols
         self.color: Color | None = color
         self.self_name: str = self_name
         self.tone: Color | None = tone
+        self.sentence_end: str | None = sentence_end
 
         if checking:
             self.has_symbol = checking
