@@ -3,6 +3,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 from emmio.dictionary import CONFIG
@@ -20,6 +21,27 @@ DESCRIPTORS_OF_WORDS_TO_IGNORE: set[str] = set(
     CONFIG["descriptors_of_words_to_ignore"]
 )
 SANITIZER: str = "_"
+
+
+class WordStatus(Enum):
+    """How the word is presented in the dictionary."""
+
+    COMMON = "common"
+    """The word is the common word in dictionary. E.g. `book`."""
+
+    FORM = "form"
+    """The word is only a form of another common word in dictionary.
+    
+    E.g. `books` is either a plural form of the noun `book` or a form of a verb
+    `book`."""
+
+    NOT_COMMON = "not_common"
+    """The word is not common.
+    
+    It may be a letter, a proper noun, an abbreviation, etc."""
+
+    NO_DEFINITION = "no_definition"
+    """The dictionary has no definition for the word."""
 
 
 @dataclass
