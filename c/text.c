@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     while (fgetws(buffer, BUFFER_SIZE, input_file) != NULL) {
 
         int buffer_index = 0;
-        bool text_line = false;
+        int text_line = 0;
         wchar_t character;
         wchar_t start_symbol; // The symbol before the word.
 
