@@ -25,7 +25,9 @@ class NewQuestionScheme(BaseModel):
     pick_from: list[dict]
     """Which question lists use to pick new question."""
 
-    check_lexicon: dict | None = None
+    check_lexicons: list[dict] | None = None
+    """Which lexicon to check to skip already known questions."""
+
     ask_lexicon: dict | None = None
     ignore_not_common: list[dict]
 
@@ -34,6 +36,9 @@ class Scheme(BaseModel):
     new_question: NewQuestionScheme | None = None
     show_question: list[dict] | None = None
     postpone_time: float | None = None
+
+    learning_lexicon: dict | None = None
+    """Which lexicon should be used to store answers during learning."""
 
 
 class LearnConfig(BaseModel):

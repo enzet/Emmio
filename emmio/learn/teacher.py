@@ -13,13 +13,7 @@ from emmio.dictionary.core import (
 from emmio.language import construct_language
 from emmio.learn.config import Scheme
 from emmio.learn.core import Learning, Response, Knowledge, LearningSession
-from emmio.lexicon.core import (
-    LexiconLog,
-    LexiconResponse,
-    WordSelection,
-    Lexicon,
-    AnswerType,
-)
+from emmio.lexicon.core import LexiconResponse, Lexicon, AnswerType
 from emmio.lists.core import List
 from emmio.sentence.core import SentenceTranslations, SentencesCollection
 from emmio.ui import Interface
@@ -49,15 +43,21 @@ class Teacher:
         self.scheme: Scheme = self.learning.config.scheme
 
         # Load lexicons.
-        self.check_lexicon: Lexicon | None = None
-        if self.scheme.new_question.check_lexicon:
-            self.check_lexicon = user_data.get_lexicon(
-                construct_language(self.scheme.new_question.check_lexicon["id"])
-            )
+        self.check_lexicons: list[Lexicon] | None = None
+        if self.scheme.new_question.check_lexicons:
+            self.check_lexicons = [
+                user_data.get_lexicon_by_id(x["id"])
+                for x in self.scheme.new_question.check_lexicons
+            ]
         self.ask_lexicon: Lexicon | None = None
         if self.scheme.new_question.ask_lexicon:
-            self.ask_lexicon = user_data.get_lexicon(
-                construct_language(self.scheme.new_question.ask_lexicon["id"])
+            self.ask_lexicon = user_data.get_lexicon_by_id(
+                self.scheme.new_question.ask_lexicon["id"]
+            )
+        self.learning_lexicon: Lexicon | None = None
+        if self.scheme.learning_lexicon:
+            self.learning_lexicon = user_data.get_lexicon_by_id(
+                self.scheme.learning_lexicon["id"]
             )
 
         # Load question lists.
@@ -108,10 +108,14 @@ class Teacher:
                 logging.info("Already learning")
             return False
 
-        if self.check_lexicon and self.check_lexicon.has(question_id):
-            if self.check_lexicon.get(question_id) != LexiconResponse.DONT:
-                logging.info("Known in lexicon")
-                return False
+        if self.check_lexicons:
+            for check_lexicon in self.check_lexicons:
+                if (
+                    check_lexicon.has(question_id)
+                    and check_lexicon.get(question_id) != LexiconResponse.DONT
+                ):
+                    logging.info("Known in lexicon")
+                    return False
 
         if self.dictionaries_to_check.dictionaries:
             if not self.check_common(question_id):
@@ -124,24 +128,22 @@ class Teacher:
         # while checking lexicon. This should be done after checking
         # definitions in dictionary, because if user answer is "no", the
         # learning process starts immediately.
-        if self.check_lexicon and self.check_lexicon.has(question_id):
-            if self.check_lexicon.get(question_id) != LexiconResponse.DONT:
-                logging.info("Known in lexicon")
-                return False
-            else:
-                logging.info("Lexicon response was DONT KNOW")
-                # FIXME: user response may be DONT KNOW, but the word is
-                #     still may be just a form or not common, so we
-                #     don't want to learn it.
-                return True
+        if self.check_lexicons:
+            for check_lexicon in self.check_lexicons:
+                if check_lexicon.has(question_id):
+                    if check_lexicon.get(question_id) != LexiconResponse.DONT:
+                        logging.info("Known in lexicon")
+                        return False
+                    else:
+                        logging.info("Lexicon response was DONT KNOW")
+                        # FIXME: user response may be DONT KNOW, but the word is
+                        #     still may be just a form or not common, so we
+                        #     don't want to learn it.
+                        return True
 
         # If `ask_lexicon` option is enabled, show the word to user before
         # testing.
         if self.ask_lexicon and not self.ask_lexicon.has(question_id):
-            if not self.ask_lexicon.has_log("log_ex"):
-                self.ask_lexicon.add_log(
-                    LexiconLog("log_ex", WordSelection("top"))
-                )
             self.ask_lexicon.write()
 
             _, response, _ = self.ask_lexicon.ask(
@@ -150,14 +152,13 @@ class Teacher:
                 [],
                 self.dictionaries,
                 self.sentences,
-                log_name="log_ex",
             )
             if response is None:
                 return False
 
             if response == LexiconResponse.DONT:
                 logging.info("Lexicon response was DONT KNOW")
-                return question_id
+                return True
             else:
                 logging.info("Lexicon response was KNOW")
                 return False
@@ -450,33 +451,23 @@ class Teacher:
 
             if answer.startswith("/know "):
                 command, command_word = answer.split(" ")
-                lexicon: Lexicon = self.user_data.get_lexicon(
-                    self.learning.learning_language
-                )
-                if not lexicon.has_log("log_ex"):
-                    lexicon.add_log(LexiconLog("log_ex", WordSelection("top")))
-                lexicon.register(
+                self.learning_lexicon.register(
                     command_word,
                     LexiconResponse.KNOW,
                     to_skip=False,
-                    log_name="log_ex",
                     answer_type=AnswerType.USER_ANSWER,
                 )
-                lexicon.write()
+                self.learning_lexicon.write()
 
             if answer.startswith("/not_a_word "):
                 command, command_word = answer.split(" ")
-                lexicon: Lexicon = self.user_data.get_lexicon(
-                    self.learning.learning_language
-                )
-                lexicon.register(
+                self.learning_lexicon.register(
                     command_word,
                     LexiconResponse.NOT_A_WORD,
                     to_skip=False,
-                    log_name="log_ex",
                     answer_type=AnswerType.USER_ANSWER,
                 )
-                lexicon.write()
+                self.learning_lexicon.write()
 
             if answer in [
                 "/no",

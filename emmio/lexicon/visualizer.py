@@ -6,7 +6,8 @@ import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
 from svgwrite import Drawing
 
-from emmio.lexicon.core import Lexicon
+from emmio.language import Language
+from emmio.lexicon.core import Lexicon, compute_lexicon_rate
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_start, year_end
 
@@ -120,7 +121,9 @@ class LexiconVisualizer:
         else:
             plt.savefig("out/graph.svg")
 
-    def graph_with_svg(self, lexicons, margin: float = 0.0):
+    def graph_with_svg(
+        self, lexicons: dict[Language, list[Lexicon]], margin: float = 0.0
+    ):
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin
         )
@@ -169,19 +172,28 @@ class LexiconVisualizer:
                 )
         graph.write(svg)
 
-    def construct_lexicon_data(self, lexicons, margin):
+    def construct_lexicon_data(
+        self, lexicons: dict[Language, list[Lexicon]], margin
+    ) -> tuple[datetime, datetime, list[tuple]]:
         x_min: datetime | None = None
         x_max: datetime | None = None
         data = []
 
-        for lexicon in lexicons:
-            lexicon: Lexicon
-            dates, rates = lexicon.construct_precise(self.precision)
+        for language, language_lexicons in lexicons.items():
+            dates = []
+            responses = []
 
+            for lexicon in language_lexicons:
+                dates += lexicon.dates
+                responses += lexicon.responses
+
+            dates, rates = compute_lexicon_rate(
+                sorted(zip(dates, responses)), self.precision
+            )
             if not rates or max(rates) < margin:
                 continue
 
-            language_name: str = lexicon.language.get_self_name()
+            language_name: str = language.get_self_name()
             language_name = language_name[0].upper() + language_name[1:]
 
             xs: list[datetime] = []
@@ -208,14 +220,7 @@ class LexiconVisualizer:
                 xs.append(point)
                 y_ranges.append(current)
 
-            data.append(
-                [
-                    xs,
-                    y_ranges,
-                    lexicon.language.get_color(),
-                    language_name,
-                ]
-            )
+            data.append((xs, y_ranges, language.get_color(), language_name))
 
         return (
             x_min,

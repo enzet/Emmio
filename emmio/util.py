@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 
 import urllib3
 from pathlib import Path
+
+from colour import Color
 from urllib3 import PoolManager, HTTPResponse, Timeout
 
 __author__ = "Sergey Vartanov"
@@ -130,5 +132,5 @@ def flatten(
     return result
 
 
-def get_color(prompt):
-    return "#" + str(hex(abs(hash(prompt))))[2:8]
+def get_color(prompt) -> Color:
+    return Color("#" + str(hex(abs(hash(prompt))))[2:8])

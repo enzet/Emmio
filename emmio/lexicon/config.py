@@ -10,7 +10,10 @@ class LexiconConfig(BaseModel):
     language: LanguageConfig
     """Language of the lexicon."""
 
-    frequency_list: str
+    selection: str
+    """How words was picked."""
+
+    frequency_list: str | None = None
     """Frequency list used to check lexicon."""
 
     dictionaries: list[dict] = []

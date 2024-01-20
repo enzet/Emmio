@@ -146,26 +146,19 @@ class Visualizer:
                 data[0 + 2][point(record.time)] += 1
 
         for lexicon in lexicons:
-            if not lexicon or "log" not in lexicon.logs:
-                continue
-            last_record = lexicon.logs["log"].records[0]
-            for record in lexicon.logs["log"].records:
+            last_record = lexicon.log.records[0]
+            for record in lexicon.log.records:
                 if (
                     record.answer_type == AnswerType.USER_ANSWER
                     or record.answer_type == AnswerType.UNKNOWN
                     and (record.time - last_record.time).total_seconds() > 0
                 ):
                     if not by_language:
-                        data[0][point(record.time)] += 1
-                last_record = record
-            if "log_ex" in lexicon.logs:
-                for record in lexicon.logs["log_ex"].records:
-                    if record.answer_type in [
-                        AnswerType.UNKNOWN,
-                        AnswerType.USER_ANSWER,
-                    ]:
-                        if not by_language:
+                        if lexicon.is_frequency():
+                            data[0][point(record.time)] += 1
+                        else:
                             data[1][point(record.time)] += 1
+                last_record = record
 
         keys = set()
         for i in data:
@@ -209,7 +202,7 @@ class Visualizer:
                 plt.bar(
                     xs,
                     ys,
-                    color=color,
+                    color=color.hex,
                     linewidth=0,
                     width=width,
                     label=label,

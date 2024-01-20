@@ -80,13 +80,18 @@ class Language:
             return self.self_name
         return self.get_name()
 
-    def get_color(self) -> Color:
+    def get_adjusted_color(self) -> Color:
         if self.tone is not None:
             c = Color()
             c.set_hue(self.tone.get_hue())
             c.set_saturation(0.5)
             c.set_luminance(0.4)
             return c
+        if self.color is not None:
+            return self.color
+        return DEFAULT_COLOR
+
+    def get_color(self) -> Color:
         if self.color is not None:
             return self.color
         return DEFAULT_COLOR
@@ -176,6 +181,7 @@ ARMENIAN: Language = Language(
     "hy",
     Color("#888800"),
     ARMENIAN_LETTERS,
+    tone=Color("#888800"),
     checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
     self_name="հայերեն",
 )

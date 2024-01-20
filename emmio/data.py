@@ -245,3 +245,8 @@ class Data:
         path: Path = self.path / USERS_DIRECTORY_NAME / user_id
         path.mkdir()
         self.users_data[user_id] = UserData.create(path, user_id, user_name)
+
+    def get_frequency_lexicons(
+        self, user_id: str, languages: list[Language] | None = None
+    ) -> dict[Language, list[Lexicon]]:
+        return self.users_data[user_id].get_frequency_lexicons(languages)

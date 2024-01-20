@@ -86,41 +86,54 @@ class UserData:
     ) -> list[Lexicon]:
         return self.lexicons.get_lexicons(languages)
 
-    def get_lexicon(self, language: Language) -> Lexicon:
-        return self.lexicons.get_lexicon(language)
+    def get_lexicon_by_id(self, lexicon_id: str) -> Lexicon:
+        return self.lexicons.get_lexicon_by_id(lexicon_id)
+
+    def get_lexicons_by_language(self, language: Language) -> list[Lexicon]:
+        return self.lexicons.get_lexicons_by_language(language)
 
     def is_known(self, word: str, language: Language) -> bool:
-        learning_responses, lexicon_response = self.get_word_status(
+        learning_responses, lexicon_responses = self.get_word_status(
             word, language
         )
         if learning_responses:
             return True
-        return lexicon_response == LexiconResponse.KNOW
+        for lexicon_response in lexicon_responses:
+            if lexicon_response == LexiconResponse.KNOW:
+                return True
+
+        return False
 
     def is_known_or_not_a_word(self, word: str, language: Language) -> bool:
-        learning_responses, lexicon_response = self.get_word_status(
+        if self.is_known(word, language):
+            return True
+
+        learning_responses, lexicon_responses = self.get_word_status(
             word, language
         )
-        if lexicon_response in [
-            LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
-            LexiconResponse.NOT_A_WORD,
-        ]:
-            return True
-        if learning_responses:
-            return True
-        return lexicon_response == LexiconResponse.KNOW
+        for lexicon_response in lexicon_responses:
+            if lexicon_response in [
+                LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
+                LexiconResponse.NOT_A_WORD,
+            ]:
+                return True
+
+        return False
 
     def get_word_status(
         self, word: str, language: Language
-    ) -> tuple[list[Response], LexiconResponse]:
+    ) -> tuple[list[Response], list[LexiconResponse]]:
         learning_responses: list[Response] = []
         for learning in self.learnings.get_learnings_by_language(language):
             if knowledge := learning.get_knowledge(word):
                 learning_responses.append(knowledge.get_last_response())
-        lexicon = self.get_lexicon(language)
-        lexicon_response = lexicon.get(word) if lexicon.has(word) else None
 
-        return learning_responses, lexicon_response
+        lexicon_responses: list[LexiconResponse] = []
+        for lexicon in self.get_lexicons_by_language(language):
+            if lexicon.has(word):
+                lexicon_responses.append(lexicon.get(word))
+
+        return learning_responses, lexicon_responses
 
     def get_read_processes(self) -> dict[str, Read]:
         return self.read_processes.get_read_processes()
@@ -224,3 +237,13 @@ class UserData:
                 config["listen"][listen_id] = listening.config.dict()
 
             json.dump(config, output_file, ensure_ascii=False, indent=4)
+
+    def get_frequency_lexicons(
+        self, languages: list[Language] | None = None
+    ) -> dict[Language, list[Lexicon]]:
+        if not languages:
+            return self.lexicons.get_frequency_lexicons()
+        return {
+            language: self.lexicons.get_frequency_lexicons_by_language(language)
+            for language in languages
+        }

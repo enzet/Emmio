@@ -292,7 +292,7 @@ class Emmio:
                 rows = []
 
                 for lexicon in sorted(
-                    data.get_lexicons(self.user_id),
+                    data.get_frequency_lexicons(self.user_id),
                     key=lambda x: -x.get_last_rate_number(),
                 ):
                     now: datetime = datetime.now()
@@ -301,7 +301,7 @@ class Emmio:
                         before=now - timedelta(days=365.25 * 2)
                     )
                     last_week_precision: int = lexicon.count_unknowns(
-                        "log", now - timedelta(days=7), now
+                        now - timedelta(days=7), now
                     )
                     need = progress(max(0, 5 - last_week_precision))
                     if max(0, 5 - last_week_precision) == 0:
@@ -310,7 +310,7 @@ class Emmio:
                                 timedelta(days=7)
                                 - (
                                     datetime.now()
-                                    - lexicon.logs["log"].records[-1].time
+                                    - lexicon.log.records[-1].time
                                 )
                             ).total_seconds()
                             / 60
@@ -360,11 +360,15 @@ class Emmio:
                         Language.from_code(x)
                         for x in arguments.languages.split(";")
                     ]
-                    lexicons = list(
-                        data.get_lexicons(self.user_id, languages=languages)
+                    lexicons: dict[
+                        Language, list[Lexicon]
+                    ] = data.get_frequency_lexicons(
+                        self.user_id, languages=languages
                     )
                 else:
-                    lexicons = list(data.get_lexicons(self.user_id))
+                    lexicons: dict[
+                        Language, list[Lexicon]
+                    ] = data.get_frequency_lexicons(self.user_id)
                 lexicon_visualizer = LexiconVisualizer(
                     interactive=interactive,
                     first_point=first_point,
@@ -522,10 +526,8 @@ class Emmio:
         for lexicon in lexicons:
             language: Language = lexicon.language
             now: datetime = datetime.now()
-            need: int = 5 - lexicon.count_unknowns(
-                "log", now - timedelta(days=7), now
-            )
-            need = max(need, 101 - lexicon.count_unknowns("log"))
+            need: int = 5 - lexicon.count_unknowns(now - timedelta(days=7), now)
+            need = max(need, 101 - lexicon.count_unknowns())
             if need <= 0:
                 continue
 
@@ -543,6 +545,38 @@ class Emmio:
                 need,
             )
             break
+
+    def debug(self):
+        result: list[
+            tuple[Session, list[Record]]
+        ] = self.user_data.get_sessions_and_records()
+
+        data: list[float] = []
+
+        seconds: int = 0
+        for session, records in result:
+            session: Session
+            records: list[Record]
+            for index, record in enumerate(records):
+                span: float
+                if index == 0:
+                    span = (
+                        record.get_time() - session.get_start()
+                    ).total_seconds()
+                else:
+                    span = (
+                        record.get_time() - records[index - 1].get_time()
+                    ).total_seconds()
+                data.append(span)
+                seconds += span
+
+        print(f"Total time: {seconds / 60 / 60:.2f}")
+
+        from matplotlib import pyplot as plt
+
+        plt.xlim([0, 60])
+        plt.hist([x for x in data if x <= 60], bins=170)
+        plt.show()
 
     def read(self, read: Read):
         coloredlogs.install(
@@ -579,8 +613,8 @@ class Emmio:
                 self.data.print_learning_statistics(
                     self.interface, self.user_id
                 )
-                reply: str = self.interface.choice(["continue", "stop"])
-                if reply == "stop" or not do_continue:
+                reply: str = self.interface.choice(["Yes", "No"], "Continue?")
+                if reply == "no" or not do_continue:
                     return
             else:
                 learnings = sorted(learnings, key=lambda x: x.compare_by_new())
@@ -602,8 +636,10 @@ class Emmio:
                     self.data.print_learning_statistics(
                         self.interface, self.user_id
                     )
-                    reply: str = self.interface.choice(["continue", "stop"])
-                    if reply == "stop" or not do_continue:
+                    reply: str = self.interface.choice(
+                        ["Yes", "No"], "Continue?"
+                    )
+                    if reply == "no" or not do_continue:
                         return
                 else:
                     break

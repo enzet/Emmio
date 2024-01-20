@@ -1,6 +1,6 @@
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 from emmio.language import Language
 from emmio.lexicon.config import LexiconConfig
@@ -40,13 +40,26 @@ class LexiconData:
         else:
             return list(self.lexicons.values())
 
-    def get_lexicon(self, language: Language) -> Lexicon | None:
-        """Get lexicon with the requested language."""
+    def get_lexicons_by_language(self, language: Language) -> list[Lexicon]:
+        """Get lexicons with the requested language."""
+        return [x for x in self.lexicons.values() if x.language == language]
 
-        lexicons: list[Lexicon] = [
-            x for x in self.lexicons.values() if x.language == language
+    def get_frequency_lexicons_by_language(
+        self, language: Language
+    ) -> list[Lexicon]:
+        """Get lexicons with the requested language."""
+        return [
+            x
+            for x in self.lexicons.values()
+            if x.language == language and x.is_frequency()
         ]
-        if len(lexicons) == 1:
-            return lexicons[0]
 
-        return None
+    def get_lexicon_by_id(self, lexicon_id: str) -> Lexicon:
+        return self.lexicons[lexicon_id]
+
+    def get_frequency_lexicons(self) -> dict[Language, list[Lexicon]]:
+        result: dict[Language, list[Lexicon]] = defaultdict(list)
+        for lexicon in self.lexicons.values():
+            if lexicon.is_frequency():
+                result[lexicon.language].append(lexicon)
+        return result
