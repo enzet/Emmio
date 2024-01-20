@@ -129,6 +129,8 @@ class WikimediaCommonsAudioProvider(AudioProvider):
             f"/{hashcode[0]}/{hashcode}/{name}"
         )
         download(url, cache_path)
+        if not cache_path.exists():
+            return False
         return os.path.getsize(cache_path) > MIN_AUDIO_FILE_SIZE
 
     def get_path(self, word: str) -> Path | None:
