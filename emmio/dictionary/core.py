@@ -99,6 +99,11 @@ class DefinitionValue:
 
 
 @dataclass
+class Audio:
+    url: str
+
+
+@dataclass
 class Definition:
     values: list[DefinitionValue]
     descriptors: list[str] = field(default_factory=list)
