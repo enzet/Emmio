@@ -172,9 +172,6 @@ class Data:
     def get_active_learnings(self, user_id: str) -> Iterator[Learning]:
         return self.users_data[user_id].get_active_learnings()
 
-    def get_lexicon(self, user_id: str, language: Language) -> Lexicon:
-        return self.users_data[user_id].get_lexicon(language)
-
     def get_lexicons(
         self, user_id: str, languages: list[Language] | None = None
     ) -> list[Lexicon]:

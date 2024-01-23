@@ -258,15 +258,18 @@ class Emmio:
             self.learn(learnings)
 
         if arguments.command == "lexicon":
-            if arguments.language:
-                language: Language = construct_language(arguments.language)
-                lexicons = [self.data.get_lexicon(self.user_id, language)]
-            else:
-                lexicons = sorted(
-                    data.get_lexicons(self.user_id),
-                    key=lambda x: -x.get_last_rate_number(),
+            lexicons = [
+                x
+                for x in self.user_data.get_lexicons()
+                if x.get_precision_per_week()
+                and (
+                    not arguments.language
+                    or x.language.get_code() in arguments.language
                 )
-            self.run_lexicon(lexicons)
+            ]
+            self.run_lexicon(
+                sorted(lexicons, key=lambda x: -x.get_last_rate_number())
+            )
 
         if command.startswith("read "):
             _, request = command.split(" ")
@@ -297,9 +300,24 @@ class Emmio:
             elif arguments.process == "lexicon":
                 rows = []
 
+                lexicons: list[Lexicon] = []
+                for language, language_lexicons in data.get_frequency_lexicons(
+                    self.user_id
+                ).items():
+                    lexicons_to_check = [
+                        x
+                        for x in language_lexicons
+                        if x.get_precision_per_week()
+                    ]
+                    if len(lexicons_to_check) == 1:
+                        lexicons.append(lexicons_to_check[0])
+                    else:
+                        logging.fatal(
+                            f"More than one lexicon to check for {language}."
+                        )
+
                 for lexicon in sorted(
-                    data.get_frequency_lexicons(self.user_id),
-                    key=lambda x: -x.get_last_rate_number(),
+                    lexicons, key=lambda x: -x.get_last_rate_number()
                 ):
                     now: datetime = datetime.now()
                     rate: float | None = lexicon.get_last_rate()
@@ -309,20 +327,10 @@ class Emmio:
                     last_week_precision: int = lexicon.count_unknowns(
                         now - timedelta(days=7), now
                     )
-                    need = progress(max(0, 5 - last_week_precision))
-                    if max(0, 5 - last_week_precision) == 0:
-                        need = (
-                            (
-                                timedelta(days=7)
-                                - (
-                                    datetime.now()
-                                    - lexicon.log.records[-1].time
-                                )
-                            ).total_seconds()
-                            / 60
-                            / 60
-                        )
-                        need = f"{need:.1f}"
+                    need: int = max(
+                        0,
+                        lexicon.get_precision_per_week() - last_week_precision,
+                    )
                     change = (
                         abs(rate) - abs(rate_year_before)
                         if rate_year_before is not None and rate is not None
@@ -339,7 +347,7 @@ class Emmio:
                     rows.append(
                         [
                             lexicon.language.get_name(),
-                            need,
+                            progress(need),
                             f"{abs(rate):.1f}  " + progress(int(rate * 10))
                             if rate is not None
                             else "N/A",
@@ -353,44 +361,14 @@ class Emmio:
 
         if arguments.command == "plot":
             if arguments.process == "lexicon":
-                first_point = util.year_start
-                next_point = lambda x: x + timedelta(days=365.25)
-                if arguments.interval == "week":
-                    first_point = util.first_day_of_week
-                    next_point = lambda x: x + timedelta(days=7)
-                if arguments.interval == "month":
-                    first_point = util.first_day_of_month
-                    next_point = util.plus_month
-                if arguments.languages:
-                    languages = [
-                        Language.from_code(x)
-                        for x in arguments.languages.split(";")
-                    ]
-                    lexicons: dict[
-                        Language, list[Lexicon]
-                    ] = data.get_frequency_lexicons(
-                        self.user_id, languages=languages
-                    )
-                else:
-                    lexicons: dict[
-                        Language, list[Lexicon]
-                    ] = data.get_frequency_lexicons(self.user_id)
-                lexicon_visualizer = LexiconVisualizer(
-                    interactive=interactive,
-                    first_point=first_point,
-                    next_point=next_point,
-                    impulses=False,
+                self.plot_lexicon(
+                    arguments.interval,
+                    interactive,
+                    arguments.languages,
+                    arguments.svg,
+                    arguments.margin,
+                    arguments.show_text,
                 )
-                if arguments.svg:
-                    lexicon_visualizer.graph_with_svg(
-                        lexicons, margin=arguments.margin
-                    )
-                else:
-                    lexicon_visualizer.graph_with_matplot(
-                        lexicons,
-                        show_text=arguments.show_text,
-                        margin=arguments.margin,
-                    )
             elif arguments.process == "learn":
                 records: list[tuple[LearningRecord, Learning]] = []
                 for learning in self.user_data.get_active_learnings():
@@ -690,3 +668,33 @@ class Emmio:
             self.data,
             self.user_data,
         ).listen(start_from, repeat)
+
+    def plot_lexicon(
+        self, interval, interactive, languages, svg, margin, show_text
+    ):
+        first_point = util.year_start
+        next_point = lambda x: x + timedelta(days=365.25)
+        if interval == "week":
+            first_point = util.first_day_of_week
+            next_point = lambda x: x + timedelta(days=7)
+        if interval == "month":
+            first_point = util.first_day_of_month
+            next_point = util.plus_month
+
+        lexicons: dict[
+            Language, list[Lexicon]
+        ] = self.user_data.get_frequency_lexicons(languages)
+        lexicon_visualizer = LexiconVisualizer(
+            interactive=interactive,
+            first_point=first_point,
+            next_point=next_point,
+            impulses=False,
+        )
+        if svg:
+            lexicon_visualizer.graph_with_svg(lexicons, margin=margin)
+        else:
+            lexicon_visualizer.graph_with_matplot(
+                lexicons,
+                show_text=show_text,
+                margin=margin,
+            )

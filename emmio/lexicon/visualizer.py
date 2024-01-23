@@ -34,7 +34,7 @@ class LexiconVisualizer:
 
     def graph_with_matplot(
         self,
-        lexicons: list[Lexicon],
+        lexicons: dict[Language, list[Lexicon]],
         show_text: bool = False,
         margin: float = 0.0,
     ):
@@ -97,8 +97,17 @@ class LexiconVisualizer:
                     color=color.hex,
                 )
 
-        for lexicon in lexicons:
-            dates, rates = lexicon.construct_precise(self.precision)
+        for language, language_lexicons in lexicons.items():
+            dates = []
+            responses = []
+
+            for lexicon in language_lexicons:
+                dates += lexicon.dates
+                responses += lexicon.responses
+
+            dates, rates = compute_lexicon_rate(
+                sorted(zip(dates, responses)), self.precision
+            )
 
             if self.plot_precise_values:
                 plt.plot(
@@ -107,7 +116,7 @@ class LexiconVisualizer:
                     "o",
                     alpha=0.1,
                     markersize=0.5,
-                    color=lexicon.language.get_color().hex,
+                    color=language.get_color().hex,
                 )
 
         plt.title("Vocabulary level per language")

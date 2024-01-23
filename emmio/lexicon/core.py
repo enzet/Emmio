@@ -495,6 +495,9 @@ class Lexicon:
             return rates[-1]
         return None
 
+    def get_precision_per_week(self) -> int:
+        return self.config.precision_per_week
+
     def get_last_rate_number(self, precision: int = 100) -> float:
         value: float | None = self.get_last_rate(precision)
         if value is None:
