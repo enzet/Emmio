@@ -82,10 +82,13 @@ def download(
     pool_manager.clear()
     data: bytearray = bytearray()
     while True:
-        buffer: bytes = result.read(buffer_size)
-        if not buffer:
-            break
-        data.extend(buffer)
+        try:
+            buffer: bytes = result.read(buffer_size)
+            if not buffer:
+                break
+            data.extend(buffer)
+        except urllib3.exceptions.ReadTimeoutError:
+            return None
 
     with cache_path.open("wb+") as temp_file:
         temp_file.write(data)
