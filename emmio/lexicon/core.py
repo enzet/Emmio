@@ -290,7 +290,7 @@ class LexiconLog:
         for record in self.records:
             structure["records"].append(record.serialize())
         for session in self.sessions:
-            structure["sessions"].append(session.dict())
+            structure["sessions"].append(json.loads(session.json()))
 
         return structure
 
