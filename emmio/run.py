@@ -322,7 +322,7 @@ class Emmio:
                     now: datetime = datetime.now()
                     rate: float | None = lexicon.get_last_rate()
                     rate_year_before: float | None = lexicon.get_last_rate(
-                        before=now - timedelta(days=365.25 * 2)
+                        before=now - timedelta(days=365.25)
                     )
                     last_week_precision: int = lexicon.count_unknowns(
                         now - timedelta(days=7), now
@@ -356,7 +356,7 @@ class Emmio:
                     )
 
                 self.interface.table(
-                    ["Language", "Need", "Rate", "2 y. change"], rows
+                    ["Language", "Need", "Rate", "Year change"], rows
                 )
 
         if arguments.command == "plot":
