@@ -16,6 +16,8 @@ from emmio.lexicon.core import Lexicon, AnswerType
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+from emmio.util import day_start
+
 HATCHES: list[str] = [x + x for x in ".oO/\\|-+x*"]
 
 
@@ -208,6 +210,28 @@ class Visualizer:
                     label=label,
                 )
         plt.legend()
+        self.plot()
+
+    def cumulative_actions_moving(
+        self,
+        records: list[tuple[LearningRecord, Learning]],
+        days: int,
+    ):
+        day_min = day_start(min(x[0].time for x in records))
+        day_max = day_start(max(x[0].time for x in records))
+
+        data: list[int] = [0] * ((day_max - day_min).days + 1)
+
+        for record, learning in records:
+            if record.response in [Response.RIGHT, Response.WRONG]:
+                data[(day_start(record.time) - day_min).days] += 1
+
+        data_moving: list[int] = [0] * len(data)
+        for index in range(len(data)):
+            data_moving[index] = sum(data[max(0, index - days) : index]) / days
+
+        plt.plot(data_moving)
+
         self.plot()
 
     def graph_2(self, records: list[tuple[LearningRecord, Learning]]):

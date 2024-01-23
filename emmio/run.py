@@ -181,6 +181,12 @@ class Emmio:
             default=False,
             help="group by question depth instead of learning topic",
         )
+        plot_actions_parser.add_argument(
+            "--moving",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="use moving average",
+        )
 
         plot_knowing_parser = plot_subparsers.add_parser(
             "knowing", help="plot cumulative amount of learned questions"
@@ -411,23 +417,39 @@ class Emmio:
                     records += [(x, learning) for x in learning.process.records]
                 records = sorted(records, key=lambda x: x[0].time)
 
-                def locator(x):
-                    return datetime(day=x.day, month=x.month, year=x.year)
+                if arguments.moving:
+                    match arguments.interval:
+                        case "week":
+                            days = 7
+                        case "month":
+                            days = 30
+                        case "year":
+                            days = 365
+                        case _:
+                            days = 10
 
-                days = 1
-                if arguments.interval == "week":
-                    locator, days = util.first_day_of_week, 7
-                elif arguments.interval == "month":
-                    locator, days = util.first_day_of_month, 31
-                elif arguments.interval == "year":
-                    locator, days = util.year_start, 365 * 0.6
-                Visualizer().cumulative_actions(
-                    records,
-                    list(self.user_data.get_lexicons()),
-                    point=locator,
-                    width=days,
-                    by_language=not arguments.depth,
-                )
+                    Visualizer().cumulative_actions_moving(records, days=days)
+                else:
+
+                    def locator(x):
+                        return datetime(day=x.day, month=x.month, year=x.year)
+
+                    days = 1
+
+                    if arguments.interval == "week":
+                        locator, days = util.first_day_of_week, 7
+                    elif arguments.interval == "month":
+                        locator, days = util.first_day_of_month, 31
+                    elif arguments.interval == "year":
+                        locator, days = util.year_start, 365 * 0.6
+
+                    Visualizer().cumulative_actions(
+                        records,
+                        list(self.user_data.get_lexicons()),
+                        point=locator,
+                        width=days,
+                        by_language=not arguments.depth,
+                    )
 
         if arguments.command == "audio":
             self.listen(arguments.id, arguments.start_from, arguments.repeat)
