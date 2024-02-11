@@ -90,7 +90,6 @@ class DirectoryAudioProvider(AudioProvider):
             for _ in range(repeat):
                 logging.info(f"Playing {paths[0]}...")
                 self.player.play(str(paths[0]))
-                self.player.wait_for_playback()
             return True
 
         logging.debug(f"Audio was not found in {self.directory}.")
@@ -172,7 +171,6 @@ class WikimediaCommonsAudioProvider(AudioProvider):
             for _ in range(repeat):
                 logging.info(f"Playing {path}...")
                 self.player.play(str(path))
-                self.player.wait_for_playback()
             return True
 
         return False
