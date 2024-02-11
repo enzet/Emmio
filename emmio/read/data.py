@@ -29,5 +29,8 @@ class ReadData:
 
         return cls(path, read_processes)
 
+    def get_read_process(self, read_id: str) -> Read:
+        return self.read_processes[read_id]
+
     def get_read_processes(self):
         return self.read_processes

@@ -11,14 +11,13 @@ from emmio import util
 from emmio.analyze import Analysis
 from emmio.data import Data
 from emmio.graph import Visualizer
-from emmio.language import construct_language, Language
+from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.learn.teacher import Teacher
 from emmio.listen.listener import Listener
-from emmio.read.config import ReadConfig
 from emmio.read.core import Read
 from emmio.ui import Interface, progress
 from emmio.user.data import UserData, Record, Session
@@ -103,6 +102,9 @@ class Emmio:
 
         lexicon_parser = subparsers.add_parser("lexicon", help="check lexicon")
         lexicon_parser.add_argument("language", nargs="?")
+
+        read_parser = subparsers.add_parser("read", help="read text")
+        read_parser.add_argument("id")
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
         stat_parser.add_argument(
@@ -242,8 +244,8 @@ class Emmio:
             )
 
         if arguments.command == "read":
-            read = Read.from_config(path, ReadConfig(**data))
-            self.read(read)
+            read_process: Read = self.user_data.get_read_process(arguments.id)
+            self.read(read_process)
 
         if arguments.command == "learn":
             # We cannot use iterators here!

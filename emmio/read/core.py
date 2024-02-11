@@ -2,10 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from emmio.dictionary.core import DictionaryCollection
-from emmio.language import construct_language, Language, ENGLISH
+from emmio.language import Language, ENGLISH
 from emmio.read.config import ReadConfig
-from emmio.sentence.core import split_sentence
+from emmio.sentence.core import split_sentence, Sentences
 from emmio.text.core import Texts
 from emmio.ui import Interface
 
@@ -44,10 +43,31 @@ class Read:
     def read(
         self,
         interface: Interface,
+        data: "Data",
         user_data: "UserData",
-        dictionaries: DictionaryCollection,
-        texts: Texts,
     ) -> None:
+        dictionaries = (data.get_dictionaries(self.config.dictionaries),)
+
+        if self.config.text:
+            self.read_text(data, user_data, interface, dictionaries)
+        elif self.config.sentences:
+            self.read_sentences(data, user_data, interface, dictionaries)
+
+    def read_sentences(self, data, user_data, interface, dictionaries):
+        sentences: Sentences = data.get_sentences(self.config.sentences)
+        print(type(sentences))
+        sts = sentences.rate(
+            user_data, sentence_translations, self.from_language
+        )
+        for st in sts:
+            print(st.sentence.text)
+            command: str = input("[READ]> ")
+            for t in st.translations:
+                print(t)
+            command: str = input("[READ]> ")
+
+    def read_text(self, data, user_data, interface, dictionaries):
+        texts: Texts = data.get_text(self.config.text)
         text: list[str] = texts.data[self.from_language]
         translation: list[str] = texts.data[self.to_language]
         for index, line in enumerate(text):
@@ -72,7 +92,7 @@ class Read:
 
     @classmethod
     def from_config(cls, path: Path, config: ReadConfig):
-        from_language = construct_language(config.from_language)
-        to_language = construct_language(config.to_language)
+        from_language = Language.from_code(config.from_language)
+        to_language = Language.from_code(config.to_language)
 
         return cls(path / config.file_name, config, from_language, to_language)
