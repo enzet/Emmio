@@ -47,6 +47,12 @@ def main():
 
     subparser = parser.add_subparsers(dest="command", required=False)
 
+    # Command `execute`.
+    execute_parser: ArgumentParser = subparser.add_parser(
+        "execute", help="run single Emmio command"
+    )
+    execute_parser.add_argument("single_command")
+
     # Command `server`.
     server_parser: ArgumentParser = subparser.add_parser(
         "server", help="run Emmio server"
@@ -115,6 +121,15 @@ def main():
 
         case "list":
             process_list_command(data, arguments)
+
+        case "execute":
+            from emmio.run import Emmio
+
+            user_id: str = (
+                arguments.user if arguments.user else getpass.getuser()
+            )
+            robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
+            robot.process_command(arguments.single_command)
 
         case _:
             from emmio.run import Emmio
