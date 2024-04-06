@@ -8,6 +8,7 @@ class Record:
     """"""
 
     def get_time(self) -> datetime:
+        """Get the time when user response was received."""
         raise NotImplementedError()
 
 

@@ -98,25 +98,21 @@ class AnswerType(Enum):
     """User answer."""
 
     ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
-    """
-    Assume that the word is not a dictionary word, because it contains symbols
-    that are not common in the language.
+    """Assume that the word is not a dictionary word, because it contains
+    symbols that are not common in the language.
     """
 
     ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
-    """
-    Assume that the word is not a dictionary word, because some selected
+    """Assume that the word is not a dictionary word, because some selected
     dictionary does not have it.
     """
 
     PROPAGATE__SKIP = "propagate_skip"
-    """
-    Previous answer was propagated because of a special flag set by the user.
+    """Previous answer was propagated because of a special flag set by the user.
     """
 
     PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
-    """
-    Previous answer was propagated because it stated that the word is not a
+    """Previous answer was propagated because it stated that the word is not a
     dictionary word.
     """
 
@@ -378,7 +374,7 @@ class Lexicon:
     ) -> None:
         """Register user's response.
 
-        :param word: word that user was responded to.
+        :param word: the question id that user was responded to.
         :param response: response type.
         :param to_skip: skip this word in the future.
         :param date: time of response.

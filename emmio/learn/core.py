@@ -66,7 +66,7 @@ class LearningRecord(BaseModel, Record):
     """Sentence identifier used to learn the question."""
 
     time: datetime
-    """Record time."""
+    """The time when user response was received."""
 
     def get_time(self) -> datetime:
         return self.time
@@ -405,6 +405,10 @@ class Learning:
         return self.knowledge.get(word)
 
     def get_actions(self) -> int:
+        """Get number of meaningful user actions.
+
+        Meaningful actions are those with `RIGHT` or `WRONG` answer.
+        """
         a = 0
         for record in self.process.records:
             if record.response in [Response.RIGHT, Response.WRONG]:

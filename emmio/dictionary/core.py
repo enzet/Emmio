@@ -581,6 +581,13 @@ class DictionaryCollection:
     def get_items(
         self, word: str, language: Language, follow_links: bool = True
     ) -> list[DictionaryItem]:
+        """Get dictionary records.
+
+        :param word: the requested word
+        :param language: the language of the word
+        :param follow_links: include records for words linked to the requested
+            word, e.g. include words the requested word is a form of
+        """
         return [
             x[1] for x in self.get_items_marked(word, language, follow_links)
         ]
