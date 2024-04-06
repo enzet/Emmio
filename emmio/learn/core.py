@@ -68,6 +68,9 @@ class LearningRecord(BaseModel, Record):
     time: datetime
     """The time when user response was received."""
 
+    request_time: datetime | None = None
+    """The time when questioning was started."""
+
     def get_time(self) -> datetime:
         return self.time
 

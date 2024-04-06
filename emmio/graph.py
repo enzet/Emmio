@@ -148,6 +148,8 @@ class Visualizer:
                 data[0 + 2][point(record.time)] += 1
 
         for lexicon in lexicons:
+            if not lexicon.log.records:
+                continue
             last_record = lexicon.log.records[0]
             for record in lexicon.log.records:
                 if (

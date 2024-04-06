@@ -11,6 +11,10 @@ class Record:
         """Get the time when user response was received."""
         raise NotImplementedError()
 
+    def get_request_time(self) -> datetime:
+        """Get the time when questioning was started."""
+        raise NotImplementedError()
+
 
 class Session:
     """"""
