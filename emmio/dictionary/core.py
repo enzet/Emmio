@@ -275,21 +275,36 @@ class Form:
 
 
 @dataclass
+class Etymology:
+    forms: list[Form] = field(default_factory=list)
+
+
+@dataclass
 class DictionaryItem:
     """Dictionary item: word translations."""
 
     word: str
-    forms: list[Form] = field(default_factory=list)
+    general_etymology: Etymology = field(default_factory=Etymology)
+    etymologies: list[Etymology] = field(default_factory=list)
 
     def add_form(self, form: Form):
         """Add word form to dictionary item."""
-        self.forms.append(form)
+        self.get_forms().append(form)
 
     def get_links(self) -> set[Link]:
         """Get keys to other dictionary items this dictionary item is linked
         to.
         """
-        return set([link for form in self.forms for link in form.get_links()])
+        return set(
+            [link for form in self.get_forms() for link in form.get_links()]
+        )
+
+    def get_forms(self) -> list[Form]:
+        """Get all forms in all etymologies."""
+        forms: list[Form] = self.general_etymology.forms
+        for etymology in self.etymologies:
+            forms += etymology.forms
+        return forms
 
     def to_str(
         self,
@@ -318,7 +333,7 @@ class DictionaryItem:
         if show_word:
             result += "  " + self.word + "\n"
 
-        for form in self.forms:
+        for form in self.get_forms():
             for language in languages:
                 result += form.to_str(
                     language,
@@ -334,14 +349,14 @@ class DictionaryItem:
 
     def has_definitions(self) -> bool:
         """Check whether the dictionary item has at least one definition."""
-        return len(self.forms) > 0
+        return len(self.get_forms()) > 0
 
     def is_not_common(self, language: Language) -> bool:
         """Check whether all forms of the word are not common.
 
         Also check if it is not just a form of some another word.
         """
-        for form in self.forms:
+        for form in self.get_forms():
             if not form.is_not_common(language):
                 return False
 
@@ -350,7 +365,7 @@ class DictionaryItem:
     def get_one_word_definitions(self, language: Language) -> list[str]:
         result: list[str] = []
 
-        for form in self.forms:
+        for form in self.get_forms():
             if language in form.definitions:
                 for definition in form.definitions[language]:
                     for value in definition.values:
@@ -377,7 +392,7 @@ class DictionaryItem:
         texts: list[list[list[str]]] = []
         transcription = ""
 
-        for form in self.forms:
+        for form in self.get_forms():
             if language not in form.definitions:
                 continue
             definitions: list[list[str]] = []
@@ -398,7 +413,7 @@ class DictionaryItem:
 
     def get_transcriptions(self) -> list[str]:
         result: list[str] = []
-        for form in self.forms:
+        for form in self.get_forms():
             for transcription in form.transcriptions:
                 if transcription not in result:
                     result.append(transcription)
@@ -435,7 +450,7 @@ class Dictionary:
         forms: dict[str, set[str]] = defaultdict(set)
 
         for word, item in self.__items.items():
-            for form in item.forms:
+            for form in item.get_forms():
                 for link_type, link in form.links:
                     forms[link].add(word)
 
@@ -548,7 +563,7 @@ class DictionaryCollection:
                 if not follow_links:
                     continue
                 links: set[str] = set()
-                for form in item.forms:
+                for form in item.get_forms():
                     links |= set([x.link_value for x in form.links])
                 for link in links:
                     if link_item := dictionary.get_item(link):
