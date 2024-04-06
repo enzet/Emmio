@@ -66,7 +66,7 @@ class LearnConfig(BaseModel):
     dictionaries: list[dict]
     """Dictionary usage configurations."""
 
-    audio: list[dict] = {}
+    audio: list[dict] = []
     """Configurations for voice-over."""
 
     check_lexicon: bool = False
