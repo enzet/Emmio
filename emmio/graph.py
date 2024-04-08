@@ -372,6 +372,27 @@ class Visualizer:
         )
         self.plot()
 
+    def history(
+        self, learnings: Iterator[Learning], marker_size: float = 0.5
+    ) -> None:
+        data: dict[datetime, int] = {}
+        index: int = 0
+        indices: dict[str, int] = {}
+        for learning in learnings:
+            records = learning.process.records
+            for record in records:
+                if not learning.get_knowledge(record.question_id).is_learning():
+                    continue
+                id_: str = f"{learning.id_}:{record.question_id}"
+                if id_ not in indices:
+                    indices[id_] = index
+                    index += 1
+                data[record.time] = indices[id_]
+        x: list[datetime] = sorted(data.keys())
+        y: list[int] = list(map(lambda z: data[z], x))
+        plt.plot(x, y, "o", color="black", markersize=marker_size)
+        self.plot()
+
     def next_question_time(self, learnings: Iterator[Learning]):
         data = {}
         for learning in learnings:

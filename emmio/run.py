@@ -198,6 +198,13 @@ class Emmio:
             "schedule", help="plot scheduled question time"
         )
 
+        plot_history_parser = plot_subparsers.add_parser(
+            "history", help="plot history"
+        )
+        plot_history_parser.add_argument(
+            "--size", "-s", help="marker size", type=float
+        )
+
         audio_parser = subparsers.add_parser(
             "audio", aliases=["listen", "play"], help="play audio learning"
         )
@@ -383,15 +390,19 @@ class Emmio:
                     count_by_depth=arguments.pressure,
                     by_language=not arguments.depth,
                 ).draw()
-            elif arguments.process == "knowing":
+            elif arguments.process == "knowing":  # `plot knowing`
                 Visualizer().knowing(
                     list(self.user_data.get_active_learnings())
                 )
-            elif arguments.process == "schedule":
+            elif arguments.process == "schedule":  # `plot schedule`
                 Visualizer().next_question_time(
                     self.user_data.get_active_learnings()
                 )
-            elif arguments.process == "actions":
+            elif arguments.process == "history":  # `plot history`
+                Visualizer().history(
+                    self.user_data.get_active_learnings(), arguments.size
+                )
+            elif arguments.process == "actions":  # `plot actions`
                 records: list[tuple[LearningRecord, Learning]] = []
                 for learning in self.user_data.get_active_learnings():
                     records += [(x, learning) for x in learning.process.records]
