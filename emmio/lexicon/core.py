@@ -830,7 +830,7 @@ class Lexicon:
             was_answered_recently: bool = False
 
             for record in reversed(self.log.records):
-                delta = record.time - datetime.now()
+                delta = datetime.now() - record.time
                 if delta.days > 30:
                     break
                 if (
