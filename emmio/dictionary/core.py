@@ -118,8 +118,17 @@ class Audio:
 
 @dataclass
 class Definition:
+    """Definition of a word.
+
+    If the language of the word and the definition differ, the definition is
+    a translation.
+    """
+
     values: list[DefinitionValue]
+    """Definition values."""
+
     descriptors: list[str] = field(default_factory=list)
+    """Descriptors of the definition (e.g. "slang", "colloquial", etc.)."""
 
     def is_common(self) -> bool:
         """
@@ -129,9 +138,10 @@ class Definition:
             - slang, colloquial,
             - obsolete, etc.
         """
-        for description in DESCRIPTORS_OF_WORDS_TO_IGNORE:
-            if description in self.descriptors:
+        for descriptor in DESCRIPTORS_OF_WORDS_TO_IGNORE:
+            if descriptor in self.descriptors:
                 return False
+
         return True
 
     def to_str(self, to_hide: list[str] | None = None) -> str | None:
@@ -294,7 +304,10 @@ class Etymology:
 
 @dataclass
 class DictionaryItem:
-    """Dictionary item: word translations."""
+    """Dictionary item.
+
+    Word with one etymology, that may have multiple forms.
+    """
 
     word: str
     general_etymology: Etymology = field(default_factory=Etymology)
