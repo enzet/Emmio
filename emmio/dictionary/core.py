@@ -1,4 +1,17 @@
-"""Dictionary."""
+"""Dictionary.
+
+Collection of words and their definitions.
+
+Dictionary: collection of all items.
+  - Dictionary items: definition for a word.
+      - Forms: word form.
+          - Part of speech.
+          - Transcriptions: IPA transcriptions.
+          - Definitions: definition of the word form.
+              - Definition value: definition value.
+          - Links: link to another word.
+"""
+
 import json
 import re
 from collections import defaultdict
