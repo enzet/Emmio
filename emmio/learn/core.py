@@ -79,10 +79,22 @@ class LearningRecord(BaseModel, Record):
 
 
 class LearningSession(BaseModel, Session):
+    """Learning session.
+
+    It is assumed that all time spent in the session is spent in learning.
+    """
+
     type: str
+    """Session type."""
+
     start: datetime
+    """The time when the session was started."""
+
     end: datetime = None
+    """The time when the session was finished."""
+
     actions: int = None
+    """Number of actions recorded in the session."""
 
     def get_start(self) -> datetime:
         return self.start
@@ -96,6 +108,8 @@ class LearningSession(BaseModel, Session):
 
 
 class LearningProcess(BaseModel):
+    """Learning process: collection of all learning records and sessions."""
+
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 

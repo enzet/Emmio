@@ -180,8 +180,13 @@ class WordKnowledge:
 
 
 class LexiconLogSession(BaseModel, Session):
+    """User session of checking lexicon."""
+
     start: datetime
+    """Session start time."""
+
     end: datetime | None = None
+    """Session end time."""
 
     def get_start(self) -> datetime:
         return self.start
