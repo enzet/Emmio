@@ -89,7 +89,11 @@ class DirectoryAudioProvider(AudioProvider):
         if paths := self.get_paths(word):
             for _ in range(repeat):
                 logging.info(f"Playing {paths[0]}...")
-                self.player.play(str(paths[0]))
+                try:
+                    self.player.play(str(paths[0]))
+                except Exception as e:
+                    logging.error(f"Unable to play {paths[0]}.")
+                    logging.error(e)
             return True
 
         logging.debug(f"Audio was not found in {self.directory}.")
@@ -170,7 +174,11 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         if path := self.get_path(word):
             for _ in range(repeat):
                 logging.info(f"Playing {path}...")
-                self.player.play(str(path))
+                try:
+                    self.player.play(str(path))
+                except Exception as e:
+                    logging.error(f"Unable to play {path}.")
+                    logging.error(e)
             return True
 
         return False
