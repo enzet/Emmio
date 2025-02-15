@@ -38,9 +38,6 @@ class TatoebaSentences(Sentences):
     Cache for links are in
     `<path>/cache/links_<language 1 code>_<language 2 code>.json`.
     """
-    Mapping form sentence identifiers in language 2 to sets of sentence
-    identifiers in language 1.
-    """
 
     def __post_init__(self) -> None:
         """Fill links and cache."""
