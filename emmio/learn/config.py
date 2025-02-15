@@ -55,6 +55,8 @@ class Scheme(BaseModel):
     postpone_time: float | None = None
     """How long to postpone question, relative to the last request time."""
 
+    actions: list[dict] = []
+    """Actions to perform after question is shown."""
 
     learning_lexicon: dict | None = None
     """Which lexicon should be used to store answers during learning."""
@@ -81,7 +83,7 @@ class LearnConfig(BaseModel):
     scheme: Scheme | None
     """Learning scheme."""
 
-    sentences: list[dict]
+    sentences: list[dict] | None = None
     """Sentences usage configurations."""
 
     dictionaries: list[dict]
