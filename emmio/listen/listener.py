@@ -52,7 +52,7 @@ class Listener:
         )
 
         self.list_: FrequencyList = self.data.get_frequency_list(
-            listen_config.lists[0]["id"]
+            listen_config.lists[0]
         )
 
     def play(
@@ -100,9 +100,9 @@ class Listener:
                 elif not self.teacher.check2(question_id):
                     continue
 
-            self.process(question_id)
+            self.process(question_id, index)
 
-    def process(self, question_id: str):
+    def process(self, question_id: str, index: int):
         translations: list[str] = []
         if items := self.dictionary_collection.get_items(
             question_id, self.base_language
@@ -124,8 +124,8 @@ class Listener:
         if audio_translations and self.learning_audio_collection.has(
             question_id
         ):
-            learning_paths: list[
-                Path
-            ] = self.learning_audio_collection.get_paths(question_id)
-            print("   ", question_id, "—", ", ".join(translations))
+            learning_paths: list[Path] = (
+                self.learning_audio_collection.get_paths(question_id)
+            )
+            print("   ", index, question_id, "—", ", ".join(translations))
             self.play(question_id, audio_translations[:3], learning_paths)
