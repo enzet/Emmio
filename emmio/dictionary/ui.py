@@ -1,4 +1,5 @@
 """User interface for dictionaries."""
+
 from argparse import Namespace
 
 from emmio.data import Data

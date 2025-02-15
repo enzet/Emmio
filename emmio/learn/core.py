@@ -1,4 +1,5 @@
 """The learning process."""
+
 import json
 import logging
 import random
@@ -204,9 +205,16 @@ class Learning:
     """Learning process."""
 
     def __init__(self, path: Path, config: LearnConfig, id_: str) -> None:
+
         self.id_: str = id_
+        """Unique identifier of the learning process."""
+
         self.config: LearnConfig = config
+        """Learning configuration."""
+
         self.knowledge: dict[str, Knowledge] = {}
+        """Mapping from question identifiers to their knowledge data."""
+
         self.learning_language: Language = construct_language(
             config.learning_language
         )

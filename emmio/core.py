@@ -17,7 +17,11 @@ class Record:
 
 
 class Session:
-    """"""
+    """User session.
+
+    Relatively short period of time when user is interacting with the
+    application in a particular way: learning, testing, etc.
+    """
 
     def end_session(self, time: datetime, actions: int) -> None:
         raise NotImplementedError()

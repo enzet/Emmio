@@ -9,8 +9,7 @@ from emmio.util import download
 
 
 class SentenceDatabase(Database):
-    """
-    Database with tables:
+    """Database with tables:
 
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
@@ -24,7 +23,11 @@ class SentenceDatabase(Database):
             zip_path: Path = (
                 cache_path / f"{language.get_part3()}_sentences.tsv.bz2"
             )
-            # FIXME: remove zip file.
+
+            # Tatoeba uses ISO 639-3 codes, but for some languages it uses
+            # individual codes, instead of inclusive ones. E.g. `nob` (individual
+            # code for Norwegian Bokmål) instead of `nor` (inclusive code for
+            # Norwegian).
             if not zip_path.is_file():
                 download(
                     f"https://downloads.tatoeba.org/exports/per_language/"
@@ -53,8 +56,7 @@ class SentenceDatabase(Database):
         self.connection.commit()
 
     def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
-        """
-        Get sentence by identifier.
+        """Get sentence by identifier.
 
         :param language: language of the sentence
         :param sentence_id: sentence unique integer identifier
@@ -68,9 +70,10 @@ class SentenceDatabase(Database):
     def get_sentences(
         self, language: Language, cache_path: Path
     ) -> dict[str, Sentence]:
-        """
-        Get all sentences written in the specified language.
+        """Get all sentences written in the specified language.
 
+        :param language: language of the sentences
+        :param cache_path: path to the cache directory
         :returns: a mapping from sentence identifiers to sentences
         """
         result = {}

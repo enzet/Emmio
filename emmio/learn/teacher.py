@@ -1,4 +1,5 @@
 """Teacher."""
+
 import logging
 from datetime import datetime
 
@@ -35,10 +36,16 @@ class Teacher:
         stop_after_answer: bool = False,
     ) -> None:
         self.interface: Interface = interface
+        """User interface for learning."""
+
         self.data: Data = data
+        """Data storage: dictionaries, sentences, audio."""
+
         self.user_data: UserData = user_data
+        """User data storage: user responses."""
 
         self.learning: Learning = learning
+        """Learning data."""
 
         self.scheme: Scheme = self.learning.config.scheme
 

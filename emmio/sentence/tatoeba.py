@@ -28,12 +28,23 @@ class TatoebaSentences(Sentences):
     database: SentenceDatabase
 
     links: dict[int, set[int]] = field(default_factory=dict)
+    """Mapping between sentences.
+
+    Mapping from sentence identifiers in language 2 to sets of sentence
+    identifiers in language 1. Meaning that these sentences are translations.
+    E.g. `1 -> {2, 3}`, where `1` is `You have a book` and `2` and `3` are
+    `Du hast ein Buch` and `Sie haben ein Buch` respectively.
+
+    Cache for links are in
+    `<path>/cache/links_<language 1 code>_<language 2 code>.json`.
     """
     Mapping form sentence identifiers in language 2 to sets of sentence
     identifiers in language 1.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Fill links and cache."""
+
         links_cache_path: Path = (
             self.path / "cache" / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"

@@ -38,9 +38,11 @@ def fill_data(
             "language": lexicon.language.get_code(),
             "addTime": datetime.now(),
             "nextQuestionTime": datetime.now(),
-            "vector": "N"
-            if lexicon.words[word].knowing == LexiconResponse.DONT
-            else "Y",
+            "vector": (
+                "N"
+                if lexicon.words[word].knowing == LexiconResponse.DONT
+                else "Y"
+            ),
             "index": frequency_list.get_index(word),
         }
 

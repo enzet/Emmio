@@ -43,9 +43,9 @@ class Listener:
         self.dictionary_collection: DictionaryCollection = (
             self.data.get_dictionaries(listen_config.dictionaries)
         )
-        self.safe_question_ids: list[
-            str
-        ] = self.learning.get_safe_question_ids()
+        self.safe_question_ids: list[str] = (
+            self.learning.get_safe_question_ids()
+        )
 
         self.teacher = Teacher(
             RichInterface(), self.data, self.user_data, self.learning
@@ -90,7 +90,6 @@ class Listener:
         for index, question_id in enumerate(
             self.list_.get_words()[start_from:]
         ):
-            # print(f"{index} {question_id}")
             if self.listening.get_hearings(question_id) >= repeat:
                 continue
 

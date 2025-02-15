@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from emmio.language import LanguageConfig
 
 
+# TODO: This should be deleted and replaced with more carefully created learning
+#       scheme configuration.
 class LearnScheme(Enum):
     """Learning scheme."""
 
@@ -22,6 +24,8 @@ class LearnScheme(Enum):
 
 
 class NewQuestionScheme(BaseModel):
+    """How to pick new question."""
+
     pick_from: list[dict]
     """Which question lists use to pick new question."""
 
@@ -29,19 +33,36 @@ class NewQuestionScheme(BaseModel):
     """Which lexicon to check to skip already known questions."""
 
     ask_lexicon: dict | None = None
-    ignore_not_common: list[dict]
+    """Which lexicon to ask to pick new question."""
+
+    ignore_not_common: list[dict] | None = None
+    """Which words to ignore."""
 
 
 class Scheme(BaseModel):
+    """Learning scheme.
+
+    This configuration describes how to pick new questions, how to show them,
+    how to postpone them, and what actions to perform after showing them.
+    """
+
     new_question: NewQuestionScheme | None = None
+    """How to pick new question."""
+
     show_question: list[dict] | None = None
+    """How to show question."""
+
     postpone_time: float | None = None
+    """How long to postpone question, relative to the last request time."""
+
 
     learning_lexicon: dict | None = None
     """Which lexicon should be used to store answers during learning."""
 
 
 class LearnConfig(BaseModel):
+    """Learning process configuration."""
+
     file_name: str
     """Name of the file with learning process."""
 

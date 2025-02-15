@@ -213,9 +213,9 @@ class LearningWorker(Worker):
         # if self.word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[self.word])
 
-        self.current_sentences: list[
-            SentenceTranslations
-        ] = self.sentences.filter_by_word(self.word, ids_to_skip, 120)
+        self.current_sentences: list[SentenceTranslations] = (
+            self.sentences.filter_by_word(self.word, ids_to_skip, 120)
+        )
 
         if self.interval.total_seconds() == 0:
             self.current_sentences = sorted(

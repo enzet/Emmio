@@ -1,8 +1,8 @@
-"""
-Gate for English Wiktionary service.
+"""Gate for English Wiktionary service.
 
 See https://en.wiktionary.org.
 """
+
 import json
 import logging
 import os

@@ -3,6 +3,7 @@ Emmio.
 
 Utility functions.
 """
+
 import logging
 import sys
 from dataclasses import dataclass

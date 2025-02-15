@@ -1,4 +1,5 @@
 """Language and font specifics."""
+
 import json
 import re
 from dataclasses import dataclass

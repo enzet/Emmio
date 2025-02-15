@@ -407,10 +407,10 @@ class DictionaryItem:
         eventually remove forms to fit the specified limit.  It assumes that
         values, definitions and forms are ordered by its usage frequency or
         some kind of importance, so it is not trying to use second definition
-        instead of first if it is shorter.
+        instead of first even if it is shorter.
 
         If the first value of the first form of the first definition is longer
-        than the limit, it will return it as is.
+        than the limit, it will be returned as is.
 
         :returns (transcription, translation)
         """
@@ -468,6 +468,7 @@ class Dictionary:
         return None
 
     def get_items(self) -> dict[str, DictionaryItem]:
+        """Get all dictionary items."""
         return self.__items
 
     def get_forms(self) -> dict[str, set[str]]:
@@ -576,8 +577,10 @@ class DictionaryCollection:
     def get_items_marked(
         self, word: str, language: Language, follow_links: bool = True
     ) -> list[tuple[Dictionary, DictionaryItem]]:
-        """Get dictionary items from all dictionaries."""
+        """Get dictionary items from all dictionaries.
 
+        :return: list of dictionaries and dictionary items
+        """
         if not word:
             return []
 
