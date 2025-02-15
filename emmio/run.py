@@ -357,9 +357,11 @@ class Emmio:
                         [
                             lexicon.language.get_name(),
                             progress(need),
-                            f"{abs(rate):.1f}  " + progress(int(rate * 10))
-                            if rate is not None
-                            else "N/A",
+                            (
+                                f"{abs(rate):.1f}  " + progress(int(rate * 10))
+                                if rate is not None
+                                else "N/A"
+                            ),
                             change,
                         ]
                     )
@@ -560,9 +562,9 @@ class Emmio:
             break
 
     def debug(self):
-        result: list[
-            tuple[Session, list[Record]]
-        ] = self.user_data.get_sessions_and_records()
+        result: list[tuple[Session, list[Record]]] = (
+            self.user_data.get_sessions_and_records()
+        )
 
         data: list[float] = []
 
@@ -694,9 +696,9 @@ class Emmio:
             first_point = util.first_day_of_month
             next_point = util.plus_month
 
-        lexicons: dict[
-            Language, list[Lexicon]
-        ] = self.user_data.get_frequency_lexicons(languages)
+        lexicons: dict[Language, list[Lexicon]] = (
+            self.user_data.get_frequency_lexicons(languages)
+        )
         lexicon_visualizer = LexiconVisualizer(
             interactive=interactive,
             first_point=first_point,

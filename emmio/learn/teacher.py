@@ -185,10 +185,10 @@ class Teacher:
             return False
 
         # Skip word if it is known that it is solely a form of other words.
-        items_no_links: list[
-            DictionaryItem
-        ] = self.dictionaries_to_check.get_items(
-            question_id, self.learning.learning_language, follow_links=False
+        items_no_links: list[DictionaryItem] = (
+            self.dictionaries_to_check.get_items(
+                question_id, self.learning.learning_language, follow_links=False
+            )
         )
 
         not_common = False
@@ -378,10 +378,10 @@ class Teacher:
             self.interface.print(statistics + "\n" + "No translations.")
 
         index: int = 0
-        rated_sentences: list[
-            tuple[float, SentenceTranslations]
-        ] = self.sentences.filter_by_word_and_rate(
-            word, self.user_data, ids_to_skip, 120
+        rated_sentences: list[tuple[float, SentenceTranslations]] = (
+            self.sentences.filter_by_word_and_rate(
+                word, self.user_data, ids_to_skip, 120
+            )
         )
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
