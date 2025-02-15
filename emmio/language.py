@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from colour import Color
-from iso639 import languages as iso_languages
-from iso639.iso639 import _Language as ISOLanguage
+from iso639 import Lang as ISO639Language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -46,12 +45,13 @@ class Language:
         checking: Optional[Callable] = None,
         sentence_end: str | None = None,
     ) -> None:
-        self.language: ISOLanguage = iso_languages.get(part1=code)
+        self.code: str = code
         self.symbols: str | None = symbols
         self.color: Color | None = color
         self.self_name: str = self_name
         self.tone: Color | None = tone
         self.sentence_end: str | None = sentence_end
+        self.iso639_language = ISO639Language(code)
 
         if checking:
             self.has_symbol = checking
@@ -68,13 +68,13 @@ class Language:
 
     def __eq__(self, other: "Language") -> bool:
         assert isinstance(other, Language)
-        return self.language == other.language
+        return self.code == other.code
 
     def __hash__(self) -> int:
-        return hash(self.language.part1)
+        return hash(self.code)
 
     def get_name(self) -> str:
-        return re.sub(" \\(.*\\)", "", self.language.name)
+        return re.sub(" \\(.*\\)", "", self.iso639_language.name)
 
     def get_self_name(self) -> str:
         if self.self_name:
@@ -99,17 +99,17 @@ class Language:
 
     def get_code(self) -> str:
         """Get ISO 639-1:2002 two-letter code."""
-        return self.language.part1
+        return self.iso639_language.pt1
 
     def get_part3(self) -> str:
         """Get ISO 639-3:2007 three-letter code."""
-        return self.language.part3
+        return self.iso639_language.pt3
 
     def has_symbols(self) -> bool:
         """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
-    def get_symbols(self) -> str:
+    def get_symbols(self) -> str | None:
         """Get all symbols allowed in the language."""
         return self.symbols
 
@@ -151,7 +151,9 @@ def letter_range(start: str, stop: str) -> str:
 KATAKANA: str = letter_range("゠", "ヿ")
 HIRAGANA: str = letter_range("ぁ", "ゟ")
 KANJI: str = (
-    letter_range("㐀", "䶵") + letter_range("一", "鿋") + letter_range("豈", "頻")
+    letter_range("㐀", "䶵")
+    + letter_range("一", "鿋")
+    + letter_range("豈", "頻")
 )
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(

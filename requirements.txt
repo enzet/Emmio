@@ -1,6 +1,6 @@
 PyYAML~=6.0
 colour~=0.1.5
-iso-639
+iso639-lang~=2.2.3
 matplotlib~=3.5.2
 mpv~=0.1
 numpy~=1.22.3
