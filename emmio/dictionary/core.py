@@ -539,10 +539,10 @@ class SimpleDictionary(Dictionary):
         item.add_form(Form(word, definitions={self.to_language: definitions}))
         return item
 
-    def check_from_language(self, language: Language) -> Language:
+    def check_from_language(self, language: Language) -> bool:
         return self.from_language == language
 
-    def check_to_language(self, language: Language) -> Language:
+    def check_to_language(self, language: Language) -> bool:
         return self.to_language == language
 
     def write(self):

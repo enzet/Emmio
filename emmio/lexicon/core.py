@@ -130,16 +130,17 @@ def compute_lexicon_rate(
     data: list[tuple[datetime, LexiconResponse]],
     precision: int = 100,
     before: datetime | None = None,
-) -> (list[datetime], list[float]):
+) -> tuple[list[tuple[datetime, datetime]], list[float | None]]:
     """Given lexicon records, compute rate values with given precision.
 
-    :param data: pairs of (response time, lexicon response), is assumed to be
+    :param data: list of (response time, lexicon response), is assumed to be
         sorted by date
     :param precision: simply a number of "don't know" answers
     :param before: right data bound
+    :return: list of ((start date, end date), rate value)
     """
-    date_values: list[datetime] = []
-    rate_values: list[float] = []
+    date_ranges: list[tuple[datetime, datetime]] = []
+    rate_values: list[float | None] = []
     left, right, answers_know = 0, 0, 0
 
     while right < len(data) - 1:
