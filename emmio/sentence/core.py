@@ -125,6 +125,19 @@ class Sentences:
     ) -> list[tuple[float, SentenceTranslations]]:
         raise NotImplementedError()
 
+    @staticmethod
+    def rate(user_data, sentence_translations, language):
+        result: list[tuple[float, SentenceTranslations]] = []
+        for sentence_translation in sentence_translations:
+            result.append(
+                (
+                    sentence_translation.rate(language, user_data),
+                    sentence_translation,
+                )
+            )
+        result.sort(key=lambda x: -x[0])
+        return result
+
     def get_most_known(
         self, user_data: "UserData"
     ) -> list[SentenceTranslations]:
