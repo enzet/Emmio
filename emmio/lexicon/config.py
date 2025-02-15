@@ -1,6 +1,26 @@
+from enum import Enum
 from pydantic.main import BaseModel
 
 from emmio.language import LanguageConfig
+
+
+class LexiconSelection(Enum):
+    """How words for lexicon checking was picked."""
+
+    BINARY_SEARCH = "binary_search"
+    """Words were picked from binary search."""
+
+    RANDOM = "random"
+    """Words were picked randomly."""
+
+    ARBITRARY = "arbitrary"
+    """Words were picked arbitrarily."""
+
+    FREQUENCY = "frequency"
+    """Words were picked from the specified frequency list."""
+
+    UNKNOWN = "unknown"
+    """Selection is unknown."""
 
 
 class LexiconConfig(BaseModel):
@@ -10,7 +30,7 @@ class LexiconConfig(BaseModel):
     language: LanguageConfig
     """Language of the lexicon."""
 
-    selection: str
+    selection: LexiconSelection
     """How words was picked."""
 
     frequency_list: str | None = None
