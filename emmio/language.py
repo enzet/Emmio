@@ -38,14 +38,14 @@ class Language:
         self,
         code: str,
         color: Color,
-        symbols: str | None = None,
+        symbols: str = None,
         self_name: str = None,
         tone: Color | None = None,
         checking: Optional[Callable] = None,
         sentence_end: str | None = None,
     ) -> None:
         self.code: str = code
-        self.symbols: str | None = symbols
+        self.symbols: str = symbols
         self.color: Color | None = color
         self.self_name: str = self_name
         self.tone: Color | None = tone
@@ -154,6 +154,7 @@ KANJI: str = (
     + letter_range("一", "鿋")
     + letter_range("豈", "頻")
 )
+ARABIC_LETTERS: str = letter_range("\u0620", "\u06FF")  # FIXME: check.
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
     "\u0531", "\u0556"
@@ -178,7 +179,10 @@ LATIN_LIGATURES: dict[str, str] = {
     "ﬅ": "ft",
 }
 
-ARABIC: Language = Language("ar", Color("#FF8800"))
+ARABIC: Language = Language("ar", Color("#FF8800"), ARABIC_LETTERS)
+KOREAN_LETTERS: str = letter_range("\u1100", "\u11FF") + letter_range(
+    "\uAC00", "\uD7A3"
+)
 ARMENIAN: Language = Language(
     "hy",
     Color("#888800"),
@@ -187,7 +191,7 @@ ARMENIAN: Language = Language(
     checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
     self_name="հայերեն",
 )
-CHINESE: Language = Language("zh", Color("#444400"), self_name="中文")
+CHINESE: Language = Language("zh", Color("#444400"), KANJI, self_name="中文")
 ENGLISH: Language = Language(
     "en",
     Color("#2F2FC5"),
