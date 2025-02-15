@@ -55,6 +55,12 @@ def first_day_of_week(point: datetime) -> datetime:
     return datetime.combine(day, datetime.min.time())
 
 
+def format_delta_hm(delta: timedelta) -> str:
+    hours: int = int(delta.total_seconds() // 60 // 60)
+    minutes: int = int(delta.total_seconds() // 60) - hours * 60
+    return f"{hours:02d}:{minutes:02d}"
+
+
 def format_delta(delta: timedelta):
     if delta < timedelta(hours=1):
         minutes: int = int(delta.total_seconds() // 60)
