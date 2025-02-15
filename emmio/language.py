@@ -28,8 +28,7 @@ LATIN_CODE: dict[str, str] = {
 }
 
 
-class LanguageConfig(str):
-    pass
+LanguageConfig = str
 
 
 class Language:
