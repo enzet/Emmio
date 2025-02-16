@@ -91,7 +91,7 @@ class FrequencyList(List):
         self.load()
         return self._sorted_keys
 
-    def get_random_word(self) -> (str, int):
+    def get_random_word(self) -> tuple[str, int]:
         """
         Return random unique word regardless of its frequency.
 
@@ -100,7 +100,7 @@ class FrequencyList(List):
         word: str = random.choice(list(self.data.keys()))
         return word, self.data[word]
 
-    def get_word_by_occurrences(self, occurrences: int) -> (str, int):
+    def get_word_by_occurrences(self, occurrences: int) -> tuple[str, int]:
         """
         Get first word with the number of occurrences more or equals to
         specified number.
@@ -113,18 +113,21 @@ class FrequencyList(List):
 
         return "", 0
 
-    def get_word_by_index(self, index: int) -> (str, int):
+    def get_word_by_index(self, index: int) -> tuple[str, int]:
         """Get word of the specified index."""
         word: str = self._sorted_keys[index]
         return word, self.data[word]
 
-    def get_random_word_by_frequency(self) -> (str, int):
+    def get_random_word_by_frequency(self) -> tuple[str, int]:
         """
         Return random word based on its frequency as if you pick up random word
         from the text.
 
         :return word, number of its occurrences in text
         """
+        if self._occurrences == 0:
+            self.load()
+
         number: int = random.randint(0, self._occurrences)
 
         index: int = 0
@@ -133,7 +136,7 @@ class FrequencyList(List):
             if index >= number:
                 return word, self.data[word]
 
-        return "", 0
+        raise Exception()
 
     def get_index(self, word: str) -> int:
         if word in self._sorted_keys:
@@ -217,7 +220,7 @@ class FrequencyList(List):
         self.__post_init__()
 
     def load_from_url(self) -> None:
-        logging.debug(f"Loading frequency list from url {self.config.url}.")
+        logging.info(f"Loading frequency list from url {self.config.url}.")
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()
         response: urllib3.HTTPResponse = pool_manager.request(

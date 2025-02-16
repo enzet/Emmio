@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -55,10 +55,12 @@ class Canvas:
     Canvas of the graph with workspace area.
     """
 
-    size: np.ndarray = np.array((800.0, 600.0))
-    workspace: tuple[np.ndarray, np.ndarray] = (
-        np.array((100.0, 50.0)),
-        np.array((250.0, 550.0)),
+    size: np.ndarray = field(default_factory=lambda: np.array((800.0, 600.0)))
+    workspace: tuple[np.ndarray, np.ndarray] = field(
+        default_factory=lambda: (
+            np.array((100.0, 50.0)),
+            np.array((250.0, 550.0)),
+        )
     )
 
 
