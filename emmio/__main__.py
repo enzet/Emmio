@@ -1,5 +1,6 @@
 """Emmio entry point."""
 
+import asyncio
 import getpass
 import logging
 import sys
@@ -33,7 +34,7 @@ def process_list_command(data, arguments):
                 print("No such list.")
 
 
-def main():
+async def asynchronous_main():
     """Emmio entry point."""
 
     coloredlogs.install(
@@ -101,9 +102,11 @@ def main():
 
     arguments: Namespace = parser.parse_args(sys.argv[1:])
 
-    data_path: Path = Path.home() / EMMIO_DEFAULT_DIRECTORY
     if arguments.data:
         data_path = Path(arguments.data)
+    else:
+        data_path: Path = Path.home() / EMMIO_DEFAULT_DIRECTORY
+
     data_path.mkdir(parents=True, exist_ok=True)
 
     data: Data = Data.from_directory(data_path)
@@ -130,7 +133,7 @@ def main():
                 arguments.user if arguments.user else getpass.getuser()
             )
             robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
-            robot.process_command(arguments.single_command)
+            await robot.process_command(arguments.single_command)
 
         case _:
             from emmio.run import Emmio
@@ -139,8 +142,12 @@ def main():
                 arguments.user if arguments.user else getpass.getuser()
             )
             robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
-            robot.run()
+            await robot.run()
+
+
+def main() -> None:
+    asyncio.run(asynchronous_main())
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
