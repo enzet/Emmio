@@ -1,12 +1,15 @@
 """Emmio console user interface."""
 
 import sys
+from typing import Any
 import readchar
 
 from rich import box
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
+from rich.padding import Padding as RichElementPadding
+from rich.panel import Panel as RichElementPanel
+from rich.table import Table as RichElementTable
+from rich.text import Text as RichElementText
 
 from emmio.language import Language
 
@@ -14,7 +17,7 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 colors = {
-    "grey": "2",
+    "gray": "2",
     "black": "30",
     "red": "31",
     "green": "32",
@@ -64,10 +67,81 @@ def table(columns: list[str], rows: list[list[str]]) -> str:
     return result
 
 
+class Text:
+    """Text element."""
+
+    def __init__(self):
+        self.elements: list[Any] = []
+
+    def add(self, element: Any) -> "Text":
+        """Chainable method to add element to the text."""
+        self.elements.append(element)
+        return self
+
+    def is_empty(self) -> bool:
+        """Check whether the text is empty."""
+        return len(self.elements) == 0
+
+
+class Formatted:
+    """Formatted text element."""
+
+    def __init__(self, text: Text, format: str):
+        assert format in ["bold", "italic", "underline"]
+        self.text: Text = text
+        self.format: str = format
+
+
+class Colorized:
+    """Colorized text element."""
+
+    def __init__(self, text: Text, color: str):
+        self.text: Text = text
+        self.color: str = color
+
+
+class Block:
+    """Block of text."""
+
+    def __init__(self, text: Text, padding: tuple[int, int, int, int]):
+        if text is None:
+            raise Exception("Text is None")
+        self.text: Text = text
+        self.padding: tuple[int, int, int, int] = padding
+
+
+class Title:
+    """Title of the program."""
+
+    def __init__(self, text: str):
+        self.text: str = text
+
+
+class Table:
+    """Table of text."""
+
+    def __init__(
+        self,
+        columns: list[Text | str],
+        rows: list[list[Text | str]],
+        style: str = "rounded",
+    ) -> None:
+        assert style in ["rounded"]
+        self.style: str = style
+        self.columns: list[Text | str] = columns
+        self.rows: list[list[Text | str]] = rows
+
+    def add_column(self, column: Text | str) -> None:
+        self.columns.append(column)
+
+    def add_row(self, row: list[Text | str]) -> None:
+        self.rows.append(row)
+
+
 class Interface:
     """User input/output interface."""
 
-    def print(self, text: str) -> None:
+    def print(self, text) -> None:
         """Simply print text message."""
         raise NotImplementedError()
 
@@ -103,6 +177,9 @@ class Interface:
         raise NotImplementedError()
 
     def choice(self, options: list[str], prompt: str | None = None) -> str:
+        raise NotImplementedError()
+
+    def button(self, text: str) -> None:
         raise NotImplementedError()
 
 
@@ -213,34 +290,71 @@ class TerminalInterface(Interface):
 
 class RichInterface(TerminalInterface):
     def __init__(self):
-        self.console = Console()
+        self.console: Console = Console(highlight=False)
 
-    def print(self, text: str) -> None:
-        self.console.print(text)
+    def print(self, text) -> None:
 
-    def header(self, text: str) -> None:
-        self.console.print(Panel(text))
+        if isinstance(text, Text):
+            for element in text.elements:
+                self.print(element)
 
-    def box(self, text: str) -> None:
-        self.console.print(Panel(text, expand=False))
+        else:
+            rich_supported: Any = self.construct(text)
+            self.console.print(rich_supported)
 
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        show_footer: bool = rows and rows[-1][0] == "Total"
+    def construct(self, element: Any) -> Any:
+        """Construct rich element from text."""
 
-        element: Table = Table(box=box.ROUNDED, show_footer=show_footer)
-        for index, column in enumerate(columns):
-            element.add_column(
-                column, footer=rows[-1][index] if show_footer else ""
+        if isinstance(element, str):
+            return element
+
+        elif isinstance(element, Title):
+            return RichElementPanel(self.construct(element.text))
+
+        elif isinstance(element, Formatted):
+            sub_element = self.construct(element.text)
+            if not isinstance(sub_element, RichElementText):
+                sub_element = RichElementText(sub_element)
+            if element.format == "bold":
+                sub_element.stylize("bold")
+            elif element.format == "italic":
+                sub_element.stylize("italic")
+            elif element.format == "underline":
+                sub_element.stylize("underline")
+            return sub_element
+
+        elif isinstance(element, Colorized):
+            sub_element = self.construct(element.text)
+            if isinstance(sub_element, RichElementText):
+                sub_element.stylize(element.color)
+                return sub_element
+            else:
+                rich_element: RichElementText = RichElementText(sub_element)
+                rich_element.stylize(element.color)
+                return rich_element
+
+        elif isinstance(element, Block):
+            return RichElementPadding(
+                self.construct(element.text), element.padding
             )
-        for row in rows[:-1] if show_footer else rows:
-            element.add_row(*row)
 
-        self.console.print(element)
+        elif isinstance(element, Table):
+            table: RichElementTable = RichElementTable()
+            if element.style == "rounded":
+                table.box = box.ROUNDED
+            for column in element.columns:
+                table.add_column(column)
+            for row in element.rows:
+                table.add_row(*row)
+            return table
 
-    def colorize(self, text: str, color: str):
-        if color in colors:
-            return f"[{color}]{text}[/{color}]"
-        return text
+        elif isinstance(element, Text):
+            result: RichElementText = RichElementText()
+            for sub_element in element.elements:
+                result.append(self.construct(sub_element))
+            return result
+
+        assert False, element
 
     def choice(self, options: list[str], prompt: str | None = None) -> str:
         self.console.print(
@@ -257,6 +371,10 @@ class RichInterface(TerminalInterface):
                         break
                 if c.lower() == char:
                     return option.lower()
+
+    def button(self, text: str) -> None:
+        self.console.print(f"[b]<{text}>[/b]")
+        get_char()
 
 
 def get_char() -> str:
@@ -301,10 +419,10 @@ class TerminalMessengerInterface(TerminalInterface):
         self.console: Console = Console()
 
     def header(self, text: str) -> None:
-        self.console.print(Panel(text))
+        self.console.print(RichElementPanel(text))
 
     def box(self, text: str) -> None:
-        self.console.print(Panel(text))
+        self.console.print(RichElementPanel(text))
 
     def print(self, text: str) -> None:
-        self.console.print(Panel(text))
+        self.console.print(RichElementPanel(text))

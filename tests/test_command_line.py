@@ -71,7 +71,14 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         with open(temp_user_config, "w") as output_file:
             json.dump(structure, output_file)
 
-        with patch("builtins.input", side_effect=["q"]):
+        with patch(
+            "builtins.input",
+            side_effect=[
+                "stat learn",
+                "stat lexicon",
+                "q",
+            ],
+        ):
             with patch(
                 "sys.argv",
                 [

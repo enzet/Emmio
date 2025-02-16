@@ -19,7 +19,7 @@ from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.learn.teacher import Teacher
 from emmio.listen.listener import Listener
 from emmio.read.core import Read
-from emmio.ui import Interface, progress
+from emmio.ui import Interface, Table, progress
 from emmio.user.data import UserData, Record, Session
 
 LEXICON_HELP: str = """
@@ -369,8 +369,11 @@ class Emmio:
                         ]
                     )
 
-                self.interface.table(
-                    ["Language", "Need", "Rate", "Year change"], rows
+                self.interface.print(
+                    Table(
+                        ["Language", "Need", "Rate", "Year change"],
+                        rows,
+                    )
                 )
 
         if arguments.command == "plot":
