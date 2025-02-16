@@ -2,7 +2,11 @@ import logging
 from pathlib import Path
 from time import sleep
 
-import mpv
+try:
+    import mpv
+except (OSError, ImportError):
+    logging.warning("MPV is not installed, audio playback will be disabled.")
+    mpv = None
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -24,7 +28,7 @@ class Listener:
         self.data: Data = data
         self.user_data: UserData = user_data
         self.listening: Listening = listening
-        self.player = mpv.MPV()
+        self.player = mpv.MPV() if mpv else None
 
         listen_config: ListenConfig = self.listening.config
 
@@ -58,6 +62,10 @@ class Listener:
     def play(
         self, question_id: str, audio_translations, learning_paths: list[Path]
     ) -> None:
+        if self.player is None:
+            logging.warning("MPV is not installed, cannot play audio.")
+            return
+
         for translation in audio_translations:
             base_paths = self.base_audio_collection.get_paths(translation)
             self.player.play(str(base_paths[-1]))

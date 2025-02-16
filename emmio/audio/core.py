@@ -7,7 +7,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-import mpv
+try:
+    import mpv
+except (OSError, ImportError):
+    logging.warning("MPV is not installed, audio playback will be disabled.")
+    mpv = None
 
 from emmio.audio.config import AudioConfig
 from emmio.language import Language
@@ -52,7 +56,7 @@ class DirectoryAudioProvider(AudioProvider):
     file_extension: str
     """Audio file extensions, e.g. ``ogg``."""
 
-    player: mpv.MPV = mpv.MPV()
+    player = None
     """Wrapper for the MPV player."""
 
     def fill_cache(self, path: Path) -> None:
@@ -69,6 +73,7 @@ class DirectoryAudioProvider(AudioProvider):
                 logging.warning(f"Unknown file {path}.")
 
     def __post_init__(self):
+        self.player = mpv.MPV() if mpv else None
         self.path_pattern = re.compile(
             rf"(?P<word>[^()]*)\s*(\([^()]*\))?\s*\d?\.{self.file_extension}"
         )
@@ -86,6 +91,10 @@ class DirectoryAudioProvider(AudioProvider):
         return self.cache.get(word, [])
 
     def play(self, word: str, repeat: int = 1) -> bool:
+        if self.player is None:
+            logging.warning("MPV is not installed, cannot play audio.")
+            return False
+
         if paths := self.get_paths(word):
             for _ in range(repeat):
                 logging.info(f"Playing {paths[0]}...")
@@ -110,7 +119,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     def __init__(self, language: Language, cache_directory: Path) -> None:
         self.cache_directory: Path = cache_directory / "wikimedia_commons"
-        self.player: mpv.MPV = mpv.MPV()
+        self.player = mpv.MPV() if mpv else None
         self.language: Language = language
 
         cache_file: Path = (
@@ -171,6 +180,10 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         return None
 
     def play(self, word: str, repeat: int = 1) -> bool:
+        if self.player is None:
+            logging.warning("MPV is not installed, cannot play audio.")
+            return False
+
         if path := self.get_path(word):
             for _ in range(repeat):
                 logging.info(f"Playing {path}...")
