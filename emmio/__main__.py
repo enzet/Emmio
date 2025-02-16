@@ -22,10 +22,10 @@ def process_list_command(data, arguments):
     match arguments.subcommand:
         case "info":
             print("Frequency lists:")
-            for key in data.lists.frequency_lists:
+            for key in data.get_lists_data().frequency_lists:
                 print(f"    {key}")
             print("Word lists:")
-            for key in data.lists.word_lists:
+            for key in data.get_lists_data().word_lists:
                 print(f"    {key}")
         case "show":
             if list_ := data.get_list(arguments.id):

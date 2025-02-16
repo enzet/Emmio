@@ -61,11 +61,14 @@ class Emmio:
             else:
                 return
             data.create_user(user_id, user_name)
+            self.interface.print(
+                f"User `{user_id}` with name `{user_name}` created."
+            )
 
         self.user_data: UserData = data.users_data[user_id]
         self.user_id: str = user_id
 
-    def run(self):
+    async def run(self):
         print("\nEmmio\n")
 
         print(

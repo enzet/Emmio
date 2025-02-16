@@ -1,8 +1,7 @@
 """Emmio console user interface."""
 
 import sys
-import termios
-import tty
+import readchar
 
 from rich import box
 from rich.console import Console
@@ -249,7 +248,7 @@ class RichInterface(TerminalInterface):
             + " ".join(f"\\[{x}]" for x in options)
         )
         while True:
-            char: str = get_char()
+            char: str = input()
             for option in options:
                 if not option:
                     raise RuntimeError()
@@ -262,14 +261,7 @@ class RichInterface(TerminalInterface):
 
 def get_char() -> str:
     """Read character from user input."""
-    file_descriptor = sys.stdin.fileno()
-    settings = termios.tcgetattr(sys.stdin.fileno())
-    try:
-        tty.setraw(sys.stdin.fileno())
-        character = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(file_descriptor, termios.TCSADRAIN, settings)
-    return character
+    return readchar.readkey()
 
 
 BOXES: str = " ▏▎▍▌▋▊▉"

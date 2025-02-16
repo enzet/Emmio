@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +57,7 @@ class Data:
     path: Path
     """Managed directory."""
 
-    lists: ListsData
+    _lists_data: ListsData
     """Manager for frequency and word lists."""
 
     sentences: SentencesData
@@ -65,7 +66,7 @@ class Data:
     dictionaries: DictionaryData
     """Manager for dictionaries."""
 
-    audio: AudioData
+    _audio_data: AudioData | None
     """Manager for audio files with pronunciation."""
 
     texts: TextData
@@ -78,14 +79,12 @@ class Data:
     def from_directory(cls, path: Path) -> "Data":
         """Initialize Emmio data from its directory."""
 
-        lists: ListsData = ListsData.from_config(path / LISTS_DIRECTORY_NAME)
         sentences: SentencesData = SentencesData.from_config(
             path / SENTENCES_DIRECTORY_NAME
         )
         dictionaries: DictionaryData = DictionaryData.from_config(
             path / DICTIONARIES_DIRECTORY_NAME
         )
-        audio: AudioData = AudioData.from_config(path / AUDIO_DIRECTORY_NAME)
         texts: TextData = TextData.from_config(path / TEXTS_DIRECTORY_NAME)
 
         users_path: Path = path / USERS_DIRECTORY_NAME
@@ -101,9 +100,7 @@ class Data:
                 user_data[user_path.name] = UserData.from_config(
                     user_path.name, user_path, json.load(user_config_file)
                 )
-        return cls(
-            path, lists, sentences, dictionaries, audio, texts, user_data
-        )
+        return cls(path, None, sentences, dictionaries, None, texts, user_data)
 
     def exclude_sentence(self, word: str, sentence_id: int) -> None:
         """Exclude the sentence from the learning process of the word.
@@ -129,11 +126,19 @@ class Data:
         ) as output_file:
             json.dump(self.exclude_translations, output_file)
 
-    def get_list(self, id_: str) -> List | None:
-        return self.lists.get_list(id_)
+    def get_lists_data(self) -> ListsData:
+        if not self._lists_data:
+            logging.info("Loading list data...")
+            self._lists_data = ListsData.from_config(
+                self.path / LISTS_DIRECTORY_NAME
+            )
+        return self._lists_data
 
-    def get_frequency_list(self, id_: str) -> FrequencyList | None:
-        return self.lists.get_frequency_list(id_)
+    def get_list(self, usage_config: dict) -> List | None:
+        return self.get_lists_data().get_list(usage_config)
+
+    def get_frequency_list(self, usage_config: dict) -> FrequencyList | None:
+        return self.get_lists_data().get_frequency_list(usage_config)
 
     def get_dictionary(self, usage_config: dict) -> Dictionary:
         return self.dictionaries.get_dictionary(usage_config)
@@ -154,11 +159,19 @@ class Data:
     ) -> SentencesCollection:
         return self.sentences.get_sentences_collection(usage_configs)
 
+    def get_audio_data(self) -> AudioData:
+        if not self._audio_data:
+            logging.info("Loading audio data...")
+            self._audio_data = AudioData.from_config(
+                self.path / AUDIO_DIRECTORY_NAME
+            )
+        return self._audio_data
+
     def get_audio_provider(self, usage_config: dict):
-        return self.audio.get_audio_provider(usage_config)
+        return self.get_audio_data().get_audio_provider(usage_config)
 
     def get_audio_collection(self, usage_configs: list[dict]):
-        return self.audio.get_audio_collection(usage_configs)
+        return self.get_audio_data().get_audio_collection(usage_configs)
 
     def get_words(self, id_: str) -> list[str]:
         return self.get_list(id_).get_words()
