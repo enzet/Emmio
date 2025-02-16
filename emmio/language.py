@@ -38,16 +38,18 @@ class Language:
         self,
         code: str,
         color: Color,
-        symbols: str = None,
+        symbols: str,
         self_name: str = None,
+        parent: Optional["Language"] = None,
         tone: Color | None = None,
         checking: Optional[Callable] = None,
         sentence_end: str | None = None,
     ) -> None:
         self.code: str = code
-        self.symbols: str = symbols
+        self.symbols: str | None = symbols
         self.color: Color | None = color
         self.self_name: str = self_name
+        self.parent: "Language" | None = parent
         self.tone: Color | None = tone
         self.sentence_end: str | None = sentence_end
         self.iso639_language = ISO639Language(code)
@@ -80,6 +82,11 @@ class Language:
             return self.self_name
         return self.get_name()
 
+    def get_parent(self) -> Optional["Language"]:
+        if self.parent:
+            return self.parent
+        return None
+
     def get_adjusted_color(self) -> Color:
         if self.tone is not None:
             c = Color()
@@ -108,7 +115,7 @@ class Language:
         """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
-    def get_symbols(self) -> str | None:
+    def get_symbols(self) -> str:
         """Get all symbols allowed in the language."""
         return self.symbols
 
@@ -155,6 +162,9 @@ KANJI: str = (
     + letter_range("豈", "頻")
 )
 ARABIC_LETTERS: str = letter_range("\u0620", "\u06FF")  # FIXME: check.
+KOREAN_LETTERS: str = letter_range("\u1100", "\u11FF") + letter_range(
+    "\uAC00", "\uD7A3"
+)
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
     "\u0531", "\u0556"
@@ -180,9 +190,6 @@ LATIN_LIGATURES: dict[str, str] = {
 }
 
 ARABIC: Language = Language("ar", Color("#FF8800"), ARABIC_LETTERS)
-KOREAN_LETTERS: str = letter_range("\u1100", "\u11FF") + letter_range(
-    "\uAC00", "\uD7A3"
-)
 ARMENIAN: Language = Language(
     "hy",
     Color("#888800"),
@@ -221,6 +228,15 @@ GERMAN: Language = Language(
     self_name="deutsch",
     tone=Color("#F7D046"),
 )  # #FED12E
+GEORGIAN: Language = Language(
+    "ka",
+    Color("#008844"),
+    "აბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰ" + "ჱჲჳჴჵ",
+    self_name="ქართული",
+)
+HEBREW: Language = Language(
+    "he", Color("#008844"), letter_range("\u0590", "\u05F4"), self_name="עִברִית"
+)
 ICELANDIC: Language = Language(
     "is",
     Color("#008844"),
@@ -233,7 +249,9 @@ ITALIAN: Language = Language(
 JAPANESE: Language = Language(
     "ja", Color("#CC2200"), JAPANESE_LETTERS, self_name="日本語"
 )
-KOREAN: Language = Language("ko", Color("#880088"), self_name="한국어")
+KOREAN: Language = Language(
+    "ko", Color("#880088"), KOREAN_LETTERS, self_name="한국어"
+)
 LATIN: Language = Language(
     "la",
     Color("#666666"),
@@ -245,6 +263,19 @@ MODERN_GREEK: Language = Language(
     Color("#444444"),
     "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω",
     self_name="ελληνικά",
+)
+NORWEGIAN: Language = Language(
+    "no",
+    Color("#00AA00"),
+    LATIN_LETTERS + "ÆØÅæøå",
+    self_name="norsk",
+)
+NORWEGIAN_BOKMAL: Language = Language(
+    "nb",
+    Color("#00AA00"),
+    LATIN_LETTERS + "ÆØÅæøå",
+    self_name="norsk bokmål",
+    parent=NORWEGIAN,
 )
 PORTUGUESE: Language = Language(
     "pt",
@@ -284,15 +315,19 @@ KNOWN_LANGUAGES: set[Language] = {
     ARMENIAN,
     CHINESE,
     ENGLISH,
+    HEBREW,
     ESPERANTO,
     FRENCH,
     GERMAN,
+    GEORGIAN,
     ICELANDIC,
     ITALIAN,
     JAPANESE,
     KOREAN,
     LATIN,
     MODERN_GREEK,
+    NORWEGIAN,
+    NORWEGIAN_BOKMAL,
     PORTUGUESE,
     POLISH,
     RUSSIAN,
