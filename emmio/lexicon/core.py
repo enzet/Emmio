@@ -17,7 +17,7 @@ from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
 )
-from emmio.language import construct_language, ENGLISH, RUSSIAN
+from emmio.language import Language, construct_language, ENGLISH, RUSSIAN
 from emmio.lexicon.config import LexiconConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
@@ -32,26 +32,25 @@ DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 class LexiconResponse(Enum):
     """User response or propagation of user response."""
 
-    UNKNOWN = 0
+    UNKNOWN = "unknown"
 
-    KNOW = 1
+    KNOW = "know"
     """User knows at least one meaning of the word."""
 
-    DONT = 2
+    DONT = "dont"
     """User doesn't know any meaning of the word."""
 
-    KNOW_OR_NOT_A_WORD = 3
+    KNOW_OR_NOT_A_WORD = "know_or_not_a_word"
     """
     User knows at least one meaning of the word or the string is not a word.
     """
 
-    DONT_BUT_PROPER_NOUN_TOO = 4
+    DONT_BUT_PROPER_NOUN_TOO = "dont_but_proper_noun_too"
     """User doesn't know the word, but it is often used as a proper noun."""
 
-    NOT_A_WORD = 5
-    """
-    The string is not a dictionary word.
-    
+    NOT_A_WORD = "not_a_word"
+    """The string is not a dictionary word.
+
     This may be misspelling, non-dictionary onomatopoeic word, foreign word,
     etc. A frequency list may contain such words if it was not filtered using
     the dictionary.
@@ -77,6 +76,8 @@ class LexiconResponse(Enum):
             case self.NOT_A_WORD:
                 return "N"
 
+        raise Exception("Unknown response type")
+
     def get_message(self) -> str:
         match self:
             case self.KNOW:
@@ -89,6 +90,8 @@ class LexiconResponse(Enum):
                 return "does not know, but a proper noun too"
             case self.NOT_A_WORD:
                 return "not a word"
+
+        raise Exception("Unknown response type")
 
 
 class AnswerType(Enum):
@@ -199,64 +202,20 @@ class LexiconLogSession(BaseModel, Session):
         self.end = time
 
 
-@dataclass
-class LexiconLogRecord(Record):
+class LexiconLogRecord(BaseModel, Record):
     """Record of user's answer."""
 
-    time: datetime
     word: str
     response: LexiconResponse
     answer_type: AnswerType | None = None
     to_skip: bool | None = None
+    time: datetime
 
     def get_time(self) -> datetime:
         return self.time
 
     def get_symbol(self) -> str:
         return self.response.get_symbol()
-
-    @classmethod
-    def deserialize(cls, structure: Any) -> "LexiconLogRecord":
-        """Parse log record from structure."""
-
-        if "words" in structure:
-            word = random.choice(structure["words"])
-        else:
-            word: str = structure["word"]
-
-        answer_type: AnswerType = AnswerType.UNKNOWN
-        if "answer_type" in structure:
-            answer_type = AnswerType(structure["answer_type"])
-
-        to_skip: bool | None = None
-        if "to_skip" in structure:
-            to_skip = structure["to_skip"]
-
-        return cls(
-            datetime.strptime(structure["date"], DATE_FORMAT),
-            word,
-            LexiconResponse.from_string(structure["response"]),
-            answer_type,
-            to_skip,
-        )
-
-    def serialize(self) -> dict[str, Any]:
-        """Serialize to structure."""
-
-        structure: dict[str, Any] = {
-            "date": self.time.strftime(DATE_FORMAT),
-            "word": self.word,
-            "response": self.response.to_string(),
-        }
-        if self.answer_type != AnswerType.UNKNOWN:
-            structure["answer_type"] = self.answer_type.value
-        if self.to_skip is not None:
-            structure["to_skip"] = self.to_skip
-
-        return structure
-
-    def to_json_str(self) -> str:
-        return json.dumps(self.serialize(), ensure_ascii=False)
 
 
 def rate(ratio: float) -> float | None:
@@ -273,35 +232,16 @@ class WordSelection(Enum):
     TOP = "top"
 
 
-@dataclass
-class LexiconLog:
-    records: list[LexiconLogRecord] = field(default_factory=list)
-    sessions: list[LexiconLogSession] = field(default_factory=list)
-
-    @classmethod
-    def deserialize(cls, structure: dict[str, Any]):
-        if "sessions" not in structure:
-            structure["sessions"] = []
-        return cls(
-            [LexiconLogRecord.deserialize(x) for x in structure["records"]],
-            [LexiconLogSession(**x) for x in structure["sessions"]],
-        )
-
-    def serialize(self) -> dict[str, Any]:
-        structure: dict[str, Any] = {"records": [], "sessions": []}
-        for record in self.records:
-            structure["records"].append(record.serialize())
-        for session in self.sessions:
-            structure["sessions"].append(json.loads(session.json()))
-
-        return structure
+class LexiconLog(BaseModel):
+    records: list[LexiconLogRecord] = []
+    sessions: list[LexiconLogSession] = []
 
 
 class Lexicon:
     """Tracking of lexicon for one particular language through time."""
 
     def __init__(self, path: Path, config: LexiconConfig):
-        self.language = construct_language(config.language)
+        self.language = Language.from_code(config.language)
         self.config: LexiconConfig = config
 
         self.file_path = path / config.file_name
@@ -315,12 +255,13 @@ class Lexicon:
         # Read data from file.
 
         if not self.file_path.exists():
-            self.write()
+            with self.file_path.open("w+") as output:
+                output.write("{}")
 
         with self.file_path.open() as input_file:
             data = json.load(input_file)
 
-        self.log = LexiconLog.deserialize(data)
+        self.log: LexiconLog = LexiconLog(**data)
 
         for record in self.log.records:
             self.words[record.word] = WordKnowledge(
@@ -348,8 +289,8 @@ class Lexicon:
         logging.debug(f"writing lexicon to {self.file_path}")
 
         with self.file_path.open("w+") as output:
-            json.dump(
-                self.log.serialize(), output, indent=4, ensure_ascii=False
+            output.write(
+                self.log.json(indent=4, ensure_ascii=False, exclude_none=True)
             )
 
     def know(self, word: str) -> bool:
@@ -370,12 +311,14 @@ class Lexicon:
             if word == record.word:
                 return record
 
+        return None
+
     def register(
         self,
         word: str,
         response: LexiconResponse,
         to_skip: bool | None,
-        date: datetime | None = None,
+        time: datetime | None = None,
         answer_type: AnswerType = AnswerType.UNKNOWN,
     ) -> None:
         """Register user's response.
@@ -387,23 +330,23 @@ class Lexicon:
         :param answer_type: is it was a user answer or the previous answer was
             used.
         """
-        if not date:
-            date = datetime.now()
+        if not time:
+            time = datetime.now()
 
         self.words[word] = WordKnowledge(response, to_skip)
 
         self.log.records.append(
-            LexiconLogRecord(date, word, response, answer_type, to_skip)
+            LexiconLogRecord(time, word, response, answer_type, to_skip)
         )
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
-            self.dates.append(date)
+            self.dates.append(time)
             self.responses.append(1 if response == LexiconResponse.KNOW else 0)
 
-            if not self.start or date < self.start:
-                self.start = date
-            if not self.finish or date > self.finish:
-                self.finish = date
+            if not self.start or time < self.start:
+                self.start = time
+            if not self.finish or time > self.finish:
+                self.finish = time
 
     def get_statistics(self) -> float:
         count: list[int] = [0, 0]
@@ -520,7 +463,7 @@ class Lexicon:
 
     def get_rate(
         self, point_1: datetime, point_2: datetime
-    ) -> (float | None, float | None):
+    ) -> tuple[float | None, float | None]:
         """
         Get rate for selected time interval.
 
@@ -570,7 +513,7 @@ class Lexicon:
         sentences: SentencesCollection,
         skip_known: bool = False,
         skip_unknown: bool = False,
-    ) -> (bool, LexiconResponse, Dictionary | None):
+    ) -> tuple[bool, LexiconResponse, Dictionary | None]:
         """Ask user if the word is known."""
         sys.stdout.write(f"\n    {word}\n")
 

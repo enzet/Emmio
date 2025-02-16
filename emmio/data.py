@@ -20,7 +20,7 @@ from emmio.sentence.core import SentencesCollection, Sentences
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
 from emmio.text.data import TextData
-from emmio.ui import progress
+from emmio.ui import Table, progress
 from emmio.util import (
     day_start,
     first_day_of_week,
@@ -241,7 +241,7 @@ class Data:
 
         interface.print(f"Pressure: {pressure:.2f}")
         interface.print(f"Postponed: {postponed}")
-        interface.table(["Course", "Repeat", "Add", "All"], rows)
+        interface.print(Table(["Course", "Repeat", "Add", "All"], rows))
 
     def get_read_processes(self, user_id: str) -> dict[str, Read]:
         return self.users_data[user_id].get_read_processes()
