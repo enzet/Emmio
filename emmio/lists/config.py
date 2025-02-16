@@ -27,7 +27,7 @@ class FrequencyListConfig(BaseModel):
     file_format: FrequencyListFileFormat
     language: LanguageConfig
     path: Path
-    url: str | None
+    url: str | None = None
 
     csv_delimiter: str = ","
     csv_header: list[str] = ["word", "count"]

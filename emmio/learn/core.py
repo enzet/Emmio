@@ -501,7 +501,7 @@ def load_old_format(path: Path):
             ]
             for time, answer, interval in zip(times, answers, intervals):
                 record: LearningRecord = LearningRecord(
-                    question_id=question_id,
+                    question_id=str(question_id),
                     response=answer,
                     sentence_id=0,
                     time=time,

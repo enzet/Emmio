@@ -33,7 +33,7 @@ class LexiconConfig(BaseModel):
     selection: LexiconSelection
     """How words was picked."""
 
-    frequency_list: str | None = None
+    frequency_list: dict | None = None
     """Frequency list used to check lexicon."""
 
     dictionaries: list[dict] = []

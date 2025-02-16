@@ -1,6 +1,10 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
+import logging
 from pathlib import Path
+import sys
+
+from pydantic import ValidationError
 
 from emmio.language import Language
 from emmio.lexicon.config import LexiconConfig
@@ -22,9 +26,16 @@ class LexiconData:
         lexicons: dict[str, Lexicon] = {}
 
         for lexicon_id, lexicon_config in config.items():
-            lexicons[lexicon_id] = Lexicon(
-                path, LexiconConfig(**lexicon_config)
-            )
+            try:
+                lexicons[lexicon_id] = Lexicon(
+                    path, LexiconConfig(**lexicon_config)
+                )
+            except ValidationError as e:
+                logging.fatal(
+                    f"Error loading lexicon `{lexicon_id}` with config "
+                    f"`{lexicon_config}`: {e}."
+                )
+                sys.exit(1)
 
         return cls(path, lexicons)
 
