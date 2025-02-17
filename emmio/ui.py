@@ -214,6 +214,10 @@ class StringMarkdownInterface(StringInterface):
 
 
 class TerminalInterface(Interface):
+    def __init__(self, use_input: bool):
+        super().__init__()
+        self.use_input: bool = use_input
+
     def header(self, message: str) -> None:
         print(message)
 
@@ -243,6 +247,10 @@ class TerminalInterface(Interface):
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
     ) -> str:
+
+        if self.use_input:
+            return input()
+
         sys.stdout.write(len(right_word) * "_")
         sys.stdout.write("\r")
         sys.stdout.flush()
@@ -289,8 +297,9 @@ class TerminalInterface(Interface):
 
 
 class RichInterface(TerminalInterface):
-    def __init__(self):
+    def __init__(self, use_input: bool):
         self.console: Console = Console(highlight=False)
+        self.use_input: bool = use_input
 
     def print(self, text) -> None:
 
@@ -362,7 +371,7 @@ class RichInterface(TerminalInterface):
             + " ".join(f"\\[{x}]" for x in options)
         )
         while True:
-            char: str = input()
+            char: str = input() if self.use_input else get_char()
             for option in options:
                 if not option:
                     raise RuntimeError()
@@ -371,6 +380,9 @@ class RichInterface(TerminalInterface):
                         break
                 if c.lower() == char:
                     return option.lower()
+
+    def get_char(self) -> str:
+        return input() if self.use_input else get_char()
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")

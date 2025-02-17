@@ -23,7 +23,7 @@ from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
 from emmio.text_util import sanitize
-from emmio.ui import Interface
+from emmio.ui import Colorized, Interface, Text
 from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
@@ -96,19 +96,23 @@ class DefinitionValue:
 
         return cls(text)
 
-    def to_str(self, to_hide: list[str] | None = None) -> str | None:
-        """Get human-readable form of definition."""
+    def to_text(self, to_hide: list[str] | None = None) -> Text:
+        """Get human-readable form of definition.
+
+        :param to_hide: list of words to be hidden from the output
+        """
 
         value: str = self.value
 
         if to_hide is not None:
             value = sanitize(value, to_hide, SANITIZER)
 
-        return value + (
-            f" ({self.description})"
-            if self.description and to_hide is None
-            else ""
-        )
+        text: Text = Text()
+        text.add(value)
+        if self.description:
+            text.add(Colorized(f" ({self.description})", "#AAAAAA"))
+
+        return text
 
 
 @dataclass
@@ -144,12 +148,12 @@ class Definition:
 
         return True
 
-    def to_str(self, to_hide: list[str] | None = None) -> str | None:
+    def to_text(self, to_hide: list[str] | None = None) -> Text:
         """Get human-readable form of definition."""
         if to_hide is not None and not self.is_common():
             return None
 
-        result: str = ""
+        text: Text = Text()
 
         if self.descriptors and to_hide is None:
             result += "(" + ", ".join(self.descriptors) + ") "

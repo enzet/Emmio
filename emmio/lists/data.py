@@ -43,9 +43,12 @@ class ListsData(ArtifactData):
 
         return cls(path, frequency_lists, word_lists)
 
-    def get_frequency_list(self, id_: str) -> FrequencyList | None:
+    def get_frequency_list(
+        self, list_usage_config: dict
+    ) -> FrequencyList | None:
         """Get frequency list."""
 
+        id_: str = list_usage_config["id"]
         if id_ not in self.frequency_lists:
             return None
 
@@ -53,9 +56,13 @@ class ListsData(ArtifactData):
 
         return self.frequency_lists[id_]
 
-    def get_list(self, id_: str) -> List | None:
-        if id_ in self.frequency_lists:
-            return self.frequency_lists[id_]
-        if id_ in self.word_lists:
-            return self.word_lists[id_]
+    def get_list(self, list_usage_config: dict) -> List | None:
+        """Get word list or frequency list."""
+
+        if frequency_list := self.get_frequency_list(list_usage_config):
+            return frequency_list
+
+        if list_usage_config["id"] in self.word_lists:
+            return self.word_lists[list_usage_config["id"]]
+
         return None

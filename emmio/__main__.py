@@ -46,6 +46,11 @@ async def asynchronous_main():
     parser: ArgumentParser = ArgumentParser("Emmio")
     parser.add_argument("--data", help="path to data directory")
     parser.add_argument("--user", help="user name")
+    parser.add_argument(
+        "--use-input",
+        help="use `input()` function instead of `getchar()`",
+        action="store_true",
+    )
 
     subparser = parser.add_subparsers(dest="command", required=False)
 
@@ -132,7 +137,12 @@ async def asynchronous_main():
             user_id: str = (
                 arguments.user if arguments.user else getpass.getuser()
             )
-            robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
+            robot: Emmio = Emmio(
+                data_path,
+                RichInterface(arguments.use_input),
+                data,
+                user_id,
+            )
             await robot.process_command(arguments.single_command)
 
         case _:
@@ -141,7 +151,12 @@ async def asynchronous_main():
             user_id: str = (
                 arguments.user if arguments.user else getpass.getuser()
             )
-            robot: Emmio = Emmio(data_path, RichInterface(), data, user_id)
+            robot: Emmio = Emmio(
+                data_path,
+                RichInterface(arguments.use_input),
+                data,
+                user_id,
+            )
             await robot.run()
 
 

@@ -159,12 +159,12 @@ def compute_lexicon_rate(
             length: int = right - left
 
         if length - answers_know >= precision:
-            date_values.append(data[right][0])
+            date_ranges.append((data[left][0], data[right][0]))
             rate_values.append(
                 rate((length - answers_know) / length if length else 0.0)
             )
 
-    return date_values, rate_values
+    return date_ranges, rate_values
 
 
 class WordKnowledge:

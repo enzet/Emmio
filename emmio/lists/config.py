@@ -22,8 +22,8 @@ class FrequencyListFileFormat(Enum):
 class FrequencyListConfig(BaseModel):
     """Configuration of the word list or frequency list."""
 
-    name: str
-    source: str
+    name: str | None = None
+    source: str | None = None
     file_format: FrequencyListFileFormat
     language: LanguageConfig
     path: Path

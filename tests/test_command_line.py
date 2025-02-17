@@ -28,6 +28,7 @@ def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
                     temp_user_id,
                     "--data",
                     temp_directory.absolute().as_posix(),
+                    "--use-input",
                 ],
             ):
                 main()
@@ -54,7 +55,8 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
 
     try:
         temp_directory: Path = Path("__test_existing_data")
-        temp_directory.mkdir(parents=True, exist_ok=True)
+        for subdirectory in ("lists",):
+            (temp_directory / subdirectory).mkdir(parents=True, exist_ok=True)
         temp_user_id: str = "alice"
         temp_user_directory: Path = temp_directory / "users" / temp_user_id
         temp_user_directory.mkdir(parents=True, exist_ok=True)
@@ -64,6 +66,21 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
             )
         temp_user_config: Path = temp_user_directory / "config.json"
 
+        lists_configuration: dict = {
+            "nb": {
+                "language": "nb",
+                "file_format": "list",
+                "path": "nb.txt",
+                "type": "frequency_list",
+                "is_stripped": False,
+            },
+        }
+        with open(temp_directory / "lists" / "config.json", "w") as output_file:
+            json.dump(lists_configuration, output_file)
+
+        with open(temp_directory / "lists" / "nb.txt", "w") as output_file:
+            output_file.write("hei 1")
+
         user_config_structure: dict = {
             "name": "Alice",
             "learn": {},
@@ -72,6 +89,8 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
                     "language": "nb",
                     "file_name": "nb.json",
                     "selection": "frequency",
+                    "frequency_list": {"id": "nb"},
+                    "precision_per_week": 5,
                 },
             },
             "read": {},
@@ -110,6 +129,7 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
                     temp_user_id,
                     "--data",
                     temp_directory.absolute().as_posix(),
+                    "--use-input",
                 ],
             ):
                 main()
