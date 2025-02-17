@@ -15,8 +15,14 @@ class SentenceDatabase(Database):
         ID: INTEGER, SENTENCE: TEXT
     """
 
-    def create(self, language: Language, cache_path: Path):
-        table_id: str = f"{language.language.part1}_sentences"
+    def create(self, language: Language, cache_path: Path) -> None:
+        """Create table for sentences written in the specified language.
+
+        :param language: language of the sentences
+        :param cache_path: path to the cache directory
+        """
+
+        table_id: str = f"{language.get_code()}_sentences"
         file_path = cache_path / f"{language.get_part3()}_sentences.tsv"
 
         if not file_path.exists():
@@ -35,18 +41,28 @@ class SentenceDatabase(Database):
                     f"_sentences.tsv.bz2",
                     zip_path,
                 )
-            if zip_path.exists():
+
+                # Check if file has appropriate size.
+                if zip_path.stat().st_size < 1000:
+                    logging.error(
+                        f"File `{zip_path}` seems to be empty. " f"Removing it."
+                    )
+                    # Remove zip file.
+                    zip_path.unlink()
+                    return
+
                 with bz2.open(zip_path) as zip_file:
                     with file_path.open("wb+") as cache_file:
                         logging.info(
-                            f"unzipping sentences for {language.get_name()}"
+                            f"Unzipping sentences for {language.get_name()} from "
+                            f"`{zip_path}` to `{file_path}`."
                         )
                         cache_file.write(zip_file.read())
 
         self.cursor.execute(
             f"CREATE TABLE {table_id} (id integer primary key, sentence text)"
         )
-        print(f"Reading {table_id}...")
+        logging.info(f"Reading table `{table_id}`...")
         with file_path.open() as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
@@ -76,8 +92,14 @@ class SentenceDatabase(Database):
         :param cache_path: path to the cache directory
         :returns: a mapping from sentence identifiers to sentences
         """
-        result = {}
         table_id: str = f"{language.get_code()}_sentences"
+
+        # Check if table exists.
+        if not self.has_table(table_id):
+            logging.error(f"Table `{table_id}` does not exist.")
+            return {}
+
+        result: dict[str, Sentence] = {}
         if not self.has_table(table_id):
             self.create(language, cache_path)
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
