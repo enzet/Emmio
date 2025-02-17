@@ -39,6 +39,16 @@ class TatoebaSentences(Sentences):
     `<path>/cache/links_<language 1 code>_<language 2 code>.json`.
     """
 
+    cache: dict[str, list[int]] = field(default_factory=dict)
+    """Mapping from words to sentences.
+
+    Mapping from words to lists of identifiers of sentences that contain these
+    words. E.g. `book -> [1, 2]`, where `1` is `I have a book` and `2` is
+    `You have a book`.
+
+    Cache for words are in `<path>/cache/cache_<language 2 code>.json`.
+    """
+
     def __post_init__(self) -> None:
         """Fill links and cache."""
 
@@ -46,8 +56,6 @@ class TatoebaSentences(Sentences):
             self.path / "cache" / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"
         )
-
-        self.links: dict[int, set[int]] = {}
 
         if links_cache_path.is_file():
             self.read_link_sets(links_cache_path)
@@ -61,19 +69,17 @@ class TatoebaSentences(Sentences):
                     content[key] = list(self.links[key])
                 json.dump(content, output_file)
 
-        self.cache: dict[str, list[int]] = {}
-
-        links_cache_path: str = join(
+        word_cache_path: str = join(
             self.path / "cache", f"cache_{self.language_2.get_part3()}.json"
         )
         # FIXME: remove cache file.
 
-        if os.path.isfile(links_cache_path):
+        if os.path.isfile(word_cache_path):
             logging.info("Reading word cache...")
-            with open(links_cache_path) as input_file:
+            with open(word_cache_path) as input_file:
                 self.cache = json.load(input_file)
         else:
-            self.fill_cache(links_cache_path)
+            self.fill_cache(word_cache_path)
 
     def read_links(self, cache_path: Path):
         file_path: Path = cache_path / "links.csv"
@@ -92,7 +98,10 @@ class TatoebaSentences(Sentences):
                         logging.info("Unzipping links file...")
                         cache_file.write(zip_file.read())
 
-        logging.info("Reading links...")
+        logging.info(
+            f"Reading links from `links.csv` between {self.language_1.get_name()} "
+            f"and {self.language_2.get_name()}..."
+        )
         with file_path.open() as input_1:
             lines = input_1.readlines()
 
@@ -175,6 +184,35 @@ class TatoebaSentences(Sentences):
     def __len__(self):
         raise NotImplementedError()
 
+    def get_sentences(self):
+        result: list[SentenceTranslations] = []
+
+        sentences: dict[str, Sentence] = self.database.get_sentences(
+            self.language_2, cache_path
+        )
+
+        for id_ in ids_to_check:
+            if id_ in ids_to_skip:
+                continue
+            sentence: Sentence = self.database.get_sentence(
+                self.language_2, id_
+            )
+            if len(sentence.text) > max_length:
+                continue
+            index = sentence.text.lower().find(word)
+            assert index >= 0
+            if str(id_) in self.links:
+                result.append(
+                    SentenceTranslations(
+                        sentence,
+                        [
+                            self.database.get_sentence(self.language_1, x)
+                            for x in self.links[str(id_)]
+                        ],
+                    )
+                )
+        return result
+
     def filter_by_word(
         self,
         word: str,
@@ -233,16 +271,8 @@ class TatoebaSentences(Sentences):
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceTranslations]]:
-        sentence_translations: list[SentenceTranslations] = self.filter_by_word(
-            word, ids_to_skip, max_length, max_number
+        return Sentences.rate(
+            user_data,
+            self.filter_by_word(word, ids_to_skip, max_length, max_number),
+            self.language_2,
         )
-        result: list[tuple[float, SentenceTranslations]] = []
-        for sentence_translation in sentence_translations:
-            result.append(
-                (
-                    sentence_translation.rate(self.language_2, user_data),
-                    sentence_translation,
-                )
-            )
-        result.sort(key=lambda x: -x[0])
-        return result
