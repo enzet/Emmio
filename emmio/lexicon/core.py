@@ -18,7 +18,7 @@ from emmio.dictionary.core import (
     DictionaryItem,
 )
 from emmio.language import Language, construct_language, ENGLISH, RUSSIAN
-from emmio.lexicon.config import LexiconConfig
+from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
 from emmio.ui import get_char, Interface
@@ -873,4 +873,4 @@ class Lexicon:
         return self.log.sessions
 
     def is_frequency(self) -> bool:
-        return self.config.selection == "frequency"
+        return self.config.selection == LexiconSelection.FREQUENCY
