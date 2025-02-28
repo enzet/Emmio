@@ -116,8 +116,8 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         with patch(
             "builtins.input",
             side_effect=[
-                "stat learn",
-                "stat lexicon",
+                "lexicon",
+                "y",
                 "q",
             ],
         ):
