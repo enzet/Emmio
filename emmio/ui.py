@@ -86,27 +86,27 @@ class Text:
 class Formatted:
     """Formatted text element."""
 
-    def __init__(self, text: Text, format: str):
+    def __init__(self, text, format: str):
         assert format in ["bold", "italic", "underline"]
-        self.text: Text = text
+        self.text = text
         self.format: str = format
 
 
 class Colorized:
     """Colorized text element."""
 
-    def __init__(self, text: Text, color: str):
-        self.text: Text = text
+    def __init__(self, text, color: str):
+        self.text = text
         self.color: str = color
 
 
 class Block:
     """Block of text."""
 
-    def __init__(self, text: Text, padding: tuple[int, int, int, int]):
+    def __init__(self, text, padding: tuple[int, int, int, int]):
         if text is None:
             raise Exception("Text is None")
-        self.text: Text = text
+        self.text = text
         self.padding: tuple[int, int, int, int] = padding
 
 

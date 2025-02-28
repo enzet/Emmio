@@ -23,7 +23,7 @@ from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
 from emmio.text_util import sanitize
-from emmio.ui import Colorized, Interface, Text
+from emmio.ui import Block, Colorized, Formatted, Interface, Text
 from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
@@ -148,23 +148,27 @@ class Definition:
 
         return True
 
-    def to_text(self, to_hide: list[str] | None = None) -> Text:
-        """Get human-readable form of definition."""
+    def to_text(self, to_hide: list[str] | None = None) -> Text | None:
+        """Get human-readable form of definition.
+
+        :param to_hide: list of words to be hidden from the output
+        """
         if to_hide is not None and not self.is_common():
             return None
 
         text: Text = Text()
 
-        if self.descriptors and to_hide is None:
-            result += "(" + ", ".join(self.descriptors) + ") "
+        if self.descriptors:
+            text.add(
+                Colorized("(" + ", ".join(self.descriptors) + ") ", "#AAAAAA")
+            )
 
-        result += "; ".join(x.to_str(to_hide) for x in self.values)
+        for index, value in enumerate(self.values):
+            text.add(value.to_text(to_hide))
+            if index < len(self.values) - 1:
+                text.add("; ")
 
-        # FIXME: hack for the Ukrainian.
-        if to_hide and "•" in result:
-            return "•••"
-
-        return result
+        return text
 
 
 @dataclass
@@ -240,26 +244,31 @@ class Form:
         # is not # common.
         return False
 
-    def to_str(
+    def to_text(
         self,
         language: Language,
-        interface: Interface,
         show_word: bool = True,
-        words_to_hide: set[str] = None,
-        hide_translations: set[str] = None,
+        words_to_hide: set[str] | None = None,
+        hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions: int = 5,
-    ) -> str:
+    ) -> Text | None:
         """Get human-readable representation of the word form."""
+
+        text: Text = Text()
+
         to_hide: list[str] | None = None
 
-        if not show_word:
+        if not show_word and words_to_hide and hide_translations:
             to_hide = sorted(
                 list(words_to_hide | hide_translations), key=lambda x: -len(x)
             )
 
-        description: str = self.part_of_speech
-        if show_word and self.transcriptions:
+        description: list[str] = []
+        if self.part_of_speech:
+            description.append(self.part_of_speech)
+
+        if show_word:
             if self.gender is not None:
                 description += f" {self.gender}"
             description += " " + ", ".join(
@@ -280,20 +289,29 @@ class Form:
         links: list[Link] = self.get_links(only_common)
 
         if not definitions and not links:
-            return ""
+            return None
 
-        result: str = "  " + interface.colorize(description, "grey") + "\n"
+        if description:
+            text.add(
+                Block(Colorized(" ".join(description), "#AAAAAA"), (0, 0, 0, 2))
+            )
 
         if definitions:
-            result += "    " + "\n    ".join(definitions) + "\n"
+            for definition in definitions:
+                text.add(Block(definition, (0, 0, 0, 4)))
 
         for link in links:
             if show_word:
-                result += f"    → {link.link_type} of {link.link_value}\n"
+                link_text: Text = (
+                    Text()
+                    .add("-> ")
+                    .add(Colorized(link.link_type + " of", "#AAAAAA"))
+                    .add(" " + link.link_value)
+                )
             else:
-                result += f"    → {link.link_type}\n"
+                text.add(Block(f"-> {link.link_type}", (0, 0, 0, 4)))
 
-        return result
+        return text
 
     def get_links(self, only_common: bool = True):
         return [
