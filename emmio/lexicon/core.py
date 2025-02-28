@@ -289,9 +289,7 @@ class Lexicon:
         logging.debug(f"writing lexicon to {self.file_path}")
 
         with self.file_path.open("w+") as output:
-            output.write(
-                self.log.json(indent=4, ensure_ascii=False, exclude_none=True)
-            )
+            output.write(self.log.model_dump_json(indent=4, exclude_none=True))
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""
