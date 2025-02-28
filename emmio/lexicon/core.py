@@ -662,11 +662,19 @@ class Lexicon:
         actions: int = 0
         wrong_answers: int = 0
 
+        checked_in_session: set[str] = set()
+
         exit_code: str = "quit"
 
         mf_index: int = 0
 
         while True:
+
+            # If all words are checked, exit. This case may happen only if the
+            # frequency list is too small.
+            if len(checked_in_session) >= len(frequency_list):
+                break
+
             picked_word = None
             if log_type == "frequency":
                 (
@@ -688,6 +696,9 @@ class Lexicon:
                 if not items or items[0].is_not_common(learning.language):
                     continue
                 print(f"[{mf_index}]")
+
+            if picked_word:
+                checked_in_session.add(picked_word)
 
             if self.do_skip(picked_word, skip_known, skip_unknown):
                 continue
