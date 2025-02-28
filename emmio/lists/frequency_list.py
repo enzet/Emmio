@@ -45,6 +45,10 @@ class FrequencyList(List):
 
     def add(self, word: str, occurrences: int = 1) -> None:
         """Add word and its occurrences in some text."""
+        if not self.data:
+            self.data = {}
+        if word not in self.data:
+            self.data[word] = 0
         self.data[word] += occurrences
         self._occurrences += occurrences
         self._sorted_keys = sorted(
@@ -53,8 +57,8 @@ class FrequencyList(List):
 
     def ignore_proper_nouns(self) -> None:
         """Make frequency list case-insensitive."""
-        for word in self.data.keys():
-            word: str
+        keys: list[str] = list(self.data.keys())
+        for word in keys:
             if word.lower() != word:
                 if word.lower() in self.data:
                     self.data[word.lower()] += self.data[word]
