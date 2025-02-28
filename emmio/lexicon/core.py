@@ -130,7 +130,7 @@ class AnswerType(Enum):
 
 
 def compute_lexicon_rate(
-    data: list[tuple[datetime, LexiconResponse]],
+    data: list[tuple[datetime, int]],
     precision: int = 100,
     before: datetime | None = None,
 ) -> tuple[list[tuple[datetime, datetime]], list[float | None]]:
@@ -138,31 +138,34 @@ def compute_lexicon_rate(
 
     :param data: list of (response time, lexicon response), is assumed to be
         sorted by date
-    :param precision: simply a number of "don't know" answers
+    :param precision: desired number of "don't know" answers
     :param before: right data bound
     :return: list of ((start date, end date), rate value)
     """
+
+    # Indices of "don't know" answers.
+    unknown_indices: list[int] = [
+        index for index, (_, response) in enumerate(data) if response == 0
+    ]
+
+    # If we don't have enough "don't know" answers, return empty lists.
+    if len(unknown_indices) < precision:
+        return [], []
+
     date_ranges: list[tuple[datetime, datetime]] = []
     rate_values: list[float | None] = []
-    left, right, answers_know = 0, 0, 0
 
-    while right < len(data) - 1:
-        answers_know += 1 if data[right][1] else 0
-        right += 1
-        if before and data[right][0] > before:
-            break
-        length: int = right - left
-
-        if length - answers_know > precision:
-            answers_know -= 1 if data[left][1] else 0
-            left += 1
-            length: int = right - left
-
-        if length - answers_know >= precision:
-            date_ranges.append((data[left][0], data[right][0]))
-            rate_values.append(
-                rate((length - answers_know) / length if length else 0.0)
-            )
+    index: int = 0
+    while index <= len(unknown_indices) - precision:
+        data_index_1: int = unknown_indices[index - 1] + 1 if index > 0 else 0
+        data_index_2: int = unknown_indices[index + precision - 1]
+        date_ranges.append((data[data_index_1][0], data[data_index_2][0]))
+        length: int = data_index_2 - data_index_1 + 1
+        number_of_knows: int = sum(
+            x[1] for x in data[data_index_1 : data_index_2 + 1]
+        )
+        rate_values.append(rate((length - number_of_knows) / length))
+        index += 1
 
     return date_ranges, rate_values
 
@@ -334,7 +337,13 @@ class Lexicon:
         self.words[word] = WordKnowledge(response, to_skip)
 
         self.log.records.append(
-            LexiconLogRecord(time, word, response, answer_type, to_skip)
+            LexiconLogRecord(
+                word=word,
+                response=response,
+                answer_type=answer_type,
+                to_skip=to_skip,
+                time=time,
+            )
         )
 
         if response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
