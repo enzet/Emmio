@@ -141,6 +141,9 @@ class Table:
 class Interface:
     """User input/output interface."""
 
+    def __init__(self, use_input: bool):
+        self.use_input: bool = use_input
+
     def print(self, text) -> None:
         """Simply print text message."""
         raise NotImplementedError()
@@ -152,6 +155,9 @@ class Interface:
     def input(self, prompt: str) -> str:
         """Return user input."""
         raise NotImplementedError()
+
+    def get_char(self) -> str:
+        return input() if self.use_input else get_char()
 
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
@@ -215,8 +221,7 @@ class StringMarkdownInterface(StringInterface):
 
 class TerminalInterface(Interface):
     def __init__(self, use_input: bool):
-        super().__init__()
-        self.use_input: bool = use_input
+        super().__init__(use_input)
 
     def header(self, message: str) -> None:
         print(message)
@@ -298,6 +303,7 @@ class TerminalInterface(Interface):
 
 class RichInterface(TerminalInterface):
     def __init__(self, use_input: bool):
+        super().__init__(use_input)
         self.console: Console = Console(highlight=False)
         self.use_input: bool = use_input
 
@@ -380,9 +386,6 @@ class RichInterface(TerminalInterface):
                         break
                 if c.lower() == char:
                     return option.lower()
-
-    def get_char(self) -> str:
-        return input() if self.use_input else get_char()
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")

@@ -548,9 +548,9 @@ class Lexicon:
 
         print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
 
-        answer: str = get_char()
+        answer: str = interface.get_char()
         while answer not in "yY\rnNbBsS-qQz":
-            answer = get_char()
+            answer = interface.get_char()
 
         response: LexiconResponse
         skip_in_future: bool | None = None
