@@ -68,3 +68,55 @@ def test_rate_zero_minimal(lexicon: Lexicon) -> None:
         [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
         [0.0],
     )
+
+
+def test_rate_zero_additional(lexicon: Lexicon) -> None:
+    """Test rate with additional data."""
+    register(lexicon, [0, 0, 0])
+    assert lexicon.construct_precise(precision=2) == (
+        [
+            (datetime(2000, 1, 1), datetime(2000, 1, 2)),
+            (datetime(2000, 1, 2), datetime(2000, 1, 3)),
+        ],
+        [0.0, 0.0],
+    )
+
+
+def test_half_minimal(lexicon: Lexicon) -> None:
+    """Test half minimal."""
+    register(lexicon, [1, 0])
+    assert lexicon.construct_precise(precision=1) == (
+        [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
+        [1.0],
+    )
+
+
+def test_half_additional(lexicon: Lexicon) -> None:
+    """Test half additional."""
+
+    register(lexicon, [1, 0, 1, 0, 1, 0])
+
+    assert lexicon.construct_precise(precision=2) == (
+        [
+            (datetime(2000, 1, 1), datetime(2000, 1, 4)),
+            (datetime(2000, 1, 3), datetime(2000, 1, 6)),
+        ],
+        [1.0, 1.0],
+    )
+    assert lexicon.construct_precise(precision=1) == (
+        [
+            (datetime(2000, 1, 1), datetime(2000, 1, 2)),
+            (datetime(2000, 1, 3), datetime(2000, 1, 4)),
+            (datetime(2000, 1, 5), datetime(2000, 1, 6)),
+        ],
+        [1.0, 1.0, 1.0],
+    )
+
+
+def test_quarter_minimal(lexicon: Lexicon) -> None:
+    """Test quarter minimal."""
+    register(lexicon, [1, 1, 1, 0])
+    assert lexicon.construct_precise(precision=1) == (
+        [(datetime(2000, 1, 1), datetime(2000, 1, 4))],
+        [2.0],
+    )
