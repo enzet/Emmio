@@ -355,20 +355,6 @@ class Lexicon:
             if not self.finish or time > self.finish:
                 self.finish = time
 
-    def get_statistics(self) -> float:
-        count: list[int] = [0, 0]
-        for record in self.log.records:
-            if record.response == LexiconResponse.KNOW:
-                count[0] += 1
-            elif record.response == LexiconResponse.DONT:
-                count[1] += 1
-
-        count_ratio: float = 0
-        if count[0] + count[1]:
-            count_ratio = count[0] / (count[0] + count[1])
-
-        return count_ratio
-
     def has(self, word: str) -> bool:
         """Check whether there is a response in at least one log."""
         return word in self.words
@@ -838,17 +824,6 @@ class Lexicon:
             return True
 
         return False
-
-    def print_statistics(self) -> None:
-        count_ratio: float = self.get_statistics()
-
-        print(
-            "Skipping:          %9.4f"
-            % (len(self.log.records) / len(self.words))
-        )
-        print("Count ratio:       %9.4f %%" % (count_ratio * 100))
-        print("Words:             %4d" % len(self.words))
-        print("Size:              %4d" % self.get_log_size())
 
     def __len__(self) -> int:
         return len(self.words)
