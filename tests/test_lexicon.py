@@ -36,3 +36,35 @@ def test_register(lexicon: Lexicon) -> None:
     assert len(lexicon.responses) == 1
     assert lexicon.has("apple")
     assert lexicon.get("apple") == LexiconResponse.KNOW
+
+
+def register(lexicon: Lexicon, args: list[int]) -> None:
+    """Register."""
+    for index, arg in enumerate(args):
+        lexicon.register(
+            "apple",
+            LexiconResponse.KNOW if arg == 1 else LexiconResponse.DONT,
+            False,
+            datetime(2000, 1, index + 1),
+        )
+
+
+def test_rate_empty(lexicon: Lexicon) -> None:
+    """Test rate empty."""
+    assert lexicon.construct_precise(precision=2) == ([], [])
+
+
+def test_rate_zero_minimal(lexicon: Lexicon) -> None:
+    """Test rate."""
+    register(lexicon, [0, 0])
+    assert lexicon.construct_precise(precision=1) == (
+        [
+            (datetime(2000, 1, 1), datetime(2000, 1, 1)),
+            (datetime(2000, 1, 2), datetime(2000, 1, 2)),
+        ],
+        [0.0, 0.0],
+    )
+    assert lexicon.construct_precise(precision=2) == (
+        [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
+        [0.0],
+    )
