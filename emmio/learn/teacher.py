@@ -462,6 +462,7 @@ class Teacher:
                     command_word,
                     LexiconResponse.KNOW,
                     to_skip=False,
+                    request_time=None,
                     answer_type=AnswerType.USER_ANSWER,
                 )
                 self.learning_lexicon.write()
@@ -472,6 +473,7 @@ class Teacher:
                     command_word,
                     LexiconResponse.NOT_A_WORD,
                     to_skip=False,
+                    request_time=None,
                     answer_type=AnswerType.USER_ANSWER,
                 )
                 self.learning_lexicon.write()

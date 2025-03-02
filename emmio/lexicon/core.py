@@ -17,7 +17,7 @@ from emmio.dictionary.core import (
     Dictionary,
     DictionaryItem,
 )
-from emmio.language import Language, construct_language, ENGLISH, RUSSIAN
+from emmio.language import Language, ENGLISH, RUSSIAN
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
@@ -213,9 +213,13 @@ class LexiconLogRecord(BaseModel, Record):
     answer_type: AnswerType | None = None
     to_skip: bool | None = None
     time: datetime
+    request_time: datetime | None = None
 
     def get_time(self) -> datetime:
         return self.time
+
+    def get_request_time(self) -> datetime | None:
+        return self.request_time
 
     def get_symbol(self) -> str:
         return self.response.get_symbol()
@@ -319,6 +323,7 @@ class Lexicon:
         word: str,
         response: LexiconResponse,
         to_skip: bool | None,
+        request_time: datetime | None = None,
         time: datetime | None = None,
         answer_type: AnswerType = AnswerType.UNKNOWN,
     ) -> None:
@@ -327,7 +332,8 @@ class Lexicon:
         :param word: the question id that user was responded to.
         :param response: response type.
         :param to_skip: skip this word in the future.
-        :param date: time of response.
+        :param request_time: time when the question was asked.
+        :param time: time of the response.
         :param answer_type: is it was a user answer or the previous answer was
             used.
         """
@@ -338,11 +344,12 @@ class Lexicon:
 
         self.log.records.append(
             LexiconLogRecord(
+                time=time,
                 word=word,
                 response=response,
                 answer_type=answer_type,
                 to_skip=to_skip,
-                time=time,
+                start_time=request_time,
             )
         )
 
@@ -533,6 +540,8 @@ class Lexicon:
                     )
                 )
 
+        start_time: datetime = datetime.now()
+
         translation = dictionaries.to_str(
             word, self.language, [ENGLISH, RUSSIAN], interface
         )
@@ -580,6 +589,7 @@ class Lexicon:
             word,
             response,
             skip_in_future,
+            start_time,
             answer_type=AnswerType.USER_ANSWER,
         )
 
@@ -766,6 +776,7 @@ class Lexicon:
                     picked_word,
                     last_response,
                     to_skip,
+                    None,
                     answer_type=AnswerType.PROPAGATE__SKIP,
                 )
                 return True
@@ -775,6 +786,7 @@ class Lexicon:
                 self.register(
                     picked_word,
                     LexiconResponse.NOT_A_WORD,
+                    None,
                     None,
                     answer_type=AnswerType.PROPAGATE__NOT_A_WORD,
                 )
@@ -799,6 +811,7 @@ class Lexicon:
                     picked_word,
                     last_response,
                     None,
+                    None,
                     answer_type=AnswerType.PROPAGATE__TIME,
                 )
                 return True
@@ -818,6 +831,7 @@ class Lexicon:
             self.register(
                 picked_word,
                 LexiconResponse.NOT_A_WORD,
+                None,
                 None,
                 answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET,
             )
