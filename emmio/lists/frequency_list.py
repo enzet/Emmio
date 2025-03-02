@@ -8,6 +8,7 @@ from typing import Iterator
 
 import urllib3
 
+from emmio.language import Language
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.core import List, ListCollection
 
@@ -224,7 +225,7 @@ class FrequencyList(List):
         self.__post_init__()
 
     def load_from_url(self) -> None:
-        logging.info(f"Loading frequency list from url {self.config.url}.")
+        logging.info(f"Loading frequency list from url `{self.config.url}`...")
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()
         response: urllib3.HTTPResponse = pool_manager.request(
@@ -246,6 +247,34 @@ class FrequencyList(List):
             cache_file.write(data)
 
         self.load_from_file()
+
+
+class FrequencyWordsList(FrequencyList):
+    """Frequency list from project FrequencyWords.
+
+    FrequencyWords is a project that contains frequency lists extracted from
+    Opensubtitles.
+
+    See https://github.com/hermitdave/FrequencyWords
+    """
+
+    def __init__(self, path: Path, language: Language, year: int):
+        super().__init__(
+            path / f"{language.get_code()}_opensubtitles_{year}.txt",
+            FrequencyListConfig(
+                name=f"{language.get_name()} Opensubtitles {year}",
+                source="FrequencyWords by Hermit Dave",
+                path=f"{language.get_code()}_opensubtitles_{year}.txt",
+                file_format="list",
+                language=language.get_code(),
+                is_stripped=False,
+                url=(
+                    "https://raw.githubusercontent.com/hermitdave/"
+                    f"FrequencyWords/master/content/{year}/"
+                    f"{language.get_code()}/{language.get_code()}_full.txt"
+                ),
+            ),
+        )
 
 
 @dataclass

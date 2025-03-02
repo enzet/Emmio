@@ -2,9 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from emmio.core import ArtifactData
+from emmio.language import Language
 from emmio.lists.config import FrequencyListConfig, WordListConfig
 from emmio.lists.core import List
-from emmio.lists.frequency_list import FrequencyList
+from emmio.lists.frequency_list import FrequencyList, FrequencyWordsList
 from emmio.lists.word_list import WordList
 
 
@@ -48,13 +49,22 @@ class ListsData(ArtifactData):
     ) -> FrequencyList | None:
         """Get frequency list."""
 
-        id_: str = list_usage_config["id"]
-        if id_ not in self.frequency_lists:
-            return None
+        match id_ := list_usage_config["id"]:
+            case "frequency_words":
+                frequency_list: FrequencyWordsList = FrequencyWordsList(
+                    self.path,
+                    Language.from_code(list_usage_config["language"]),
+                    list_usage_config["year"],
+                )
+                frequency_list.load()
+                return frequency_list
+            case _:
+                if id_ not in self.frequency_lists:
+                    return None
 
-        self.frequency_lists[id_].load()
+                self.frequency_lists[id_].load()
 
-        return self.frequency_lists[id_]
+                return self.frequency_lists[id_]
 
     def get_list(self, list_usage_config: dict) -> List | None:
         """Get word list or frequency list."""
