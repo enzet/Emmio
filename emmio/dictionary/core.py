@@ -650,7 +650,7 @@ class DictionaryCollection:
 
         return None
 
-    def to_str(self, word, language, languages, interface) -> str:
+    async def to_str(self, word, language, languages, interface) -> str:
         items: list[tuple[Dictionary, DictionaryItem]] = self.get_items_marked(
             word, language
         )

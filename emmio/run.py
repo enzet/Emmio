@@ -82,15 +82,14 @@ class Emmio:
         while True:
             command: str = input("Emmio > ")
 
-            if command in ["q", "quit", "exit"]:
+            if command in ("q", "quit", "exit"):
                 return
 
-            # try:
-            self.process_command(command)
-            # except Exception:
-            #     logging.error("There was an error in command processing.")
+            await self.process_command(command)
 
-    def process_command(self, command: str, interactive: bool = True) -> None:
+    async def process_command(
+        self, command: str, interactive: bool = True
+    ) -> None:
         data: Data = self.data
 
         parser: ArgumentParser = ArgumentParser(
@@ -280,7 +279,7 @@ class Emmio:
                     or x.language.get_code() in arguments.language
                 )
             ]
-            self.run_lexicon(
+            await self.run_lexicon(
                 sorted(lexicons, key=lambda x: -x.get_last_rate_number())
             )
 
@@ -542,7 +541,7 @@ class Emmio:
                 command, records, knowledge, learnings, lexicons
             )
 
-    def run_lexicon(self, lexicons: list[Lexicon]) -> None:
+    async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
         """Check user vocabulary."""
 
         for lexicon in lexicons:
@@ -564,7 +563,7 @@ class Emmio:
                     f"`{lexicon.config.frequency_list}` cannot be loaded."
                 )
                 continue
-            lexicon.check(
+            await lexicon.check(
                 self.interface,
                 frequency_list,
                 None,

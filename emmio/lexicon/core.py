@@ -504,13 +504,13 @@ class Lexicon:
 
         return result
 
-    def ask(
+    async def ask(
         self,
         interface: Interface,
         word: str,
         word_list: list[str],
         dictionaries: DictionaryCollection,
-        sentences: SentencesCollection,
+        sentences: SentencesCollection | None,
         skip_known: bool = False,
         skip_unknown: bool = False,
     ) -> tuple[bool, LexiconResponse, Dictionary | None]:
@@ -542,7 +542,7 @@ class Lexicon:
 
         start_time: datetime = datetime.now()
 
-        translation = dictionaries.to_str(
+        translation = await dictionaries.to_str(
             word, self.language, [ENGLISH, RUSSIAN], interface
         )
         if translation:
@@ -595,7 +595,7 @@ class Lexicon:
 
         return skip_in_future, response, None
 
-    def binary_search(
+    async def binary_search(
         self,
         interface: Interface,
         frequency_list: FrequencyList,
@@ -607,7 +607,7 @@ class Lexicon:
             index: int = int((left_border + right_border) / 2)
             picked_word, occurrences = frequency_list.get_word_by_index(index)
             print(occurrences)
-            to_skip, response, dictionary = self.ask(
+            to_skip, response, dictionary = await self.ask(
                 interface,
                 picked_word,
                 [],
@@ -631,7 +631,7 @@ class Lexicon:
             print(f"Rate: {rate(dont / frequency_list.get_all_occurrences())}")
             self.write()
 
-    def check(
+    async def check(
         self,
         interface: Interface,
         frequency_list: FrequencyList,
@@ -680,7 +680,8 @@ class Lexicon:
             if len(checked_in_session) >= len(frequency_list):
                 break
 
-            picked_word = None
+            picked_word: str | None = None
+
             if log_type == "frequency":
                 (
                     picked_word,
@@ -708,7 +709,7 @@ class Lexicon:
             if self.do_skip(picked_word, skip_known, skip_unknown):
                 continue
 
-            to_skip, response, dictionary = self.ask(
+            to_skip, response, dictionary = await self.ask(
                 interface,
                 picked_word,
                 word_list,
