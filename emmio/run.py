@@ -18,6 +18,7 @@ from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.learn.teacher import Teacher
 from emmio.listen.listener import Listener
+from emmio.lists.frequency_list import FrequencyList
 from emmio.read.core import Read
 from emmio.ui import Interface, Table, progress
 from emmio.user.data import UserData, Record, Session
@@ -554,9 +555,18 @@ class Emmio:
 
             self.interface.header(f"Lexicon for {language.get_name()}")
 
+            frequency_list: FrequencyList | None = self.data.get_frequency_list(
+                lexicon.config.frequency_list
+            )
+            if frequency_list is None:
+                logging.error(
+                    "Frequency list with config "
+                    f"`{lexicon.config.frequency_list}` cannot be loaded."
+                )
+                continue
             lexicon.check(
                 self.interface,
-                self.data.get_frequency_list(lexicon.config.frequency_list),
+                frequency_list,
                 None,
                 self.data.get_dictionaries(lexicon.config.dictionaries),
                 self.data.get_sentences_collection(lexicon.config.sentences),
