@@ -12,12 +12,14 @@ Dictionary: collection of all items.
           - Links: link to another word.
 """
 
+import asyncio
 import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any, Coroutine
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
@@ -44,13 +46,13 @@ class WordStatus(Enum):
 
     FORM = "form"
     """The word is only a form of another common word in dictionary.
-    
+
     E.g. `books` is either a plural form of the noun `book` or a form of a verb
     `book`."""
 
     NOT_COMMON = "not_common"
     """The word is not common.
-    
+
     It may be a letter, a proper noun, an abbreviation, etc."""
 
     NO_DEFINITION = "no_definition"
@@ -489,7 +491,7 @@ class Dictionary:
         """Add word definition."""
         self.__items[word] = item
 
-    def get_item(
+    async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
         """Get word definition."""
@@ -499,21 +501,65 @@ class Dictionary:
 
         return None
 
-    def get_items(self) -> dict[str, DictionaryItem]:
+    async def get_items(self) -> dict[str, DictionaryItem]:
         """Get all dictionary items."""
         return self.__items
 
-    def get_forms(self) -> dict[str, set[str]]:
-        """Get all possible forms of all words."""
+    async def get_items_marked(
+        self,
+        word: str,
+        language: Language,
+        ignore_words: set[str] | None = None,
+        follow_links: bool = True,
+    ) -> list[tuple["Dictionary", DictionaryItem]]:
+        """Get dictionary items connected to the word.
 
-        forms: dict[str, set[str]] = defaultdict(set)
+        Get item for the word itself, and recursively items for links if
+        `follow_links` is set.
+        """
 
-        for word, item in self.__items.items():
-            for form in item.get_forms():
-                for link_type, link in form.links:
-                    forms[link].add(word)
+        if ignore_words and word in ignore_words:
+            return []
+        if not ignore_words:
+            ignore_words = set()
+        ignore_words.add(word)
 
-        return forms
+        items_marked: list[tuple["Dictionary", DictionaryItem]] = []
+
+        item: DictionaryItem | None = await self.get_item(word)
+        if not item:
+            return []
+
+        items_marked.append((self, item))
+        if not follow_links:
+            return items_marked
+
+        link_to_follow: set[str] = set(
+            x.link_value
+            for x in item.get_links()
+            if x.link_value not in ignore_words
+        )
+        tasks: list[asyncio.Task[list[tuple["Dictionary", DictionaryItem]]]] = (
+            []
+        )
+        for link_value in link_to_follow:
+            coroutine: Coroutine[
+                Any, Any, list[tuple["Dictionary", DictionaryItem]]
+            ] = self.get_items_marked(
+                link_value,
+                language,
+                ignore_words,
+                follow_links,
+            )
+            tasks.append(asyncio.create_task(coroutine))
+
+        results: list[list[tuple["Dictionary", DictionaryItem]]] = (
+            await asyncio.gather(*tasks)
+        )
+        for result in results:
+            items_marked += result
+
+        return items_marked
 
     def check_from_language(self, language: Language) -> bool:
         raise NotImplementedError()
@@ -561,7 +607,7 @@ class SimpleDictionary(Dictionary):
             construct_language(config.to_language),
         )
 
-    def get_item(
+    async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
         if word not in self.data:
@@ -616,30 +662,48 @@ class DictionaryCollection:
         if not word:
             return []
 
-        items: list[tuple[Dictionary, DictionaryItem]] = []
+        items_marked: list[tuple[Dictionary, DictionaryItem]] = []
 
+        tasks: list = []
         for dictionary in self.dictionaries:
-            if item := dictionary.get_item(word):
-                items.append((dictionary, item))
-                if not follow_links:
-                    continue
+            coroutine = dictionary.get_items_marked(
+                word,
+                language,
+                follow_links=follow_links,
+            )
+            tasks.append(asyncio.create_task(coroutine))
+
+        result: list[list[tuple[Dictionary, DictionaryItem]]] = (
+            await asyncio.gather(*tasks)
+        )
+
+        for main_items_marked in result:
+            if not main_items_marked:
+                continue
+            items_marked += main_items_marked
+            if not follow_links:
+                continue
+            for main_item_marked in main_items_marked:
+                dictionary: Dictionary = main_item_marked[0]
+                dictionary: Dictionary = main_item_marked[0]
+                item: DictionaryItem = main_item_marked[1]
                 links: set[str] = set()
                 for form in item.get_forms():
                     links |= set([x.link_value for x in form.links])
                 for link in links:
-                    if link_item := dictionary.get_item(link):
-                        items.append((dictionary, link_item))
+                    if link_item := await dictionary.get_item(link):
+                        items_marked.append((dictionary, link_item))
                     if variant := language.get_variant(link):
                         if link_item := dictionary.get_item(variant):
-                            items.append((dictionary, link_item))
+                            items_marked.append((dictionary, link_item))
 
         # If the word may be written in different way, try to find this variant.
         if variant := language.get_variant(word):
-            items += self.get_items_marked(variant, language)
+            items_marked += await self.get_items_marked(variant, language)
 
-        return items
+        return items_marked
 
-    def get_items(
+    async def get_items(
         self, word: str, language: Language, follow_links: bool = True
     ) -> list[DictionaryItem]:
         """Get dictionary records.
@@ -650,7 +714,8 @@ class DictionaryCollection:
             word, e.g. include words the requested word is a form of
         """
         return [
-            x[1] for x in self.get_items_marked(word, language, follow_links)
+            x[1]
+            for x in await self.get_items_marked(word, language, follow_links)
         ]
 
     def get_dictionary(self, dictionary_id: str) -> Dictionary | None:
