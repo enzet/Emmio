@@ -542,15 +542,16 @@ class Lexicon:
 
         start_time: datetime = datetime.now()
 
-        translation = await dictionaries.to_str(
-            word, self.language, [ENGLISH, RUSSIAN], interface
+        translation = await dictionaries.to_text(
+            word, self.language, [ENGLISH, RUSSIAN]
         )
         if translation:
-            print("[Show translation]")
-            get_char()
-            print(translation)
+            interface.button("Show translation")
+            interface.print(translation)
 
-        print("Do you know at least one meaning of this word? [Y/n/b/s/-/q]> ")
+        interface.print(
+            "Do you know at least one meaning of this word? [Y/n/b/s/-/q]> "
+        )
 
         answer: str = interface.get_char()
         while answer not in "yY\rnNbBsS-qQz":

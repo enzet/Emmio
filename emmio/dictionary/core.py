@@ -275,13 +275,13 @@ class Form:
                 [f"{x}" for x in self.transcriptions]
             )
 
-        definitions: list[str] = []
+        definitions: list[Text] = []
 
         if self.definitions and language in self.definitions:
-            for translation in self.definitions[language]:
-                string: str | None = translation.to_str(to_hide)
-                if string is not None and string not in definitions:
-                    definitions.append(string)
+            for definition in self.definitions[language]:
+                definition_text: Text | None = definition.to_text(to_hide)
+                if definition_text is not None:
+                    definitions.append(definition_text)
 
         if max_definitions:
             definitions = definitions[:max_definitions]
@@ -308,8 +308,9 @@ class Form:
                     .add(Colorized(link.link_type + " of", "#AAAAAA"))
                     .add(" " + link.link_value)
                 )
+                text.add(Block(link_text, (0, 0, 0, 4)))
             else:
-                text.add(Block(f"-> {link.link_type}", (0, 0, 0, 4)))
+                text.add(Block(f"->{link.link_type}", (0, 0, 0, 4)))
 
         return text
 
@@ -320,11 +321,6 @@ class Form:
 
 
 @dataclass
-class Etymology:
-    forms: list[Form] = field(default_factory=list)
-
-
-@dataclass
 class DictionaryItem:
     """Dictionary item.
 
@@ -332,12 +328,21 @@ class DictionaryItem:
     """
 
     word: str
-    general_etymology: Etymology = field(default_factory=Etymology)
-    etymologies: list[Etymology] = field(default_factory=list)
+    """Word being defined."""
+
+    forms: list[Form] = field(default_factory=list)
+    """Forms of the word."""
+
+    etymology: str | None = None
+    """Etymology explanation."""
 
     def add_form(self, form: Form):
         """Add word form to dictionary item."""
-        self.get_forms().append(form)
+        self.forms.append(form)
+
+    def set_etymology(self, etymology: str | None) -> None:
+        """Set etymology explanation."""
+        self.etymology = etymology
 
     def get_links(self) -> set[Link]:
         """Get keys to other dictionary items this dictionary item is linked
@@ -348,26 +353,21 @@ class DictionaryItem:
         )
 
     def get_forms(self) -> list[Form]:
-        """Get all forms in all etymologies."""
-        forms: list[Form] = self.general_etymology.forms
-        for etymology in self.etymologies:
-            forms += etymology.forms
-        return forms
+        """Get all forms."""
+        return self.forms
 
-    def to_str(
+    def to_text(
         self,
         languages: list[Language],
-        interface: Interface,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
         hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions_per_form: int = 5,
-    ) -> str:
+    ) -> Text:
         """Get human-readable representation of the dictionary item.
 
         :param languages: the languages of translation
-        :param interface: user interface provider
         :param show_word: if false, hide word transcription and word occurrences
             in examples
         :param words_to_hide: set of words to be hidden from the output
@@ -376,24 +376,34 @@ class DictionaryItem:
         :param max_definitions_per_form: maximum number of definitions to be
             returned for each form
         """
-        result: str = ""
+        text: Text = Text()
 
         if show_word:
-            result += "  " + self.word + "\n"
+            text.add(Block(Formatted(self.word, "bold"), (0, 0, 0, 2)))
+            if self.etymology:
+                text.add(
+                    Block(
+                        Colorized(
+                            Formatted(self.etymology, "italic"), "#888888"
+                        ),
+                        (0, 0, 0, 2),
+                    )
+                )
 
         for form in self.get_forms():
             for language in languages:
-                result += form.to_str(
+                form_text: Text | None = form.to_text(
                     language,
-                    interface,
                     show_word,
                     words_to_hide,
                     hide_translations,
                     only_common,
                     max_definitions_per_form,
                 )
+                if form_text is not None:
+                    text.add(form_text)
 
-        return result
+        return text
 
     def has_definitions(self) -> bool:
         """Check whether the dictionary item has at least one definition."""
@@ -596,7 +606,7 @@ class DictionaryCollection:
         """
         self.dictionaries.append(dictionary)
 
-    def get_items_marked(
+    async def get_items_marked(
         self, word: str, language: Language, follow_links: bool = True
     ) -> list[tuple[Dictionary, DictionaryItem]]:
         """Get dictionary items from all dictionaries.
@@ -650,16 +660,32 @@ class DictionaryCollection:
 
         return None
 
-    async def to_str(self, word, language, languages, interface) -> str:
-        items: list[tuple[Dictionary, DictionaryItem]] = self.get_items_marked(
-            word, language
+    async def to_text(
+        self,
+        word: str,
+        language: Language,
+        languages: list[Language],
+    ) -> Text | None:
+        """Get formatted dictionary items."""
+
+        text: Text = Text()
+
+        items: list[tuple[Dictionary, DictionaryItem]] = (
+            await self.get_items_marked(word, language)
         )
         dictionary_name: str = ""
-        result = ""
+
         for dictionary, item in items:
             if dictionary.get_name() != dictionary_name:
                 dictionary_name = dictionary.get_name()
-                result += dictionary_name + "\n"
-            result += item.to_str(languages, interface) + "\n"
+                text.add(dictionary_name)
 
-        return result
+            item_text: Text = item.to_text(languages)
+            if item_text.is_empty():
+                continue
+            text.add(item_text)
+
+        if text.is_empty():
+            return None
+
+        return text

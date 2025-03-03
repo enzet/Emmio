@@ -80,7 +80,7 @@ class Emmio:
         )
 
         while True:
-            command: str = input("Emmio > ")
+            command: str = self.interface.input("Emmio > ")
 
             if command in ("q", "quit", "exit"):
                 return

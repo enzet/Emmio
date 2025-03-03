@@ -389,7 +389,7 @@ class RichInterface(TerminalInterface):
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")
-        get_char()
+        self.get_char()
 
 
 def get_char() -> str:
