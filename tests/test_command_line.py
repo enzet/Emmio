@@ -55,7 +55,10 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
 
     try:
         temp_directory: Path = Path("__test_existing_data")
-        for subdirectory in ("lists",):
+        for subdirectory in (
+            "lists",
+            "dictionaries",
+        ):
             (temp_directory / subdirectory).mkdir(parents=True, exist_ok=True)
         temp_user_id: str = "alice"
         temp_user_directory: Path = temp_directory / "users" / temp_user_id
@@ -65,6 +68,29 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
                 parents=True, exist_ok=True
             )
         temp_user_config: Path = temp_user_directory / "config.json"
+
+        # Configurate dictionaries.
+
+        dictionaries_configuration: dict = {
+            "nb_en": {
+                "type": "file",
+                "file_name": "nb_en.json",
+                "name": "Norwegian Bokmål-English Dictionary",
+                "from_language": "nb",
+                "to_language": "en",
+            }
+        }
+        with open(
+            temp_directory / "dictionaries" / "config.json", "w"
+        ) as output_file:
+            json.dump(dictionaries_configuration, output_file)
+
+        with open(
+            temp_directory / "dictionaries" / "nb_en.json", "w"
+        ) as output_file:
+            json.dump({"hei": "hi"}, output_file)
+
+        # Configurate lists.
 
         lists_configuration: dict = {
             "nb": {
@@ -81,6 +107,8 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         with open(temp_directory / "lists" / "nb.txt", "w") as output_file:
             output_file.write("hei 1")
 
+        # Configurate user.
+
         user_config_structure: dict = {
             "name": "Alice",
             "learn": {},
@@ -91,6 +119,9 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
                     "selection": "frequency",
                     "frequency_list": {"id": "nb"},
                     "precision_per_week": 5,
+                    "dictionaries": [
+                        {"id": "nb_en"},
+                    ],
                 },
             },
             "read": {},
@@ -116,9 +147,10 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         with patch(
             "builtins.input",
             side_effect=[
-                "lexicon",
-                "y",
-                "q",
+                "lexicon",  # Start checking lexicon.
+                "",  # Press "Show answer" button.
+                "y",  # Say "yes" for "Do you know the word?"
+                "q",  # Quit.
             ],
         ):
             with patch(
