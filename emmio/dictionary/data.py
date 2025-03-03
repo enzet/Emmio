@@ -8,8 +8,8 @@ from emmio.dictionary.core import (
     DictionaryCollection,
     SimpleDictionary,
 )
-from emmio.dictionary.en_wiktionary import EnglishWiktionary
-from emmio.language import construct_language, Language
+from emmio.dictionary.en_wiktionary import EnglishWiktionaryKaikki
+from emmio.language import Language
 
 
 @dataclass
@@ -39,10 +39,12 @@ class DictionaryData(ArtifactData):
     ) -> Dictionary | None:
         """Get dictionary by dictionary usage configuration."""
         match id_ := dictionary_usage_config["id"]:
-            case "en_wiktionary":
-                return EnglishWiktionary(
+            case "kaikki":
+                return EnglishWiktionaryKaikki(
+                    self.path,
                     self.path / "cache",
-                    construct_language(dictionary_usage_config["language"]),
+                    Language.from_code(dictionary_usage_config["language"]),
+                    dictionary_usage_config["name"],
                 )
             case _:
                 if id_ in self.dictionaries:

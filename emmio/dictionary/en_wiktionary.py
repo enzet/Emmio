@@ -7,12 +7,12 @@ import json
 import logging
 import os
 import re
+import sys
 import requests
 from pathlib import Path
-from time import sleep
 from typing import Any
 
-from wiktionaryparser import WiktionaryParser
+from tqdm import tqdm
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.core import (
@@ -30,6 +30,16 @@ __email__ = "me@enzet.ru"
 
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
+PART_OF_SPEECH_MAP: dict[str, str] = {
+    "prep": "preposition",
+    "adv": "adverb",
+    "adj": "adjective",
+    "num": "numeral",
+    "intj": "interjection",
+    "det": "determiner",
+    "conj": "conjunction",
+    "pron": "pronoun",
+}
 
 
 LINK_PATTERN: re.Pattern = re.compile(
@@ -70,179 +80,218 @@ def check_link_type(link_type: str) -> bool:
     return all(not x or x in FORMS for x in link_type.split(" "))
 
 
-class EnglishWiktionary(Dictionary):
-    """
-    Dictionary that uses English Wiktionary API.
+class EnglishWiktionaryKaikki(Dictionary):
+    """English Wiktionary parsed by wikiextract.
 
-    See https://en.wiktionary.org.
+    Results of parsing English Wiktionary by wikiextract are available at
+    Kaikki website.
+
+    See https://kaikki.org, https://github.com/tatuylonen/wikiextract.
     """
 
-    def __init__(self, cache_directory: Path, from_language: Language):
+    def __init__(
+        self,
+        path: Path,
+        cache_directory: Path,
+        from_language: Language,
+        from_language_name: str,
+    ) -> None:
         """
-        :param cache_directory: directory for cache files
-        :param from_language: target language
+        :param cache_directory: directory used to store cache files
+        :param from_language: source language specification
+        :param from_language_name: name of language on `kaikki.org` website
         """
-        super().__init__("en_wiktionary")
+
+        if not from_language.has_symbols():
+            logging.error(
+                f"Language {from_language.get_name()} does not have symbols."
+            )
+            sys.exit(1)
+
+        super().__init__("kaikki")
+        self.path: Path = path
         self.from_language: Language = from_language
-        self.cache_directory: Path = cache_directory
-        self.parser: WiktionaryParser = WiktionaryParser()
+        self.from_language_name: str = from_language_name
+        self.items: dict[str, DictionaryItem] = {}
 
-    @staticmethod
-    def process_definition(text: str) -> Link | Definition:
-        # Preparsing.
-        text = text.strip()
-        if text.endswith("."):
-            text = text[:-1]
-
-        if matcher := LINK_PATTERN.match(text):
-            link_type: str = matcher.group("link_type")
-            if check_link_type(link_type):
-                return Link(link_type, matcher.group("link"))
-
-        descriptors: list[str] = []
-
-        if matcher := DESCRIPTOR_PATTERN.match(text):
-            p = matcher.group("descriptor")
-            descriptors = p.split(", ")
-            text = text[len(p) + 3 :]
-
-        values: list[DefinitionValue]
-        if "; " in text:
-            values = [DefinitionValue.from_text(x) for x in text.split("; ")]
-        elif ", " in text:
-            values = [DefinitionValue.from_text(x) for x in text.split(", ")]
-        else:
-            values = [DefinitionValue.from_text(text)]
-
-        return Definition(values, descriptors)
-
-    def parse_form(
-        self, word: str, definition: dict[str, Any], pronunciations: list[str]
-    ) -> Form | None:
-        form: Form = Form(word, definition["partOfSpeech"])
-
-        if "text" not in definition or not definition["text"]:
-            return None
-
-        first_definition: str = definition["text"][0]
-        if re.split("[  ]", first_definition)[0] == word:
-            definitions = definition["text"][1:]
-        else:
-            definitions = definition["text"]
-
-        first_word: str = first_definition.split(" ")[0]
-        if first_word == f"{word} f":
-            form.gender = "f"
-        elif first_word == f"{word} m":
-            form.gender = "m"
-
-        for text in definitions:
-            element = self.process_definition(text)
-            if isinstance(element, Link):
-                form.add_link(element)
-            elif isinstance(element, Definition):
-                form.add_translation(element, ENGLISH)
-
-        for pronunciation in pronunciations:
-            form.add_transcription(pronunciation)
-
-        return form
-
-    def get_item(
-        self, word: str, cache_only: bool = False
-    ) -> DictionaryItem | None:
-        """
-        Parse dictionary item from English Wiktionary.
-
-        :param word: dictionary term
-        :param cache_only: return dictionary term only if it is in cache
-        :returns: parsed item
-        """
-        directory: Path = (
-            self.cache_directory
-            / "en_wiktionary"
-            / self.from_language.get_code()
+        self.processed_file_paths: set[Path] = set()
+        self.cache_directory: Path = (
+            cache_directory / "kaikki" / self.from_language_name
         )
-        os.makedirs(directory, exist_ok=True)
+        if self.cache_directory.exists():
+            return
 
-        path: Path = directory / get_file_name(word)
-
-        if os.path.isfile(path):
-            with open(path) as input_file:
-                content = json.load(input_file)
-        else:
-            if cache_only:
-                return None
-
-            logging.info("Sleeping for 1 second...")
-            sleep(1)
-            logging.info("Getting English Wiktionary item...")
+        os.makedirs(self.cache_directory)
+        file_path: Path = (
+            self.path
+            / f"kaikki.org-dictionary-{self.from_language_name}-words.jsonl"
+        )
+        if not file_path.exists():
+            logging.info(f"File {file_path} does not exist.")
+            logging.info(f"Downloading {self.from_language_name} Kaikki...")
+            url: str = (
+                f"https://kaikki.org/dictionary/{self.from_language_name}/"
+                f'words/kaikki.org-dictionary-{self.from_language_name.replace(" ", "")}-words.jsonl'
+            )
+            response: requests.Response = requests.get(url, stream=True)
             try:
-                content: list[dict[str, Any]] | None = self.parser.fetch(
-                    word, self.from_language.get_name()
+                response.raise_for_status()
+            except requests.exceptions.HTTPError:
+                logging.error(
+                    f"Failed to download {self.from_language_name} Kaikki from `{url}`."
                 )
-                with open(path, "w+") as output_file:
-                    json.dump(content, output_file)
-            except requests.exceptions.ConnectionError:
-                logging.error("Connection error.")
-                return None
-            except (KeyError, AttributeError):
-                logging.error("Malformed HTML.")
-                return None
+                # Remove created directory.
+                os.rmdir(self.cache_directory)
+                sys.exit(1)
+            with file_path.open("wb") as output_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        output_file.write(chunk)
 
-        if not content:
-            return None
+        logging.info(
+            f"Creating cache for {self.from_language.get_name()} Kaikki..."
+        )
+        with open(file_path) as input_file:
+            for line in tqdm(input_file.readlines()):
+                item = json.loads(line)
+                word: str = item["word"]
+                if len(word) >= 1:
+                    if not all(self.from_language.has_symbol(c) for c in word):
+                        continue
+                    (self.cache_directory / word[0].lower()).mkdir(
+                        parents=True, exist_ok=True
+                    )
+                    with open(
+                        self.get_cache_file_path(word), "a"
+                    ) as output_file:
+                        output_file.write(line)
 
-        item: DictionaryItem = DictionaryItem(word)
+        # Remove `.jsonl` file.
+        file_path.unlink()
 
-        for element in content:
-            pronunciations: list[str] = []
-
-            if "pronunciations" not in element:
-                continue
-
-            for pronunciation in element["pronunciations"]["text"]:
-                pronunciation = pronunciation.strip()
-                for prefix in [
-                    "IPA: ",
-                    "(Eastern Armenian, standard) IPA:",
-                ]:
-                    if pronunciation.startswith(prefix):
-                        pronunciation = pronunciation[len(prefix) :]
-                if pronunciation.startswith(
-                    "(Western Armenian, standard) IPA:"
-                ):
-                    continue
-
-                found_prefix: bool = False
-
-                for prefix in PRONUNCIATION_PREFIXES:
-                    if pronunciation.startswith(
-                        prefix[0].upper() + prefix[1:] + ": "
-                    ):
-                        found_prefix = True
-                        break
-
-                if found_prefix:
-                    continue
-
-                pronunciations.append(pronunciation.strip())
-
-            for definition in element["definitions"]:
-                form: Form | None = self.parse_form(
-                    word, definition, pronunciations
-                )
-                if form is not None:
-                    item.add_form(form)
-
-        if item.has_definitions():
-            return item
-
-    def check_from_language(self, language: Language) -> bool:
-        return self.from_language == language
-
-    def check_to_language(self, language: Language) -> bool:
-        return language == ENGLISH
+    def __repr__(self) -> str:
+        return f"English Wiktionary Kaikki [{len(self.items)}]"
 
     def get_name(self) -> str:
-        return "English Wiktionary"
+        return "English Wiktionary Kaikki"
+
+    def get_cache_file_path(self, word: str) -> Path:
+        return (
+            self.cache_directory / word[0].lower() / f"{word[:2].lower()}.jsonl"
+        )
+
+    def process_item(
+        self, item: dict[str, Any], dictionary_item: DictionaryItem
+    ) -> None:
+        """Process item from Kaikki.
+
+        :param item: item from Kaikki JSONL file
+        :param dictionary_item: dictionary item to add forms to
+        """
+
+        word: str = item["word"]
+
+        transcriptions: list[str] = (
+            [x["ipa"] for x in item["sounds"] if "ipa" in x]
+            if "sounds" in item
+            else []
+        )
+
+        # FIXME: etymology is replaced. We should parse only one dictionary item
+        #        for an item.
+        dictionary_item.set_etymology(item.get("etymology_text"))
+
+        definitions: list[Definition] = []
+        links: list[Link] = []
+
+        # print(f"len(item['senses']): {len(item['senses'])}")
+
+        for sense in item["senses"]:
+
+            if "form_of" in sense:
+                tags: list[str] = sense["tags"]
+                # print(f"len(sense['form_of']): {len(sense['form_of'])}")
+                for form in sense["form_of"]:
+                    links.append(
+                        Link(
+                            ", ".join(x for x in tags if x != "form-of"),
+                            form["word"],
+                        )
+                    )
+                continue
+
+            if "alt_of" in sense:
+                tags: list[str] = sense["tags"]
+                # print(f"len(sense['alt_of']): {len(sense['alt_of'])}")
+                for form in sense["alt_of"]:
+                    links.append(
+                        Link(
+                            ", ".join(x for x in tags if x != "alt-of"),
+                            form["word"],
+                        )
+                    )
+                continue
+
+            # FIXME: dirty hacks:
+            if "categories" in sense:
+                for category in sense["categories"]:
+                    if (
+                        "parents" in category
+                        and "Letter names" in category["parents"]
+                    ):
+                        continue
+
+            definition_values: list[DefinitionValue] = []
+            if "glosses" in sense:
+                # print(f"len(sense['glosses']): {len(sense['glosses'])}")
+                for gloss in sense["glosses"]:
+                    definition_values.append(DefinitionValue.from_text(gloss))
+
+            descriptors: list[str] = sense["tags"] if "tags" in sense else []
+
+            definitions.append(
+                Definition(definition_values, descriptors=descriptors)
+            )
+
+        part_of_speech: str = item["pos"]
+        part_of_speech = PART_OF_SPEECH_MAP.get(part_of_speech, part_of_speech)
+
+        form: Form = Form(
+            word=word,
+            part_of_speech=part_of_speech,
+            transcriptions=transcriptions,
+            definitions={ENGLISH: definitions},
+            links=links,
+        )
+        dictionary_item.add_form(form)
+
+    async def get_item(
+        self, word: str, cache_only: bool = False
+    ) -> DictionaryItem | None:
+        # Return already loaded item.
+        if word in self.items:
+            return self.items[word]
+
+        # If cache file does not exist, return `None`.
+        if not (cache_file_path := self.get_cache_file_path(word)).exists():
+            return None
+
+        # Parse all items from cache file.
+        if cache_file_path in self.processed_file_paths:
+            return None
+        self.processed_file_paths.add(cache_file_path)
+
+        dictionary_item: DictionaryItem
+        with open(cache_file_path) as input_file:
+            for line in input_file.readlines():
+                item: dict[str, Any] = json.loads(line)
+                if item["word"] in self.items:
+                    dictionary_item = self.items[item["word"]]
+                else:
+                    dictionary_item = DictionaryItem(item["word"])
+                    self.items[item["word"]] = dictionary_item
+                self.process_item(
+                    item, dictionary_item
+                )  # Fill dictionary item.
+
+        return self.items.get(word)
