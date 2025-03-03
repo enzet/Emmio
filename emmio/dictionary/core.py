@@ -136,6 +136,10 @@ class Definition:
     descriptors: list[str] = field(default_factory=list)
     """Descriptors of the definition (e.g. "slang", "colloquial", etc.)."""
 
+    @classmethod
+    def from_simple_translation(cls, translation: str) -> "Definition":
+        return cls([DefinitionValue.from_text(translation)])
+
     def is_common(self) -> bool:
         """
         Check whether this definition is common.
@@ -188,6 +192,21 @@ class Form:
     gender: str | None = None
     verb_group: int | None = None
     is_singular: bool | None = None
+
+    @classmethod
+    def from_simple_translation(
+        cls,
+        word: str,
+        language: Language,
+        translation: str,
+    ) -> "Form":
+        return cls(
+            word,
+            None,
+            set(),
+            {language: [Definition.from_simple_translation(translation)]},
+            [],
+        )
 
     def add_transcription(self, transcription: str) -> None:
         """Add word form IPA transcription."""
@@ -338,7 +357,15 @@ class DictionaryItem:
     etymology: str | None = None
     """Etymology explanation."""
 
-    def add_form(self, form: Form):
+    @classmethod
+    def from_simple_translation(
+        cls, word: str, language: Language, translation: str
+    ) -> "DictionaryItem":
+        return cls(
+            word, [Form.from_simple_translation(word, language, translation)]
+        )
+
+    def add_form(self, form: Form) -> None:
         """Add word form to dictionary item."""
         self.forms.append(form)
 
