@@ -17,6 +17,7 @@ setuptools.setup(
         "PyYAML~=6.0.2",
         "coloredlogs~=15.0.1",
         "colour~=0.1.5",
+        "googletrans~=4.0.2",
         "iso639-lang~=2.5.1",
         "matplotlib~=3.10.0",
         "mpv~=1.0.7",

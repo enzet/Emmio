@@ -9,6 +9,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.dictionary.en_wiktionary import EnglishWiktionaryKaikki
+from emmio.dictionary.google_translate import GoogleTranslate
 from emmio.language import Language
 
 
@@ -45,6 +46,13 @@ class DictionaryData(ArtifactData):
                     self.path / "cache",
                     Language.from_code(dictionary_usage_config["language"]),
                     dictionary_usage_config["name"],
+                )
+            case "google_translate":
+                return GoogleTranslate(
+                    self.path,
+                    self.path / "cache",
+                    Language.from_code(dictionary_usage_config["from"]),
+                    Language.from_code(dictionary_usage_config["to"]),
                 )
             case _:
                 if id_ in self.dictionaries:
