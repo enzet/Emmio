@@ -30,6 +30,5 @@ setuptools.setup(
         "svgwrite~=1.4.3",
         "tqdm~=4.67.1",
         "urllib3~=2.3.0",
-        "wiktionaryparser~=0.0.97",
     ],
 )
