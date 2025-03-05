@@ -3,12 +3,12 @@
     <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
-__Emmio__ is an experimental project on languages and learning.  It provides
-learning and testing algorithms:
-  1. [learning](#learning) system based on spaced repetition,
-  2. [lexicon](#lexicon) (vocabulary) level checking,
+__Emmio__ is an experimental project focused on languages and learning. It
+provides learning and testing algorithms:
+  1. a [learning](#learning) system based on spaced repetition,
+  2. a [lexicon](#lexicon) (vocabulary) level assessment tool,
 
-and manages four kinds of artifacts:
+The project manages four kinds of artifacts:
   - [dictionaries](#dictionary),
   - [sentence translations](#sentences),
   - [frequency and word lists](#frequency-and-word-lists),
@@ -16,23 +16,23 @@ and manages four kinds of artifacts:
 
 ## Installation
 
-Requires __Python 3.12__.
+Requires __Python 3.12__ or later.
 
 ```shell
 pip install git+https://github.com/enzet/emmio
 ```
 
-## Get started
+## Get Started
 
-To run Emmio, just run
+To run Emmio, simply execute
 
 ```shell
 emmio
 ```
 
-You may specify data directory with `--data` option and username with `--user`
-option. If not specified data directory is assumed to be `~/.emmio` and username
-is assumed to be the current system username.
+You can specify a data directory with `--data` option and username with
+`--user` option. If not specified, the data directory is assumed to be
+`~/.emmio` and username is assumed to be the current system username.
 
 ## Lexicon
 
@@ -41,15 +41,15 @@ is assumed to be the current system username.
 ```
 
 The algorithm will randomly (based on frequency) offer you words of the target
-language. For each word you have to decide 
+language. For each word, you have to indicate
 
-  1. either you know at least one meaning of this word (press <kbd>y</kbd> or 
+  1. whether you know at least one meaning of this word (press <kbd>y</kbd> or
      <kbd>Enter</kbd>),
-  2. or you don't know any meaning of this word (press <kbd>n</kbd>), 
-  3. or the word is often used as a proper name or doesn't exist at all (press
+  2. wheter you don’t know any meaning of this word (press <kbd>n</kbd>),
+  3. or the word is often used as a proper name or doesn’t exist at all (press
      <kbd>-</kbd>).
 
-To finish press <kbd>q</kbd>.
+Press <kbd>q</kbd> to finish.
  
 After that algorithm will provide you a non-negative number called _rate_, that
 somehow describes your vocabulary. 0 means you know not a single word of the
@@ -118,7 +118,7 @@ stripped (e.g. 6,500-lemma list based on the New Corpus for Ireland).
 
 #### FrequencyWords (Opensubtitles)
 
-There is [Hermit Dave](https://github.com/hermitdave)'s project
+There is [Hermit Dave](https://github.com/hermitdave)’s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
 full and stripped frequency lists extracted from subtitles in
 [Opensubtitles](https://www.opensubtitles.org) project.
