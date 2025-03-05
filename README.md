@@ -16,7 +16,7 @@ and manages four kinds of artifacts:
 
 ## Installation
 
-Requires __Python 3.10__.
+Requires __Python 3.12__.
 
 ```shell
 pip install git+https://github.com/enzet/emmio

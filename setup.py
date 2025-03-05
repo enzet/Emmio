@@ -12,6 +12,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": ["emmio=emmio.__main__:main"],
     },
+    python_requires=">=3.12",
     install_requires=[
         "setuptools~=75.8.0",
         "PyYAML~=6.0.2",
