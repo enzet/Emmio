@@ -183,7 +183,7 @@ class Form:
 
     word: str
 
-    part_of_speech: str = "unknown"
+    part_of_speech: str | None = None
     transcriptions: set[str] = field(default_factory=set)
     definitions: dict[Language, list[Definition]] = field(default_factory=dict)
     links: list[Link] = field(default_factory=list)
@@ -332,7 +332,7 @@ class Form:
                 )
                 text.add(Block(link_text, (0, 0, 0, 4)))
             else:
-                text.add(Block(f"->{link.link_type}", (0, 0, 0, 4)))
+                text.add(Block(f"→ {link.link_type}", (0, 0, 0, 4)))
 
         return text
 
@@ -712,7 +712,6 @@ class DictionaryCollection:
             if not follow_links:
                 continue
             for main_item_marked in main_items_marked:
-                dictionary: Dictionary = main_item_marked[0]
                 dictionary: Dictionary = main_item_marked[0]
                 item: DictionaryItem = main_item_marked[1]
                 links: set[str] = set()
