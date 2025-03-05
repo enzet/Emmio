@@ -141,7 +141,11 @@ class FrequencyList(List):
             if index >= number:
                 return word, self.data[word]
 
-        raise Exception()
+        raise Exception(
+            "Unable to get word from a frequency list. Total occurrences "
+            f"number is {self._occurrences}. Number is {number}. Last index "
+            "is {index}."
+        )
 
     def get_index(self, word: str) -> int:
         if word in self._sorted_keys:
@@ -166,6 +170,11 @@ class FrequencyList(List):
         else:
             raise Exception(f"Unable to load frequency list {self.config}.")
 
+        assert self._occurrences == sum(self.data.values()), (
+            f"Precomputed number of occurences {self._occurrences} is not "
+            f"equal to the sum of occurences: {sum(self.data.values())}."
+        )
+
     def load_from_file(self) -> None:
         match self.config.file_format:
             case FrequencyListFileFormat.JSON:
@@ -183,7 +192,10 @@ class FrequencyList(List):
 
     def load_from_csv_file(self, delimiter: str, header: list[str]) -> None:
         logging.debug(f"Loading frequency list from CSV file {self.file_path}.")
+
         self.data: dict[str, int] = {}
+        self._occurrences = 0
+        self._sorted_keys = []
 
         count_index: int = header.index("count")
         word_index: int = header.index("word")
@@ -193,7 +205,12 @@ class FrequencyList(List):
                 parts = line.split(delimiter)
                 count: int = int(parts[count_index])
                 word: str = parts[word_index]
-                self.data[word] = count
+                if word in self.data:
+                    # This can happen when frequency list considers different
+                    # forms as different words.
+                    self.data[word] += count
+                else:
+                    self.data[word] = count
                 self._occurrences += count
                 self._sorted_keys.append(word)
 
