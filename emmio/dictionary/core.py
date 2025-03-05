@@ -291,10 +291,11 @@ class Form:
 
         if show_word:
             if self.gender is not None:
-                description += f" {self.gender}"
-            description += " " + ", ".join(
-                [f"{x}" for x in self.transcriptions]
-            )
+                description.append(self.gender)
+            if self.transcriptions:
+                description.append(
+                    ", ".join([f"{x}" for x in self.transcriptions])
+                )
 
         definitions: list[Text] = []
 
