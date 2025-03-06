@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from pytest import CaptureFixture
 from emmio.__main__ import main
+from textwrap import dedent
 
 
 def initialize(
@@ -88,7 +89,7 @@ def check_main(
     temp_directory: Path,
     temp_user_id: str,
     user_commands: list[str],
-    expected_output: list[str],
+    expected_output: str | None = None,
 ) -> None:
     """Run Emmio and check output."""
 
@@ -109,8 +110,14 @@ def check_main(
         ):
             main()
             captured: CaptureFixture = capsys.readouterr()
-            for text in expected_output:
-                assert text in captured.out
+            if expected_output:
+                split_expected_output: list[str] = expected_output.splitlines()
+                split_captured_output: list[str] = captured.out.splitlines()
+                assert len(split_expected_output) == len(split_captured_output)
+                for expected_line, actual_line in zip(
+                    split_expected_output, split_captured_output
+                ):
+                    assert expected_line.rstrip() == actual_line.rstrip()
 
         assert Path(temp_directory).exists()
         for subdirectory in "dictionaries", "sentences", "texts", "users":
@@ -123,6 +130,18 @@ def check_main(
         shutil.rmtree(temp_directory, ignore_errors=True)
 
 
+HEADER: str = dedent(
+    """
+    Emmio
+
+
+        Press <Enter> or print "learn" to start learning.
+        Print "help" to see commands or "exit" to quit.
+
+    """
+)
+
+
 def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
     """Test that a new user is created with empty data."""
 
@@ -131,10 +150,12 @@ def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         temp_directory=Path("__test_empty_data"),
         temp_user_id="alice",
         user_commands=["y", "Alice", "q"],
-        expected_output=[
-            "Emmio",
-            f"User `alice` with name `Alice` created.",
-        ],
+        expected_output=dedent(
+            "User with id `alice` does not exist. Do you want to create new "
+            "user? [Yes] [No]\n"
+            "User `alice` with name `Alice` created.\n"
+        )
+        + HEADER,
     )
 
 
@@ -200,9 +221,24 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
             "y",  # Say "yes" for "Do you know the word?"
             "q",  # Quit.
         ],
-        expected_output=[
-            "Emmio",
-        ],
+        expected_output=HEADER
+        + dedent(
+            """
+            Lexicon for Norwegian Bokmål
+
+                hei
+            Last response was: knows at least one meaning of the word.
+            <Show translation>
+            Norwegian Bokmål-English Dictionary
+              hei
+                hi
+            Do you know at least one meaning of this word? [Y/n/b/s/-/q]>
+            knows at least one meaning of the word
+            Precision: 0.00
+            Rate so far is: unknown
+            Words: 1
+            """
+        ).lstrip(),
     )
 
 
@@ -220,7 +256,5 @@ def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
         temp_directory=temp_directory,
         temp_user_id=temp_user_id,
         user_commands=["plot lexicon --svg", "q"],
-        expected_output=[
-            "Emmio",
-        ],
+        expected_output=HEADER,
     )
