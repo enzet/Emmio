@@ -721,7 +721,7 @@ class DictionaryCollection:
                     if link_item := await dictionary.get_item(link):
                         items_marked.append((dictionary, link_item))
                     if variant := language.get_variant(link):
-                        if link_item := dictionary.get_item(variant):
+                        if link_item := await dictionary.get_item(variant):
                             items_marked.append((dictionary, link_item))
 
         # If the word may be written in different way, try to find this variant.
