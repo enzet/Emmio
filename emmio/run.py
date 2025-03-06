@@ -136,17 +136,27 @@ class Emmio:
         )
         plot_lexicon_parser.add_argument(
             "--interval",
+            "-i",
             default="year",
             choices=["day", "week", "month", "year"],
             help="interval of X axis",
         )
         plot_lexicon_parser.add_argument(
-            "--margin", default=0.0, type=float, help="minimum Y value"
+            "--margin",
+            "-m",
+            default=None,
+            type=float,
+            help="minimum Y value",
         )
         plot_lexicon_parser.add_argument(
-            "--svg", action=argparse.BooleanOptionalAction
+            "--svg", "-s", action=argparse.BooleanOptionalAction
         )
-        plot_lexicon_parser.add_argument("--languages", type=str)
+        plot_lexicon_parser.add_argument(
+            "--languages",
+            "-l",
+            type=str,
+            help="list of language codes separated with `;`",
+        )
 
         plot_learn_parser = plot_subparsers.add_parser(
             "learn", help="plot learning questions"
@@ -226,14 +236,7 @@ class Emmio:
         subparsers.add_parser("debug")
 
         if command:
-            try:
-                arguments = parser.parse_args(command.split(" "))
-            except argparse.ArgumentError:
-                arguments = argparse.Namespace(command="no")
-                pass
-            except SystemExit:
-                arguments = argparse.Namespace(command="no")
-                pass
+            arguments = parser.parse_args(command.split(" "))
         else:
             arguments = argparse.Namespace(command="learn", topic=None)
 

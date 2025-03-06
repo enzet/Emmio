@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -224,6 +225,8 @@ class Graph:
     def write(self, svg):
         with Path(svg.filename).open("w+") as output_file:
             svg.write(output_file)
+
+        logging.info(f"Graph was saved to {Path(svg.filename).absolute()}.")
 
     def draw_grid(self, svg):
         for index in range(8):
