@@ -124,7 +124,7 @@ class Emmio:
             "lexicon",
             help="plot lexicon rate",
             description="""
-                Plot lexicon rate. Lexicon rate is `-log_2(x)`, where `x` is a 
+                Plot lexicon rate. Lexicon rate is `-log_2(x)`, where `x` is a
                 number of words the user don't know in a random text.
             """,
         )
@@ -237,15 +237,18 @@ class Emmio:
         else:
             arguments = argparse.Namespace(command="learn", topic=None)
 
+        # Command `help`.
         if arguments.command == "help":
             if arguments.subcommand == "learn":
                 learn_parser.print_help()
             else:
                 parser.print_help()
 
+        # Command `debug`.
         if arguments.command == "debug":
             self.debug()
 
+        # Command `analyze`.
         if arguments.command == "analyze":
             analysis = Analysis(self.data, self.user_data)
             analysis.analyze(
@@ -253,10 +256,12 @@ class Emmio:
                 self.data.get_frequency_list("hy_wortschatz_community_2017"),
             )
 
+        # Command `read`.
         if arguments.command == "read":
             read_process: Read = self.user_data.get_read_process(arguments.id)
             self.read(read_process)
 
+        # Command `learn`.
         if arguments.command == "learn":
             # We cannot use iterators here!
             learnings: list[Learning]
@@ -269,6 +274,7 @@ class Emmio:
 
             self.learn(learnings)
 
+        # Command `lexicon`.
         if arguments.command == "lexicon":
             lexicons = [
                 x
@@ -283,6 +289,7 @@ class Emmio:
                 sorted(lexicons, key=lambda x: -x.get_last_rate_number())
             )
 
+        # Command `read *`.
         if command.startswith("read "):
             _, request = command.split(" ")
             read_processes = self.data.get_read_processes(self.user_id)
@@ -292,6 +299,8 @@ class Emmio:
                     break
 
         if arguments.command == "stat":
+
+            # Command `stat actions`.
             if arguments.process == "actions":
                 stat = defaultdict(int)
                 for learning in self.data.get_learnings(self.user_id):
@@ -304,11 +313,13 @@ class Emmio:
                     ],
                 )
 
+            # Command `stat learn`.
             elif arguments.process == "learn":
                 self.data.print_learning_statistics(
                     self.interface, self.user_id
                 )
 
+            # Command `stat lexicon`.
             elif arguments.process == "lexicon":
                 rows = []
 
@@ -377,6 +388,8 @@ class Emmio:
                 )
 
         if arguments.command == "plot":
+
+            # Command `plot lexicon`.
             if arguments.process == "lexicon":
                 self.plot_lexicon(
                     arguments.interval,
@@ -386,6 +399,8 @@ class Emmio:
                     arguments.margin,
                     arguments.show_text,
                 )
+
+            # Command `plot learn`.
             elif arguments.process == "learn":
                 records: list[tuple[LearningRecord, Learning]] = []
                 for learning in self.user_data.get_active_learnings():
@@ -398,19 +413,27 @@ class Emmio:
                     count_by_depth=arguments.pressure,
                     by_language=not arguments.depth,
                 ).draw()
-            elif arguments.process == "knowing":  # `plot knowing`
+
+            # Command `plot learn`.
+            elif arguments.process == "knowing":
                 Visualizer().knowing(
                     list(self.user_data.get_active_learnings())
                 )
-            elif arguments.process == "schedule":  # `plot schedule`
+
+            # Command `plot schedule`.
+            elif arguments.process == "schedule":
                 Visualizer().next_question_time(
                     self.user_data.get_active_learnings()
                 )
-            elif arguments.process == "history":  # `plot history`
+
+            # Command `plot history`.
+            elif arguments.process == "history":
                 Visualizer().history(
                     self.user_data.get_active_learnings(), arguments.size
                 )
-            elif arguments.process == "actions":  # `plot actions`
+
+            # Command `plot actions`.
+            elif arguments.process == "actions":
                 records: list[tuple[LearningRecord, Learning]] = []
                 for learning in self.user_data.get_active_learnings():
                     records += [(x, learning) for x in learning.process.records]
@@ -450,9 +473,11 @@ class Emmio:
                         by_language=not arguments.depth,
                     )
 
+        # Command `audio`.
         if arguments.command == "audio":
             self.listen(arguments.id, arguments.start_from, arguments.repeat)
 
+        # Command `data`.
         if command == "data":
             for learning in self.user_data.get_active_learnings():
                 logging.info(f"construct data for {learning.config.name}")
@@ -461,6 +486,7 @@ class Emmio:
                     data.get_frequency_list(learning.frequency_list_ids[-1]),
                 )
 
+        # Command `to learn`.
         if command == "to learn":
             rows = []
             for learning in self.user_data.get_active_learnings():
@@ -485,6 +511,7 @@ class Emmio:
 
             self.interface.table(["Word", "Translation"], rows)
 
+        # Command `schedule`.
         if command == "schedule":
             hours = [0] * 24
             now = datetime.now()
