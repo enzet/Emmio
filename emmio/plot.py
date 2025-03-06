@@ -7,6 +7,7 @@ from colour import Color
 from svgwrite import Drawing
 from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
+from datetime import datetime
 
 GRADIENT: list[Color] = [
     Color("#00D45E"),
@@ -70,8 +71,8 @@ class Graph:
 
     def __init__(
         self,
-        min_x,
-        max_x,
+        min_x: datetime | None,
+        max_x: datetime | None,
         canvas: Canvas = Canvas(),
         color: Color | list[Color] | str = Color("black"),
         background_color: Color = Color("white"),
@@ -82,7 +83,9 @@ class Graph:
         self.canvas: Canvas = canvas
         self.min_y, self.max_y = 0, 7  # min(ys), max(ys)
         self.min_x_second = 0
-        self.max_x_second = (max_x - min_x).total_seconds()
+        self.max_x_second = (
+            (max_x - min_x).total_seconds() if max_x and min_x else 0
+        )
         self.color: Color | list[Color] | str = color
         self.background_color: Color = background_color
         self.grid_color: Color = grid_color
@@ -248,22 +251,23 @@ class Graph:
                 )
             svg.add(line)
 
-        mapped_1: np.ndarray = self.map_((self.min_x_second, 0))
-        self.text(
-            svg,
-            (mapped_1[0], mapped_1[1] - 6),
-            self.min_x.year - 1,
-            self.grid_color.hex,
-        )
+        if self.min_x and self.max_x:
+            mapped_1: np.ndarray = self.map_((self.min_x_second, 0))
+            self.text(
+                svg,
+                (mapped_1[0], mapped_1[1] - 6),
+                self.min_x.year - 1,
+                self.grid_color.hex,
+            )
 
-        mapped_1: np.ndarray = self.map_((self.max_x_second, 0))
-        self.text(
-            svg,
-            (mapped_1[0], mapped_1[1] - 6),
-            self.max_x.year - 1,
-            self.grid_color.hex,
-            anchor="end",
-        )
+            mapped_1: np.ndarray = self.map_((self.max_x_second, 0))
+            self.text(
+                svg,
+                (mapped_1[0], mapped_1[1] - 6),
+                self.max_x.year - 1,
+                self.grid_color.hex,
+                anchor="end",
+            )
 
     @staticmethod
     def text(svg, point, text, color, anchor: str = "start") -> None:

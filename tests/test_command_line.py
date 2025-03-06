@@ -36,11 +36,12 @@ def initialize(
 
     # Configurate dictionaries.
 
-    if dictionaries_configuration is not None:
-        with open(
-            temp_directory / "dictionaries" / "config.json", "w"
-        ) as output_file:
-            json.dump(dictionaries_configuration, output_file)
+    if dictionaries_configuration is None:
+        dictionaries_configuration = {}
+    with open(
+        temp_directory / "dictionaries" / "config.json", "w"
+    ) as output_file:
+        json.dump(dictionaries_configuration, output_file)
 
     if dictionaries is not None:
         for file_name, content in dictionaries.items():
@@ -189,7 +190,6 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
             },
         },
     )
-
     check_main(
         capsys,
         temp_directory=temp_directory,
@@ -200,6 +200,26 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
             "y",  # Say "yes" for "Do you know the word?"
             "q",  # Quit.
         ],
+        expected_output=[
+            "Emmio",
+        ],
+    )
+
+
+def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
+    """Test that a new user is created with empty data."""
+
+    temp_directory: Path = Path("__test_existing_data")
+    temp_user_id: str = "alice"
+    initialize(
+        temp_directory=temp_directory,
+        temp_user_id=temp_user_id,
+    )
+    check_main(
+        capsys,
+        temp_directory=temp_directory,
+        temp_user_id=temp_user_id,
+        user_commands=["plot lexicon --svg", "q"],
         expected_output=[
             "Emmio",
         ],

@@ -142,7 +142,8 @@ class LexiconVisualizer:
 
         plt.title("Vocabulary level per language")
         plt.ylim(ymin=margin)
-        plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
+        if x_min and x_max:
+            plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
         # plt.tight_layout()
         plt.subplots_adjust(left=0.3, right=0.7)
 
@@ -271,7 +272,7 @@ class LexiconVisualizer:
         lexicons: dict[Language, list[Lexicon]],
         margin: float,
         skip_first_point: bool = False,
-    ) -> tuple[datetime, datetime, list[LexiconRangeData]]:
+    ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
         data: list[LexiconRangeData] = []
 
         for language, language_lexicons in lexicons.items():
@@ -282,8 +283,8 @@ class LexiconVisualizer:
                 data.append(data_range)
 
         return (
-            min(data_range.xs[0] for data_range in data),
-            max(data_range.xs[-1] for data_range in data),
+            min(data_range.xs[0] for data_range in data) if data else None,
+            max(data_range.xs[-1] for data_range in data) if data else None,
             sorted(
                 data, key=lambda data: data.get_average_rate(), reverse=True
             ),
