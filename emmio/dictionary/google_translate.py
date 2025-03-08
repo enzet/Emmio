@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from emmio.dictionary.core import Dictionary, DictionaryItem, Form
 from googletrans import Translator
+import httpx
 
 from emmio.language import Language
 
@@ -57,11 +58,14 @@ class GoogleTranslate(Dictionary):
         if cache_only:
             return None
 
-        translation = await self.translator.translate(
-            word,
-            src=self.from_language.get_code(),
-            dest=self.to_language.get_code(),
-        )
+        try:
+            translation = await self.translator.translate(
+                word,
+                src=self.from_language.get_code(),
+                dest=self.to_language.get_code(),
+            )
+        except httpx.ConnectError:
+            return None
 
         with (self.cache_directory / word).open("w") as output_file:
             output_file.write(translation.text)
