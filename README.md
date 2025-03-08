@@ -3,10 +3,10 @@
     <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
-__Emmio__ is an experimental project focused on languages and learning. It
-provides learning and testing algorithms:
+__Emmio__ is an experimental project focused on language learning. It provides
+learning and testing algorithms:
   1. a [learning](#learning) system based on spaced repetition,
-  2. a [lexicon](#lexicon) (vocabulary) level assessment tool,
+  2. a [lexicon](#lexicon) (vocabulary) level assessment tool.
 
 The project manages four kinds of artifacts:
   - [dictionaries](#dictionary),
@@ -30,9 +30,9 @@ To run Emmio, simply execute
 emmio
 ```
 
-You can specify a data directory with `--data` option and username with
-`--user` option. If not specified, the data directory is assumed to be
-`~/.emmio` and username is assumed to be the current system username.
+You can specify a data directory with the `--data` option and a username with
+the `--user` option. If not specified, the data directory defaults to
+`~/.emmio` and the username defaults to your current system username.
 
 ## Lexicon
 
@@ -40,8 +40,8 @@ You can specify a data directory with `--data` option and username with
 > lexicon
 ```
 
-The algorithm will randomly (based on frequency) offer you words of the target
-language. For each word, you have to indicate
+The algorithm randomly presents words from the target language (weighted by
+frequency). For each word, you need to indicate
 
   1. whether you know at least one meaning of this word (press <kbd>y</kbd> or
      <kbd>Enter</kbd>),
@@ -51,11 +51,16 @@ language. For each word, you have to indicate
 
 Press <kbd>q</kbd> to finish.
  
-After that algorithm will provide you a non-negative number called _rate_, that
-somehow describes your vocabulary. 0 means you know not a single word of the
-language and infinity means you know absolutely all words in the frequency list.
-The better use of the rate is to track your language learning progress and to
-compare vocabulary of different people using one frequency list.
+After completion, the algorithm provides a non-negative number called _rate_,
+that indicates your vocabulary level. A score of 0 means you don't know any
+words in the language, while infinity means you know every word in the
+frequency list. This rate is most useful for tracking your learning progress
+and comparing vocabulary levels between different users using the same
+frequency list.
+
+There is no upper limit for the rate, if you know meanings of all words in a
+language, the rate is infinity. It’s finite though, if you don’t know meaning of
+at least one word.
 
 | Rate        | Level                            |
 |-------------|----------------------------------|
