@@ -20,7 +20,7 @@ from emmio.learn.teacher import Teacher
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
 from emmio.read.core import Read
-from emmio.ui import Interface, Table, progress
+from emmio.ui import Block, Interface, Table, progress, Title, Header
 from emmio.user.data import UserData, Record, Session
 
 LEXICON_HELP: str = """
@@ -70,13 +70,14 @@ class Emmio:
         self.user_id: str = user_id
 
     async def run(self):
-        print("\nEmmio\n")
+        self.interface.print(Title("Emmio"))
 
-        print(
-            """
-    Press <Enter> or print "learn" to start learning.
-    Print "help" to see commands or "exit" to quit.
-"""
+        self.interface.print(
+            Block(
+                'Press <Enter> or print "learn" to start learning.\n'
+                'Print "help" to see commands or "exit" to quit.',
+                (1, 4, 1, 4),
+            )
         )
 
         while True:
@@ -582,7 +583,7 @@ class Emmio:
             if need <= 0:
                 continue
 
-            self.interface.header(f"Lexicon for {language.get_name()}")
+            self.interface.print(Header(f"Lexicon for {language.get_name()}"))
 
             frequency_list: FrequencyList | None = self.data.get_frequency_list(
                 lexicon.config.frequency_list

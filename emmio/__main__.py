@@ -10,7 +10,7 @@ from pathlib import Path
 import coloredlogs as coloredlogs
 
 from emmio.data import Data
-from emmio.ui import RichInterface
+from emmio.ui import Interface, get_interface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -46,6 +46,12 @@ async def asynchronous_main():
     parser: ArgumentParser = ArgumentParser("Emmio")
     parser.add_argument("--data", help="path to data directory")
     parser.add_argument("--user", help="user name")
+    parser.add_argument(
+        "--interface",
+        help="interface type",
+        choices=["terminal", "rich"],
+        default="rich",
+    )
     parser.add_argument(
         "--use-input",
         help="use `input()` function instead of `getchar()`",
@@ -107,6 +113,8 @@ async def asynchronous_main():
 
     arguments: Namespace = parser.parse_args(sys.argv[1:])
 
+    interface: Interface = get_interface(arguments.interface)
+
     if arguments.data:
         data_path = Path(arguments.data)
     else:
@@ -139,7 +147,7 @@ async def asynchronous_main():
             )
             robot: Emmio = Emmio(
                 data_path,
-                RichInterface(arguments.use_input),
+                interface,
                 data,
                 user_id,
             )
@@ -153,7 +161,7 @@ async def asynchronous_main():
             )
             robot: Emmio = Emmio(
                 data_path,
-                RichInterface(arguments.use_input),
+                interface,
                 data,
                 user_id,
             )

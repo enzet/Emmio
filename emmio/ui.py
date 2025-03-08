@@ -1,8 +1,10 @@
 """Emmio console user interface."""
 
+from logging import raiseExceptions
 import sys
 from typing import Any
 import readchar
+from dataclasses import dataclass
 
 from rich import box
 from rich.console import Console
@@ -110,11 +112,18 @@ class Block:
         self.padding: tuple[int, int, int, int] = padding
 
 
+@dataclass
 class Title:
     """Title of the program."""
 
-    def __init__(self, text: str):
-        self.text: str = text
+    text: str
+
+
+@dataclass
+class Header:
+    """Header of a block."""
+
+    text: str
 
 
 class Table:
@@ -173,9 +182,6 @@ class Interface:
     def colorize(self, text: str, color: str) -> str:
         return text
 
-    def box(self, message: str) -> None:
-        self.print(message)
-
     def run(self) -> None:
         raise NotImplementedError()
 
@@ -189,65 +195,68 @@ class Interface:
         raise NotImplementedError()
 
 
-class StringInterface(Interface):
-    def __init__(self):
-        self.string: str = ""
-
-    def print(self, text: str) -> None:
-        self.string += text + "\n"
-
-    def header(self, text: str) -> None:
-        self.string += text + "\n"
-
-    def input(self, prompt: str) -> str:
-        pass
-
-    def get_word(
-        self, right_word: str, alternative_forms: set[str], language: Language
-    ) -> str:
-        pass
-
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        self.string += table(columns, rows)
-
-
-class StringMarkdownInterface(StringInterface):
-    def __init__(self):
-        super().__init__()
-
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        self.string += "```\n" + table(columns, rows) + "```\n"
-
-
 class TerminalInterface(Interface):
+    """Simple terminal interface with only necessary unicode characters."""
+
     def __init__(self, use_input: bool):
         super().__init__(use_input)
 
-    def header(self, message: str) -> None:
-        print(message)
+    def print(self, text) -> None:
 
-    def run(self) -> None:
-        pass
+        if isinstance(text, str):
+            print(text)
+        elif isinstance(text, Text):
+            print(self.construct(text))
+        elif isinstance(text, Title):
+            print(self.construct(text.text))
+        elif isinstance(text, Header):
+            print(self.construct(text.text))
+        elif isinstance(text, Block):
+            print(self.construct(text.text))
+        else:
+            raise Exception(
+                f"Unsuppoted text type in terminal interface `{type(text)}`."
+            )
 
-    def print(self, message: str) -> None:
-        print(message)
+    def construct(self, element) -> str:
+        if isinstance(element, str):
+            return element
+        elif isinstance(element, Text):
+            result: str = ""
+            for element in element.elements:
+                result += self.construct(element)
+            return result
+        elif isinstance(element, Block):
+            return "\n" + self.construct(element.text) + "\n"
+        elif isinstance(element, Formatted):
+            return self.construct(element.text)
+        else:
+            raise Exception(
+                f"Unsuppoted text type in terminal interface `{type(element)}`."
+            )
+
+    def button(self, text: str) -> None:
+        print(f"<{text}>")
+        input()
 
     def input(self, prompt: str) -> str:
         return input(prompt)
 
-    def box(self, text: str) -> None:
-        s = "┌─" + "─" * len(text) + "─┐\n"
-        s += f"│ {text} │\n"
-        s += "└─" + "─" * len(text) + "─┘"
-        self.print(s)
-
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        self.print(table(columns, rows))
-
-    def colorize(self, text: str, color: str):
-        if color in colors:
-            return f"\033[{colors[color]}m{text}\033[0m"
-        return text
+    def choice(self, options: list[str], prompt: str | None = None) -> str:
+        self.print(
+            ((prompt + " ") if prompt else "")
+            + " ".join(f"[{x}]" for x in options)
+        )
+        while True:
+            char: str = input() if self.use_input else get_char()
+            for option in options:
+                if not option:
+                    raise RuntimeError()
+                for c in option:
+                    if "A" <= c <= "Z":
+                        break
+                if c.lower() == char:
+                    return option.lower()
 
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
@@ -302,6 +311,8 @@ class TerminalInterface(Interface):
 
 
 class RichInterface(TerminalInterface):
+    """Terminal interface with complex Unicode characters and colors."""
+
     def __init__(self, use_input: bool):
         super().__init__(use_input)
         self.console: Console = Console(highlight=False)
@@ -324,6 +335,9 @@ class RichInterface(TerminalInterface):
             return element
 
         elif isinstance(element, Title):
+            return RichElementPanel(self.construct(element.text))
+
+        elif isinstance(element, Header):
             return RichElementPanel(self.construct(element.text))
 
         elif isinstance(element, Formatted):
@@ -410,34 +424,11 @@ ESCAPE: int = 27
 BACKSPACE: int = 127
 
 
-class TelegramInterface(Interface):
-    def print(self, text: str) -> None:
-        pass
-
-    def header(self, text: str) -> None:
-        pass
-
-    def input(self, prompt: str) -> str:
-        pass
-
-    def get_word(
-        self, right_word: str, alternative_forms: set[str], language: Language
-    ) -> str:
-        pass
-
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        pass
-
-
-class TerminalMessengerInterface(TerminalInterface):
-    def __init__(self):
-        self.console: Console = Console()
-
-    def header(self, text: str) -> None:
-        self.console.print(RichElementPanel(text))
-
-    def box(self, text: str) -> None:
-        self.console.print(RichElementPanel(text))
-
-    def print(self, text: str) -> None:
-        self.console.print(RichElementPanel(text))
+def get_interface(interface: str) -> Interface:
+    match interface:
+        case "terminal":
+            return TerminalInterface(use_input=True)
+        case "rich":
+            return RichInterface(use_input=True)
+        case _:
+            raise ValueError(f"Unsupported interface: `{interface}`.")
