@@ -180,7 +180,7 @@ class Data:
         return self.users_data[user_id].get_learning(id_)
 
     def get_learnings(self, user_id: str) -> Iterator[Learning]:
-        return self.users_data[user_id].get_learnings()
+        return self.users_data[user_id].get_all_learnings()
 
     def get_active_learnings(self, user_id: str) -> Iterator[Learning]:
         return self.users_data[user_id].get_active_learnings()
@@ -218,8 +218,9 @@ class Data:
 
         user_data: UserData = self.users_data[user_id]
 
-        pressure: float = user_data.learnings.compute_pressure()
-        postponed: float = user_data.learnings.count_postponed()
+        pressure: float = user_data.get_learn_data().compute_pressure()
+        postponed: float = user_data.get_learn_data().count_postponed()
+
         for name, locator, span in (
             ("today", day_start, 100),
             ("week", first_day_of_week, 700),

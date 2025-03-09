@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -24,6 +25,9 @@ LISTEN_DIRECTORY_NAME: str = "listen"
 class UserData:
     """Manager for user-related data."""
 
+    config: dict
+    """User data configuration."""
+
     path: Path
     """Path to the directory with user data.
     
@@ -44,10 +48,10 @@ class UserData:
     Unlike user id, it may contain any Unicode symbols.  E.g. ``Chloé``.
     """
 
-    learnings: LearnData
+    _learn_data: LearnData | None
     """Data about user's learning processes."""
 
-    lexicons: LexiconData
+    _lexicon_data: LexiconData | None
     """Data about user's lexicon checking processes."""
 
     read_processes: ReadData
@@ -59,38 +63,57 @@ class UserData:
     @classmethod
     def from_config(cls, user_id: str, path: Path, config: dict) -> "UserData":
         return cls(
+            config,
             path,
             user_id,
             config["name"],
-            LearnData.from_config(path / LEARN_DIRECTORY_NAME, config["learn"]),
-            LexiconData.from_config(
-                path / LEXICON_DIRECTORY_NAME, config["lexicon"]
-            ),
+            None,
+            None,
             ReadData.from_config(path / READ_DIRECTORY_NAME, config["read"]),
             ListenData.from_config(
                 path / LISTEN_DIRECTORY_NAME, config["listen"]
             ),
         )
 
-    def get_learnings(self) -> Iterator[Learning]:
-        return self.learnings.get_learnings()
+    def get_learn_data(self) -> LearnData:
+        """Lazy-loads learning data."""
+
+        if not self._learn_data:
+            logging.info(f"Loading {self.user_id} learning data...")
+            self._learn_data = LearnData.from_config(
+                self.path / LEARN_DIRECTORY_NAME, self.config["learn"]
+            )
+        return self._learn_data
+
+    def get_lexicon_data(self) -> LexiconData:
+        """Lazy-loads lexicon data."""
+
+        if not self._lexicon_data:
+            logging.info(f"Loading {self.user_id} lexicon data...")
+            self._lexicon_data = LexiconData.from_config(
+                self.path / LEXICON_DIRECTORY_NAME, self.config["lexicon"]
+            )
+        return self._lexicon_data
+
+    def get_all_learnings(self) -> Iterator[Learning]:
+        return self.get_learn_data().get_learnings()
 
     def get_active_learnings(self) -> Iterator[Learning]:
-        return self.learnings.get_active_learnings()
+        return self.get_learn_data().get_active_learnings()
 
     def get_learning(self, id_: str) -> Learning:
-        return self.learnings.get_learning(id_)
+        return self.get_learn_data().get_learning(id_)
 
     def get_lexicons(
         self, languages: list[Language] | None = None
     ) -> list[Lexicon]:
-        return self.lexicons.get_lexicons(languages)
+        return self.get_lexicon_data().get_lexicons(languages)
 
     def get_lexicon_by_id(self, lexicon_id: str) -> Lexicon:
-        return self.lexicons.get_lexicon_by_id(lexicon_id)
+        return self.get_lexicon_data().get_lexicon_by_id(lexicon_id)
 
     def get_lexicons_by_language(self, language: Language) -> list[Lexicon]:
-        return self.lexicons.get_lexicons_by_language(language)
+        return self.get_lexicon_data().get_lexicons_by_language(language)
 
     def is_known(self, word: str, language: Language) -> bool:
         learning_responses, lexicon_responses = self.get_word_status(
@@ -124,7 +147,9 @@ class UserData:
         self, word: str, language: Language
     ) -> tuple[list[Response], list[LexiconResponse]]:
         learning_responses: list[Response] = []
-        for learning in self.learnings.get_learnings_by_language(language):
+        for learning in self.get_learn_data().get_learnings_by_language(
+            language
+        ):
             if knowledge := learning.get_knowledge(word):
                 learning_responses.append(knowledge.get_last_response())
 
@@ -134,6 +159,9 @@ class UserData:
                 lexicon_responses.append(lexicon.get(word))
 
         return learning_responses, lexicon_responses
+
+    def get_read_process(self, read_id) -> Read:
+        return self.read_processes.get_read_process(read_id)
 
     def get_read_processes(self) -> dict[str, Read]:
         return self.read_processes.get_read_processes()
@@ -146,7 +174,7 @@ class UserData:
         records: list = []
         for learning in self.get_active_learnings():
             records += learning.get_records()
-        for lexicon in self.lexicons.get_lexicons():
+        for lexicon in self.get_lexicon_data().get_lexicons():
             records += lexicon.get_records()
         records = sorted(records, key=lambda x: x.time)
         return records
@@ -155,7 +183,7 @@ class UserData:
         sessions: list = []
         for learning in self.get_active_learnings():
             sessions += learning.get_sessions()
-        for lexicon in self.lexicons.get_lexicons():
+        for lexicon in self.get_lexicon_data().get_lexicons():
             sessions += lexicon.get_sessions()
         sessions = sorted(sessions, key=lambda x: x.start)
         return sessions
@@ -198,23 +226,38 @@ class UserData:
     @classmethod
     def create(cls, path: Path, user_id: str, user_name: str) -> "UserData":
         """Create new user."""
-        (path / LEARN_DIRECTORY_NAME).mkdir()
-        (path / LEXICON_DIRECTORY_NAME).mkdir()
-        (path / READ_DIRECTORY_NAME).mkdir()
-        (path / LISTEN_DIRECTORY_NAME).mkdir()
 
-        result: "UserData" = cls(
+        for directory in [
+            LEARN_DIRECTORY_NAME,
+            LEXICON_DIRECTORY_NAME,
+            READ_DIRECTORY_NAME,
+            LISTEN_DIRECTORY_NAME,
+        ]:
+            (path / directory).mkdir()
+
+        config: dict = {
+            "id": user_id,
+            "name": user_name,
+            "learn": {},
+            "lexicon": {},
+            "read": {},
+            "listen": {},
+        }
+        user_data: "UserData" = cls(
+            config,
             path,
             user_id,
             user_name,
-            LearnData(path / LEARN_DIRECTORY_NAME),
-            LexiconData(path / LEXICON_DIRECTORY_NAME),
+            None,
+            None,
             ReadData(path / READ_DIRECTORY_NAME),
             ListenData(path / LISTEN_DIRECTORY_NAME),
         )
-        result.write_config()
+        with (path / "config.json").open("w+") as output_file:
+            json.dump(config, output_file, ensure_ascii=False, indent=4)
+            user_data.config = config
 
-        return result
+        return user_data
 
     def write_config(self) -> None:
         """Write configuration to the JSON file."""
@@ -227,9 +270,9 @@ class UserData:
                 "read": {},
                 "listen": {},
             }
-            for learn_id, learning in self.learnings.learnings.items():
+            for learn_id, learning in self.get_learn_data().learnings.items():
                 config["learn"][learn_id] = learning.config.dict()
-            for lexicon_id, lexicon in self.lexicons.lexicons.items():
+            for lexicon_id, lexicon in self.get_lexicon_data().lexicons.items():
                 config["lexicon"][lexicon_id] = lexicon.config.dict()
             for read_id, reading in self.read_processes.read_processes.items():
                 config["read"][read_id] = reading.config.dict()
@@ -242,8 +285,10 @@ class UserData:
         self, languages: list[Language] | None = None
     ) -> dict[Language, list[Lexicon]]:
         if not languages:
-            return self.lexicons.get_frequency_lexicons()
+            return self.get_lexicon_data().get_frequency_lexicons()
         return {
-            language: self.lexicons.get_frequency_lexicons_by_language(language)
+            language: self.get_lexicon_data().get_frequency_lexicons_by_language(
+                language
+            )
             for language in languages
         }
