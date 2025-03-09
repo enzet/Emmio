@@ -71,8 +71,7 @@ class Teacher:
         self.question_index: int = 0
         self.question_ids: list[tuple[str, List, int]] = []
         for list_config in self.scheme.new_question.pick_from:
-            list_id = list_config["id"]
-            list_ = data.get_list(list_id)
+            list_ = data.get_list(list_config)
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 
@@ -203,7 +202,7 @@ class Teacher:
 
         return True
 
-    def repeat(self, max_actions: int | None = None) -> bool:
+    async def repeat(self, max_actions: int | None = None) -> bool:
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
@@ -211,7 +210,9 @@ class Teacher:
         )
         while True:
             if word := self.learning.get_next_question():
-                code: str = self.learn(word, self.learning.knowledge[word])
+                code: str = await self.learn(
+                    word, self.learning.knowledge[word]
+                )
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -321,7 +322,7 @@ class Teacher:
             input("[reveal translations]")
         print("\n".join(translations))
 
-    def learn(self, word: str, knowledge: Knowledge | None) -> str:
+    async def learn(self, word: str, knowledge: Knowledge | None) -> str:
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
@@ -346,7 +347,7 @@ class Teacher:
         # if word in self.data.exclude_translations:
         #     exclude_translations = set(self.data.exclude_translations[word])
 
-        items: list[DictionaryItem] = self.dictionaries.get_items(
+        items: list[DictionaryItem] = await self.dictionaries.get_items(
             word, self.learning.learning_language
         )
 
@@ -357,25 +358,23 @@ class Teacher:
                 words_to_hide.add(link.link_value)
 
         if items:
-            translation_list = [
-                x.to_str(
+            self.interface.print(statistics)
+            for item in items:
+                text = item.to_text(
                     self.learning.base_languages,
-                    self.interface,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
                     hide_translations=exclude_translations,
                     only_common=False,
                 )
-                for x in items
-            ]
-            self.interface.print(
-                statistics + "\n" + "\n".join(translation_list)
-            )
+                self.interface.print(text)
             alternative_forms: set[str] = set(
                 x.link_value for x in items[0].get_links()
             )
         else:
-            self.interface.print(statistics + "\n" + "No translations.")
+            self.interface.print(statistics)
+            self.interface.print("No translations.")
+            self.interface.print("")
 
         index: int = 0
         rated_sentences: list[tuple[float, SentenceTranslations]] = (

@@ -388,9 +388,7 @@ class Learning:
         if self.file_path.name.endswith(".json"):
             logging.debug(f"Saving learning process to {self.file_path}...")
             with self.file_path.open("w+") as output_file:
-                output_file.write(
-                    self.process.json(ensure_ascii=False, indent=4)
-                )
+                output_file.write(self.process.model_dump_json(indent=4))
 
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""

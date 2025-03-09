@@ -320,7 +320,7 @@ class Emmio:
             else:
                 learnings = list(self.data.get_active_learnings(self.user_id))
 
-            self.learn(learnings)
+            await self.learn(learnings)
 
         # Command `lexicon`.
         if arguments.command == "lexicon":
@@ -712,7 +712,7 @@ class Emmio:
             self.data.get_text(read.config.text),
         )
 
-    def learn(self, learnings: list[Learning]) -> None:
+    async def learn(self, learnings: list[Learning]) -> None:
         while True:
             learnings = sorted(learnings, key=lambda x: x.compare_by_old())
             learning: Learning = learnings[0]
@@ -724,11 +724,13 @@ class Emmio:
                     learning,
                     stop_after_answer=True,
                 )
-                self.interface.box(
-                    "Repeat questions for "
-                    + learning.learning_language.get_name()
+                self.interface.print(
+                    Header(
+                        "Repeat questions for "
+                        + learning.learning_language.get_name()
+                    )
                 )
-                do_continue: bool = teacher.repeat(max_actions=10)
+                do_continue: bool = await teacher.repeat(max_actions=10)
                 self.data.print_learning_statistics(
                     self.interface, self.user_id
                 )
@@ -746,12 +748,14 @@ class Emmio:
                         learning,
                         stop_after_answer=True,
                     )
-                    self.interface.box(
-                        "Learn new words for "
-                        + learning.learning_language.get_name()
+                    self.interface.print(
+                        Header(
+                            "Learn new words for "
+                            + learning.learning_language.get_name()
+                        )
                     )
                     do_continue: bool = teacher.learn_new()
-                    self.interface.box("All new words added")
+                    self.interface.print(Header("All new words added"))
                     self.data.print_learning_statistics(
                         self.interface, self.user_id
                     )
