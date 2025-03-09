@@ -99,8 +99,9 @@ class Analysis:
             )
             records += listening.get_records(word)
 
-            lexicon: Lexicon = self.user_data.get_lexicon(language)
-            records += lexicon.get_user_records(word)
+            lexicons: list[Lexicon] = self.user_data.get_lexicons([language])
+            for lexicon in lexicons:
+                records += lexicon.get_user_records(word)
 
             records = sorted(records, key=lambda x: x.time)
 
