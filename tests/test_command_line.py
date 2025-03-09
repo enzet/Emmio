@@ -115,11 +115,11 @@ def check_main(
             if expected_output:
                 split_expected_output: list[str] = expected_output.splitlines()
                 split_captured_output: list[str] = captured.out.splitlines()
-                # assert len(split_expected_output) == len(split_captured_output)
                 for expected_line, actual_line in zip(
                     split_expected_output, split_captured_output
                 ):
                     assert expected_line.rstrip() == actual_line.rstrip()
+                assert len(split_expected_output) == len(split_captured_output)
 
         assert Path(temp_directory).exists()
         for subdirectory in "dictionaries", "sentences", "texts", "users":
@@ -244,7 +244,7 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
 
 
 def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
-    """Test that a new user is created with empty data."""
+    """Test `plot lexicon` command."""
 
     temp_directory: Path = Path("__test_existing_data")
     temp_user_id: str = "alice"
@@ -258,4 +258,25 @@ def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
         temp_user_id=temp_user_id,
         user_commands=["plot lexicon --svg", "q"],
         expected_output=HEADER,
+    )
+
+
+def test_stat_actions(capsys: Callable[[], CaptureFixture]) -> None:
+    """Test `stat actions` command."""
+
+    temp_directory: Path = Path("__test_existing_data")
+    temp_user_id: str = "alice"
+    initialize(
+        temp_directory=temp_directory,
+        temp_user_id=temp_user_id,
+    )
+    check_main(
+        capsys,
+        temp_directory=temp_directory,
+        temp_user_id=temp_user_id,
+        user_commands=["stat actions", "q"],
+        expected_output=(
+            HEADER
+            + "\nLanguage Actions Average action time Approximated time\n\n"
+        ),
     )

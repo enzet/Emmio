@@ -53,9 +53,10 @@ def button():
 def table(columns: list[str], rows: list[list[str]]) -> str:
     result: str = ""
 
-    lengths: list[int] = [
-        max(len(row[i]) for row in rows) + 1 for i in range(len(columns))
-    ]
+    lengths: list[int] = [len(x) for x in columns]
+    for row in rows:
+        for index in range(len(columns)):
+            lengths[index] = max(lengths[index], len(row[index]))
     result += (
         " ".join(columns[i].ljust(lengths[i]) for i in range(len(columns)))
         + "\n"
@@ -213,6 +214,8 @@ class TerminalInterface(Interface):
             print(self.construct(text.text))
         elif isinstance(text, Block):
             print(self.construct(text.text))
+        elif isinstance(text, Table):
+            print(table(text.columns, text.rows))
         else:
             raise Exception(
                 f"Unsuppoted text type in terminal interface `{type(text)}`."
