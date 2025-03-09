@@ -75,6 +75,9 @@ class LearningRecord(BaseModel, Record):
     def get_time(self) -> datetime:
         return self.time
 
+    def get_request_time(self) -> datetime:
+        return self.request_time
+
     def get_symbol(self) -> str:
         return self.response.get_symbol()
 
@@ -263,6 +266,7 @@ class Learning:
         sentence_id: int,
         question_id: str,
         time: datetime | None = None,
+        request_time: datetime | None = None,
     ) -> None:
         """Register user response.
 
@@ -280,6 +284,7 @@ class Learning:
             response=response,
             sentence_id=sentence_id,
             time=time,
+            request_time=request_time,
         )
         self.process.records.append(record)
         self.__update_knowledge(record)
@@ -312,22 +317,21 @@ class Learning:
             ).total_seconds() * (MULTIPLIER + ((random.random() - 0.5) * 0.0))
         return knowledge.get_last_record().time + timedelta(seconds=seconds)
 
-    def __get_next_questions(self) -> list[str]:
+    def __get_next_questions(self) -> list[Knowledge]:
+        now: datetime = datetime.now()
         return [
             x
-            for x in self.knowledge
-            if (
-                self.knowledge[x].is_learning()
-                and datetime.now() > self.get_next_time(self.knowledge[x])
-            )
+            for x in self.knowledge.values()
+            if (x.is_learning() and now > self.get_next_time(x))
         ]
 
     def get_next_question(self) -> str | None:
         """Get question identifier of the next question."""
-        ids: list[str] = self.__get_next_questions()
-        if not ids:
+        knowledge: list[Knowledge] = self.__get_next_questions()
+        if not knowledge:
             return None
-        return ids[0]
+        knowledge = sorted(knowledge, key=lambda x: self.get_next_time(x))
+        return knowledge[0].question_id
 
     def has(self, question_id: str) -> bool:
         """Check whether the question is in the learning process."""
