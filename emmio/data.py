@@ -221,28 +221,8 @@ class Data:
         pressure: float = user_data.get_learn_data().compute_pressure()
         postponed: float = user_data.get_learn_data().count_postponed()
 
-        for name, locator, span in (
-            ("today", day_start, 100),
-            ("week", first_day_of_week, 700),
-            ("month", first_day_of_month, 3000),
-            ("year", year_start, 36500),
-        ):
-            actions: int = user_data.learnings.count_actions(
-                since=locator(datetime.now())
-            )
-            value = actions
-            if (
-                value
-                >= ((datetime.now() - locator(datetime.now())).days + 1) * 100
-            ):
-                value = f"[green] {value}"
-            else:
-                value = f"[red] {value}"
-            interface.print(f"Actions {name}: {value}")
-
         interface.print(f"Pressure: {pressure:.2f}")
         interface.print(f"Postponed: {postponed}")
-        interface.print(Table(["Course", "Repeat", "Add", "All"], rows))
 
     def get_read_processes(self, user_id: str) -> dict[str, Read]:
         return self.users_data[user_id].get_read_processes()
