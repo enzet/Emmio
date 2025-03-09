@@ -257,7 +257,9 @@ class Emmio:
             analysis = Analysis(self.data, self.user_data)
             analysis.analyze(
                 Language.from_code(arguments.language),
-                self.data.get_frequency_list("hy_wortschatz_community_2017"),
+                self.data.get_frequency_list(
+                    {"id": "hy_wortschatz_community_2017"}
+                ),
             )
 
         # Command `read`.
@@ -306,15 +308,36 @@ class Emmio:
 
             # Command `stat actions`.
             if arguments.process == "actions":
-                stat = defaultdict(int)
+                stat_actions: dict[Language, int] = defaultdict(int)
+                stat_time: dict[Language, timedelta] = defaultdict(timedelta)
                 for learning in self.data.get_learnings(self.user_id):
-                    stat[learning.learning_language] += learning.get_actions()
-                self.interface.table(
-                    ["Language", "Actions"],
-                    [
-                        [x.get_name(), str(y)]
-                        for x, y in sorted(stat.items(), key=lambda x: -x[1])
-                    ],
+                    stat_actions[
+                        learning.learning_language
+                    ] += learning.count_actions()
+                    stat_time[
+                        learning.learning_language
+                    ] += learning.compute_average_action_time()
+
+                self.interface.print(
+                    Table(
+                        [
+                            "Language",
+                            "Actions",
+                            "Average action time",
+                            "Approximated time",
+                        ],
+                        [
+                            [x.get_name(), str(y), str(z), str(y * z)]
+                            for x, y, z in sorted(
+                                zip(
+                                    stat_actions.keys(),
+                                    stat_actions.values(),
+                                    stat_time.values(),
+                                ),
+                                key=lambda x: -x[1],
+                            )
+                        ],
+                    )
                 )
 
             # Command `stat learn`.

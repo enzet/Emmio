@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 from pydantic.main import BaseModel
@@ -106,6 +106,11 @@ class LearningSession(BaseModel, Session):
     def end_session(self, time: datetime, actions: int) -> None:
         self.actions = actions
         self.end = datetime.now()
+
+    def get_time(self) -> Optional[timedelta]:
+        if self.end is None:
+            return None
+        return self.end - self.start
 
 
 class LearningProcess(BaseModel):
@@ -434,35 +439,47 @@ class Learning:
 
         Meaningful actions are those with `RIGHT` or `WRONG` answer.
         """
-        a = 0
-        for record in self.process.records:
-            if record.response in [Response.RIGHT, Response.WRONG]:
-                a += 1
-        return a
+        return self.count_actions(types=(Response.RIGHT, Response.WRONG))
 
     def count_postponed(self):
-        a = 0
-        for knowledge in self.knowledge.values():
-            if knowledge.get_last_response() == Response.POSTPONE:
-                a += 1
-        return a
+        """Count the number of questions that were postponed."""
+        return self.count_actions(types=(Response.POSTPONE,))
 
-    def count_actions(self, since: datetime):
-        a = 0
-        for record in self.process.records:
-            record: LearningRecord
-            if (
-                record.response in [Response.RIGHT, Response.WRONG]
-                and record.time > since
-            ):
-                a += 1
-        return a
+    def count_actions(
+        self,
+        since: datetime | None = None,
+        types: tuple[Response, ...] = (Response.RIGHT, Response.WRONG),
+    ) -> int:
+        """Count actions of the given types."""
+
+        return sum(
+            1
+            for record in self.process.records
+            if record.response in types and (not since or record.time > since)
+        )
 
     def get_records(self) -> list[LearningRecord]:
         return self.process.records
 
     def get_sessions(self) -> list[LearningSession]:
         return self.process.sessions
+
+    def compute_average_action_time(self) -> timedelta:
+        """Compute average time needed for an action recorded in sessions."""
+
+        total_time: timedelta = timedelta(0)
+        total_actions: int = 0
+
+        for session in self.process.sessions:
+            time: timedelta = session.get_time()
+            if time:
+                total_time += time
+                total_actions += session.actions
+
+        if total_actions:
+            return total_time / total_actions
+
+        return timedelta(0)
 
 
 def time_format(minutes: int) -> datetime:
