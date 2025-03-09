@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import coloredlogs
+from colour import Color
 
 from emmio import util
 from emmio.analyze import Analysis
@@ -130,10 +131,13 @@ class Emmio:
             """,
         )
         plot_lexicon_parser.add_argument(
-            "--show-text",
-            action=argparse.BooleanOptionalAction,
-            default=True,
-            help="show language names at the right side of the graphs",
+            "--legend",
+            choices=["list", "text"],
+            default="list",
+            help=(
+                "show legend, `list` shows simple legend, `text` shows labels "
+                "at the right side of the graphs"
+            ),
         )
         plot_lexicon_parser.add_argument(
             "--interval",
@@ -157,6 +161,44 @@ class Emmio:
             "-l",
             type=str,
             help="list of language codes separated with `;`",
+        )
+        plot_lexicon_parser.add_argument(
+            "--precision",
+            "-p",
+            type=int,
+            default=100,
+            help="lexicon rate precision (default is 100)",
+        )
+        plot_lexicon_parser.add_argument(
+            "--background-color", "-bc", type=str, default="white"
+        )
+        plot_lexicon_parser.add_argument(
+            "--grid-color", "-gc", type=str, default="#888888"
+        )
+        plot_lexicon_parser.add_argument("--color", "-c", type=str)
+        plot_lexicon_parser.add_argument(
+            "--show-main",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="plot main average line",
+        )
+        plot_lexicon_parser.add_argument(
+            "--show-averages",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="fill between average lines",
+        )
+        plot_lexicon_parser.add_argument(
+            "--show-precise-values",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="show precise values",
+        )
+        plot_lexicon_parser.add_argument(
+            "--show-precision-interval",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="show precision interval",
         )
 
         plot_learn_parser = plot_subparsers.add_parser(
@@ -418,14 +460,7 @@ class Emmio:
 
             # Command `plot lexicon`.
             if arguments.process == "lexicon":
-                self.plot_lexicon(
-                    arguments.interval,
-                    interactive,
-                    arguments.languages,
-                    arguments.svg,
-                    arguments.margin,
-                    arguments.show_text,
-                )
+                self.plot_lexicon(arguments, interactive)
 
             # Command `plot learn`.
             elif arguments.process == "learn":
@@ -753,15 +788,22 @@ class Emmio:
             self.user_data,
         ).listen(start_from, repeat)
 
-    def plot_lexicon(
-        self, interval, interactive, languages, svg, margin, show_text
-    ):
+    def plot_lexicon(self, arguments, interactive):
+        languages = (
+            [Language.from_code(x) for x in arguments.languages.split(";")]
+            if arguments.languages
+            else None
+        )
+
         first_point = util.year_start
         next_point = lambda x: x + timedelta(days=365.25)
-        if interval == "week":
+        if arguments.interval == "week":
             first_point = util.first_day_of_week
-            next_point = lambda x: x + timedelta(days=7)
-        if interval == "month":
+
+            def next_point(x):
+                return x + timedelta(days=7)
+
+        if arguments.interval == "month":
             first_point = util.first_day_of_month
             next_point = util.plus_month
 
@@ -769,16 +811,32 @@ class Emmio:
             self.user_data.get_frequency_lexicons(languages)
         )
         lexicon_visualizer = LexiconVisualizer(
+            plot_main=arguments.show_main,
+            plot_averages=arguments.show_averages,
+            plot_precise_values=arguments.show_precise_values,
+            plot_precision_interval=arguments.show_precision_interval,
+            precision=arguments.precision,
             interactive=interactive,
             first_point=first_point,
             next_point=next_point,
             impulses=False,
         )
-        if svg:
-            lexicon_visualizer.graph_with_svg(lexicons, margin=margin)
+        if arguments.color and ";" in arguments.color:
+            color = [Color(x) for x in arguments.color.split(";")]
+        else:
+            color = None
+
+        if arguments.svg:
+            lexicon_visualizer.graph_with_svg(
+                lexicons,
+                arguments.margin,
+                color,
+                Color(arguments.background_color),
+                Color(arguments.grid_color),
+            )
         else:
             lexicon_visualizer.graph_with_matplot(
                 lexicons,
-                show_text=show_text,
-                margin=margin,
+                legend=arguments.legend,
+                margin=arguments.margin,
             )

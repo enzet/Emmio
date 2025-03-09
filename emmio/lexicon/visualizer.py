@@ -2,6 +2,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
+from colour import Color
 
 import matplotlib
 from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
@@ -27,8 +28,17 @@ class LexiconRangeData:
 
 @dataclass
 class LexiconVisualizer:
+    plot_main: bool = True
+    """Plot main line."""
+
+    plot_averages: bool = False
+    """Fill between average lines."""
+
     plot_precise_values: bool = False
     """Plot marker for each user response."""
+
+    plot_precision_interval: bool = False
+    """Plot interval for precision."""
 
     precision: int = 100
     """How many wrong answers is needed to construct data point."""
@@ -48,11 +58,10 @@ class LexiconVisualizer:
     def graph_with_matplot(
         self,
         lexicons: dict[Language, list[Lexicon]],
-        show_text: bool = False,
-        margin: float = 0.0,
+        legend: str | None = None,
+        margin: float | None = None,
     ):
-        """
-        Plot lexicon rate change through time.
+        """Plot lexicon rate change through time.
 
         :param lexicons: list of lexicons
         :param show_text: show labels on the current rate
@@ -77,36 +86,39 @@ class LexiconVisualizer:
         for data_range in lexicon_data:
             color = data_range.language.get_color()
             title = data_range.language.get_name()
-            plt.plot(
-                data_range.xs,
-                [sum(a) / len(a) for a in data_range.y_ranges],
-                color=color.hex,
-                linewidth=1,
-                label=title,
-            )
-            for step in 0, 0.25, 0.5, 0.75:
+            if self.plot_main:
                 plt.plot(
                     data_range.xs,
-                    [a[int(len(a) * step)] for a in data_range.y_ranges],
+                    [sum(a) / len(a) for a in data_range.y_ranges],
                     color=color.hex,
                     linewidth=1,
-                    alpha=0.2,
+                    label=title,
                 )
-            plt.plot(
-                data_range.xs,
-                [a[-1] for a in data_range.y_ranges],
-                color=color.hex,
-                linewidth=1,
-                alpha=0.2,
-            )
-            plt.fill_between(
-                data_range.xs,
-                [min(a) for a in data_range.y_ranges],
-                [max(a) for a in data_range.y_ranges],
-                color=color.hex,
-                alpha=0.1,
-            )
-            if show_text:
+            if self.plot_averages:
+                for left, right, opacity in (
+                    (0.0, 1.0, 0.1),
+                    (0.2, 0.8, 0.15),
+                    (0.4, 0.6, 0.2),
+                ):
+                    ys_1 = [
+                        sorted(y_range)[int(left * len(y_range))]
+                        for y_range in data_range.y_ranges
+                    ]
+                    ys_2 = [
+                        sorted(y_range)[
+                            min(int(right * len(y_range)), len(y_range) - 1)
+                        ]
+                        for y_range in data_range.y_ranges
+                    ]
+                    plt.fill_between(
+                        data_range.xs,
+                        ys_1,
+                        ys_2,
+                        color=color.hex,
+                        alpha=opacity,
+                        linewidth=0,
+                    )
+            if legend == "text":
                 trans_offset = mtransforms.offset_copy(
                     ax.transData, fig=fig, x=0.1, y=0
                 )
@@ -119,8 +131,8 @@ class LexiconVisualizer:
                 )
 
         for language, language_lexicons in lexicons.items():
-            dates = []
-            responses = []
+            dates: list[datetime] = []
+            responses: list[int] = []
 
             for lexicon in language_lexicons:
                 dates += lexicon.dates
@@ -141,10 +153,10 @@ class LexiconVisualizer:
                 )
 
         plt.title("Vocabulary level per language")
-        plt.ylim(ymin=margin)
+        if margin is not None:
+            plt.ylim(ymin=margin)
         if x_min and x_max:
             plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
-        # plt.tight_layout()
         plt.subplots_adjust(left=0.3, right=0.7)
 
         if self.interactive:
@@ -153,7 +165,12 @@ class LexiconVisualizer:
             plt.savefig("out/graph.svg")
 
     def graph_with_svg(
-        self, lexicons: dict[Language, list[Lexicon]], margin: float = 0.0
+        self,
+        lexicons: dict[Language, list[Lexicon]],
+        margin: float,
+        colors,
+        background_color: Color,
+        grid_color: Color,
     ):
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin
@@ -184,30 +201,50 @@ class LexiconVisualizer:
                 y_max, max(max(y_range) for y_range in data_range.y_ranges)
             )
 
-        graph = Graph(x_min, x_max)  # , color=Color("#000000"))
+        if y_min == math.inf:
+            y_min = 0
+            y_max = 0
+
+        graph = Graph(
+            x_min,
+            x_max,
+            math.floor(y_min),
+            math.ceil(y_max + 0.25),
+            background_color=background_color,
+            grid_color=grid_color,
+            color=colors,  # color=Color("#000000"))
+        )
+
         svg = Drawing("lexicon.svg", graph.canvas.size)
-        graph.grid(svg)
+        graph.draw_background(svg)
         graph.plot(svg, data)
-        for data_range in lexicon_data:
-            for left, right, opacity in (0.25, 0.75, 0.2), (0, 1, 0.1):
-                ys_1 = [
-                    sorted(y_range)[int(left * len(y_range))]
-                    for y_range in data_range.y_ranges
-                ]
-                ys_2 = [
-                    sorted(y_range)[
-                        min(int(right * len(y_range)), len(y_range) - 1)
+
+        if self.plot_averages:
+            for data_range in lexicon_data:
+                for left, right, opacity in (
+                    (0.0, 1.0, 0.1),
+                    (0.2, 0.8, 0.15),
+                    (0.4, 0.6, 0.2),
+                ):
+                    ys_1 = [
+                        sorted(y_range)[int(left * len(y_range))]
+                        for y_range in data_range.y_ranges
                     ]
-                    for y_range in data_range.y_ranges
-                ]
-                graph.fill_between(
-                    svg,
-                    data_range.xs,
-                    ys_1,
-                    ys_2,
-                    color=data_range.language.get_color(),
-                    opacity=opacity,
-                )
+                    ys_2 = [
+                        sorted(y_range)[
+                            min(int(right * len(y_range)), len(y_range) - 1)
+                        ]
+                        for y_range in data_range.y_ranges
+                    ]
+                    graph.fill_between(
+                        svg,
+                        data_range.xs,
+                        ys_1,
+                        ys_2,
+                        color=data_range.language.get_color(),
+                        opacity=opacity,
+                    )
+        graph.draw_grid(svg)
         graph.write(svg)
 
     def get_lexicon_range_data(

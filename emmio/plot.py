@@ -71,8 +71,10 @@ class Graph:
 
     def __init__(
         self,
-        min_x: datetime | None,
-        max_x: datetime | None,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
         canvas: Canvas = Canvas(),
         color: Color | list[Color] | str = Color("black"),
         background_color: Color = Color("white"),
@@ -80,8 +82,9 @@ class Graph:
     ):
         self.min_x = min_x
         self.max_x = max_x
+        self.min_y = min_y
+        self.max_y = max_y
         self.canvas: Canvas = canvas
-        self.min_y, self.max_y = 0, 7  # min(ys), max(ys)
         self.min_x_second = 0
         self.max_x_second = (
             (max_x - min_x).total_seconds() if max_x and min_x else 0
@@ -102,7 +105,7 @@ class Graph:
             self.canvas.workspace[1],
         )
 
-    def grid(self, svg):
+    def draw_background(self, svg) -> None:
         svg.add(
             svg.rect(
                 insert=(0, 0),
@@ -120,7 +123,7 @@ class Graph:
         if isinstance(self.color, list):
             linear_gradient: LinearGradient = svg.linearGradient(
                 self.map_((0, self.max_y)),
-                self.map_((0, 1)),
+                self.map_((0, 0)),
                 gradientUnits="userSpaceOnUse",
             )
             for index, color in enumerate(self.color):
