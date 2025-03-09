@@ -243,7 +243,7 @@ class Teacher:
 
         return to_continue
 
-    def learn_new(self, max_actions: int | None = None) -> bool:
+    async def learn_new(self, max_actions: int | None = None) -> bool:
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
@@ -254,7 +254,7 @@ class Teacher:
                 self.learning.count_questions_added_today() < self.max_for_day
                 and (question_id := self.get_new_question()) is not None
             ):
-                code: str = self.learn(question_id, None)
+                code: str = await self.learn(question_id, None)
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -272,7 +272,7 @@ class Teacher:
             session.end_session(datetime.now(), actions)
             self.learning.process.sessions.append(session)
             self.learning.write()
-            self.interface.box(f"{actions} actions made")
+            self.interface.print(f"{actions} actions made")
 
         return to_continue
 

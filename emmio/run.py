@@ -754,7 +754,7 @@ class Emmio:
                             + learning.learning_language.get_name()
                         )
                     )
-                    do_continue: bool = teacher.learn_new()
+                    do_continue: bool = await teacher.learn_new()
                     self.interface.print(Header("All new words added"))
                     self.data.print_learning_statistics(
                         self.interface, self.user_id
