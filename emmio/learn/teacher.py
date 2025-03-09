@@ -47,7 +47,13 @@ class Teacher:
         self.learning: Learning = learning
         """Learning data."""
 
-        self.scheme: Scheme = self.learning.config.scheme
+        self.scheme: Scheme | None = self.learning.config.scheme
+        """Learning scheme: how to learn."""
+
+        if self.scheme is None:
+            raise Exception("No scheme found.")
+        if self.scheme.new_question is None:
+            raise Exception("No new question scheme found.")
 
         # Load lexicons.
         self.check_lexicons: list[Lexicon] | None = None
@@ -72,6 +78,8 @@ class Teacher:
         self.question_ids: list[tuple[str, List, int]] = []
         for list_config in self.scheme.new_question.pick_from:
             list_ = data.get_list(list_config)
+            if list_ is None:
+                logging.fatal(f'No list with id `{list_config["id"]}` found.')
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 
@@ -82,6 +90,7 @@ class Teacher:
 
         self.stop_after_answer: bool = stop_after_answer
 
+        # TODO: remove.
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
