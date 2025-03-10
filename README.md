@@ -45,14 +45,14 @@ frequency). For each word, you need to indicate
 
   1. whether you know at least one meaning of this word (press <kbd>y</kbd> or
      <kbd>Enter</kbd>),
-  2. wheter you don’t know any meaning of this word (press <kbd>n</kbd>),
-  3. or the word is often used as a proper name or doesn’t exist at all (press
+  2. whether you don’t know any meaning of the word (press <kbd>n</kbd>),
+  3. whether the word is commonly used as a proper name or isn’t valid (press
      <kbd>-</kbd>).
 
 Press <kbd>q</kbd> to finish.
  
 After completion, the algorithm provides a non-negative number called _rate_,
-that indicates your vocabulary level. A score of 0 means you don't know any
+that indicates your vocabulary level. A score of 0 means you don’t know any
 words in the language, while infinity means you know every word in the
 frequency list. This rate is most useful for tracking your learning progress
 and comparing vocabulary levels between different users using the same
@@ -62,33 +62,30 @@ There is no upper limit for the rate, if you know meanings of all words in a
 language, the rate is infinity. It’s finite though, if you don’t know meaning of
 at least one word.
 
-| Rate        | Level                            |
-|-------------|----------------------------------|
-| near 3      | Beginner, elementary             |
-| near 5      | Intermediate, upper intermediate |
-| near 7      | Advanced, proficient             |
-| more than 9 | Native                           |
+Column “Don’t understand” means how much you **don’t** understand of an
+arbitrary text. Column “Understand” means how much you understand of an
+arbitrary text.
 
-Lexicon configuration:
+| Rate | Don’t understand | Understand | Level |
+|-----:|-----------------:|-----------:|-------|
+|   10 |           0.10 % |    99.90 % |       |
+|    9 |           0.20 % |    99.80 % |       |
+|    8 |           0.39 % |    99.61 % | C2    |
+|    7 |           0.78 % |    99.22 % | C1    |
+|    6 |           1.56 % |    98.44 % | B2    |
+|    5 |           3.12 % |    96.88 % | B1    |
+|    4 |           6.25 % |    93.75 % | A2    |
+|    3 |          12.50 % |    87.50 % | A1    |
+|    2 |          25.00 % |    75.00 % |       |
+|    1 |          50.00 % |    50.00 % |       |
+|    0 |         100.00 % |     0.00 % |       |
 
-```
-"lexicon": {
-    "<language>": "<frequency list id>",
-    ...
-}
-```
 
-  * `language` is 2-letters ISO 639-1 language code (e.g. `en` for
-    English and `ru` for Russian).
+In order to run lexicon checking, simply execute `lexicon` command or `lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language code.
+
   * `frequency list id` is an identifier of [full frequency file](#frequency). 
     __Important__: for Lexicon you can use only full (not stripped) frequency 
     list.
-
-### Wiktionary
-
-Wiktionary project contains
-[frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
-different languages.
 
 ## Data directory structure
 
@@ -97,14 +94,15 @@ downloaded artifacts and their configuration files and collected user data.
 
   - `dictionaries` — single word translations.
   - `sentences` — whole sentence translations.
-  - `lists` — frequency lists and simple word lists.
+  - `lists` — frequency and word lists.
+  - `audio` — audio files with word pronunciations.
   - `users` — user data.
     - `<user name>`
       - `config.json` — user configuration file.
       - `learn` — user learning process data.
       - `lexicon` — user lexicon checking data.
 
-### Dictionaries
+## Dictionary
 
 Dictionaries are entities that provide definitions and translations for single
 words.  Artifacts are controlled by configuration file
@@ -115,15 +113,44 @@ Emmio supports:
   - English Wiktionary (through
     [WiktionaryParser](https://github.com/Suyash458/WiktionaryParser)).
 
-### Frequency lists and word lists
+## Sentences
+
+## Frequency and word lists
 
 Frequency list is a relation between unique words and the number of their
-occurrences in some text of a corpus of texts.  Some frequency lists are
-stripped (e.g. 6,500-lemma list based on the New Corpus for Ireland).
+occurrences in some text or a corpus of texts.  Some frequency lists are
+stripped (e.g. _6,500-lemma list based on the New Corpus for Ireland_). Lists
+are controlled by configuration file `lists/config.json`.
 
-#### FrequencyWords (Opensubtitles)
+Emmio supports:
+  - word lists stored in text files,
+  - FrequencyWords from Opensubtitles.
+
+### FrequencyWords (Opensubtitles)
 
 There is [Hermit Dave](https://github.com/hermitdave)’s project
 [FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
 full and stripped frequency lists extracted from subtitles in
 [Opensubtitles](https://www.opensubtitles.org) project.
+
+### Wiktionary
+
+Wiktionary project contains
+[frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
+different languages.
+
+## Audio
+
+## Server
+
+Emmio can be used as a server.
+
+```shell
+emmio server
+```
+
+To run Emmio server on the Telegram, use
+
+```shell
+emmio server --mode telegram --token ${TELEGRAM_TOKEN}
+```
