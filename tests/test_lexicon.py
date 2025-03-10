@@ -8,7 +8,6 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconLog,
     LexiconResponse,
-    WordSelection,
 )
 
 
@@ -37,6 +36,7 @@ def test_register(lexicon: Lexicon) -> None:
         response=LexiconResponse.KNOW,
         to_skip=False,
         time=datetime(2000, 1, 1),
+        request_time=datetime(2000, 1, 1),
     )
     assert len(lexicon.responses) == 1
     assert lexicon.has("apple")
@@ -51,6 +51,7 @@ def register(lexicon: Lexicon, args: list[int]) -> None:
             response=LexiconResponse.KNOW if arg == 1 else LexiconResponse.DONT,
             to_skip=False,
             time=datetime(2000, 1, index + 1),
+            request_time=datetime(2000, 1, index + 1),
         )
 
 

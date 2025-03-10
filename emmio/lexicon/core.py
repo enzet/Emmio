@@ -21,7 +21,7 @@ from emmio.language import Language, ENGLISH, RUSSIAN
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import get_char, Interface
+from emmio.ui import get_char, Interface, Text
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -198,7 +198,7 @@ class LexiconLogSession(BaseModel, Session):
     def get_start(self) -> datetime:
         return self.start
 
-    def get_end(self) -> datetime:
+    def get_end(self) -> datetime | None:
         return self.end
 
     def end_session(self, time: datetime, actions: int = 0):
@@ -323,7 +323,7 @@ class Lexicon:
         word: str,
         response: LexiconResponse,
         to_skip: bool | None,
-        request_time: datetime | None = None,
+        request_time: datetime | None,
         time: datetime | None = None,
         answer_type: AnswerType = AnswerType.UNKNOWN,
     ) -> None:
@@ -332,7 +332,7 @@ class Lexicon:
         :param word: the question id that user was responded to.
         :param response: response type.
         :param to_skip: skip this word in the future.
-        :param request_time: time when the question was asked.
+        :param request_time: time of the question.
         :param time: time of the response.
         :param answer_type: is it was a user answer or the previous answer was
             used.
@@ -377,7 +377,7 @@ class Lexicon:
         )
 
     def count_unknowns(
-        self, point_1: datetime = None, point_2: datetime = None
+        self, point_1: datetime | None = None, point_2: datetime | None = None
     ) -> int:
         """Return the number of UNKNOWN answers."""
         records: Iterator[LexiconLogRecord] = filter(
@@ -488,8 +488,7 @@ class Lexicon:
         return None, None
 
     def get_top_unknown(self, frequency_list: FrequencyList) -> list[str]:
-        """
-        Get all words user marked as unknown in order of frequency.
+        """Get all words user marked as unknown in order of frequency.
 
         :param frequency_list: sort words using this list.
         """
@@ -498,7 +497,7 @@ class Lexicon:
         for word in sorted(
             self.words.keys(), key=lambda x: -frequency_list.get_occurrences(x)
         ):
-            word_knowledge = self.words[word]
+            word_knowledge: WordKnowledge = self.words[word]
             if word_knowledge.knowing == LexiconResponse.DONT:
                 result.append(word)
 
@@ -542,8 +541,10 @@ class Lexicon:
 
         start_time: datetime = datetime.now()
 
-        translation = await dictionaries.to_text(
-            word, self.language, [ENGLISH, RUSSIAN]
+        translation: Text | None = await dictionaries.to_text(
+            word,
+            self.language,
+            [ENGLISH, RUSSIAN],
         )
         if translation:
             interface.button("Show translation")
@@ -593,7 +594,6 @@ class Lexicon:
             start_time,
             answer_type=AnswerType.USER_ANSWER,
         )
-
         return skip_in_future, response, None
 
     async def binary_search(

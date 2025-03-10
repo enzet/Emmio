@@ -443,7 +443,7 @@ class Learning:
         """
         return self.count_actions(types=(Response.RIGHT, Response.WRONG))
 
-    def count_postponed(self):
+    def count_postponed(self) -> int:
         """Count the number of questions that were postponed."""
         return self.count_actions(types=(Response.POSTPONE,))
 
@@ -520,7 +520,7 @@ def load_old_format(path: Path):
             ]
             for time, answer, interval in zip(times, answers, intervals):
                 record: LearningRecord = LearningRecord(
-                    question_id=str(question_id),
+                    question_id=question_id,
                     response=answer,
                     sentence_id=0,
                     time=time,

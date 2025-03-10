@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 from colour import Color
 from svgwrite import Drawing
+from svgwrite.container import Group
 from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
-from datetime import datetime
 
 GRADIENT: list[Color] = [
     Color("#00D45E"),
@@ -58,12 +59,15 @@ class Canvas:
     """
 
     size: np.ndarray = field(default_factory=lambda: np.array((800.0, 600.0)))
+    """Width and height."""
+
     workspace: tuple[np.ndarray, np.ndarray] = field(
         default_factory=lambda: (
             np.array((100.0, 50.0)),
             np.array((250.0, 550.0)),
         )
     )
+    """Left top point; right bottom point."""
 
 
 class Graph:
@@ -165,9 +169,9 @@ class Graph:
                 self.text(svg, (point[0] + 10, text_y), title, color)
                 last_text_y = text_y
 
-    def to_points(self, xs, ys):
+    def to_points(self, xs: list, ys: list) -> list:
         xs_second: list[float] = [(x - self.min_x).total_seconds() for x in xs]
-        points = []
+        points: list = []
 
         for index, x in enumerate(xs_second):
             y = ys[index]
@@ -234,7 +238,7 @@ class Graph:
 
         logging.info(f"Graph was saved to {Path(svg.filename).absolute()}.")
 
-    def draw_grid(self, svg):
+    def draw_grid(self, svg: Drawing) -> None:
         for index in range(8):
             mapped_1: np.ndarray = self.map_((0, index))
             mapped_2: np.ndarray = self.map_((self.max_x_second, index))
@@ -273,7 +277,9 @@ class Graph:
             )
 
     @staticmethod
-    def text(svg, point, text, color, anchor: str = "start") -> None:
+    def text(
+        svg: Union[Drawing, Group], point, text, color, anchor: str = "start"
+    ) -> None:
         """Draw text"""
         text = svg.text(
             text,

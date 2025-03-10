@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Text
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -369,7 +370,7 @@ class Teacher:
         if items:
             self.interface.print(statistics)
             for item in items:
-                text = item.to_text(
+                text: Text = item.to_text(
                     self.learning.base_languages,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,

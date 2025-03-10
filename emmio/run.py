@@ -346,12 +346,14 @@ class Emmio:
                     self.read(read)
                     break
 
+        # Command `stat`.
         if arguments.command == "stat":
 
             # Command `stat actions`.
             if arguments.process == "actions":
                 stat_actions: dict[Language, int] = defaultdict(int)
                 stat_time: dict[Language, timedelta] = defaultdict(timedelta)
+
                 for learning in self.data.get_learnings(self.user_id):
                     stat_actions[
                         learning.learning_language
@@ -429,16 +431,17 @@ class Emmio:
                         else 0
                     )
                     if change >= 0.1:
-                        change = f"[green]▲ +{change:.1f}"
+                        change = f"[green]▲ +{change:.1f}[/green]"
                     elif change <= -0.1:
-                        change = f"[red]▼ {change:.1f}"
+                        change = f"[red]▼ {change:.1f}[/red]"
                     else:
                         change = ""
                     if not rate:
                         continue
                     rows.append(
                         [
-                            lexicon.language.get_name(),
+                            f"[bold]{lexicon.language.get_code()}[/bold]"
+                            f" {lexicon.language.get_name()}",
                             progress(need),
                             (
                                 f"{abs(rate):.1f}  " + progress(int(rate * 10))
@@ -476,7 +479,7 @@ class Emmio:
                     by_language=not arguments.depth,
                 ).draw()
 
-            # Command `plot learn`.
+            # Command `plot knowing`.
             elif arguments.process == "knowing":
                 Visualizer().knowing(
                     list(self.user_data.get_active_learnings())
