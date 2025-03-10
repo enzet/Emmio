@@ -416,7 +416,8 @@ class Teacher:
                 if action["type"] == "show_question_id":
                     self.interface.print(word)
                 elif action["type"] == "check_translation":
-                    self.check_translation(action, word)
+                    pass
+                    # TODO: implement.
             return "continue"  # FIXME
 
         items: list[DictionaryItem] = await self.dictionaries.get_items(
@@ -457,6 +458,8 @@ class Teacher:
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
 
+        request_time: datetime = datetime.now()
+
         while True:
             answer: str = self.interface.get_word(
                 word, alternative_forms, self.learning.learning_language
@@ -471,7 +474,9 @@ class Teacher:
             answer: str = self.learning.learning_language.decode_text(answer)
 
             if answer == word:
-                self.learning.register(Response.RIGHT, sentence_id, word)
+                self.learning.register(
+                    Response.RIGHT, sentence_id, word, request_time=request_time
+                )
                 if items:
                     for item in items:
                         text: Text = item.to_text(self.learning.base_languages)
@@ -561,7 +566,9 @@ class Teacher:
                 self.interface.print(word)
                 self.play(word)
 
-                self.learning.register(Response.WRONG, sentence_id, word)
+                self.learning.register(
+                    Response.WRONG, sentence_id, word, request_time=request_time
+                )
                 new_answer = self.interface.input("> ")
                 while new_answer:
                     if new_answer in ["s", "skip"]:
