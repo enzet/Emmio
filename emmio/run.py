@@ -201,6 +201,7 @@ class Emmio:
             help="show precision interval",
         )
 
+        # Arguments for `plot learn` command.
         plot_learn_parser = plot_subparsers.add_parser(
             "learn", help="plot learning questions"
         )
@@ -572,11 +573,31 @@ class Emmio:
 
         # Command `schedule`.
         if command == "schedule":
-            hours = [0] * 24
             now = datetime.now()
-            start = datetime(
-                year=now.year, month=now.month, day=now.day, hour=now.hour
-            )
+
+            interval = "month"
+            match interval:
+                case "day":
+                    points = 24
+                    schedule = [0] * points
+                    delta = timedelta(days=1)
+                    start = datetime(
+                        year=now.year,
+                        month=now.month,
+                        day=now.day,
+                        hour=now.hour,
+                    )
+                    from_seconds = 60 * 60
+                case "month":
+                    points = 30
+                    schedule = [0] * points
+                    delta = timedelta(days=30)
+                    start = datetime(
+                        year=now.year, month=now.month, day=now.day
+                    )
+                    from_seconds = 60 * 60 * 24
+                case _:
+                    return
 
             rows = []
             for learning in self.user_data.get_active_learnings():
@@ -586,21 +607,22 @@ class Emmio:
                     if (
                         start
                         <= learning.get_next_time(knowledge)
-                        < start + timedelta(hours=24)
+                        < start + delta
                     ):
                         seconds = learning.get_next_time(knowledge) - start
-                        hours[int(seconds.total_seconds() // 60 // 60)] += 1
+                        schedule[
+                            int(seconds.total_seconds() // from_seconds)
+                        ] += 1
                     elif learning.get_next_time(knowledge) < now:
-                        hours[0] += 1
+                        schedule[0] += 1
 
-            print(sum(hours))
-            for hour in range(24):
-                time: datetime = start + timedelta(hours=hour)
+            for point in range(points):
+                time: datetime = start + delta * point
                 rows.append(
                     [
                         f"{time.day:2}",
                         f"{time.hour:2}:00",
-                        f"{hours[hour]:2} {progress(hours[hour])}",
+                        f"{schedule[point]:2} {progress(schedule[point])}",
                     ]
                 )
             self.interface.table(["Day", "Time", "To repeat"], rows)
