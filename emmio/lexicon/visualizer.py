@@ -156,6 +156,13 @@ class LexiconVisualizer:
             if not date_ranges:
                 continue
 
+            if self.plot_precision_interval:
+                plt.plot(
+                    date_ranges[-1],
+                    [rates[-1], rates[-1]],
+                    color=language.get_color().hex,
+                )
+
         plt.title("Vocabulary level per language")
         if margin is not None:
             plt.ylim(ymin=margin)
