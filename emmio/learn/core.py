@@ -506,7 +506,7 @@ def load_old_format(path: Path):
             answers: str = records["answers"]
             interval: int = 1
             intervals: list[int] = []
-            time: int = 0
+            time = 0
             array: list[int] = []
             for letter in answers:
                 interval = 1 if letter == "n" else interval * 2
@@ -520,11 +520,12 @@ def load_old_format(path: Path):
             ]
             for time, answer, interval in zip(times, answers, intervals):
                 record: LearningRecord = LearningRecord(
-                    question_id=question_id,
-                    response=answer,
+                    question_id=str(question_id),
+                    response=(
+                        Response.RIGHT if answer == "y" else Response.WRONG
+                    ),
                     sentence_id=0,
                     time=time,
-                    interval=timedelta(seconds=interval * 24 * 60 * 60),
                 )
                 learning_records.append(record)
 
