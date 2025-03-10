@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union
 
@@ -9,6 +9,7 @@ from svgwrite import Drawing
 from svgwrite.container import Group
 from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
+from svgwrite.text import Text
 
 GRADIENT: list[Color] = [
     Color("#00D45E"),
@@ -119,7 +120,6 @@ class Graph:
                 fill=self.background_color.hex,
             )
         )
-        self.draw_grid(svg)
 
     def plot(self, svg: Drawing, data) -> None:
         recolor: str | None = None
@@ -166,7 +166,19 @@ class Graph:
             title: str | None
             if title:
                 text_y = max(last_text_y + 15, point[1] + 4)
-                self.text(svg, (point[0] + 10, text_y), title, color)
+                self.text(
+                    svg,
+                    (self.canvas.workspace[1][0] + 10, text_y),
+                    title,
+                    color,
+                )
+                self.text(
+                    svg,
+                    (self.canvas.workspace[1][0] + 110, text_y),
+                    f"{ys[-1]:.2f}",
+                    color,
+                    anchor="end",
+                )
                 last_text_y = text_y
 
     def to_points(self, xs: list, ys: list) -> list:
@@ -243,17 +255,19 @@ class Graph:
         for index in range(self.min_y, self.max_y + 1):
             mapped_1: np.ndarray = self.map_((0, index))
             mapped_2: np.ndarray = self.map_((self.max_x_second, index))
-            left = 85 if index in (0, 7) else 0
-            line: Line = svg.line(
-                (mapped_1[0] - 30, mapped_1[1]),
-                (mapped_2[0] + left, mapped_2[1]),
-                stroke=self.grid_color.hex,
-                stroke_width=1,
+            left = 110 if index in (self.min_y, self.max_y) else 0
+            line: Line = group.add(
+                Line(
+                    (mapped_1[0] - 20, mapped_1[1]),
+                    (mapped_2[0] + left, mapped_2[1]),
+                    stroke=self.grid_color.hex,
+                    stroke_width=1,
+                )
             )
             if index != 0:
                 self.text(
-                    svg,
-                    (mapped_1[0] - 30, mapped_1[1] + 18),
+                    group,
+                    (mapped_1[0] - 20, mapped_1[1] + 15),
                     str(index),
                     self.grid_color.hex,
                 )
@@ -261,19 +275,19 @@ class Graph:
         svg.add(group)
 
         if self.min_x and self.max_x:
-            mapped_1: np.ndarray = self.map_((self.min_x_second, 0))
+            mapped_1: np.ndarray = self.map_((self.min_x_second, self.max_y))
             self.text(
-                svg,
-                (mapped_1[0], mapped_1[1] - 6),
+                group,
+                (mapped_1[0], mapped_1[1] + 15),
                 self.min_x.year - 1,
                 self.grid_color.hex,
             )
 
-            mapped_1: np.ndarray = self.map_((self.max_x_second, 0))
+            mapped_1: np.ndarray = self.map_((self.max_x_second, self.max_y))
             self.text(
-                svg,
-                (mapped_1[0], mapped_1[1] - 6),
-                self.max_x.year - 1,
+                group,
+                (mapped_1[0], mapped_1[1] + 15),
+                self.max_x.year,
                 self.grid_color.hex,
                 anchor="end",
             )
@@ -283,7 +297,7 @@ class Graph:
         svg: Union[Drawing, Group], point, text, color, anchor: str = "start"
     ) -> None:
         """Draw text"""
-        text = svg.text(
+        text = Text(
             text,
             point,
             font_size=12,
