@@ -239,7 +239,8 @@ class Graph:
         logging.info(f"Graph was saved to {Path(svg.filename).absolute()}.")
 
     def draw_grid(self, svg: Drawing) -> None:
-        for index in range(8):
+        group: Group = Group(opacity=0.25)
+        for index in range(self.min_y, self.max_y + 1):
             mapped_1: np.ndarray = self.map_((0, index))
             mapped_2: np.ndarray = self.map_((self.max_x_second, index))
             left = 85 if index in (0, 7) else 0
@@ -256,7 +257,8 @@ class Graph:
                     str(index),
                     self.grid_color.hex,
                 )
-            svg.add(line)
+            group.add(line)
+        svg.add(group)
 
         if self.min_x and self.max_x:
             mapped_1: np.ndarray = self.map_((self.min_x_second, 0))
