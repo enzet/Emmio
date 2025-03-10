@@ -357,6 +357,14 @@ class Teacher:
         # if word in self.data.exclude_translations:
         #     exclude_translations = set(self.data.exclude_translations[word])
 
+        if self.scheme.actions:
+            for action in self.scheme.actions:
+                if action["type"] == "show_question_id":
+                    self.interface.print(word)
+                elif action["type"] == "check_translation":
+                    self.check_translation(action, word)
+            return "continue"  # FIXME
+
         items: list[DictionaryItem] = await self.dictionaries.get_items(
             word, self.learning.learning_language
         )
