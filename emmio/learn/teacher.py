@@ -240,7 +240,9 @@ class Teacher:
             session.end_session(datetime.now(), actions)
             self.learning.process.sessions.append(session)
             self.learning.write()
-            self.interface.box(f"{actions} actions made")
+            self.interface.print(
+                f"{actions} actions made in {session.get_time()}"
+            )
 
         return to_continue
 
@@ -376,13 +378,13 @@ class Teacher:
 
         self.interface.print(result)
 
-        translations: list[text] = [
+        translations: list[Text] = [
             x.text
             for x in sentence_translations.translations[:max_translations]
         ]
         if all_known:
-            input("[reveal translations]")
-        print("\n".join(translations))
+            self.interface.button("Reveal translations")
+        self.interface.print("\n".join(translations))
 
     async def learn(self, word: str, knowledge: Knowledge | None) -> str:
         ids_to_skip: set[int] = set()
@@ -471,11 +473,9 @@ class Teacher:
             if answer == word:
                 self.learning.register(Response.RIGHT, sentence_id, word)
                 if items:
-                    string_items: list[str] = [
-                        x.to_str(self.learning.base_languages, self.interface)
-                        for x in items
-                    ]
-                    self.interface.print("\n".join(string_items))
+                    for item in items:
+                        text: Text = item.to_text(self.learning.base_languages)
+                        self.interface.print(text)
 
                 self.play(word)
 
@@ -553,14 +553,12 @@ class Teacher:
                 "н",  # Short for нет.
                 "ո",  # Short for ոչ.
             ]:
-                self.interface.box(word)
+                self.interface.print(word)
                 if items:
-                    string_items: list[str] = [
-                        x.to_str(self.learning.base_languages, self.interface)
-                        for x in items
-                    ]
-                    self.interface.print("\n".join(string_items))
-                self.interface.box(word)
+                    for item in items:
+                        text: Text = item.to_text(self.learning.base_languages)
+                        self.interface.print(text)
+                self.interface.print(word)
                 self.play(word)
 
                 self.learning.register(Response.WRONG, sentence_id, word)
