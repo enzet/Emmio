@@ -550,7 +550,8 @@ class Lexicon:
         translation: Text | None = await dictionaries.to_text(
             word, self.language, definitions_languages
         )
-        if translation:
+
+        if translation is not None and not translation.is_empty():
             interface.button("Show translation")
             interface.print(translation)
 
