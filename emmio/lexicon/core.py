@@ -422,8 +422,8 @@ class Lexicon:
             / len(self.responses[index_1:index_2])
         )
 
-    def get_preferred_interval(self) -> int:
-        return int(100 / self.get_average())
+    def get_preferred_interval(self, precision: int = 100) -> int:
+        return int(precision / self.get_average())
 
     def construct_precise(
         self, precision: int = 100, before: datetime | None = None
