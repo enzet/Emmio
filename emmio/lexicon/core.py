@@ -640,6 +640,7 @@ class Lexicon:
     async def check(
         self,
         interface: Interface,
+        user_data,
         frequency_list: FrequencyList,
         stop_at: int | None,
         dictionaries: DictionaryCollection,
@@ -712,7 +713,7 @@ class Lexicon:
             if picked_word:
                 checked_in_session.add(picked_word)
 
-            if self.do_skip(picked_word, skip_known, skip_unknown):
+            if self.do_skip(picked_word, user_data, skip_known, skip_unknown):
                 continue
 
             to_skip, response, dictionary = await self.ask(
@@ -772,34 +773,48 @@ class Lexicon:
     def do_skip(
         self,
         picked_word: str,
+        user_data,
         skip_known: bool,
         skip_unknown: bool,
     ) -> bool:
-        last_response: LexiconResponse | None = None
-        if self.has(picked_word):
-            last_response = self.get(picked_word)
+        lexicon_records: list[LexiconLogRecord] = []
 
-        if last_response is not None:
+        for lexicon in user_data.get_lexicons_by_language(self.language):
+            lexicon: Lexicon
+            if lexicon.has(picked_word):
+                lexicon_records += lexicon.get_records(picked_word)
+
+        lexicon_records = sorted(lexicon_records, key=lambda x: x.time)
+
+        skip_markers: list[bool] = [
+            x.to_skip for x in lexicon_records if x.to_skip is not None
+        ]
+        skip_marker: bool | None = None
+        if skip_markers:
+            skip_marker = skip_markers[-1]
+
+        last_record: LexiconLogRecord | None = None
+        if lexicon_records:
+            last_record = lexicon_records[-1]
+
+        if last_record is not None:
             if (
-                self.words[picked_word].to_skip
+                skip_marker
                 or skip_known
-                and last_response == LexiconResponse.KNOW
+                and last_record.response == LexiconResponse.KNOW
                 or skip_unknown
-                and last_response == LexiconResponse.DONT
+                and last_record.response == LexiconResponse.DONT
             ):
-                print("[propagate.skip] " + picked_word)
-                to_skip: bool = self.words[picked_word].to_skip
                 self.register(
                     picked_word,
-                    last_response,
-                    to_skip,
+                    last_record.response,
+                    skip_marker,
                     None,
                     answer_type=AnswerType.PROPAGATE__SKIP,
                 )
                 return True
 
-            if last_response == LexiconResponse.NOT_A_WORD:
-                print("[propagate.not_a_word] " + picked_word)
+            if last_record.response == LexiconResponse.NOT_A_WORD:
                 self.register(
                     picked_word,
                     LexiconResponse.NOT_A_WORD,
@@ -823,10 +838,9 @@ class Lexicon:
                     break
 
             if was_answered_recently:
-                print("[propagate.time] " + picked_word)
                 self.register(
                     picked_word,
-                    last_response,
+                    last_record.response,
                     None,
                     None,
                     answer_type=AnswerType.PROPAGATE__TIME,
@@ -872,8 +886,11 @@ class Lexicon:
                 records.append(record)
         return records
 
-    def get_records(self) -> list[LexiconLogRecord]:
-        return self.log.records
+    def get_records(self, word: str | None = None) -> list[LexiconLogRecord]:
+        """Get all records or records for a specific word."""
+        if not word:
+            return self.log.records
+        return [x for x in self.log.records if x.word == word]
 
     def get_sessions(self) -> list[LexiconLogSession]:
         return self.log.sessions

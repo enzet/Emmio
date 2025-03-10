@@ -651,6 +651,7 @@ class Emmio:
                 continue
             await lexicon.check(
                 self.interface,
+                self.user_data,
                 frequency_list,
                 None,
                 self.data.get_dictionaries(lexicon.config.dictionaries),
