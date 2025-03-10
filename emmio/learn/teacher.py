@@ -277,6 +277,58 @@ class Teacher:
 
         return to_continue
 
+    async def repeat_and_learn_new(
+        self, max_actions: int | None = None
+    ) -> bool:
+        actions: int = 0
+        to_continue: bool
+        session: LearningSession = LearningSession(
+            type="repeat_and_learn_new", start=datetime.now()
+        )
+        while True:
+            # Repeat words.
+            if word := self.learning.get_next_question():
+                code: str = await self.learn(
+                    word, self.learning.knowledge[word]
+                )
+                if code != "bad question":
+                    self.learning.write()
+                if code == "stop":
+                    to_continue = False
+                    break
+                actions += 1
+                if max_actions is not None and actions >= max_actions:
+                    to_continue = True
+                    break
+
+            # Learn new words.
+            elif (
+                self.learning.count_questions_added_today() < self.max_for_day
+                and (question_id := self.get_new_question()) is not None
+            ):
+                code: str = await self.learn(question_id, None)
+                if code != "bad question":
+                    self.learning.write()
+                if code == "stop":
+                    to_continue = False
+                    break
+                actions += 1
+                if max_actions is not None and actions >= max_actions:
+                    to_continue = True
+                    break
+
+            else:
+                to_continue = True
+                break
+
+        if actions:
+            session.end_session(datetime.now(), actions)
+            self.learning.process.sessions.append(session)
+            self.learning.write()
+            self.interface.print(f"{actions} actions made")
+
+        return to_continue
+
     def play(self, word: str):
         self.audio.play(word)
 
