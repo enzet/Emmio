@@ -695,9 +695,8 @@ class Emmio:
         )
         read.read(
             self.interface,
+            self.data,
             self.user_data,
-            self.data.get_dictionaries(read.config.dictionaries),
-            self.data.get_text(read.config.text),
         )
 
     async def learn(self, learnings: list[Learning]) -> None:
