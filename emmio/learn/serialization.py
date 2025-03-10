@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from emmio.learn.core import Learning, Response
-from emmio.serialization import Decoder, DATE_FORMAT, EPOCH, Encoder
+from emmio.serialization import DATE_FORMAT, EPOCH, Decoder, Encoder
 from emmio.util import MalformedFile
 
 ANSWERS: list[str] = ["y", "n", "s"]

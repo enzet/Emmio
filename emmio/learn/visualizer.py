@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 import numpy as np
-from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
+from matplotlib import dates as mdates
+from matplotlib import pyplot as plt
+from matplotlib import transforms as mtransforms
 
-from emmio.learn.core import LearningRecord, Knowledge, Learning
+from emmio.learn.core import Knowledge, Learning, LearningRecord
 
 DEPTH_COLORS_BLACK_AND_WHITE: list[str] = ["#000000"] + [
     "#" + f"{hex(int(256 - 256 / 1.5 ** x))[2:]:2}".replace(" ", "0") * 3

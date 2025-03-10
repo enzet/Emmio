@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from emmio.language import Language
-from emmio.sentence.core import Sentence, SentenceTranslations, Sentences
+from emmio.sentence.core import Sentence, Sentences, SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
 from emmio.user.data import UserData
 from emmio.util import download

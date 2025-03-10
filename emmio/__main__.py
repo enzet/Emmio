@@ -4,7 +4,7 @@ import asyncio
 import getpass
 import logging
 import sys
-from argparse import Namespace, ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 import coloredlogs as coloredlogs

@@ -16,18 +16,18 @@ from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
 from emmio.read.core import Read
-from emmio.sentence.core import SentencesCollection, Sentences
+from emmio.sentence.core import Sentences, SentencesCollection
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
 from emmio.text.data import TextData
 from emmio.ui import Table, progress
+from emmio.user.data import UserData
 from emmio.util import (
     day_start,
+    first_day_of_month,
     first_day_of_week,
     year_start,
-    first_day_of_month,
 )
-from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

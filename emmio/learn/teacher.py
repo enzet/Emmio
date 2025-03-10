@@ -7,17 +7,17 @@ from typing import Text
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import (
-    DictionaryItem,
-    DictionaryCollection,
     Dictionary,
+    DictionaryCollection,
+    DictionaryItem,
     SimpleDictionary,
 )
 from emmio.language import construct_language
 from emmio.learn.config import Scheme
-from emmio.learn.core import Learning, Response, Knowledge, LearningSession
-from emmio.lexicon.core import LexiconResponse, Lexicon, AnswerType
+from emmio.learn.core import Knowledge, Learning, LearningSession, Response
+from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
-from emmio.sentence.core import SentenceTranslations, SentencesCollection
+from emmio.sentence.core import SentencesCollection, SentenceTranslations
 from emmio.ui import Interface
 from emmio.user.data import UserData
 

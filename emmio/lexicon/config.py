@@ -1,4 +1,5 @@
 from enum import Enum
+
 from pydantic.main import BaseModel
 
 from emmio.language import LanguageConfig

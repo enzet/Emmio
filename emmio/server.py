@@ -2,7 +2,7 @@ import getpass
 import logging
 from argparse import Namespace
 from dataclasses import dataclass
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from time import sleep
 from typing import Iterator

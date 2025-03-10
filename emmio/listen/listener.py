@@ -15,7 +15,7 @@ from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.learn.teacher import Teacher
 from emmio.listen.config import ListenConfig
-from emmio.listen.core import Listening, PAUSE_AFTER_PLAY
+from emmio.listen.core import PAUSE_AFTER_PLAY, Listening
 from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import RichInterface
 from emmio.user.data import UserData

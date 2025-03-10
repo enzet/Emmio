@@ -9,17 +9,17 @@ from typing import Any, Iterator
 
 from pydantic import BaseModel
 
-from emmio.core import Session, Record
+from emmio.core import Record, Session
 from emmio.dictionary.core import (
-    DictionaryCollection,
     Dictionary,
+    DictionaryCollection,
     DictionaryItem,
 )
-from emmio.language import Language, ENGLISH, RUSSIAN
+from emmio.language import ENGLISH, RUSSIAN, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import get_char, Interface, Text
+from emmio.ui import Interface, Text, get_char
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

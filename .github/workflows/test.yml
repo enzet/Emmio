@@ -15,9 +15,10 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: "3.12"
-    # TODO: Uncomment this section when we want to test audio playback using GitHub
-    # Actions. For now it seems too resource-intensive. We should probably create
-    # another test configuration that will not run on every commit.
+    # TODO: Uncomment this section when we want to test audio playback using
+    # GitHub Actions. For now it seems too resource-intensive. We should
+    # probably create another test configuration that will not run on every
+    # commit.
     # name: Install system dependencies
     # run: |
     #   sudo apt-get update
@@ -25,11 +26,14 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black~=24.4.2 pytest~=8.3.4
+        pip install black~=24.4.2 pytest~=8.3.4 isort~=6.0.1
         pip install -e .
     - name: Check code style with Black
       run: |
-        black -l 80 --check emmio tests
+        black -l 80 --check emmio/ tests/ setup.py
+    - name: Check imports with isort
+      run: |
+        isort --check-only --profile black emmio/ tests/ setup.py
     - name: Test with pytest
       run: |
         pytest -v

@@ -4,8 +4,8 @@ from argparse import Namespace
 
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection
-from emmio.language import construct_language, Language
-from emmio.ui import TerminalInterface, Interface
+from emmio.language import Language, construct_language
+from emmio.ui import Interface, TerminalInterface
 
 
 def start(data: Data, arguments: Namespace):

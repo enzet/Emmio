@@ -1,6 +1,6 @@
 from emmio.data import Data
 from emmio.dictionary.core import Link
-from emmio.language import Language, ENGLISH
+from emmio.language import ENGLISH, Language
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon
 from emmio.listen.core import Listening

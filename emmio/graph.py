@@ -1,7 +1,7 @@
 import random
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Callable, Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,9 +9,9 @@ from tqdm import tqdm
 
 from emmio import util
 from emmio.language import Language, construct_language
-from emmio.learn.core import Knowledge, LearningRecord, Response, Learning
-from emmio.learn.visualizer import LearningVisualizer, DEPTH_COLORS
-from emmio.lexicon.core import Lexicon, AnswerType
+from emmio.learn.core import Knowledge, Learning, LearningRecord, Response
+from emmio.learn.visualizer import DEPTH_COLORS, LearningVisualizer
+from emmio.lexicon.core import AnswerType, Lexicon
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

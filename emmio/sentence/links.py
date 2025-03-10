@@ -1,4 +1,4 @@
-from emmio.serialization import Encoder, Decoder
+from emmio.serialization import Decoder, Encoder
 
 
 class LinksEncoder(Encoder):

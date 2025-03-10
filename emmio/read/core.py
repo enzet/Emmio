@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from emmio.language import Language, ENGLISH
+from emmio.language import ENGLISH, Language
 from emmio.read.config import ReadConfig
-from emmio.sentence.core import split_sentence, Sentences
+from emmio.sentence.core import Sentences, split_sentence
 from emmio.text.core import Texts
 from emmio.ui import Interface
 

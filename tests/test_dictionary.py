@@ -1,6 +1,7 @@
+from pathlib import Path
+
 from emmio.dictionary.core import Dictionary, SimpleDictionary
 from emmio.language import Language
-from pathlib import Path
 
 
 def test_dictionary() -> None:

@@ -1,14 +1,15 @@
 """Test the command line interface."""
 
 import json
-from pathlib import Path
 import shutil
+from pathlib import Path
+from textwrap import dedent
 from typing import Callable
 from unittest.mock import patch
 
 from pytest import CaptureFixture
+
 from emmio.__main__ import main
-from textwrap import dedent
 
 
 def initialize(

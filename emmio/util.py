@@ -8,12 +8,11 @@ import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-
-import urllib3
 from pathlib import Path
 
+import urllib3
 from colour import Color
-from urllib3 import PoolManager, HTTPResponse, Timeout
+from urllib3 import HTTPResponse, PoolManager, Timeout
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

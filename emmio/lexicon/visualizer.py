@@ -2,16 +2,18 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
-from colour import Color
 
 import matplotlib
-from matplotlib import pyplot as plt, dates as mdates, transforms as mtransforms
+from colour import Color
+from matplotlib import dates as mdates
+from matplotlib import pyplot as plt
+from matplotlib import transforms as mtransforms
 from svgwrite import Drawing
 
 from emmio.language import Language
 from emmio.lexicon.core import Lexicon, compute_lexicon_rate
 from emmio.plot import Graph
-from emmio.util import first_day_of_week, year_start, year_end
+from emmio.util import first_day_of_week, year_end, year_start
 
 
 @dataclass

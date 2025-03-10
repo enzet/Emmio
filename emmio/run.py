@@ -14,15 +14,15 @@ from emmio.data import Data
 from emmio.graph import Visualizer
 from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
+from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
-from emmio.learn.teacher import Teacher
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
 from emmio.read.core import Read
-from emmio.ui import Block, Interface, Table, progress, Title, Header
-from emmio.user.data import UserData, Record, Session
+from emmio.ui import Block, Header, Interface, Table, Title, progress
+from emmio.user.data import Record, Session, UserData
 
 LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word

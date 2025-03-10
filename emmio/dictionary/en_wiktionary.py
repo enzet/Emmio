@@ -8,10 +8,10 @@ import logging
 import os
 import re
 import sys
-import requests
 from pathlib import Path
 from typing import Any
 
+import requests
 from tqdm import tqdm
 
 from emmio.dictionary import CONFIG
@@ -23,7 +23,7 @@ from emmio.dictionary.core import (
     Form,
     Link,
 )
-from emmio.language import Language, ENGLISH
+from emmio.language import ENGLISH, Language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

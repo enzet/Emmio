@@ -1,10 +1,10 @@
-from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
 from matplotlib import pyplot as plt
 from scipy.stats import norm
-import numpy as np
-
 
 NAMES = {
     "service__dm": {"name": "Duolingo App", "color": "green"},

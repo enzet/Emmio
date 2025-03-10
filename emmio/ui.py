@@ -1,11 +1,11 @@
 """Emmio console user interface."""
 
-from logging import raiseExceptions
 import sys
-from typing import Any
-import readchar
 from dataclasses import dataclass
+from logging import raiseExceptions
+from typing import Any
 
+import readchar
 from rich import box
 from rich.console import Console
 from rich.padding import Padding as RichElementPadding

@@ -1,10 +1,11 @@
 from pathlib import Path
+from textwrap import dedent
+from unittest.mock import mock_open, patch
+
+import pytest
+
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
-
-from unittest.mock import patch, mock_open
-from textwrap import dedent
-import pytest
 
 
 @pytest.fixture

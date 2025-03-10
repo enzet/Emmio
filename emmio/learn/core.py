@@ -13,7 +13,7 @@ from typing import Any, Optional
 import yaml
 from pydantic.main import BaseModel
 
-from emmio.core import Session, Record
+from emmio.core import Record, Session
 from emmio.language import Language, construct_language
 from emmio.learn.config import LearnConfig
 

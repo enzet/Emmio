@@ -4,11 +4,7 @@ from pathlib import Path
 import pytest
 
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
-from emmio.lexicon.core import (
-    Lexicon,
-    LexiconLog,
-    LexiconResponse,
-)
+from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
 
 
 @pytest.fixture

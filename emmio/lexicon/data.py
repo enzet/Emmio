@@ -1,8 +1,8 @@
+import logging
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-import logging
 from pathlib import Path
-import sys
 
 from pydantic import ValidationError
 
