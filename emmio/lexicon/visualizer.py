@@ -152,6 +152,10 @@ class LexiconVisualizer:
                     color=language.get_color().hex,
                 )
 
+            # If there are no data points, skip the language.
+            if not date_ranges:
+                continue
+
         plt.title("Vocabulary level per language")
         if margin is not None:
             plt.ylim(ymin=margin)
