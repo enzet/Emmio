@@ -276,8 +276,6 @@ class Emmio:
         analyze_parser = subparsers.add_parser("analyze")
         analyze_parser.add_argument("language")
 
-        subparsers.add_parser("debug")
-
         if command:
             arguments = parser.parse_args(command.split(" "))
         else:
@@ -289,10 +287,6 @@ class Emmio:
                 learn_parser.print_help()
             else:
                 parser.print_help()
-
-        # Command `debug`.
-        if arguments.command == "debug":
-            self.debug()
 
         # Command `analyze`.
         if arguments.command == "analyze":
@@ -667,38 +661,6 @@ class Emmio:
                 need,
             )
             break
-
-    def debug(self):
-        result: list[tuple[Session, list[Record]]] = (
-            self.user_data.get_sessions_and_records()
-        )
-
-        data: list[float] = []
-
-        seconds: int = 0
-        for session, records in result:
-            session: Session
-            records: list[Record]
-            for index, record in enumerate(records):
-                span: float
-                if index == 0:
-                    span = (
-                        record.get_time() - session.get_start()
-                    ).total_seconds()
-                else:
-                    span = (
-                        record.get_time() - records[index - 1].get_time()
-                    ).total_seconds()
-                data.append(span)
-                seconds += span
-
-        print(f"Total time: {seconds / 60 / 60:.2f}")
-
-        from matplotlib import pyplot as plt
-
-        plt.xlim([0, 60])
-        plt.hist([x for x in data if x <= 60], bins=170)
-        plt.show()
 
     def read(self, read: Read):
         coloredlogs.install(
