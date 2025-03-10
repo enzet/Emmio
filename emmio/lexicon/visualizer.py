@@ -168,6 +168,8 @@ class LexiconVisualizer:
             plt.ylim(ymin=margin)
         if x_min and x_max:
             plt.xlim(xmin=year_start(x_min), xmax=year_end(x_max))
+        if legend == "list":
+            plt.legend(loc="upper left", bbox_to_anchor=(1, 1), frameon=False)
         plt.subplots_adjust(left=0.3, right=0.7)
 
         if self.interactive:
