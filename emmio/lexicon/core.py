@@ -1,9 +1,7 @@
 import json
 import logging
 import math
-import random
 import sys
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -379,12 +377,12 @@ class Lexicon:
     def count_unknowns(
         self, point_1: datetime | None = None, point_2: datetime | None = None
     ) -> int:
-        """Return the number of UNKNOWN answers."""
-        records: Iterator[LexiconLogRecord] = filter(
-            lambda record: not point_1 or point_1 <= record.time <= point_2,
-            self.log.records,
-        )
-        return [x.response for x in records].count(LexiconResponse.DONT)
+        """Return the number of "Don't know" answers."""
+        return [
+            x.response
+            for x in self.log.records
+            if not point_1 or not point_2 or point_1 <= x.time <= point_2
+        ].count(LexiconResponse.DONT)
 
     def get_bounds(
         self, point_1: datetime, point_2: datetime
@@ -703,8 +701,8 @@ class Lexicon:
                 mf_index += 1
                 if self.has(picked_word) or learning.has(picked_word):
                     continue
-                items: list[DictionaryItem] = dictionaries.get_items(
-                    picked_word
+                items: list[DictionaryItem] = await dictionaries.get_items(
+                    picked_word, learning.language
                 )
                 if not items or items[0].is_not_common(learning.language):
                     continue

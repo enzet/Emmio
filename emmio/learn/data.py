@@ -5,7 +5,7 @@ from typing import Iterator
 
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
-from emmio.learn.core import Learning
+from emmio.learn.core import Learning, Response
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -63,7 +63,11 @@ class LearnData:
     def count_postponed(self):
         return sum(x.count_postponed() for x in self.learnings.values())
 
-    def count_actions(self, since: datetime):
+    def count_actions(
+        self,
+        since: datetime,
+        types: tuple[Response, ...] = (Response.RIGHT, Response.WRONG),
+    ):
         return sum(
-            x.count_actions(since=since) for x in self.learnings.values()
+            x.count_actions(since, types) for x in self.learnings.values()
         )
