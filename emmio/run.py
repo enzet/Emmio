@@ -739,8 +739,10 @@ class Emmio:
         time_to_repetition: timedelta = (
             min(
                 x.get_nearest()
-                for x in self.user_data.learnings.learnings.values()
-                if x.config.is_active and x.get_nearest()
+                for x in self.user_data.get_learn_data().learnings.values()
+                if x.config.is_active
+                and x.get_nearest()
+                and x.get_nearest() > now
             )
             - now
         )
