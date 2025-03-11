@@ -19,7 +19,7 @@ from emmio.language import ENGLISH, RUSSIAN, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import Interface, Text
+from emmio.ui import Block, Interface, Text
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -501,6 +501,30 @@ class Lexicon:
 
         return result
 
+    def get_question(
+        self,
+        word: str,
+        sentences: SentencesCollection | None,
+    ) -> Text:
+        """Get question text for picked word to ask user."""
+
+        result: Text = Text()
+        result.add(Block(word, (0, 0, 0, 4)))
+
+        if self.has(word):
+            result.add(
+                "Last response was: " + self.get(word).get_message() + "."
+            )
+
+        if sentences is not None:
+            if sentence_translations := sentences.filter_by_word(
+                word, set(), 120
+            ):
+                result.add(
+                    "Usage example: " + sentence_translations[0].sentence.text
+                )
+        return result
+
     async def ask(
         self,
         interface: Interface,
@@ -509,69 +533,59 @@ class Lexicon:
         sentences: SentencesCollection | None,
         skip_known: bool = False,
         skip_unknown: bool = False,
-    ) -> tuple[bool, LexiconResponse, Dictionary | None]:
-        """Ask user if the word is known."""
+    ) -> tuple[bool | None, LexiconResponse | None, Dictionary | None]:
+        """Ask user if the word is known.
+
+        :return: tuple of (skip in future, response, dictionary)
+        """
 
         # FIXME: get definitions languages from user settings.
         definitions_languages: list[Language] = [ENGLISH, RUSSIAN]
 
-        sys.stdout.write(f"\n    {word}\n")
-
-        if self.has(word):
-            text: Text = Text()
-            text.add("Last response was: " + self.get(word).get_message() + ".")
-            interface.print(text)
-
-        if sentences is not None:
-            sentence_translations = sentences.filter_by_word(word, set(), 120)
-            if sentence_translations:
-                interface.print(
-                    "Usage example: "
-                    + sentence_translations[0].sentence.text.replace(
-                        word, f"\033[32m{word}\033[0m"
-                    )
-                )
+        question: Text = self.get_question(word, sentences)
+        interface.print(question)
 
         start_time: datetime = datetime.now()
 
         translation: Text | None = await dictionaries.to_text(
             word, self.language, definitions_languages
         )
-
         if translation is not None and not translation.is_empty():
             interface.button("Show translation")
             interface.print(translation)
 
-        interface.print(
-            "Do you know at least one meaning of this word? [Y/n/b/s/-/q]> "
+        answer: str = interface.choice(
+            [
+                ("Yes", "y"),
+                ("No", "n"),
+                ("Proper", "b"),
+                ("Yes, skip", "s"),
+                ("Not a word", "-"),
+                ("Quit", "q"),
+            ],
+            "Do you know at least one meaning of this word?",
         )
-
-        answer: str = interface.get_char()
-        while answer not in "yY\rnNbBsS-qQz":
-            answer = interface.get_char()
-
         response: LexiconResponse
         skip_in_future: bool | None = None
 
-        if answer in "yY\r":
-            response = LexiconResponse.KNOW
-        elif answer in "nN":
-            response = LexiconResponse.DONT
-        elif answer in "bB":
-            response = LexiconResponse.DONT_BUT_PROPER_NOUN_TOO
-        elif answer in "sS":
-            response = LexiconResponse.KNOW
-            skip_in_future = True
-        elif answer == "-":
-            response = LexiconResponse.NOT_A_WORD
-        elif answer in "qQ":
-            print("Quit.")
-            self.write()
-            return False, None, None
-        else:
-            response = LexiconResponse.DONT
+        match answer:
+            case "Yes":
+                response = LexiconResponse.KNOW
+            case "No":
+                response = LexiconResponse.DONT
+            case "Proper":
+                response = LexiconResponse.DONT_BUT_PROPER_NOUN_TOO
+            case "Yes, skip":
+                response = LexiconResponse.KNOW
+            case "Not a word":
+                response = LexiconResponse.NOT_A_WORD
+            case "Quit":
+                self.write()
+                return False, None, None
+            case _:
+                response = LexiconResponse.DONT
 
-        print(response.get_message())
+        interface.print(response.get_message())
 
         if skip_in_future is None:
             if response == LexiconResponse.KNOW:

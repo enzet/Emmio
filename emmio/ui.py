@@ -1,8 +1,9 @@
 """Emmio console user interface."""
 
 import sys
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
 import readchar
 from rich import box
@@ -88,7 +89,7 @@ class Text:
 class Formatted:
     """Formatted text element."""
 
-    def __init__(self, text, format: str):
+    def __init__(self, text, format: str) -> None:
         assert format in ["bold", "italic", "underline"]
         self.text = text
         self.format: str = format
@@ -97,7 +98,7 @@ class Formatted:
 class Colorized:
     """Colorized text element."""
 
-    def __init__(self, text, color: str):
+    def __init__(self, text, color: str) -> None:
         self.text = text
         self.color: str = color
 
@@ -105,7 +106,7 @@ class Colorized:
 class Block:
     """Block of text."""
 
-    def __init__(self, text, padding: tuple[int, int, int, int]):
+    def __init__(self, text, padding: tuple[int, int, int, int]) -> None:
         if text is None:
             raise Exception("Text is None")
         self.text = text
@@ -147,51 +148,48 @@ class Table:
         self.rows.append(row)
 
 
-class Interface:
+class Interface(ABC):
     """User input/output interface."""
 
-    def __init__(self, use_input: bool):
+    def __init__(self, use_input: bool) -> None:
         self.use_input: bool = use_input
 
+    @abstractmethod
     def print(self, text) -> None:
         """Simply print text message."""
         raise NotImplementedError()
 
-    def header(self, text: str) -> None:
-        """Print header."""
-        raise NotImplementedError()
-
+    @abstractmethod
     def input(self, prompt: str) -> str:
         """Return user input."""
         raise NotImplementedError()
 
+    @abstractmethod
     def get_char(self) -> str:
-        return input() if self.use_input else get_char()
+        raise NotImplementedError()
 
+    @abstractmethod
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
     ) -> str:
         raise NotImplementedError()
 
-    def table(self, columns: list[str], rows: list[list[str]]) -> None:
-        """Add table.  Length of `columns` should be equal of length of each
-        element of `rows`.
+    @abstractmethod
+    def choice(
+        self, options: list[tuple[str, str]], prompt: str | None = None
+    ) -> str:
+        """Return user choice from list of options.
+
+        First option is assumed to be main and it's short key is also Enter.
+
+        :param options: list of tuples of (option text, option short key)
+        :param prompt: prompt to print before options
         """
         raise NotImplementedError()
 
-    def colorize(self, text: str, color: str) -> str:
-        return text
-
-    def run(self) -> None:
-        raise NotImplementedError()
-
-    def stop(self) -> None:
-        raise NotImplementedError()
-
-    def choice(self, options: list[str], prompt: str | None = None) -> str:
-        raise NotImplementedError()
-
+    @abstractmethod
     def button(self, text: str) -> None:
+        """Print button."""
         raise NotImplementedError()
 
 
@@ -237,28 +235,34 @@ class TerminalInterface(Interface):
                 f"Unsuppoted text type in terminal interface `{type(element)}`."
             )
 
+    @override
     def button(self, text: str) -> None:
         print(f"<{text}>")
         input()
 
+    @override
     def input(self, prompt: str) -> str:
         return input(prompt)
 
-    def choice(self, options: list[str], prompt: str | None = None) -> str:
+    @override
+    def get_char(self) -> str:
+        return input() if self.use_input else get_char()
+
+    @override
+    def choice(
+        self, options: list[tuple[str, str]], prompt: str | None = None
+    ) -> str:
+
+        if prompt is not None:
+            self.print(prompt)
         self.print(
-            ((prompt + " ") if prompt else "")
-            + " ".join(f"[{x}]" for x in options)
+            " ".join(f"[{text} ({key.upper()})]" for text, key in options)
         )
         while True:
-            char: str = input() if self.use_input else get_char()
-            for option in options:
-                if not option:
-                    raise RuntimeError()
-                for c in option:
-                    if "A" <= c <= "Z":
-                        break
-                if c.lower() == char:
-                    return option.lower()
+            char: str = self.get_char()
+            for text, key in options:
+                if key.upper() == char or key.lower() == char:
+                    return text
 
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
@@ -315,7 +319,7 @@ class TerminalInterface(Interface):
 class RichInterface(TerminalInterface):
     """Terminal interface with complex Unicode characters and colors."""
 
-    def __init__(self, use_input: bool):
+    def __init__(self, use_input: bool) -> None:
         super().__init__(use_input)
         self.console: Console = Console(highlight=False)
         self.use_input: bool = use_input
@@ -386,22 +390,6 @@ class RichInterface(TerminalInterface):
             return result
 
         assert False, element
-
-    def choice(self, options: list[str], prompt: str | None = None) -> str:
-        self.console.print(
-            ((prompt + " ") if prompt else "")
-            + " ".join(f"\\[{x}]" for x in options)
-        )
-        while True:
-            char: str = input() if self.use_input else get_char()
-            for option in options:
-                if not option:
-                    raise RuntimeError()
-                for c in option:
-                    if "A" <= c <= "Z":
-                        break
-                if c.lower() == char:
-                    return option.lower()
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")

@@ -51,11 +51,11 @@ class Emmio:
 
         if not data.has_user(user_id):
             answer: str = self.interface.choice(
-                ["Yes", "No"],
+                [("Yes", "y"), ("No", "n")],
                 f"User with id `{user_id}` does not exist. Do you want to "
                 "create new user?",
             )
-            if answer == "yes":
+            if answer == "Yes":
                 user_name = self.interface.input("Enter user name: ")
             else:
                 return
@@ -659,8 +659,10 @@ class Emmio:
                 self.data.print_learning_statistics(
                     self.interface, self.user_id
                 )
-                reply: str = self.interface.choice(["Yes", "No"], "Continue?")
-                if reply == "no" or not do_continue:
+                reply: str = self.interface.choice(
+                    [("Yes", "y"), ("No", "n")], "Continue?"
+                )
+                if reply == "No" or not do_continue:
                     return
             else:
                 learnings = sorted(learnings, key=lambda x: x.compare_by_new())
@@ -685,9 +687,9 @@ class Emmio:
                         self.interface, self.user_id
                     )
                     reply: str = self.interface.choice(
-                        ["Yes", "No"], "Continue?"
+                        [("Yes", "y"), ("No", "n")], "Continue?"
                     )
-                    if reply == "no" or not do_continue:
+                    if reply == "No" or not do_continue:
                         return
                 else:
                     break

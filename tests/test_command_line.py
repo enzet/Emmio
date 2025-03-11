@@ -149,10 +149,15 @@ def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         capsys,
         temp_directory=Path("__test_empty_data"),
         temp_user_id="alice",
-        user_commands=["y", "Alice", "q"],
-        expected_output=dedent(
+        user_commands=[
+            "y",  # Say "yes" for "Do you want to create new user?"
+            "Alice",  # Enter user name.
+            "q",  # Quit.
+        ],
+        expected_output=(
             "User with id `alice` does not exist. Do you want to create new "
-            "user? [Yes] [No]\n"
+            "user?\n"
+            "[Yes (Y)] [No (N)]\n"
             "User `alice` with name `Alice` created.\n"
         )
         + HEADER,
@@ -226,7 +231,7 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
             """
             Lexicon for Norwegian Bokmål
 
-                hei
+            hei
             Last response was: knows at least one meaning of the word.
             <Show translation>
             Norwegian Bokmål-English Dictionary
@@ -234,7 +239,8 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
 
             hi
 
-            Do you know at least one meaning of this word? [Y/n/b/s/-/q]>
+            Do you know at least one meaning of this word?
+            [Yes (Y)] [No (N)] [Proper (B)] [Yes, skip (S)] [Not a word (-)] [Quit (Q)]
             knows at least one meaning of the word
             Precision: 0.00
             Rate so far is: unknown
