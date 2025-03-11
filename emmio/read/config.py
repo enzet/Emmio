@@ -23,6 +23,6 @@ class ReadConfig(BaseModel):
 
     dictionaries: list[dict]
     """Dictionary configurations.
-    
+
     They should be used to translate unknown words.
     """

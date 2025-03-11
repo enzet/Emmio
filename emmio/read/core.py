@@ -61,10 +61,10 @@ class Read:
         )
         for st in sts:
             print(st.sentence.text)
-            command: str = input("[READ]> ")
+            input("[READ]> ")
             for t in st.translations:
                 print(t)
-            command: str = input("[READ]> ")
+            input("[READ]> ")
 
     def read_text(self, data, user_data, interface, dictionaries):
         texts: Texts = data.get_text(self.config.text)

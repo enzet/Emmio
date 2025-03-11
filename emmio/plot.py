@@ -237,7 +237,6 @@ class Graph:
 
         line: Line = svg.path(d=d, fill=color, opacity=opacity)
         svg.add(line)
-        title: str | None
         if label:
             text_y = max(last_text_y + 15, point[1] + 5)
             self.text(svg, (point[0] + 15, text_y), label, color)

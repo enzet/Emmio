@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ from emmio.language import ENGLISH, RUSSIAN, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import Interface, Text, get_char
+from emmio.ui import Interface, Text
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

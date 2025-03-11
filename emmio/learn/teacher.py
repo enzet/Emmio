@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from typing import Text
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -18,7 +17,7 @@ from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
 from emmio.sentence.core import SentencesCollection, SentenceTranslations
-from emmio.ui import Interface
+from emmio.ui import Interface, Text
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -501,7 +500,7 @@ class Teacher:
             if answer == "/skip":
                 self.learning.register(Response.SKIP, 0, word)
                 self.learning.write()
-                print(f"Word is no longer in the learning process.")
+                print("Word is no longer in the learning process.")
                 return "continue"
 
             if answer.startswith("/skip "):
@@ -513,44 +512,35 @@ class Teacher:
             if answer == "/stop":
                 return "stop"
 
-            if answer == "/exclude":
-                self.data.exclude_sentence(word, sentence_id)
-                self.learning.postpone(word)
-                return "continue"
-
-            if answer.startswith("/hide "):
-                self.data.exclude_translation(
-                    word, " ".join(answer.split(" ")[1:])
-                )
-                self.learning.postpone(word)
-                return "continue"
-
-            if answer.startswith("/btt "):
-                _, w, t = answer.split(" ")
-                self.data.exclude_translation(w, t)
-                continue
-
             if answer.startswith("/know "):
                 command, command_word = answer.split(" ")
-                self.learning_lexicon.register(
-                    command_word,
-                    LexiconResponse.KNOW,
-                    to_skip=False,
-                    request_time=None,
-                    answer_type=AnswerType.USER_ANSWER,
-                )
-                self.learning_lexicon.write()
+                # TODO: sanitize user input.
+                if self.learning_lexicon:
+                    self.learning_lexicon.register(
+                        command_word,
+                        LexiconResponse.KNOW,
+                        to_skip=False,
+                        request_time=None,
+                        answer_type=AnswerType.USER_ANSWER,
+                    )
+                    self.learning_lexicon.write()
+                else:
+                    self.interface.print("No lexicon specified.")
 
             if answer.startswith("/not_a_word "):
                 command, command_word = answer.split(" ")
-                self.learning_lexicon.register(
-                    command_word,
-                    LexiconResponse.NOT_A_WORD,
-                    to_skip=False,
-                    request_time=None,
-                    answer_type=AnswerType.USER_ANSWER,
-                )
-                self.learning_lexicon.write()
+                # TODO: sanitize user input.
+                if self.learning_lexicon:
+                    self.learning_lexicon.register(
+                        command_word,
+                        LexiconResponse.NOT_A_WORD,
+                        to_skip=False,
+                        request_time=None,
+                        answer_type=AnswerType.USER_ANSWER,
+                    )
+                    self.learning_lexicon.write()
+                else:
+                    self.interface.print("No lexicon specified.")
 
             if answer in [
                 "/no",

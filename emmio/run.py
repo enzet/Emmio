@@ -5,11 +5,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import coloredlogs
 from colour import Color
 
 from emmio import util
-from emmio.analyze import Analysis
 from emmio.data import Data
 from emmio.graph import Visualizer
 from emmio.language import Language
@@ -538,13 +536,13 @@ class Emmio:
 
         # Command `to learn`.
         if command == "to learn":
-            rows = []
+            rows: list[list[str]] = []
             for learning in self.user_data.get_active_learnings():
                 rows.append([f"== {learning.config.name} =="])
                 for word, knowledge in learning.knowledge.items():
                     if knowledge.get_last_response() != Response.WRONG:
                         continue
-                    items = self.data.dictionaries.get_dictionaries(
+                    items = await self.data.dictionaries.get_dictionaries(
                         learning.config.dictionaries
                     ).get_items(word, learning.learning_language)
 
@@ -563,7 +561,7 @@ class Emmio:
 
         # Command `schedule`.
         if command == "schedule":
-            now = datetime.now()
+            now: datetime = datetime.now()
 
             interval = "month"
             match interval:
@@ -617,28 +615,6 @@ class Emmio:
                 )
             self.interface.table(["Day", "Time", "To repeat"], rows)
 
-        if Visualizer.check_command(command):
-            records: list[tuple[LearningRecord, Learning]] = []
-            knowledge = {}
-            learnings: list[Learning] = list(
-                self.user_data.get_active_learnings()
-            )
-
-            for learning in learnings:
-                records += [(x, learning) for x in learning.process.records]
-                knowledge |= learning.knowledge
-
-            visualizer: Visualizer = Visualizer(interactive=interactive)
-            records = sorted(records, key=lambda x: x[0].time)
-
-            lexicons: list[Lexicon] = [
-                self.user_data.get_lexicon(learning.learning_language)
-                for learning in self.user_data.get_active_learnings()
-            ]
-            visualizer.process_command(
-                command, records, knowledge, learnings, lexicons
-            )
-
     async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
         """Check user vocabulary."""
 
@@ -676,18 +652,7 @@ class Emmio:
             break
 
     def read(self, read: Read):
-        coloredlogs.install(
-            level=logging.ERROR,
-            fmt="%(message)s",
-            level_styles=dict(
-                info=dict(color="yellow"), error=dict(color="red")
-            ),
-        )
-        read.read(
-            self.interface,
-            self.data,
-            self.user_data,
-        )
+        read.read(self.interface, self.data, self.user_data)
 
     async def learn(self, learnings: list[Learning]) -> None:
         while True:

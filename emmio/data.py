@@ -95,30 +95,6 @@ class Data:
                 )
         return cls(path, None, sentences, dictionaries, None, texts, user_data)
 
-    def exclude_sentence(self, word: str, sentence_id: int) -> None:
-        """Exclude the sentence from the learning process of the word.
-
-        :param word: word in sentence
-        :param sentence_id: a sentence unique identifier
-        """
-        if word not in self.exclude_sentences:
-            self.exclude_sentences[word] = []
-        self.exclude_sentences[word].append(sentence_id)
-        with (self.path / self.id_ / EXCLUDE_SENTENCES_FILE_NAME).open(
-            "w+"
-        ) as output_file:
-            json.dump(self.exclude_sentences, output_file)
-
-    def exclude_translation(self, word: str, other_word: str) -> None:
-        """Exclude some other word from the translation of the word."""
-        if word not in self.exclude_translations:
-            self.exclude_translations[word] = []
-        self.exclude_translations[word].append(other_word)
-        with (self.path / self.id_ / EXCLUDE_TRANSLATIONS_FILE_NAME).open(
-            "w+"
-        ) as output_file:
-            json.dump(self.exclude_translations, output_file)
-
     def get_lists_data(self) -> ListsData:
         if not self._lists_data:
             logging.info("Loading list data...")
@@ -133,7 +109,7 @@ class Data:
     def get_frequency_list(self, usage_config: dict) -> FrequencyList | None:
         return self.get_lists_data().get_frequency_list(usage_config)
 
-    def get_dictionary(self, usage_config: dict) -> Dictionary:
+    def get_dictionary(self, usage_config: dict) -> Dictionary | None:
         return self.dictionaries.get_dictionary(usage_config)
 
     def get_dictionaries(

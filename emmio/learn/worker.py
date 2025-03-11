@@ -371,19 +371,6 @@ class LearningWorker(Worker):
             self.print_state()
             return f"Right answer: {self.word}{state}."
 
-        elif answer == "/exclude":
-            self.data.exclude_sentence(self.word, sentence_id)
-            self.skip.add(self.word)
-            self.print_state()
-            return "Sentence was excluded."
-
-        elif answer.startswith("/hide "):
-            parts = answer.split(" ")
-            self.data.exclude_translation(self.word, " ".join(parts[1:]))
-            self.skip.add(self.word)
-            self.print_state()
-            return "Translation was hidden."
-
         else:
             self.print_state()
             return "No."

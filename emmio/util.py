@@ -11,7 +11,7 @@ from pathlib import Path
 
 import urllib3
 from colour import Color
-from urllib3 import HTTPResponse, PoolManager, Timeout
+from urllib3 import BaseHTTPResponse, PoolManager, Timeout
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -79,7 +79,7 @@ def download(
     timeout = Timeout(connect=1.0, read=2.0)
     pool_manager: PoolManager = PoolManager(timeout=timeout)
     try:
-        result: HTTPResponse = pool_manager.request(
+        result: BaseHTTPResponse = pool_manager.request(
             "GET", address, preload_content=False
         )
     except urllib3.exceptions.MaxRetryError:
