@@ -1,22 +1,24 @@
-class Worker:
+from abc import ABC, abstractmethod
+
+
+class Worker(ABC):
     """Any learning or checking worker."""
 
+    @abstractmethod
     def __lt__(self, other: "Worker") -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
     def is_ready(self) -> bool:
         """Check if worker has the next message to send."""
-        pass
+        raise NotImplementedError()
 
-    @staticmethod
-    def get_greetings() -> str:
-        """Return greetings to tell that worker is ready."""
-        return "Hello."
-
+    @abstractmethod
     def get_next_question(self) -> list[str]:
         """Return list of next messages."""
-        pass
+        raise NotImplementedError()
 
+    @abstractmethod
     def process_answer(self, message) -> str:
         """Process user response."""
-        pass
+        raise NotImplementedError()

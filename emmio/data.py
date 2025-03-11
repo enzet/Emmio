@@ -42,15 +42,15 @@ class Data:
     """Registry of all available Emmio data.
 
     This class manages Emmio data directory which is by default located in
-    ``~/.emmio``.  It expects to find directories ``lists``, ``sentences``,
-    ``dictionaries``, ``audio``, and ``texts`` with artifacts and directory
-    ``users`` with user data.
+    `~/.emmio`.  It expects to find directories `lists`, `sentences`,
+    `dictionaries`, `audio`, and `texts` with artifacts and directory `users`
+    with user data.
     """
 
     path: Path
     """Managed directory."""
 
-    _lists_data: ListsData
+    _lists_data: ListsData | None
     """Manager for frequency and word lists."""
 
     sentences: SentencesData

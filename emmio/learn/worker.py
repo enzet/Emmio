@@ -1,7 +1,8 @@
 import logging
 import math
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import override
 
 from emmio import ui
 from emmio.data import Data
@@ -72,16 +73,21 @@ class LearningWorker(Worker):
         logging.debug(
             f"sent.: {self.index}/{len(self.current_sentences)}, "
             f"skip: {len(self.skip)}, "
-            f"to repeat: {self.learning.count_questions_to_repeat(self.skip)}"
+            f"to repeat: {self.learning.count_questions_to_repeat()}"
         )
 
-    def __lt__(self, other: "LearningWorker") -> bool:
-        return self.learning.count_questions_to_repeat(
-            self.skip
-        ) > other.learning.count_questions_to_repeat(self.skip)
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, LearningWorker):
+            raise ValueError("Cannot compare with non-`LearningWorker`.")
 
+        return (
+            self.learning.count_questions_to_repeat()
+            > other.learning.count_questions_to_repeat()
+        )
+
+    @override
     def is_ready(self) -> bool:
-        if self.learning.is_ready(self.skip):
+        if self.learning.is_ready():
             return True
         # FIXME: check if there is new questions.
         return True
@@ -113,7 +119,6 @@ class LearningWorker(Worker):
         )
 
     def get_next_question(self) -> list[str]:
-        logging.debug("LearningWorker: get_next_question()")
         self.print_state()
 
         if self.index > 0:
@@ -122,8 +127,10 @@ class LearningWorker(Worker):
             elif self.index == len(self.current_sentences):
                 return ["No more sentences."]
 
-        if q := self.get_question():
-            return q
+        if question := self.get_question():
+            return question
+
+        return []
 
     def get_new_question(self) -> str:
         """Get new question from the question list."""
@@ -194,6 +201,8 @@ class LearningWorker(Worker):
                 return question_id
 
             return question_id
+
+        return ""
 
     def get_question(self) -> list[str]:
         self.word = self.learning.get_next_question(self.skip)
@@ -289,7 +298,6 @@ class LearningWorker(Worker):
     def process_answer(self, message: str) -> str:
         """Process answer provided by the user."""
 
-        logging.debug("process_answer()")
         self.print_state()
 
         if self.state == "waiting_lexicon_answer":
@@ -316,7 +324,8 @@ class LearningWorker(Worker):
                 self.word,
                 response,
                 to_skip,
-                log_name="log_ex",
+                None,  # TODO: fill `request_time`.
+                datetime.now(),
                 answer_type=AnswerType.USER_ANSWER,
             )
             return ""
