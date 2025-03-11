@@ -505,7 +505,6 @@ class Lexicon:
         self,
         interface: Interface,
         word: str,
-        word_list: list[str],
         dictionaries: DictionaryCollection,
         sentences: SentencesCollection | None,
         skip_known: bool = False,
@@ -517,16 +516,6 @@ class Lexicon:
         definitions_languages: list[Language] = [ENGLISH, RUSSIAN]
 
         sys.stdout.write(f"\n    {word}\n")
-
-        if word_list:
-            if word + "\n" in word_list:
-                sys.stdout.write("In word list.")
-            else:
-                sys.stdout.write("Not in word list.")
-            if word[0].upper() + word[1:] + "\n" in word_list:
-                sys.stdout.write("Capitalized in word list.")
-            else:
-                sys.stdout.write("Capitalized not in word list.")
 
         if self.has(word):
             text: Text = Text()
@@ -614,7 +603,6 @@ class Lexicon:
             to_skip, response, dictionary = await self.ask(
                 interface,
                 picked_word,
-                [],
                 dictionaries=dictionaries,
                 sentences=None,
             )
@@ -647,8 +635,6 @@ class Lexicon:
         skip_known: bool,
         skip_unknown: bool,
         stop_at_wrong: int | None,
-        word_list: list[str] = None,
-        learning=None,
     ) -> str:
         """
         Check current user vocabulary.
@@ -717,7 +703,6 @@ class Lexicon:
             to_skip, response, dictionary = await self.ask(
                 interface,
                 picked_word,
-                word_list,
                 dictionaries,
                 sentences,
                 skip_known,

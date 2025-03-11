@@ -164,7 +164,6 @@ class Teacher:
             _, response, _ = await self.ask_lexicon.ask(
                 self.interface,
                 question_id,
-                [],
                 self.dictionaries,
                 self.sentences,
             )
