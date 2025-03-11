@@ -18,7 +18,6 @@ from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
-from emmio.read.core import Read
 from emmio.ui import Block, Header, Interface, Table, Title, progress
 from emmio.user.data import UserData
 
@@ -105,9 +104,6 @@ class Emmio:
 
         lexicon_parser = subparsers.add_parser("lexicon", help="check lexicon")
         lexicon_parser.add_argument("language", nargs="?")
-
-        read_parser = subparsers.add_parser("read", help="read text")
-        read_parser.add_argument("id")
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
         stat_parser.add_argument(
@@ -287,13 +283,12 @@ class Emmio:
             else:
                 parser.print_help()
 
-        # Command `read`.
-        if arguments.command == "read":
-            read_process: Read = self.user_data.get_read_process(arguments.id)
-            self.read(read_process)
+        # Command `serve`.
+        if arguments.command == "serve":
+            await self.serve()
 
         # Command `learn`.
-        if arguments.command == "learn":
+        elif arguments.command == "learn":
             # We cannot use iterators here!
             learnings: list[Learning]
             if arguments.topic:
@@ -319,15 +314,6 @@ class Emmio:
             await self.run_lexicon(
                 sorted(lexicons, key=lambda x: -x.get_last_rate_number())
             )
-
-        # Command `read *`.
-        if command.startswith("read "):
-            _, request = command.split(" ")
-            read_processes = self.data.get_read_processes(self.user_id)
-            for id_, read in read_processes.items():
-                if id_.startswith(request):
-                    self.read(read)
-                    break
 
         # Command `stat`.
         if arguments.command == "stat":
@@ -650,9 +636,6 @@ class Emmio:
                 need,
             )
             break
-
-    def read(self, read: Read):
-        read.read(self.interface, self.data, self.user_data)
 
     async def learn(self, learnings: list[Learning]) -> None:
         while True:

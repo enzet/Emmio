@@ -101,15 +101,9 @@ async def asynchronous_main() -> None:
             ).run()
 
 
-def main() -> int:
-    try:
-        asyncio.run(asynchronous_main())
-    except Exception as e:
-        print(e)
-        return 1
-
-    return 0
+def main() -> None:
+    asyncio.run(asynchronous_main())
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

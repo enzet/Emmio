@@ -102,18 +102,18 @@ class Teacher:
         )
         self.max_for_day: int = self.learning.config.max_for_day
 
-    def get_new_question(self) -> str | None:
+    async def get_new_question(self) -> str | None:
         for question_id, list_, index in self.question_ids[
             self.question_index :
         ]:
             logging.info(f"{index}th word from {list_.get_name()}")
             self.question_index += 1
 
-            good_question_id: bool = self.check_question_id(question_id)
+            good_question_id: bool = await self.check_question_id(question_id)
             if good_question_id:
                 return question_id
 
-    def check_question_id(self, question_id) -> bool:
+    async def check_question_id(self, question_id) -> bool:
         # Check whether the learning process already has the word: whether
         # it was initially known or it is learning.
         if self.learning.has(question_id):
@@ -136,9 +136,9 @@ class Teacher:
             if not self.check_common(question_id):
                 return False
 
-        return self.check2(question_id)
+        return await self.check2(question_id)
 
-    def check2(self, question_id: str) -> bool:
+    async def check2(self, question_id: str) -> bool:
         # Check user lexicon. Skip the word if it was mark as known by user
         # while checking lexicon. This should be done after checking
         # definitions in dictionary, because if user answer is "no", the
@@ -161,7 +161,7 @@ class Teacher:
         if self.ask_lexicon and not self.ask_lexicon.has(question_id):
             self.ask_lexicon.write()
 
-            _, response, _ = self.ask_lexicon.ask(
+            _, response, _ = await self.ask_lexicon.ask(
                 self.interface,
                 question_id,
                 [],
@@ -181,10 +181,12 @@ class Teacher:
         logging.info("Nothing is known about the word")
         return True
 
-    def check_common(self, question_id: str) -> bool:
+    async def check_common(self, question_id: str) -> bool:
         # Request word definition in the dictionary.
-        items: list[DictionaryItem] = self.dictionaries_to_check.get_items(
-            question_id, self.learning.learning_language
+        items: list[DictionaryItem] = (
+            await self.dictionaries_to_check.get_items(
+                question_id, self.learning.learning_language
+            )
         )
 
         # Skip word if current dictionaries has no definitions for it.
@@ -194,7 +196,7 @@ class Teacher:
 
         # Skip word if it is known that it is solely a form of other words.
         items_no_links: list[DictionaryItem] = (
-            self.dictionaries_to_check.get_items(
+            await self.dictionaries_to_check.get_items(
                 question_id, self.learning.learning_language, follow_links=False
             )
         )

@@ -4,7 +4,6 @@ import random
 from datetime import datetime, timedelta
 from typing import override
 
-from emmio import ui
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection, DictionaryItem
 from emmio.language import GERMAN
@@ -22,6 +21,7 @@ from emmio.sentence.core import (
     SentenceTranslations,
 )
 from emmio.text import sanitize
+from emmio.ui import Interface
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
 
@@ -32,12 +32,20 @@ __email__ = "me@enzet.ru"
 class LearningWorker(Worker):
     """Server worker for learning process."""
 
-    def __init__(self, learning: Learning, lexicon: Lexicon, data: Data):
+    def __init__(
+        self,
+        learning: Learning,
+        lexicon: Lexicon,
+        data: Data,
+        interface: Interface,
+    ) -> None:
         self.data: Data = data
+        """Data storage: dictionaries, sentences, audio."""
+
         self.learning: Learning = learning
         self.lexicon: Lexicon = lexicon
-
-        self.interface: ui.Interface = ui.TelegramInterface()
+        self.interface: Interface = interface
+        """User interface for learning."""
 
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
@@ -95,8 +103,7 @@ class LearningWorker(Worker):
     def get_sentence(
         self, show_index: bool = False, max_translations: int = 1
     ) -> str:
-        """
-        Print sentence and its translations.
+        """Print sentence and its translations.
 
         :param show_index: show current sentence index
         :param max_translations: maximum number of translations to show

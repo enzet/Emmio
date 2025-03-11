@@ -14,7 +14,6 @@ from emmio.lexicon.core import Lexicon
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
-from emmio.read.core import Read
 from emmio.sentence.core import Sentences, SentencesCollection
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
@@ -192,9 +191,6 @@ class Data:
 
         interface.print(f"Pressure: {pressure:.2f}")
         interface.print(f"Postponed: {postponed}")
-
-    def get_read_processes(self, user_id: str) -> dict[str, Read]:
-        return self.users_data[user_id].get_read_processes()
 
     def has_user(self, user_id: str) -> bool:
         """Check whether the user exists."""

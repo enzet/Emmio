@@ -55,7 +55,7 @@ class DirectoryAudioProvider(AudioProvider):
     """Directory with audio files and subdirectories."""
 
     file_extension: str
-    """Audio file extensions, e.g. ``ogg``."""
+    """Audio file extensions, e.g. `ogg`."""
 
     player = mpv.MPV() if mpv else None
     """Wrapper for the MPV player."""
@@ -88,7 +88,10 @@ class DirectoryAudioProvider(AudioProvider):
 
     @override
     def get_paths(self, word: str) -> list[Path]:
-        """Return path of the audio file or ``None`` if file does not exist."""
+        """Return paths of the audio files.
+
+        Return an empty list if files do not exist.
+        """
         return self.cache.get(word, [])
 
     @override
@@ -152,7 +155,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         return os.path.getsize(cache_path) > MIN_AUDIO_FILE_SIZE
 
     def get_path(self, word: str) -> Path | None:
-        """Return path of the audio file or ``None`` if file does not exist.
+        """Return path of the audio file or `None` if file does not exist.
 
         For Wikimedia Commons hashing scheme see
         https://commons.wikimedia.org/wiki/Commons:FAQ, part

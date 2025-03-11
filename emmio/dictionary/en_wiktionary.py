@@ -50,11 +50,11 @@ LINK_PATTERN: re.Pattern = re.compile(
 DESCRIPTOR_PATTERN: re.Pattern = re.compile(r"\((?P<descriptor>[^()]*)\) .*")
 
 
-def get_file_name(word: str):
+def get_file_name(word: str) -> str:
     """Get file name for cache JSON file.
 
     For this to work on case-insensitive operating systems, we add special
-    symbol ``^`` before the capitalized letter.
+    symbol `^` before the capitalized letter.
     """
     name: str = "".join(f"^{c.lower()}" if c.lower() != c else c for c in word)
 
@@ -198,21 +198,18 @@ class EnglishWiktionaryKaikki(Dictionary):
         )
 
         # FIXME: etymology is replaced. We should parse only one dictionary item
-        #        for an item.
+        #     for an item.
         dictionary_item.set_etymology(item.get("etymology_text"))
 
         definitions: list[Definition] = []
         links: list[Link] = []
-
-        # print(f"len(item['senses']): {len(item['senses'])}")
 
         for sense in item["senses"]:
 
             tags: list[str]
 
             if "form_of" in sense:
-                tags: list[str] = sense["tags"]
-                # print(f"len(sense['form_of']): {len(sense['form_of'])}")
+                tags = sense["tags"]
                 for form in sense["form_of"]:
                     links.append(
                         Link(
@@ -223,8 +220,7 @@ class EnglishWiktionaryKaikki(Dictionary):
                 continue
 
             if "alt_of" in sense:
-                tags: list[str] = sense["tags"]
-                # print(f"len(sense['alt_of']): {len(sense['alt_of'])}")
+                tags = sense["tags"]
                 for form in sense["alt_of"]:
                     links.append(
                         Link(
@@ -258,14 +254,15 @@ class EnglishWiktionaryKaikki(Dictionary):
         part_of_speech: str = item["pos"]
         part_of_speech = PART_OF_SPEECH_MAP.get(part_of_speech, part_of_speech)
 
-        form: Form = Form(
-            word=word,
-            part_of_speech=part_of_speech,
-            transcriptions=transcriptions,
-            definitions={ENGLISH: definitions},
-            links=links,
+        dictionary_item.add_form(
+            Form(
+                word=word,
+                part_of_speech=part_of_speech,
+                transcriptions=transcriptions,
+                definitions={ENGLISH: definitions},
+                links=links,
+            )
         )
-        dictionary_item.add_form(form)
 
     async def get_item(
         self, word: str, cache_only: bool = False

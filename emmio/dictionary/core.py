@@ -1,6 +1,4 @@
-"""Dictionary.
-
-Collection of words and their definitions.
+"""Dictionary: collection of words and their definitions.
 
 Dictionary: collection of all items.
   - Dictionary items: definition for a word.
@@ -47,7 +45,8 @@ class WordStatus(Enum):
     """The word is only a form of another common word in dictionary.
 
     E.g. `books` is either a plural form of the noun `book` or a form of a verb
-    `book`."""
+    `book`.
+    """
 
     NOT_COMMON = "not_common"
     """The word is not common.

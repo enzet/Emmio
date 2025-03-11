@@ -12,12 +12,9 @@ from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
 from emmio.listen.core import Listening
 from emmio.listen.data import ListenData
-from emmio.read.core import Read
-from emmio.read.data import ReadData
 
 LEARN_DIRECTORY_NAME: str = "learn"
 LEXICON_DIRECTORY_NAME: str = "lexicon"
-READ_DIRECTORY_NAME: str = "read"
 LISTEN_DIRECTORY_NAME: str = "listen"
 
 
@@ -31,21 +28,21 @@ class UserData:
     path: Path
     """Path to the directory with user data.
 
-    By default, it should be ``~/.emmio/users/<user id>``, e.g.
-    ``~/.emmio/users/chloe``.
+    By default, it should be `~/.emmio/users/<user id>`, e.g.
+    `~/.emmio/users/chloe`.
     """
 
     user_id: str
     """Unique user id.
 
     User id should be an ASCII string and be the same as the name of the
-    directory with user data.  E.g. ``chloe``.
+    directory with user data.  E.g. `chloe`.
     """
 
     user_name: str
     """Displayed user name.
 
-    Unlike user id, it may contain any Unicode symbols.  E.g. ``Chloé``.
+    Unlike user id, it may contain any Unicode symbols.  E.g. `Chloé`.
     """
 
     _learn_data: LearnData | None
@@ -53,9 +50,6 @@ class UserData:
 
     _lexicon_data: LexiconData | None
     """Data about user's lexicon checking processes."""
-
-    read_processes: ReadData
-    """Data about user's reading processes."""
 
     listenings: ListenData
     """Data about user's listening processes."""
@@ -69,7 +63,6 @@ class UserData:
             config["name"],
             None,
             None,
-            ReadData.from_config(path / READ_DIRECTORY_NAME, config["read"]),
             ListenData.from_config(
                 path / LISTEN_DIRECTORY_NAME, config["listen"]
             ),
@@ -160,12 +153,6 @@ class UserData:
 
         return learning_responses, lexicon_responses
 
-    def get_read_process(self, read_id) -> Read:
-        return self.read_processes.get_read_process(read_id)
-
-    def get_read_processes(self) -> dict[str, Read]:
-        return self.read_processes.get_read_processes()
-
     def get_listening(self, listening_id: str) -> Listening:
         return self.listenings.get_listening(listening_id)
 
@@ -230,7 +217,6 @@ class UserData:
         for directory in [
             LEARN_DIRECTORY_NAME,
             LEXICON_DIRECTORY_NAME,
-            READ_DIRECTORY_NAME,
             LISTEN_DIRECTORY_NAME,
         ]:
             (path / directory).mkdir()
@@ -240,7 +226,6 @@ class UserData:
             "name": user_name,
             "learn": {},
             "lexicon": {},
-            "read": {},
             "listen": {},
         }
         user_data: "UserData" = cls(
@@ -250,7 +235,6 @@ class UserData:
             user_name,
             None,
             None,
-            ReadData(path / READ_DIRECTORY_NAME),
             ListenData(path / LISTEN_DIRECTORY_NAME),
         )
         with (path / "config.json").open("w+") as output_file:
@@ -267,15 +251,12 @@ class UserData:
                 "name": self.user_name,
                 "learn": {},
                 "lexicon": {},
-                "read": {},
                 "listen": {},
             }
             for learn_id, learning in self.get_learn_data().learnings.items():
                 config["learn"][learn_id] = learning.config.dict()
             for lexicon_id, lexicon in self.get_lexicon_data().lexicons.items():
                 config["lexicon"][lexicon_id] = lexicon.config.dict()
-            for read_id, reading in self.read_processes.read_processes.items():
-                config["read"][read_id] = reading.config.dict()
             for listen_id, listening in self.listenings.listenings.items():
                 config["listen"][listen_id] = listening.config.dict()
 

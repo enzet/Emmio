@@ -28,10 +28,7 @@ GRADIENT_2: list[Color] = [
 
 
 def map_(value, current_min, current_max, target_min, target_max):
-    """
-    Map current value in bounds of current_min and current_max to bounds of
-    ``target_min`` and ``target_max``.
-    """
+    """Remap value from current bounds to target bounds."""
     if current_max - current_min == 0:
         return target_min
     else:

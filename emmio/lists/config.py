@@ -13,10 +13,10 @@ class FrequencyListFileFormat(Enum):
     """File with CSV format."""
 
     JSON = "json"
-    """File with format ``[[word, occurrences]]``."""
+    """File with format `[[word, occurrences]]`."""
 
     LIST = "list"
-    """File with lines ``word occurrences``."""
+    """File with lines `word occurrences`."""
 
 
 class FrequencyListConfig(BaseModel):

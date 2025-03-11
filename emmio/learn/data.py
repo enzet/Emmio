@@ -49,7 +49,7 @@ class LearnData:
     def compute_pressure(self):
         """Compute the sum of pressures of all learning processes.
 
-        See ``Learning.compute_pressure``.
+        See `Learning.compute_pressure`.
         """
         return sum(x.compute_pressure() for x in self.learnings.values())
 

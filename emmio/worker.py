@@ -1,12 +1,10 @@
 from abc import ABC, abstractmethod
 
+from emmio.ui import Text
+
 
 class Worker(ABC):
     """Any learning or checking worker."""
-
-    @abstractmethod
-    def __lt__(self, other: "Worker") -> bool:
-        raise NotImplementedError()
 
     @abstractmethod
     def is_ready(self) -> bool:
@@ -14,8 +12,8 @@ class Worker(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_next_question(self) -> list[str]:
-        """Return list of next messages."""
+    def get_next_question(self) -> Text | None:
+        """Return next message."""
         raise NotImplementedError()
 
     @abstractmethod
