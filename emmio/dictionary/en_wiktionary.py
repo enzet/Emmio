@@ -62,7 +62,7 @@ def get_file_name(word: str):
 
 
 def check_link_type(link_type: str) -> bool:
-    link_type: str = (
+    link_type = (
         link_type.replace("(t\u00fa)", "")
         .replace("(usted)", "")
         .replace("(ustedes)", "")
@@ -191,10 +191,10 @@ class EnglishWiktionaryKaikki(Dictionary):
 
         word: str = item["word"]
 
-        transcriptions: list[str] = (
-            [x["ipa"] for x in item["sounds"] if "ipa" in x]
+        transcriptions: set[str] = (
+            {x["ipa"] for x in item["sounds"] if "ipa" in x}
             if "sounds" in item
-            else []
+            else set()
         )
 
         # FIXME: etymology is replaced. We should parse only one dictionary item
@@ -207,6 +207,8 @@ class EnglishWiktionaryKaikki(Dictionary):
         # print(f"len(item['senses']): {len(item['senses'])}")
 
         for sense in item["senses"]:
+
+            tags: list[str]
 
             if "form_of" in sense:
                 tags: list[str] = sense["tags"]

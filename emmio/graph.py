@@ -124,14 +124,14 @@ class Visualizer:
     ):
         if by_language:
             learnings = {x[1] for x in records}
-            data: dict[Any, [dict[str, int]]] = {
+            data: dict[Any, dict[str, int]] = {
                 x.learning_language.get_code(): defaultdict(int)
                 for x in learnings
             }
             size = len(data)
         else:
             size: int = 20
-            data: dict[Any, [dict[str, int]]] = {
+            data: dict[Any, dict[str, int]] = {
                 index: defaultdict(int) for index in range(size)
             }
 
@@ -406,7 +406,7 @@ class Visualizer:
         plt.plot(x, y, "o", color="black", markersize=0.5)
         self.plot()
 
-    def graph_mistakes(self, learnings):
+    def graph_mistakes(self, learnings: Iterator[Learning]) -> None:
         for learning in learnings:
             records: list[tuple[str, LearningRecord]] = []
             for record in learning.process.records:
@@ -415,9 +415,9 @@ class Visualizer:
 
             size: int = 10
             xs = range(size)
-            ys = [0] * size
-            ns = [0] * size
-            lasts = defaultdict(int)
+            ys: list[int] = [0] * size
+            ns: list[int] = [0] * size
+            lasts: dict[str, int] = defaultdict(int)
             for learning_id, record in records:
                 id_: str = f"{learning_id}_{record.question_id}"
                 if record.response == Response.RIGHT:

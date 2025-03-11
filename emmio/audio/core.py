@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import override
 
 try:
     import mpv
@@ -56,8 +57,15 @@ class DirectoryAudioProvider(AudioProvider):
     file_extension: str
     """Audio file extensions, e.g. ``ogg``."""
 
-    player = None
+    player = mpv.MPV() if mpv else None
     """Wrapper for the MPV player."""
+
+    def __post_init__(self) -> None:
+        self.path_pattern: re.Pattern = re.compile(
+            rf"(?P<word>[^()]*)\s*(\([^()]*\))?\s*\d?\.{self.file_extension}"
+        )
+        self.cache: dict[str, list[Path]] = defaultdict(list)
+        self.fill_cache(self.directory)
 
     def fill_cache(self, path: Path) -> None:
         if path.is_dir():
@@ -72,24 +80,18 @@ class DirectoryAudioProvider(AudioProvider):
             else:
                 logging.warning(f"Unknown file {path}.")
 
-    def __post_init__(self):
-        self.player = mpv.MPV() if mpv else None
-        self.path_pattern = re.compile(
-            rf"(?P<word>[^()]*)\s*(\([^()]*\))?\s*\d?\.{self.file_extension}"
-        )
-        self.cache: dict[str, list[Path]] = defaultdict(list)
-        self.fill_cache(self.directory)
-
     @classmethod
     def from_config(
         cls, path: Path, config: AudioConfig
     ) -> "DirectoryAudioProvider":
         return cls(path / config.directory_name, config.format)
 
+    @override
     def get_paths(self, word: str) -> list[Path]:
         """Return path of the audio file or ``None`` if file does not exist."""
         return self.cache.get(word, [])
 
+    @override
     def play(self, word: str, repeat: int = 1) -> bool:
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
@@ -108,13 +110,16 @@ class DirectoryAudioProvider(AudioProvider):
         logging.debug(f"Audio was not found in {self.directory}.")
         return False
 
+    @override
     def has(self, word: str) -> bool:
         return bool(self.get_paths(word))
 
 
 class WikimediaCommonsAudioProvider(AudioProvider):
-    """Audio provider that downloads and plays audio files with word
-    pronunciations from Wikimedia Commons.
+    """Audio provider for Wikimedia Commons.
+
+    Downloads and plays audio files with word pronunciations from Wikimedia
+    Commons.
     """
 
     def __init__(self, language: Language, cache_directory: Path) -> None:
@@ -128,6 +133,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         with cache_file.open() as input_file:
             self.cache = json.load(input_file)
 
+    @override
     def get_paths(self, word: str) -> list[Path]:
         if path := self.get_path(word):
             return [path]
@@ -150,7 +156,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         For Wikimedia Commons hashing scheme see
         https://commons.wikimedia.org/wiki/Commons:FAQ, part
-        `What are the strangely named components in file paths?`
+        "What are the strangely named components in file paths?"
         """
         if word not in self.cache:
             return None
@@ -165,7 +171,6 @@ class WikimediaCommonsAudioProvider(AudioProvider):
             downloaded = WikimediaCommonsAudioProvider.download(
                 name, cache_path
             )
-
             if not downloaded:
                 name = name[0].upper() + name[1:]
                 cache_path = directory / name
@@ -179,6 +184,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         return None
 
+    @override
     def play(self, word: str, repeat: int = 1) -> bool:
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
@@ -196,8 +202,10 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         return False
 
+    @override
     def has(self, word: str) -> bool:
-        """
+        """Check whether Wikimedia Commons file is available.
+
         Check whether Wikimedia Commons has audio file for the word and file is
         downloadable (if there is at least internet connection).
         """
@@ -212,6 +220,7 @@ class AudioCollection:
     """List of audio providers sorted by priority."""
 
     def get_paths(self, word: str) -> list[Path]:
+        """Get paths to audio files with the specified word."""
         result: list[Path] = []
         for audio_provider in self.audio_providers:
             result += audio_provider.get_paths(word)
@@ -225,7 +234,7 @@ class AudioCollection:
         return False
 
     def has(self, word: str) -> bool:
-        """Voice the word."""
+        """Check whether the audio collection has audio for the word."""
         for audio_provider in self.audio_providers:
             if audio_provider.has(word):
                 return True

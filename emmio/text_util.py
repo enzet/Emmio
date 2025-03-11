@@ -1,9 +1,7 @@
-from argparse import Namespace
 from collections import defaultdict
-from pathlib import Path
 from typing import IO
 
-from emmio.language import Language, construct_language
+from emmio.language import Language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -23,7 +21,6 @@ class Text:
     def get_frequency_list(self) -> dict:
         """Construct frequency list of the text."""
         print("Construct frequency list...")
-        check = self.language.has_symbol
 
         result: dict[str, int] = defaultdict(int)
 
@@ -31,14 +28,12 @@ class Text:
         for line in self.input_file:
             for symbol in line:
                 symbol: str
+                # We can replace it with `self.language.has_symbol(symbol)`.
                 if (
                     "\u0561" <= symbol <= "\u0587"
                     or "\u0531" <= symbol <= "\u0556"
                 ):
                     word += symbol
-                # if check(symbol):
-                #     word += symbol
-                #     continue
                 else:
                     if word:
                         result[word.lower()] += 1
@@ -65,15 +60,3 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
             text = text[:start] + sanitized + text[start + len(word) :]
 
     return text
-
-
-def construct_frequency_list(emmio_data: "Emmio", arguments: Namespace) -> None:
-    input_path: Path = Path(arguments.input)
-    frequency_list_id: str = arguments.id
-    language: str = arguments.language
-
-    with input_path.open() as input_file:
-        text = Text(input_file, language=construct_language(language))
-        m = text.get_frequency_list()
-
-    emmio_data.add_frequency_list(frequency_list_id, m)

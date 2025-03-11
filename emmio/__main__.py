@@ -34,7 +34,7 @@ def process_list_command(data, arguments):
                 print("No such list.")
 
 
-async def asynchronous_main():
+async def asynchronous_main() -> None:
     """Emmio entry point."""
 
     coloredlogs.install(
@@ -115,26 +115,29 @@ async def asynchronous_main():
 
     interface: Interface = get_interface(arguments.interface)
 
-    if arguments.data:
-        data_path = Path(arguments.data)
-    else:
-        data_path: Path = Path.home() / EMMIO_DEFAULT_DIRECTORY
-
+    data_path: Path = (
+        Path.home() / EMMIO_DEFAULT_DIRECTORY
+        if arguments.data is None
+        else Path(arguments.data)
+    )
     data_path.mkdir(parents=True, exist_ok=True)
 
     data: Data = Data.from_directory(data_path)
 
+    user_id: str
+    robot: Emmio
+
     match arguments.command:
         case "server":
-            from emmio.server import start
+            from emmio.server import start as start_server
 
             logging.basicConfig(level=logging.DEBUG)
-            start(data, arguments)
+            start_server(data, arguments)
 
         case "dictionary":
-            from emmio.dictionary.ui import start
+            from emmio.dictionary.ui import start as start_dictionary
 
-            start(data, arguments)
+            await start_dictionary(data, interface, arguments)
 
         case "list":
             process_list_command(data, arguments)
@@ -142,10 +145,8 @@ async def asynchronous_main():
         case "execute":
             from emmio.run import Emmio
 
-            user_id: str = (
-                arguments.user if arguments.user else getpass.getuser()
-            )
-            robot: Emmio = Emmio(
+            user_id = arguments.user if arguments.user else getpass.getuser()
+            robot = Emmio(
                 data_path,
                 interface,
                 data,
@@ -156,10 +157,8 @@ async def asynchronous_main():
         case _:
             from emmio.run import Emmio
 
-            user_id: str = (
-                arguments.user if arguments.user else getpass.getuser()
-            )
-            robot: Emmio = Emmio(
+            user_id = arguments.user if arguments.user else getpass.getuser()
+            robot = Emmio(
                 data_path,
                 interface,
                 data,
@@ -168,8 +167,14 @@ async def asynchronous_main():
             await robot.run()
 
 
-def main() -> None:
-    asyncio.run(asynchronous_main())
+def main() -> int:
+    try:
+        asyncio.run(asynchronous_main())
+    except Exception as e:
+        print(e)
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":

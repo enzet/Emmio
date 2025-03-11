@@ -39,21 +39,22 @@ class Language:
         code: str,
         color: Color,
         symbols: str,
-        self_name: str = None,
-        parent: Optional["Language"] = None,
+        self_name: str | None = None,
+        parent: "Language | None" = None,
         tone: Color | None = None,
-        checking: Optional[Callable] = None,
+        checking: Callable | None = None,
         sentence_end: str | None = None,
     ) -> None:
         self.code: str = code
-        self.symbols: str | None = symbols
+        self.symbols: str = symbols
         self.color: Color | None = color
-        self.self_name: str = self_name
-        self.parent: "Language" | None = parent
+        self.self_name: str | None = self_name
+        self.parent: "Language | None" = parent
         self.tone: Color | None = tone
         self.sentence_end: str | None = sentence_end
         self.iso639_language = ISO639Language(code)
 
+        self.has_symbol: Callable
         if checking:
             self.has_symbol = checking
         else:
@@ -67,8 +68,9 @@ class Language:
 
         raise LanguageNotFound(code)
 
-    def __eq__(self, other: "Language") -> bool:
-        assert isinstance(other, Language)
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Language):
+            return False
         return self.code == other.code
 
     def __hash__(self) -> int:
@@ -115,7 +117,7 @@ class Language:
         """Check whether language knows its allowed symbols."""
         return self.symbols is not None
 
-    def get_symbols(self) -> str:
+    def get_symbols(self) -> str | None:
         """Get all symbols allowed in the language."""
         return self.symbols
 

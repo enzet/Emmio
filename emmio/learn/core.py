@@ -56,7 +56,7 @@ class LearningRecord(BaseModel, Record):
 
     question_id: str
     """Unique string question identifier.
-    
+
     For single word learning it should be a word itself.
     """
 
@@ -75,7 +75,7 @@ class LearningRecord(BaseModel, Record):
     def get_time(self) -> datetime:
         return self.time
 
-    def get_request_time(self) -> datetime:
+    def get_request_time(self) -> datetime | None:
         return self.request_time
 
     def get_symbol(self) -> str:
@@ -94,23 +94,23 @@ class LearningSession(BaseModel, Session):
     start: datetime
     """The time when the session was started."""
 
-    end: datetime = None
+    end: datetime | None = None
     """The time when the session was finished."""
 
-    actions: int = None
+    actions: int | None = None
     """Number of actions recorded in the session."""
 
     def get_start(self) -> datetime:
         return self.start
 
-    def get_end(self) -> datetime:
+    def get_end(self) -> datetime | None:
         return self.end
 
     def end_session(self, time: datetime, actions: int) -> None:
         self.actions = actions
         self.end = datetime.now()
 
-    def get_time(self) -> Optional[timedelta]:
+    def get_time(self) -> timedelta | None:
         if self.end is None:
             return None
         return self.end - self.start
@@ -231,7 +231,7 @@ class Learning:
         ]
         self.file_path: Path = path / config.file_name
 
-        self.process: LearningProcess | None = None
+        self.process: LearningProcess
 
         # Create learning file if it doesn't exist.
         if not self.file_path.is_file():
@@ -249,7 +249,7 @@ class Learning:
             logging.info(f"Reading {self.file_path}...")
             self.process = load_old_format(self.file_path)
         else:
-            self.process = None
+            raise ValueError(f"Unknown file format: `{self.file_path.name}`.")
 
         for record in self.process.records:
             self.__update_knowledge(record)

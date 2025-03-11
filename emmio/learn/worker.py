@@ -7,7 +7,7 @@ from emmio import ui
 from emmio.data import Data
 from emmio.dictionary.core import DictionaryCollection, DictionaryItem
 from emmio.language import GERMAN
-from emmio.learn.core import SMALLEST_INTERVAL, Learning, Response
+from emmio.learn.core import Learning, Response
 from emmio.lexicon.core import (
     AnswerType,
     Lexicon,

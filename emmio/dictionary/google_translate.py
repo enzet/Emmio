@@ -1,11 +1,10 @@
-import asyncio
 import os
 from pathlib import Path
 
 import httpx
 from googletrans import Translator
 
-from emmio.dictionary.core import Dictionary, DictionaryItem, Form
+from emmio.dictionary.core import Dictionary, DictionaryItem
 from emmio.language import Language
 
 

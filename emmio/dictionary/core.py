@@ -15,17 +15,16 @@ Dictionary: collection of all items.
 import asyncio
 import json
 import re
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any, Coroutine, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
 from emmio.text_util import sanitize
-from emmio.ui import Block, Colorized, Formatted, Interface, Text
+from emmio.ui import Block, Colorized, Formatted, Text
 from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
@@ -72,7 +71,7 @@ class Link:
             - slang, colloquial,
             - obsolete, etc.
         """
-        parts = self.link_type.lower().split(" ")
+        parts: list[str] = self.link_type.lower().split(" ")
 
         for descriptor in DESCRIPTORS_OF_WORDS_TO_IGNORE:
             if descriptor in parts:
@@ -80,7 +79,7 @@ class Link:
 
         return True
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(f"{self.link_type}_{self.link_value}")
 
 
@@ -141,8 +140,7 @@ class Definition:
         return cls([DefinitionValue.from_text(translation)])
 
     def is_common(self) -> bool:
-        """
-        Check whether this definition is common.
+        """Check whether this definition is common.
 
         Meaning is not
             - slang, colloquial,
@@ -241,9 +239,10 @@ class Form:
         self.links.append(link)
 
     def is_not_common(self, language: Language) -> bool:
-        """Check whether we can deduce from the present definitions that word is
-        not a common word of the language. E.g. it is misspelling, obsolete, or
-        slang.
+        """Check whether the word is not common.
+
+        Meaning we can deduce from the present definitions that word is not a
+        common word of the language. E.g. it is misspelling, obsolete, or slang.
 
         Also check whether it is just a form of some another word.
         """
@@ -262,7 +261,7 @@ class Form:
             return True
 
         # If there are no definitions and no links, we cannot decide if the word
-        # is not # common.
+        # is not common.
         return False
 
     def to_text(
@@ -336,7 +335,7 @@ class Form:
 
         return text
 
-    def get_links(self, only_common: bool = True):
+    def get_links(self, only_common: bool = True) -> list[Link]:
         return [
             link for link in self.links if not only_common or link.is_common()
         ]
@@ -375,9 +374,7 @@ class DictionaryItem:
         self.etymology = etymology
 
     def get_links(self) -> set[Link]:
-        """Get keys to other dictionary items this dictionary item is linked
-        to.
-        """
+        """Get keys to other dictionary items."""
         return set(
             [link for form in self.get_forms() for link in form.get_links()]
         )
@@ -478,7 +475,7 @@ class DictionaryItem:
         """
         # Forms, definitions, values.
         texts: list[list[list[str]]] = []
-        transcription = ""
+        transcription: str = ""
 
         for form in self.get_forms():
             if language not in form.definitions:
@@ -663,6 +660,7 @@ class SimpleDictionary(Dictionary):
                 sort_keys=True,
             )
 
+    @override
     def get_name(self) -> str:
         return self.name
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from emmio.language import Language, construct_language
-from emmio.text.config import TextConfig, TextTranslationConfig
+from emmio.text.config import TextTranslationConfig
 
 
 @dataclass

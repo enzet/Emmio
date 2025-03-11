@@ -84,7 +84,7 @@ class SentenceTranslations:
 class Sentences:
     excluded_sentences_file_path: Path
     """Mapping from words to number identifiers of sentences that cannot be used
-    for word learning. 
+    for word learning.
 
     E.g. if the learning word is "potter", all sentences containing "Potter" as
     a name (e.g. "Harry Potter"), should be excluded, because back translation

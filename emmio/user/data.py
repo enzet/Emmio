@@ -30,21 +30,21 @@ class UserData:
 
     path: Path
     """Path to the directory with user data.
-    
+
     By default, it should be ``~/.emmio/users/<user id>``, e.g.
     ``~/.emmio/users/chloe``.
     """
 
     user_id: str
     """Unique user id.
-    
+
     User id should be an ASCII string and be the same as the name of the
     directory with user data.  E.g. ``chloe``.
     """
 
     user_name: str
     """Displayed user name.
-    
+
     Unlike user id, it may contain any Unicode symbols.  E.g. ``Chloé``.
     """
 

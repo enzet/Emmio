@@ -20,6 +20,7 @@ class AudioData(ArtifactData):
     """The directory managed by this class."""
 
     audio_providers: dict[str, AudioProvider]
+    """Providers of audio files."""
 
     @classmethod
     def from_config(cls, path: Path) -> "AudioData":

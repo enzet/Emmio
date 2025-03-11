@@ -1,10 +1,8 @@
-import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from emmio.core import ArtifactData
-from emmio.text.config import TextConfig, TextTranslationConfig
+from emmio.text.config import TextTranslationConfig
 from emmio.text.core import Texts
 
 

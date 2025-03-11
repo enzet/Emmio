@@ -184,35 +184,6 @@ class TatoebaSentences(Sentences):
     def __len__(self):
         raise NotImplementedError()
 
-    def get_sentences(self):
-        result: list[SentenceTranslations] = []
-
-        sentences: dict[str, Sentence] = self.database.get_sentences(
-            self.language_2, cache_path
-        )
-
-        for id_ in ids_to_check:
-            if id_ in ids_to_skip:
-                continue
-            sentence: Sentence = self.database.get_sentence(
-                self.language_2, id_
-            )
-            if len(sentence.text) > max_length:
-                continue
-            index = sentence.text.lower().find(word)
-            assert index >= 0
-            if str(id_) in self.links:
-                result.append(
-                    SentenceTranslations(
-                        sentence,
-                        [
-                            self.database.get_sentence(self.language_1, x)
-                            for x in self.links[str(id_)]
-                        ],
-                    )
-                )
-        return result
-
     def filter_by_word(
         self,
         word: str,

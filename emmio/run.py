@@ -22,7 +22,7 @@ from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
 from emmio.read.core import Read
 from emmio.ui import Block, Header, Interface, Table, Title, progress
-from emmio.user.data import Record, Session, UserData
+from emmio.user.data import UserData
 
 LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word
@@ -70,7 +70,7 @@ class Emmio:
         self.user_data: UserData = data.users_data[user_id]
         self.user_id: str = user_id
 
-    async def run(self):
+    async def run(self) -> None:
         self.interface.print(Title("Emmio"))
 
         self.interface.print(
@@ -247,11 +247,11 @@ class Emmio:
             help="use moving average",
         )
 
-        plot_knowing_parser = plot_subparsers.add_parser(
+        plot_subparsers.add_parser(
             "knowing", help="plot cumulative amount of learned questions"
         )
 
-        plot_schedule_parser = plot_subparsers.add_parser(
+        plot_subparsers.add_parser(
             "schedule", help="plot scheduled question time"
         )
 
@@ -288,16 +288,6 @@ class Emmio:
                 learn_parser.print_help()
             else:
                 parser.print_help()
-
-        # Command `analyze`.
-        if arguments.command == "analyze":
-            analysis = Analysis(self.data, self.user_data)
-            analysis.analyze(
-                Language.from_code(arguments.language),
-                self.data.get_frequency_list(
-                    {"id": "hy_wortschatz_community_2017"}
-                ),
-            )
 
         # Command `read`.
         if arguments.command == "read":

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 class Record:
-    """"""
+    """An abstraction for a record of actions."""
 
     def get_time(self) -> datetime:
         """Get the time when user response was received."""
@@ -24,22 +24,42 @@ class Session:
     """
 
     def end_session(self, time: datetime, actions: int) -> None:
+        """Mark session as finished at the specified time.
+
+        :param time: time when session was finished
+        :param actions: number of actions performed during the session
+        """
         raise NotImplementedError()
 
     def get_start(self) -> datetime:
+        """Get the time when session was started."""
         raise NotImplementedError()
 
-    def get_end(self) -> datetime:
+    def get_end(self) -> datetime | None:
+        """Get the time when session was finished."""
         raise NotImplementedError()
 
 
 class ArtifactData:
+    """A manager for data of a particular artifact."""
+
     @classmethod
     def from_config(cls, path: Path) -> "ArtifactData":
+        """Create an artifact data manager from the configuration file.
+
+        :param path: path to the artifact data directory; if the directory
+            does not contain a `config.json` file, an empty dictionary will be
+            returned
+        """
         raise NotImplementedError()
 
     @staticmethod
     def read_config(path: Path) -> dict:
+        """Read the configuration file.
+
+        :param path: path to the configuration file
+        :return: configuration
+        """
         if not path.exists():
             if path.parent.exists():
                 path.mkdir()

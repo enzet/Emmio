@@ -82,7 +82,7 @@ class LexiconVisualizer:
         ax.spines["left"].set_visible(False)
 
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
-            lexicons, margin
+            lexicons, margin if margin is not None else 0
         )
 
         for data_range in lexicon_data:

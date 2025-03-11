@@ -163,7 +163,6 @@ class Graph:
                     svg.add(line)
                 previous_point = point
 
-            title: str | None
             if title:
                 text_y = max(last_text_y + 15, point[1] + 4)
                 self.text(
@@ -275,7 +274,7 @@ class Graph:
         svg.add(group)
 
         if self.min_x and self.max_x:
-            mapped_1: np.ndarray = self.map_((self.min_x_second, self.max_y))
+            mapped_1 = self.map_((self.min_x_second, self.max_y))
             self.text(
                 group,
                 (mapped_1[0], mapped_1[1] + 15),
@@ -283,7 +282,7 @@ class Graph:
                 self.grid_color.hex,
             )
 
-            mapped_1: np.ndarray = self.map_((self.max_x_second, self.max_y))
+            mapped_1 = self.map_((self.max_x_second, self.max_y))
             self.text(
                 group,
                 (mapped_1[0], mapped_1[1] + 15),
