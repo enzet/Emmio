@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Callable
 
 import matplotlib
@@ -10,10 +11,15 @@ from matplotlib import pyplot as plt
 from matplotlib import transforms as mtransforms
 from svgwrite import Drawing
 
+from emmio.__main__ import get_default_output_directory
 from emmio.language import Language
 from emmio.lexicon.core import Lexicon, compute_lexicon_rate
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
+
+DEFAULT_LEXICON_GRAPH_PATH: Path = (
+    get_default_output_directory() / "lexicon.svg"
+)
 
 
 @dataclass
@@ -230,7 +236,9 @@ class LexiconVisualizer:
             color=colors,  # color=Color("#000000"))
         )
 
-        svg = Drawing("lexicon.svg", graph.canvas.size)
+        svg: Drawing = Drawing(
+            DEFAULT_LEXICON_GRAPH_PATH.as_posix(), graph.canvas.size
+        )
         graph.draw_background(svg)
         graph.plot(svg, data)
 
