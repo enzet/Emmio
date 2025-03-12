@@ -542,8 +542,7 @@ class Lexicon:
         # FIXME: get definitions languages from user settings.
         definitions_languages: list[Language] = [ENGLISH, RUSSIAN]
 
-        question: Text = self.get_question(word, sentences)
-        interface.print(question)
+        interface.print(self.get_question(word, sentences))
 
         start_time: datetime = datetime.now()
 
@@ -637,6 +636,29 @@ class Lexicon:
             print(f"Rate: {rate(dont / frequency_list.get_all_occurrences())}")
             self.write()
 
+    def get_statistics(self) -> Text:
+        """Get current statistics of the lexicon."""
+
+        precision: float = self.count_unknowns()
+        average: float | None = self.get_average()
+        rate_string: str = (
+            f"{rate(average):.2f}"
+            if average is not None and rate(average)
+            else "unknown"
+        )
+
+        statistics: Text = Text()
+        if precision < 100:
+            statistics.add(f"Precision: {precision:.2f}\n")
+            statistics.add(f"Rate so far is: {rate_string}\n")
+        else:
+            statistics.add(f"Precision: {precision:.2f}\n")
+            statistics.add(
+                f"Current rate is: {self.get_last_rate_number():.2f}\n"
+            )
+        statistics.add(f"Words: {len(self.words):d}")
+        return statistics
+
     async def check(
         self,
         interface: Interface,
@@ -725,29 +747,8 @@ class Lexicon:
             actions += 1
             if response == LexiconResponse.DONT:
                 wrong_answers += 1
-            # self.write()
 
-            average: float | None = self.get_average()
-
-            precision: float = self.count_unknowns() / 100
-
-            rate_string: str = (
-                f"{rate(average):.2f}"
-                if average is not None and rate(average)
-                else "unknown"
-            )
-
-            statistics: Text = Text()
-            if precision < 1:
-                statistics.add(f"Precision: {precision * 100:.2f}\n")
-                statistics.add(f"Rate so far is: {rate_string}\n")
-            else:
-                statistics.add(f"Precision: {precision * 100:.2f}\n")
-                statistics.add(
-                    f"Current rate is: {self.get_last_rate_number():.2f}\n"
-                )
-            statistics.add(f"Words: {len(self.words):d}")
-            interface.print(statistics)
+            interface.print(self.get_statistics())
 
             if not response:
                 exit_code = "quit"
