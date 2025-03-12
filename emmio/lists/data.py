@@ -17,11 +17,15 @@ class ListsData(ArtifactData):
     """The directory managed by this class."""
 
     frequency_lists: dict[str, FrequencyList]
-    word_lists: dict[str, List]
+    """Collection of frequency lists."""
+
+    word_lists: dict[str, WordList]
+    """Collection of word lists."""
 
     @classmethod
     def from_config(cls, path: Path) -> "ListsData":
         """Initialize lists from a directory."""
+
         config: dict = ArtifactData.read_config(path)
 
         frequency_lists: dict[str, FrequencyList] = {}

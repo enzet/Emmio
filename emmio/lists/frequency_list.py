@@ -17,7 +17,10 @@ class WordOccurrences:
     """Unique word and number of its occurrences in some text."""
 
     word: str
+    """Unique word."""
+
     occurrences: int
+    """Number of occurrences of the word in some text."""
 
 
 @dataclass
@@ -148,14 +151,21 @@ class FrequencyList(List):
         )
 
     def get_index(self, word: str) -> int:
+        """Get index of the word in the frequency list.
+
+        :return index of the word in the frequency list or -1 if the word is
+            not in the frequency list
+        """
         if word in self._sorted_keys:
             return self._sorted_keys.index(word)
         return -1
 
-    def get_name(self) -> str:
+    def get_name(self) -> str | None:
+        """Get name of the list."""
         return self.config.name
 
     def get_info(self) -> str:
+        """Get information about the list."""
         return f"  Length: {len(self)}\n" f"  Language: {self.config.language}"
 
     def load(self) -> None:
@@ -193,7 +203,7 @@ class FrequencyList(List):
     def load_from_csv_file(self, delimiter: str, header: list[str]) -> None:
         logging.debug(f"Loading frequency list from CSV file {self.file_path}.")
 
-        self.data: dict[str, int] = {}
+        self.data = {}
         self._occurrences = 0
         self._sorted_keys = []
 
@@ -228,7 +238,7 @@ class FrequencyList(List):
         logging.debug(
             f"Loading frequency list from list file {self.file_path}."
         )
-        self.data: dict[str, int] = {}
+        self.data = {}
 
         with self.file_path.open() as input_file:
             while line := input_file.readline():
