@@ -248,6 +248,11 @@ class TerminalInterface(Interface):
     def get_char(self) -> str:
         return input() if self.use_input else get_char()
 
+    @staticmethod
+    def get_option(text: str, key: str) -> Text:
+        """Get text of an option."""
+        return Text().add(f"[{text} ({key.upper()})]")
+
     @override
     def choice(
         self, options: list[tuple[str, str]], prompt: str | None = None
@@ -255,9 +260,14 @@ class TerminalInterface(Interface):
 
         if prompt is not None:
             self.print(prompt)
-        self.print(
-            " ".join(f"[{text} ({key.upper()})]" for text, key in options)
-        )
+
+        options_text: Text = Text()
+        for index, (text, key) in enumerate(options):
+            options_text.add(self.get_option(text, key))
+            if index < len(options) - 1:
+                options_text.add(" ")
+
+        self.print(options_text)
         while True:
             char: str = self.get_char()
             if char == "":
@@ -392,6 +402,12 @@ class RichInterface(TerminalInterface):
             return result
 
         assert False, element
+
+    @override
+    @staticmethod
+    def get_option(text: str, key: str) -> str:
+        """Get text of an option."""
+        return Text().add(Formatted(key, "bold")).add(" ").add(text)
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")
