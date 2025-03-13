@@ -260,6 +260,8 @@ class TerminalInterface(Interface):
         )
         while True:
             char: str = self.get_char()
+            if char == "":
+                return options[0][0]
             for text, key in options:
                 if key.upper() == char or key.lower() == char:
                     return text
