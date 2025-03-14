@@ -46,3 +46,9 @@ emmio = "emmio.__main__:main"
 
 [tool.setuptools]
 packages = ["emmio"]
+
+[tool.black]
+line-length = 80
+
+[tool.isort]
+profile = "black"

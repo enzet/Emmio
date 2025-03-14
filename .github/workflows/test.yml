@@ -29,10 +29,10 @@ jobs:
         pip install -e .[dev]
     - name: Check code style with Black
       run: |
-        black -l 80 --check emmio/ tests/
+        black --check emmio/ tests/
     - name: Check imports with isort
       run: |
-        isort --check-only --profile black emmio/ tests/
+        isort --check-only emmio/ tests/
     - name: Test with pytest
       run: |
         pytest -v
