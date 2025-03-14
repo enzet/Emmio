@@ -19,7 +19,7 @@ from emmio.language import ENGLISH, RUSSIAN, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import Block, Interface, Text
+from emmio.ui import Block, Element, Interface, Text
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -425,7 +425,7 @@ class Lexicon:
 
     def construct_precise(
         self, precision: int = 100, before: datetime | None = None
-    ) -> (list[datetime], list[float]):
+    ) -> tuple[list[tuple[datetime, datetime]], list[float | None]]:
         return compute_lexicon_rate(
             list(zip(self.dates, self.responses)), precision, before
         )
@@ -444,7 +444,7 @@ class Lexicon:
     def get_last_rate_number(self, precision: int = 100) -> float:
         value: float | None = self.get_last_rate(precision)
         if value is None:
-            return 0
+            return 0.0
         return value
 
     def construct_by_frequency(self, frequency_list: FrequencyList):
@@ -505,24 +505,25 @@ class Lexicon:
         self,
         word: str,
         sentences: SentencesCollection | None,
-    ) -> Text:
+    ) -> list[Element]:
         """Get question text for picked word to ask user."""
 
-        result: Text = Text()
-        result.add(Block(word, (0, 0, 0, 4)))
+        result: list[Element] = []
+        result.append(Block(word, (0, 0, 0, 4)))
 
         if self.has(word):
-            result.add(
-                "Last response was: " + self.get(word).get_message() + "."
+            result.append(
+                Text(f"Last response was: {self.get(word).get_message()}.")
             )
 
         if sentences is not None:
             if sentence_translations := sentences.filter_by_word(
                 word, set(), 120
             ):
-                result.add(
-                    "Usage example: " + sentence_translations[0].sentence.text
+                example: Text = Text(
+                    f"Usage example: {sentence_translations[0].sentence.text}"
                 )
+                result.append(example)
         return result
 
     async def ask(
@@ -542,16 +543,18 @@ class Lexicon:
         # FIXME: get definitions languages from user settings.
         definitions_languages: list[Language] = [ENGLISH, RUSSIAN]
 
-        interface.print(self.get_question(word, sentences))
+        for element in self.get_question(word, sentences):
+            interface.print(element)
 
         start_time: datetime = datetime.now()
 
-        translation: Text | None = await dictionaries.to_text(
+        translation: list[Element] | None = await dictionaries.to_text(
             word, self.language, definitions_languages
         )
-        if translation is not None and not translation.is_empty():
+        if translation is not None and translation:
             interface.button("Show translation")
-            interface.print(translation)
+            for element in translation:
+                interface.print(element)
 
         answer: str = interface.choice(
             [
@@ -636,10 +639,10 @@ class Lexicon:
             print(f"Rate: {rate(dont / frequency_list.get_all_occurrences())}")
             self.write()
 
-    def get_statistics(self) -> Text:
+    def get_statistics(self) -> list[Element]:
         """Get current statistics of the lexicon."""
 
-        precision: float = self.count_unknowns()
+        precision: int = self.count_unknowns()
         average: float | None = self.get_average()
         rate_string: str = (
             f"{rate(average):.2f}"
@@ -647,17 +650,17 @@ class Lexicon:
             else "unknown"
         )
 
-        statistics: Text = Text()
+        result: list[Element] = []
         if precision < 100:
-            statistics.add(f"Precision: {precision:.2f}\n")
-            statistics.add(f"Rate so far is: {rate_string}\n")
+            result.append(Text(f"Precision: {precision:.2f}"))
+            result.append(Text(f"Rate so far is: {rate_string}"))
         else:
-            statistics.add(f"Precision: {precision:.2f}\n")
-            statistics.add(
-                f"Current rate is: {self.get_last_rate_number():.2f}\n"
+            result.append(Text(f"Precision: {precision:.2f}"))
+            result.append(
+                Text(f"Current rate is: {self.get_last_rate_number():.2f}")
             )
-        statistics.add(f"Words: {len(self.words):d}")
-        return statistics
+        result.append(Text(f"Words: {len(self.words):d}"))
+        return result
 
     async def check(
         self,
@@ -748,7 +751,8 @@ class Lexicon:
             if response == LexiconResponse.DONT:
                 wrong_answers += 1
 
-            interface.print(self.get_statistics())
+            for element in self.get_statistics():
+                interface.print(element)
 
             if not response:
                 exit_code = "quit"

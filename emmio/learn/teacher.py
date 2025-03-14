@@ -17,7 +17,7 @@ from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
 from emmio.sentence.core import SentencesCollection, SentenceTranslations
-from emmio.ui import Interface, Text
+from emmio.ui import Element, Interface, Text
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -433,14 +433,15 @@ class Teacher:
         if items:
             self.interface.print(statistics)
             for item in items:
-                text: Text = item.to_text(
+                translation: list[Element] = item.to_text(
                     self.learning.base_languages,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
                     hide_translations=exclude_translations,
                     only_common=False,
                 )
-                self.interface.print(text)
+                for element in translation:
+                    self.interface.print(element)
             alternative_forms: set[str] = set(
                 x.link_value for x in items[0].get_links()
             )
@@ -479,8 +480,11 @@ class Teacher:
                 )
                 if items:
                     for item in items:
-                        text: Text = item.to_text(self.learning.base_languages)
-                        self.interface.print(text)
+                        translation: list[Element] = item.to_text(
+                            self.learning.base_languages
+                        )
+                        for element in translation:
+                            self.interface.print(element)
 
                 self.play(word)
 
@@ -552,8 +556,11 @@ class Teacher:
                 self.interface.print(word)
                 if items:
                     for item in items:
-                        text: Text = item.to_text(self.learning.base_languages)
-                        self.interface.print(text)
+                        translation: list[Element] = item.to_text(
+                            self.learning.base_languages
+                        )
+                        for element in translation:
+                            self.interface.print(element)
                 self.interface.print(word)
                 self.play(word)
 

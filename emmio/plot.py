@@ -78,7 +78,7 @@ class Graph:
         min_y,
         max_y,
         canvas: Canvas = Canvas(),
-        color: Color | list[Color] | str = Color("black"),
+        color: Color | list[Color] | str | None = Color("black"),
         background_color: Color = Color("white"),
         grid_color: Color = Color("#AAAAAA"),
     ):
@@ -91,7 +91,7 @@ class Graph:
         self.max_x_second = (
             (max_x - min_x).total_seconds() if max_x and min_x else 0
         )
-        self.color: Color | list[Color] | str = color
+        self.color: Color | list[Color] | str | None = color
         self.background_color: Color = background_color
         self.grid_color: Color = grid_color
 

@@ -1,8 +1,8 @@
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable
 
 import matplotlib
 from colour import Color
@@ -188,7 +188,7 @@ class LexiconVisualizer:
     def graph_with_svg(
         self,
         lexicons: dict[Language, list[Lexicon]],
-        margin: float,
+        margin: float | None,
         colors,
         background_color: Color,
         grid_color: Color,
@@ -226,7 +226,7 @@ class LexiconVisualizer:
             y_min = 0
             y_max = 0
 
-        graph = Graph(
+        graph: Graph = Graph(
             x_min,
             x_max,
             math.floor(y_min),
@@ -274,7 +274,7 @@ class LexiconVisualizer:
         self,
         language: Language,
         language_lexicons: list[Lexicon],
-        margin: float,
+        margin: float | None,
         skip_first_point: bool = True,
     ) -> LexiconRangeData | None:
         """Get data for plotting lexicon rate change through time.
@@ -330,7 +330,7 @@ class LexiconVisualizer:
     def construct_lexicon_data(
         self,
         lexicons: dict[Language, list[Lexicon]],
-        margin: float,
+        margin: float | None,
         skip_first_point: bool = False,
     ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
         data: list[LexiconRangeData] = []

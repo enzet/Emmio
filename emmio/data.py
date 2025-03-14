@@ -1,8 +1,8 @@
 import json
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 from emmio import ui
 from emmio.audio.data import AudioData

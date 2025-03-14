@@ -1,10 +1,13 @@
 """Language and font specifics."""
 
+from __future__ import annotations
+
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from colour import Color
 from iso639 import Lang as ISO639Language
@@ -40,7 +43,7 @@ class Language:
         color: Color,
         symbols: str,
         self_name: str | None = None,
-        parent: "Language | None" = None,
+        parent: Language | None = None,
         tone: Color | None = None,
         checking: Callable | None = None,
         sentence_end: str | None = None,
@@ -49,7 +52,7 @@ class Language:
         self.symbols: str = symbols
         self.color: Color | None = color
         self.self_name: str | None = self_name
-        self.parent: "Language | None" = parent
+        self.parent: Language | None = parent
         self.tone: Color | None = tone
         self.sentence_end: str | None = sentence_end
         self.iso639_language = ISO639Language(code)

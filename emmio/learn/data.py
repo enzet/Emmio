@@ -1,7 +1,7 @@
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 from emmio.language import Language
 from emmio.learn.config import LearnConfig

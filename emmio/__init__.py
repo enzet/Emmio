@@ -1,3 +1,7 @@
+from beartype.claw import beartype_this_package
+
+beartype_this_package()
+
 __url__ = "https://github.com/enzet/Emmio"
 __maintainer__ = "Sergey Vartanov"
 __maintainer_email__ = "me@enzet.ru"

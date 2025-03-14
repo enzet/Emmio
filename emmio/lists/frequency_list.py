@@ -2,9 +2,9 @@ import json
 import logging
 import random
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 import urllib3
 

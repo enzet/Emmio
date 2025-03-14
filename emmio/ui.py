@@ -70,13 +70,35 @@ def table(columns: list[str], rows: list[list[str]]) -> str:
     return result
 
 
-class Text:
+class Element:
+    """Interface element."""
+
+
+class InlineElement(Element):
+    """Inline element.
+
+    Inline elements may be concatenated into one string. Inline elements cannot
+    contain block elements.
+    """
+
+
+class BlockElement(Element):
+    """Block element.
+
+    Block elements may contain inline elements, but not other block elements.
+    """
+
+
+class Text(InlineElement):
     """Text element."""
 
-    def __init__(self):
-        self.elements: list[Any] = []
+    def __init__(self, text: str | InlineElement | None = None):
+        if text is None:
+            self.elements: list[InlineElement | str] = []
+        else:
+            self.elements: list[InlineElement | str] = [text]
 
-    def add(self, element: Any) -> "Text":
+    def add(self, element: InlineElement | str) -> "Text":
         """Chainable method to add element to the text."""
         self.elements.append(element)
         return self
@@ -86,65 +108,67 @@ class Text:
         return len(self.elements) == 0
 
 
-class Formatted:
+class Formatted(InlineElement):
     """Formatted text element."""
 
-    def __init__(self, text, format: str) -> None:
+    def __init__(self, text: InlineElement | str, format: str) -> None:
         assert format in ["bold", "italic", "underline"]
         self.text = text
         self.format: str = format
 
 
-class Colorized:
+class Colorized(InlineElement):
     """Colorized text element."""
 
-    def __init__(self, text, color: str) -> None:
+    def __init__(self, text: InlineElement | str, color: str) -> None:
         self.text = text
         self.color: str = color
 
 
-class Block:
+class Block(BlockElement):
     """Block of text."""
 
-    def __init__(self, text, padding: tuple[int, int, int, int]) -> None:
-        if text is None:
-            raise Exception("Text is None")
-        self.text = text
+    def __init__(
+        self,
+        text: InlineElement | str,
+        padding: tuple[int, int, int, int],
+    ) -> None:
+        self.text: InlineElement | str = text
         self.padding: tuple[int, int, int, int] = padding
 
 
 @dataclass
-class Title:
+class Title(BlockElement):
     """Title of the program."""
 
-    text: str
+    text: InlineElement | str
 
 
 @dataclass
-class Header:
+class Header(BlockElement):
     """Header of a block."""
 
-    text: str
+    text: InlineElement | str
 
 
-class Table:
+class Table(BlockElement):
     """Table of text."""
 
     def __init__(
         self,
-        columns: list[Text | str],
-        rows: list[list[Text | str]],
+        columns: list[InlineElement | str],
+        rows: list[list[InlineElement | str]],
         style: str = "rounded",
     ) -> None:
         assert style in ["rounded"]
         self.style: str = style
-        self.columns: list[Text | str] = columns
-        self.rows: list[list[Text | str]] = rows
+        self.columns: list[InlineElement | str] = columns
+        self.rows: list[list[InlineElement | str]] = rows
 
-    def add_column(self, column: Text | str) -> None:
+    def add_column(self, column: InlineElement | str) -> None:
         self.columns.append(column)
 
-    def add_row(self, row: list[Text | str]) -> None:
+    def add_row(self, row: list[InlineElement | str]) -> None:
         self.rows.append(row)
 
 
@@ -199,37 +223,44 @@ class TerminalInterface(Interface):
     def __init__(self, use_input: bool):
         super().__init__(use_input)
 
-    def print(self, text) -> None:
+    def print(self, text: Element | str) -> None:
+        print(self.construct(text))
 
-        if isinstance(text, str):
-            print(text)
-        elif isinstance(text, Text):
-            print(self.construct(text))
-        elif isinstance(text, Title):
-            print(self.construct(text.text))
-        elif isinstance(text, Header):
-            print(self.construct(text.text))
-        elif isinstance(text, Block):
-            print(self.construct(text.text))
-        elif isinstance(text, Table):
-            print(table(text.columns, text.rows))
-        else:
-            raise Exception(
-                f"Unsuppoted text type in terminal interface `{type(text)}`."
-            )
+    def construct(self, element: Element | str) -> str:
+        """Construct string from element."""
 
-    def construct(self, element) -> str:
         if isinstance(element, str):
             return element
+
         elif isinstance(element, Text):
             result: str = ""
             for element in element.elements:
                 result += self.construct(element)
             return result
+
+        # Ignore block margins in terminal interface.
         elif isinstance(element, Block):
-            return "\n" + self.construct(element.text) + "\n"
-        elif isinstance(element, Formatted):
             return self.construct(element.text)
+
+        # Ignore colors and formatting in terminal interface.
+        elif isinstance(element, Formatted) or isinstance(element, Colorized):
+            return self.construct(element.text)
+
+        elif isinstance(element, Title):
+            return self.construct(element.text)
+
+        elif isinstance(element, Header):
+            return self.construct(element.text)
+
+        elif isinstance(element, Table):
+            columns: list[str] = []
+            rows: list[list[str]] = []
+            for column in element.columns:
+                columns.append(self.construct(column))
+            for row in element.rows:
+                rows.append([self.construct(cell) for cell in row])
+            return table(columns, rows)
+
         else:
             raise Exception(
                 f"Unsuppoted text type in terminal interface `{type(element)}`."
@@ -251,7 +282,7 @@ class TerminalInterface(Interface):
     @staticmethod
     def get_option(text: str, key: str) -> Text:
         """Get text of an option."""
-        return Text().add(f"[{text} ({key.upper()})]")
+        return Text().add(f"[{key.upper()}] {text}")
 
     @override
     def choice(
@@ -265,7 +296,7 @@ class TerminalInterface(Interface):
         for index, (text, key) in enumerate(options):
             options_text.add(self.get_option(text, key))
             if index < len(options) - 1:
-                options_text.add(" ")
+                options_text.add("  ")
 
         self.print(options_text)
         while True:
@@ -334,23 +365,21 @@ class RichInterface(TerminalInterface):
     def __init__(self, use_input: bool) -> None:
         super().__init__(use_input)
         self.console: Console = Console(highlight=False)
-        self.use_input: bool = use_input
 
-    def print(self, text) -> None:
+    def print(self, text: Element | str) -> None:
+        self.console.print(self.construct(text))
 
-        if isinstance(text, Text):
-            for element in text.elements:
-                self.print(element)
-
-        else:
-            rich_supported: Any = self.construct(text)
-            self.console.print(rich_supported)
-
-    def construct(self, element: Any) -> Any:
+    def construct(self, element: Element | str) -> Any:
         """Construct rich element from text."""
 
         if isinstance(element, str):
             return element
+
+        elif isinstance(element, Text):
+            result: RichElementText = RichElementText()
+            for sub_element in element.elements:
+                result.append(self.construct(sub_element))
+            return result
 
         elif isinstance(element, Title):
             return RichElementPanel(self.construct(element.text))
@@ -390,24 +419,18 @@ class RichInterface(TerminalInterface):
             if element.style == "rounded":
                 table.box = box.ROUNDED
             for column in element.columns:
-                table.add_column(column)
+                table.add_column(self.construct(column))
             for row in element.rows:
-                table.add_row(*row)
+                table.add_row(*[self.construct(cell) for cell in row])
             return table
-
-        elif isinstance(element, Text):
-            result: RichElementText = RichElementText()
-            for sub_element in element.elements:
-                result.append(self.construct(sub_element))
-            return result
 
         assert False, element
 
     @override
     @staticmethod
-    def get_option(text: str, key: str) -> str:
+    def get_option(text: str, key: str) -> Text:
         """Get text of an option."""
-        return Text().add(Formatted(key, "bold")).add(" ").add(text)
+        return Text().add(Formatted(key.upper(), "bold")).add(" ").add(text)
 
     def button(self, text: str) -> None:
         self.console.print(f"[b]<{text}>[/b]")

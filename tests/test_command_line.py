@@ -157,7 +157,7 @@ def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         expected_output=(
             "User with id `alice` does not exist. Do you want to create new "
             "user?\n"
-            "[Yes (Y)] [No (N)]\n"
+            "[Y] Yes  [N] No\n"
             "User `alice` with name `Alice` created.\n"
         )
         + HEADER,
@@ -230,17 +230,14 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
         + dedent(
             """
             Lexicon for Norwegian Bokmål
-
             hei
             Last response was: knows at least one meaning of the word.
             <Show translation>
             Norwegian Bokmål-English Dictionary
             hei
-
             hi
-
             Do you know at least one meaning of this word?
-            [Yes (Y)] [No (N)] [Proper (B)] [Yes, skip (S)] [Not a word (-)] [Quit (Q)]
+            [Y] Yes  [N] No  [B] Proper  [S] Yes, skip  [-] Not a word  [Q] Quit
             knows at least one meaning of the word
             Precision: 0.00
             Rate so far is: unknown

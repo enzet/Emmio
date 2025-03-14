@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal
+from typing import Literal
 
 from emmio.language import Language
 from emmio.sentence.config import SentencesConfig
@@ -75,7 +75,7 @@ class SentenceTranslations:
     """
 
     sentence: Sentence
-    translations: List[Sentence]
+    translations: list[Sentence]
 
     def rate(self, language: Language, user_data: "UserData") -> float:
         return self.sentence.rate(language, user_data)

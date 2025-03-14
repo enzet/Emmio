@@ -22,7 +22,7 @@ from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language, construct_language
 from emmio.text_util import sanitize
-from emmio.ui import Block, Colorized, Formatted, Text
+from emmio.ui import Block, Colorized, Element, Formatted, Text
 from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
@@ -271,10 +271,10 @@ class Form:
         hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions: int = 5,
-    ) -> Text | None:
+    ) -> list[Element] | None:
         """Get human-readable representation of the word form."""
 
-        text: Text = Text()
+        result: list[Element] = []
 
         to_hide: list[str] | None = None
 
@@ -312,13 +312,13 @@ class Form:
             return None
 
         if description:
-            text.add(
+            result.append(
                 Block(Colorized(" ".join(description), "#AAAAAA"), (0, 0, 0, 2))
             )
 
         if definitions:
             for definition in definitions:
-                text.add(Block(definition, (0, 0, 0, 4)))
+                result.append(Block(definition, (0, 0, 0, 4)))
 
         for link in links:
             if show_word:
@@ -328,11 +328,11 @@ class Form:
                     .add(Colorized(link.link_type + " of", "#AAAAAA"))
                     .add(" " + link.link_value)
                 )
-                text.add(Block(link_text, (0, 0, 0, 4)))
+                result.append(Block(link_text, (0, 0, 0, 4)))
             else:
-                text.add(Block(f"→ {link.link_type}", (0, 0, 0, 4)))
+                result.append(Block(f"→ {link.link_type}", (0, 0, 0, 4)))
 
-        return text
+        return result
 
     def get_links(self, only_common: bool = True) -> list[Link]:
         return [
@@ -390,7 +390,7 @@ class DictionaryItem:
         hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions_per_form: int = 5,
-    ) -> Text:
+    ) -> list[Element]:
         """Get human-readable representation of the dictionary item.
 
         :param languages: the languages of translation
@@ -402,12 +402,12 @@ class DictionaryItem:
         :param max_definitions_per_form: maximum number of definitions to be
             returned for each form
         """
-        text: Text = Text()
+        result: list[Element] = []
 
         if show_word:
-            text.add(Block(Formatted(self.word, "bold"), (0, 0, 0, 2)))
+            result.append(Block(Formatted(self.word, "bold"), (0, 0, 0, 2)))
             if self.etymology:
-                text.add(
+                result.append(
                     Block(
                         Colorized(
                             Formatted(self.etymology, "italic"), "#888888"
@@ -418,7 +418,7 @@ class DictionaryItem:
 
         for form in self.get_forms():
             for language in languages:
-                form_text: Text | None = form.to_text(
+                form_text: list[Element] | None = form.to_text(
                     language,
                     show_word,
                     words_to_hide,
@@ -426,10 +426,10 @@ class DictionaryItem:
                     only_common,
                     max_definitions_per_form,
                 )
-                if form_text is not None:
-                    text.add(form_text)
+                if form_text:
+                    result.extend(form_text)
 
-        return text
+        return result
 
     def has_definitions(self) -> bool:
         """Check whether the dictionary item has at least one definition."""
@@ -754,10 +754,10 @@ class DictionaryCollection:
         word: str,
         language: Language,
         languages: list[Language],
-    ) -> Text | None:
+    ) -> list[Element] | None:
         """Get formatted dictionary items."""
 
-        text: Text = Text()
+        result: list[Element] = []
 
         items: list[tuple[Dictionary, DictionaryItem]] = (
             await self.get_items_marked(word, language)
@@ -767,14 +767,14 @@ class DictionaryCollection:
         for dictionary, item in items:
             if dictionary.get_name() != dictionary_name:
                 dictionary_name = dictionary.get_name()
-                text.add(dictionary_name)
+                result.append(Text(dictionary_name))
 
-            item_text: Text = item.to_text(languages)
-            if item_text.is_empty():
+            item_text: list[Element] = item.to_text(languages)
+            if not item_text:
                 continue
-            text.add(item_text)
+            result.extend(item_text)
 
-        if text.is_empty():
+        if not result:
             return None
 
-        return text
+        return result

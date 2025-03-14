@@ -1,8 +1,9 @@
 import json
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Self
 
 from emmio.core import Record, Session
 from emmio.language import Language
@@ -55,7 +56,7 @@ class UserData:
     """Data about user's listening processes."""
 
     @classmethod
-    def from_config(cls, user_id: str, path: Path, config: dict) -> "UserData":
+    def from_config(cls, user_id: str, path: Path, config: dict) -> Self:
         return cls(
             config,
             path,
@@ -211,7 +212,7 @@ class UserData:
         return result
 
     @classmethod
-    def create(cls, path: Path, user_id: str, user_name: str) -> "UserData":
+    def create(cls, path: Path, user_id: str, user_name: str) -> Self:
         """Create new user."""
 
         for directory in [
@@ -228,7 +229,7 @@ class UserData:
             "lexicon": {},
             "listen": {},
         }
-        user_data: "UserData" = cls(
+        user_data = cls(
             config,
             path,
             user_id,
