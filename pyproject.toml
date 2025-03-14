@@ -31,6 +31,13 @@ dependencies = [
     "urllib3~=2.3.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3.4",
+    "black~=24.4.2",
+    "isort~=6.0.1"
+]
+
 [project.urls]
 Homepage = "https://github.com/enzet/Emmio"
 
