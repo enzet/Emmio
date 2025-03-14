@@ -52,3 +52,7 @@ line-length = 80
 
 [tool.isort]
 profile = "black"
+
+[tool.mypy]
+python_version = "3.12"
+disable_error_code = ["import-untyped"]

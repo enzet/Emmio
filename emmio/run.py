@@ -394,17 +394,19 @@ class Emmio:
                         0,
                         lexicon.get_precision_per_week() - last_week_precision,
                     )
-                    change = (
+                    change: float = (
                         abs(rate) - abs(rate_year_before)
                         if rate_year_before is not None and rate is not None
-                        else 0
+                        else 0.0
                     )
-                    if change >= 0.1:
-                        change = f"[green]▲ +{change:.1f}[/green]"
-                    elif change <= -0.1:
-                        change = f"[red]▼ {change:.1f}[/red]"
-                    else:
-                        change = ""
+                    change_text: str = ""
+                    match change:
+                        case float() as change if change >= 0.1:
+                            change_text = f"[green]▲ +{change:.1f}[/green]"
+                        case float() as change if change <= -0.1:
+                            change_text = f"[red]▼ {change:.1f}[/red]"
+                        case _:
+                            change_text = ""
                     if not rate:
                         continue
                     rows.append(
@@ -468,44 +470,7 @@ class Emmio:
 
             # Command `plot actions`.
             elif arguments.process == "actions":
-                records: list[tuple[LearningRecord, Learning]] = []
-                for learning in self.user_data.get_active_learnings():
-                    records += [(x, learning) for x in learning.process.records]
-                records = sorted(records, key=lambda x: x[0].time)
-
-                if arguments.moving:
-                    match arguments.interval:
-                        case "week":
-                            days = 7
-                        case "month":
-                            days = 30
-                        case "year":
-                            days = 365
-                        case _:
-                            days = 10
-
-                    Visualizer().cumulative_actions_moving(records, days=days)
-                else:
-
-                    def locator(x):
-                        return datetime(day=x.day, month=x.month, year=x.year)
-
-                    days = 1
-
-                    if arguments.interval == "week":
-                        locator, days = util.first_day_of_week, 7
-                    elif arguments.interval == "month":
-                        locator, days = util.first_day_of_month, 31
-                    elif arguments.interval == "year":
-                        locator, days = util.year_start, 365 * 0.6
-
-                    Visualizer().cumulative_actions(
-                        records,
-                        list(self.user_data.get_lexicons()),
-                        point=locator,
-                        width=days,
-                        by_language=not arguments.depth,
-                    )
+                self.plot_actions(arguments)
 
         # Command `audio`.
         if arguments.command == "audio":
@@ -522,84 +487,11 @@ class Emmio:
 
         # Command `to learn`.
         if command == "to learn":
-            rows: list[list[str]] = []
-            for learning in self.user_data.get_active_learnings():
-                rows.append([f"== {learning.config.name} =="])
-                for word, knowledge in learning.knowledge.items():
-                    if knowledge.get_last_response() != Response.WRONG:
-                        continue
-                    items = await self.data.dictionaries.get_dictionaries(
-                        learning.config.dictionaries
-                    ).get_items(word, learning.learning_language)
-
-                    if not items:
-                        rows.append([word])
-                        continue
-
-                    transcription, text = items[0].get_short(
-                        learning.base_languages[0]
-                    )
-                    if transcription:
-                        text = f"[yellow]{transcription} [black]{text}"
-                    rows.append([word, text])
-
-            self.interface.table(["Word", "Translation"], rows)
+            await self.to_learn()
 
         # Command `schedule`.
         if command == "schedule":
-            now: datetime = datetime.now()
-
-            interval = "month"
-            match interval:
-                case "day":
-                    points = 24
-                    schedule = [0] * points
-                    delta = timedelta(days=1)
-                    start = datetime(
-                        year=now.year,
-                        month=now.month,
-                        day=now.day,
-                        hour=now.hour,
-                    )
-                    from_seconds = 60 * 60
-                case "month":
-                    points = 30
-                    schedule = [0] * points
-                    delta = timedelta(days=30)
-                    start = datetime(
-                        year=now.year, month=now.month, day=now.day
-                    )
-                    from_seconds = 60 * 60 * 24
-                case _:
-                    return
-
-            rows = []
-            for learning in self.user_data.get_active_learnings():
-                for question_id, knowledge in learning.knowledge.items():
-                    if not knowledge.is_learning():
-                        continue
-                    if (
-                        start
-                        <= learning.get_next_time(knowledge)
-                        < start + delta
-                    ):
-                        seconds = learning.get_next_time(knowledge) - start
-                        schedule[
-                            int(seconds.total_seconds() // from_seconds)
-                        ] += 1
-                    elif learning.get_next_time(knowledge) < now:
-                        schedule[0] += 1
-
-            for point in range(points):
-                time: datetime = start + delta * point
-                rows.append(
-                    [
-                        f"{time.day:2}",
-                        f"{time.hour:2}:00",
-                        f"{schedule[point]:2} {progress(schedule[point])}",
-                    ]
-                )
-            self.interface.table(["Day", "Time", "To repeat"], rows)
+            await self.schedule()
 
     async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
         """Check user vocabulary."""
@@ -773,3 +665,130 @@ class Emmio:
                 legend=arguments.legend,
                 margin=arguments.margin,
             )
+
+    def plot_actions(self, arguments):
+        """Plot actions."""
+
+        records: list[tuple[LearningRecord, Learning]] = []
+        for learning in self.user_data.get_active_learnings():
+            records += [(x, learning) for x in learning.process.records]
+        records = sorted(records, key=lambda x: x[0].time)
+
+        days: int
+
+        if arguments.moving:
+            match arguments.interval:
+                case "week":
+                    days = 7
+                case "month":
+                    days = 30
+                case "year":
+                    days = 365
+                case _:
+                    days = 10
+
+            Visualizer().cumulative_actions_moving(records, days=days)
+        else:
+
+            def locator(x):
+                return datetime(day=x.day, month=x.month, year=x.year)
+
+            days = 1
+
+            if arguments.interval == "week":
+                locator, days = util.first_day_of_week, 7
+            elif arguments.interval == "month":
+                locator, days = util.first_day_of_month, 31
+            elif arguments.interval == "year":
+                locator, days = util.year_start, 365 * 0.6
+
+            Visualizer().cumulative_actions(
+                records,
+                list(self.user_data.get_lexicons()),
+                point=locator,
+                width=days,
+                by_language=not arguments.depth,
+            )
+
+    async def to_learn(self) -> None:
+        """Print words to learn."""
+
+        rows: list[list[str]] = []
+        for learning in self.user_data.get_active_learnings():
+            rows.append([f"== {learning.config.name} =="])
+            for word, knowledge in learning.knowledge.items():
+                if knowledge.get_last_response() != Response.WRONG:
+                    continue
+                items = await self.data.dictionaries.get_dictionaries(
+                    learning.config.dictionaries
+                ).get_items(word, learning.learning_language)
+
+                if not items:
+                    rows.append([word])
+                    continue
+
+                transcription, text = items[0].get_short(
+                    learning.base_languages[0]
+                )
+                if transcription:
+                    text = f"[yellow]{transcription} [black]{text}"
+                rows.append([word, text])
+
+        self.interface.print(Table(["Word", "Translation"], rows))
+
+    async def schedule(self) -> None:
+        """Print schedule of questions to repeat."""
+
+        now: datetime = datetime.now()
+
+        interval: str = "month"
+        points: int
+        schedule: list[int]
+        delta: timedelta
+        start: datetime
+        from_seconds: int
+
+        match interval:
+            case "day":
+                points = 24
+                schedule = [0] * points
+                delta = timedelta(days=1)
+                start = datetime(
+                    year=now.year,
+                    month=now.month,
+                    day=now.day,
+                    hour=now.hour,
+                )
+                from_seconds = 60 * 60
+            case "month":
+                points = 30
+                schedule = [0] * points
+                delta = timedelta(days=30)
+                start = datetime(year=now.year, month=now.month, day=now.day)
+                from_seconds = 60 * 60 * 24
+            case _:
+                return
+
+        rows: list[list[str]] = []
+        for learning in self.user_data.get_active_learnings():
+            for question_id, knowledge in learning.knowledge.items():
+                if not knowledge.is_learning():
+                    continue
+                if start <= learning.get_next_time(knowledge) < start + delta:
+                    seconds: timedelta = (
+                        learning.get_next_time(knowledge) - start
+                    )
+                    schedule[int(seconds.total_seconds() // from_seconds)] += 1
+                elif learning.get_next_time(knowledge) < now:
+                    schedule[0] += 1
+
+        for point in range(points):
+            time: datetime = start + delta * point
+            rows.append(
+                [
+                    f"{time.day:2}",
+                    f"{time.hour:2}:00",
+                    f"{schedule[point]:2} {progress(schedule[point])}",
+                ]
+            )
+        self.interface.print(Table(["Day", "Time", "To repeat"], rows))

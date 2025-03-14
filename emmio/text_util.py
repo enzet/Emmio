@@ -26,8 +26,8 @@ class Text:
 
         word: str = ""
         for line in self.input_file:
+            symbol: str
             for symbol in line:
-                symbol: str
                 # We can replace it with `self.language.has_symbol(symbol)`.
                 if (
                     "\u0561" <= symbol <= "\u0587"
@@ -48,15 +48,16 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
     for word in words_to_hide:
         sanitized: str = sanitizer * len(word)
 
+        start: int
         if "́" in text:
             if word in text.replace("́", ""):
-                start: int = text.replace("́", "").find(word)
+                start = text.replace("́", "").find(word)
                 text = text[:start] + sanitized + text[start + len(word) + 1 :]
 
         text = text.replace(word, sanitized)
 
         while word.lower() in text.lower():
-            start: int = text.lower().find(word.lower())
+            start = text.lower().find(word.lower())
             text = text[:start] + sanitized + text[start + len(word) :]
 
     return text

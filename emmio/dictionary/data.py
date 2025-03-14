@@ -63,9 +63,14 @@ class DictionaryData(ArtifactData):
     def get_dictionaries(
         self, dictionary_usage_configs: list[dict]
     ) -> DictionaryCollection:
-        return DictionaryCollection(
-            [self.get_dictionary(x) for x in dictionary_usage_configs]
-        )
+        dictionaries: list[Dictionary] = []
+        for dictionary_usage_config in dictionary_usage_configs:
+            dictionary: Dictionary | None = self.get_dictionary(
+                dictionary_usage_config
+            )
+            if dictionary:
+                dictionaries.append(dictionary)
+        return DictionaryCollection(dictionaries)
 
     def get_dictionaries_by_language(
         self, language_1: Language, language_2: Language

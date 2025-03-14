@@ -77,9 +77,9 @@ class Teacher:
         self.question_index: int = 0
         self.question_ids: list[tuple[str, List, int]] = []
         for list_config in self.scheme.new_question.pick_from:
-            list_ = data.get_list(list_config)
+            list_: List | None = data.get_list(list_config)
             if list_ is None:
-                logging.fatal(f'No list with id `{list_config["id"]}` found.')
+                raise Exception(f'No list with id `{list_config["id"]}` found.')
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 

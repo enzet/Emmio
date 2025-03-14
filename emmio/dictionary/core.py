@@ -63,8 +63,7 @@ class Link:
     link_value: str
 
     def is_common(self) -> bool:
-        """
-        Check whether this link is common.
+        """Check whether this link is common.
 
         Meaning is not
             - slang, colloquial,
@@ -317,8 +316,8 @@ class Form:
             )
 
         if definitions:
-            for definition in definitions:
-                result.append(Block(definition, (0, 0, 0, 4)))
+            for definition_text in definitions:
+                result.append(Block(definition_text, (0, 0, 0, 4)))
 
         for link in links:
             if show_word:
@@ -668,7 +667,7 @@ class SimpleDictionary(Dictionary):
 class DictionaryCollection:
     """A set of dictionaries for a language."""
 
-    dictionaries: list[Dictionary] = field(default=list)
+    dictionaries: list[Dictionary] = field(default_factory=list)
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
         """Add dictionary to the list.
@@ -690,6 +689,7 @@ class DictionaryCollection:
         items_marked: list[tuple[Dictionary, DictionaryItem]] = []
 
         tasks: list = []
+        dictionary: Dictionary
         for dictionary in self.dictionaries:
             coroutine = dictionary.get_items_marked(
                 word,
@@ -709,7 +709,7 @@ class DictionaryCollection:
             if not follow_links:
                 continue
             for main_item_marked in main_items_marked:
-                dictionary: Dictionary = main_item_marked[0]
+                dictionary = main_item_marked[0]
                 item: DictionaryItem = main_item_marked[1]
                 links: set[str] = set()
                 for form in item.get_forms():

@@ -18,6 +18,10 @@ from emmio.language import Language
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+RichCompatible = (
+    RichElementText | RichElementPanel | RichElementTable | RichElementPadding
+)
+
 colors = {
     "gray": "2",
     "black": "30",
@@ -93,10 +97,9 @@ class Text(InlineElement):
     """Text element."""
 
     def __init__(self, text: str | InlineElement | None = None):
-        if text is None:
-            self.elements: list[InlineElement | str] = []
-        else:
-            self.elements: list[InlineElement | str] = [text]
+        self.elements: list[InlineElement | str] = (
+            [] if text is None else [text]
+        )
 
     def add(self, element: InlineElement | str) -> "Text":
         """Chainable method to add element to the text."""
@@ -367,9 +370,9 @@ class RichInterface(TerminalInterface):
         self.console: Console = Console(highlight=False)
 
     def print(self, text: Element | str) -> None:
-        self.console.print(self.construct(text))
+        self.console.print(self.construct_rich(text))
 
-    def construct(self, element: Element | str) -> Any:
+    def construct_rich(self, element: Element | str) -> RichCompatible | str:
         """Construct rich element from text."""
 
         if isinstance(element, str):
@@ -389,15 +392,22 @@ class RichInterface(TerminalInterface):
 
         elif isinstance(element, Formatted):
             sub_element = self.construct(element.text)
-            if not isinstance(sub_element, RichElementText):
-                sub_element = RichElementText(sub_element)
-            if element.format == "bold":
-                sub_element.stylize("bold")
-            elif element.format == "italic":
-                sub_element.stylize("italic")
-            elif element.format == "underline":
-                sub_element.stylize("underline")
-            return sub_element
+            wrapped: RichElementText
+
+            if isinstance(sub_element, RichElementText):
+                wrapped = sub_element
+            else:
+                wrapped = RichElementText(sub_element)
+
+            match element.format:
+                case "bold":
+                    wrapped.stylize("bold")
+                case "italic":
+                    wrapped.stylize("italic")
+                case "underline":
+                    wrapped.stylize("underline")
+
+            return wrapped
 
         elif isinstance(element, Colorized):
             sub_element = self.construct(element.text)
