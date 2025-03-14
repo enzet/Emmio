@@ -30,10 +30,10 @@ jobs:
         pip install -e .
     - name: Check code style with Black
       run: |
-        black -l 80 --check emmio/ tests/ setup.py
+        black -l 80 --check emmio/ tests/
     - name: Check imports with isort
       run: |
-        isort --check-only --profile black emmio/ tests/ setup.py
+        isort --check-only --profile black emmio/ tests/
     - name: Test with pytest
       run: |
         pytest -v
