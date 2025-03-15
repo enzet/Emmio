@@ -110,7 +110,7 @@ downloaded artifacts and their configuration files and collected user data.
 ## Dictionary
 
 Dictionaries are entities that provide definitions and translations for single
-words.  Artifacts are controlled by configuration file
+words. Artifacts are controlled by configuration file
 `dictionaries/config.json`.
 
 Emmio supports:
@@ -121,23 +121,23 @@ Emmio supports:
 
 ## Sentences
 
+Sentences are example parts of texts in one language, translated into another
+language. Artifacts are controlled by configuration file
+`sentences/config.json`.
+
 ## Frequency and word lists
 
 Frequency list is a relation between unique words and the number of their
-occurrences in some text or a corpus of texts.  Some frequency lists are
+occurrences in some text or a corpus of texts. Some frequency lists are
 stripped (e.g. _6,500-lemma list based on the New Corpus for Ireland_). Lists
 are controlled by configuration file `lists/config.json`.
 
 Emmio supports:
   - word lists stored in text files,
-  - FrequencyWords from Opensubtitles.
-
-### FrequencyWords (Opensubtitles)
-
-There is [Hermit Dave](https://github.com/hermitdave)’s project
-[FrequencyWords](https://github.com/hermitdave/FrequencyWords), which contains
-full and stripped frequency lists extracted from subtitles in
-[Opensubtitles](https://www.opensubtitles.org) project.
+  - [FrequencyWords](https://github.com/hermitdave/FrequencyWords)
+    ([Hermit Dave](https://github.com/hermitdave)’s project, which contains full
+    and stripped frequency lists extracted from subtitles in
+    [Opensubtitles](https://www.opensubtitles.org) project).
 
 ### Wiktionary
 
