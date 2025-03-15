@@ -36,6 +36,8 @@ class LearnData:
 
     def get_learning(self, id_: str) -> Learning:
         """Get learning by its identifier."""
+        if id_ not in self.learnings:
+            raise ValueError(f"Learning with id `{id_}` not found.")
         return self.learnings[id_]
 
     def get_active_learnings(self) -> Iterator[Learning]:

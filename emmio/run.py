@@ -300,9 +300,13 @@ class Emmio:
             # We cannot use iterators here!
             learnings: list[Learning]
             if arguments.topic:
-                learnings = [
-                    self.data.get_learning(self.user_id, arguments.topic)
-                ]
+                try:
+                    learnings = [
+                        self.data.get_learning(self.user_id, arguments.topic)
+                    ]
+                except ValueError as e:
+                    logging.error(f"Error getting learning. {e}")
+                    return
             else:
                 learnings = list(self.data.get_active_learnings(self.user_id))
 
