@@ -66,20 +66,23 @@ Column “Don’t understand” means how much you **don’t** understand of an
 arbitrary text. Column “Understand” means how much you understand of an
 arbitrary text.
 
-| Rate | Don’t understand | Understand | Level |
-|-----:|-----------------:|-----------:|-------|
-|   10 |           0.10 % |    99.90 % |       |
-|    9 |           0.20 % |    99.80 % |       |
-|    8 |           0.39 % |    99.61 % | C2    |
-|    7 |           0.78 % |    99.22 % | C1    |
-|    6 |           1.56 % |    98.44 % | B2    |
-|    5 |           3.12 % |    96.88 % | B1    |
-|    4 |           6.25 % |    93.75 % | A2    |
-|    3 |          12.50 % |    87.50 % | A1    |
-|    2 |          25.00 % |    75.00 % |       |
-|    1 |          50.00 % |    50.00 % |       |
-|    0 |         100.00 % |     0.00 % |       |
+| Rate | Don’t understand | Understand | Level * |
+|-----:|-----------------:|-----------:|---------|
+|   10 |           0.10 % |    99.90 % |         |
+|    9 |           0.20 % |    99.80 % |         |
+|    8 |           0.39 % |    99.61 % | C2      |
+|    7 |           0.78 % |    99.22 % | C1      |
+|    6 |           1.56 % |    98.44 % | B2      |
+|    5 |           3.12 % |    96.88 % | B1      |
+|    4 |           6.25 % |    93.75 % | A2      |
+|    3 |          12.50 % |    87.50 % | A1      |
+|    2 |          25.00 % |    75.00 % |         |
+|    1 |          50.00 % |    50.00 % |         |
+|    0 |         100.00 % |     0.00 % |         |
 
+*&nbsp;Level is a __very rough__ approximation of a level of the Common European
+Framework of Reference for Languages. Please, don't take it as a strict
+definition.
 
 In order to run lexicon checking, simply execute `lexicon` command or `lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language code.
 
