@@ -305,7 +305,9 @@ class Emmio:
                         self.data.get_learning(self.user_id, arguments.topic)
                     ]
                 except ValueError as e:
-                    logging.error(f"Error getting learning. {e}")
+                    self.interface.print(
+                        f"No learning found for `{arguments.topic}`."
+                    )
                     return
             else:
                 learnings = list(self.data.get_active_learnings(self.user_id))
@@ -314,7 +316,7 @@ class Emmio:
 
         # Command `lexicon`.
         if arguments.command == "lexicon":
-            lexicons = [
+            lexicons: list[Lexicon] = [
                 x
                 for x in self.user_data.get_lexicons()
                 if x.get_precision_per_week()
@@ -323,6 +325,11 @@ class Emmio:
                     or x.language.get_code() in arguments.language
                 )
             ]
+            if not lexicons:
+                self.interface.print(
+                    f"No lexicons found for `{arguments.language}`."
+                )
+                return
             await self.run_lexicon(
                 sorted(lexicons, key=lambda x: -x.get_last_rate_number())
             )
