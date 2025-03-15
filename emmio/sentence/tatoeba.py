@@ -132,10 +132,10 @@ class TatoebaSentences(Sentences):
                 set_.add(id_1)
                 links[id_1] = set_
 
-        sentences_1: dict[str, Sentence] = self.database.get_sentences(
+        sentences_1: dict[int, Sentence] = self.database.get_sentences(
             self.language_1, cache_path
         )
-        sentences_2: dict[str, Sentence] = self.database.get_sentences(
+        sentences_2: dict[int, Sentence] = self.database.get_sentences(
             self.language_2, cache_path
         )
 
@@ -228,7 +228,7 @@ class TatoebaSentences(Sentences):
                         sentence,
                         [
                             self.database.get_sentence(self.language_1, x)
-                            for x in self.links[str(id_)]
+                            for x in self.links[id_]
                         ],
                     )
                 )

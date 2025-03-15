@@ -167,23 +167,23 @@ class UserData:
         records = sorted(records, key=lambda x: x.time)
         return records
 
-    def get_session(self):
-        sessions: list = []
+    def get_session(self) -> list[Session]:
+        sessions: list[Session] = []
         for learning in self.get_active_learnings():
             sessions += learning.get_sessions()
         for lexicon in self.get_lexicon_data().get_lexicons():
             sessions += lexicon.get_sessions()
-        sessions = sorted(sessions, key=lambda x: x.start)
+        sessions = sorted(sessions, key=lambda x: x.get_start())
         return sessions
 
     def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
         records: list[Record] = self.get_records()
         sessions: list[Session] = self.get_session()
 
-        result = []
-        session_index = 0
-        record_index = 0
-        current = (sessions[0], [])
+        result: list[tuple[Session, list[Record]]] = []
+        session_index: int = 0
+        record_index: int = 0
+        current: tuple[Session, list[Record]] = (sessions[0], [])
 
         while True:
             session = sessions[session_index]
@@ -195,14 +195,16 @@ class UserData:
                     break
                 continue
 
-            if session.get_start() <= record.get_time() <= session.get_end():
+            if (
+                end := session.get_end()
+            ) and session.get_start() <= record.get_time() <= end:
                 current[1].append(record)
                 record_index += 1
                 if record_index == len(records):
                     break
                 continue
 
-            if record.get_time() > session.get_end():
+            if (end := session.get_end()) and record.get_time() > end:
                 session_index += 1
                 result.append(current)
                 if session_index == len(sessions):

@@ -85,7 +85,7 @@ class SentenceDatabase(Database):
 
     def get_sentences(
         self, language: Language, cache_path: Path
-    ) -> dict[str, Sentence]:
+    ) -> dict[int, Sentence]:
         """Get all sentences written in the specified language.
 
         :param language: language of the sentences
@@ -99,7 +99,7 @@ class SentenceDatabase(Database):
             logging.error(f"Table `{table_id}` does not exist.")
             return {}
 
-        result: dict[str, Sentence] = {}
+        result: dict[int, Sentence] = {}
         if not self.has_table(table_id):
             self.create(language, cache_path)
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):

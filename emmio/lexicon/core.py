@@ -464,8 +464,7 @@ class Lexicon:
     def get_rate(
         self, point_1: datetime, point_2: datetime
     ) -> tuple[float | None, float | None]:
-        """
-        Get rate for selected time interval.
+        """Get rate for selected time interval.
 
         :param point_1: start point in time.
         :param point_2: finish point in time.
@@ -476,12 +475,11 @@ class Lexicon:
         index_1, index_2 = self.get_bounds(point_1, point_2)
 
         if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
-            return rate(self.get_average(index_1, index_2)), 1.0
+            if rate := self.get_average(index_1, index_2):
+                return rate, 1.0
         elif index_2 and index_2 >= preferred_interval:
-            return (
-                rate(self.get_average(index_2 - preferred_interval, index_2)),
-                (index_2 - index_1) / preferred_interval,
-            )
+            if rate := self.get_average(index_2 - preferred_interval, index_2):
+                return rate, (index_2 - index_1) / preferred_interval
         elif index_2:
             return None, (index_2 - index_1) / preferred_interval
 
@@ -712,7 +710,7 @@ class Lexicon:
             if len(checked_in_session) >= len(frequency_list):
                 break
 
-            picked_word: str | None = None
+            picked_word: str
 
             if log_type == "frequency":
                 (
@@ -726,12 +724,12 @@ class Lexicon:
                     mf_index
                 )
                 mf_index += 1
-                if self.has(picked_word) or learning.has(picked_word):
+                if self.has(picked_word):
                     continue
                 items: list[DictionaryItem] = await dictionaries.get_items(
-                    picked_word, learning.language
+                    picked_word, self.language
                 )
-                if not items or items[0].is_not_common(learning.language):
+                if not items or items[0].is_not_common(self.language):
                     continue
                 print(f"[{mf_index}]")
 
