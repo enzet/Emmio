@@ -52,14 +52,17 @@ class Listener:
         )
 
         self.teacher = Teacher(
-            RichInterface(), self.data, self.user_data, self.learning
+            RichInterface(use_input=False),
+            self.data,
+            self.user_data,
+            self.learning,
         )
 
-        self.list_: FrequencyList = self.data.get_frequency_list(
+        self.list_: FrequencyList | None = self.data.get_frequency_list(
             listen_config.lists[0]
         )
 
-    def play(
+    async def play(
         self, question_id: str, audio_translations, learning_paths: list[Path]
     ) -> None:
         if self.player is None:
@@ -79,8 +82,8 @@ class Listener:
         sleep(2)
         self.listening.register(question_id, audio_translations)
 
-    def listen__(self) -> None:
-        index = 0
+    async def listen__(self) -> None:
+        index: int = 0
         for question_id in self.learning.get_safe_question_ids():
             print(f"{index}th word: {question_id}")
             index += 1
@@ -91,10 +94,12 @@ class Listener:
                 elif not self.teacher.check2(question_id):
                     continue
 
-                self.process(question_id)
+                await self.process(question_id, index)
 
-    def listen(self, start_from: int = 0, repeat: int = 1) -> None:
+    async def listen(self, start_from: int = 0, repeat: int = 1) -> None:
         logging.getLogger().setLevel(logging.ERROR)
+        if self.list_ is None:
+            return
         for index, question_id in enumerate(
             self.list_.get_words()[start_from:]
         ):
@@ -108,11 +113,11 @@ class Listener:
                 elif not self.teacher.check2(question_id):
                     continue
 
-            self.process(question_id, index)
+            await self.process(question_id, index)
 
-    def process(self, question_id: str, index: int):
+    async def process(self, question_id: str, index: int) -> None:
         translations: list[str] = []
-        if items := self.dictionary_collection.get_items(
+        if items := await self.dictionary_collection.get_items(
             question_id, self.base_language
         ):
             for item in items:
@@ -136,4 +141,4 @@ class Listener:
                 self.learning_audio_collection.get_paths(question_id)
             )
             print("   ", index, question_id, "—", ", ".join(translations))
-            self.play(question_id, audio_translations[:3], learning_paths)
+            await self.play(question_id, audio_translations[:3], learning_paths)

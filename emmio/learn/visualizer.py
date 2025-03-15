@@ -1,6 +1,8 @@
+# type: ignore
+
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import numpy as np
 from matplotlib import dates as mdates
@@ -53,15 +55,16 @@ class LearningVisualizer:
 
     interactive: bool = True
 
-    def draw(self):
+    def draw(self) -> None:
         """Show depth graph."""
-        data = defaultdict(float)
-        x = []
-        y = {}
+
+        data: dict[str | int, float] = defaultdict(float)
+        x: list[datetime | int] = []
+        y: dict[str | int, list[float]] = {}
 
         max_depth: int = 0
 
-        knowledges = {}
+        knowledges: dict[str, Knowledge] = {}
 
         def compute_data_id() -> str | int:
             if self.by_language:
@@ -76,7 +79,7 @@ class LearningVisualizer:
         def parse_data_id() -> list[int]:
             return [int(z) for z in id_.split(",")]
 
-        count = 0
+        count: int = 0
 
         # Compute data for the plot.
 
@@ -114,7 +117,8 @@ class LearningVisualizer:
                 )
             x.append(record.time if self.is_time else count)
             count += 1
-            s = 0
+
+            s: float = 0.0
             for i in reversed(sorted(data.keys())):
                 s += data[i]
                 if i not in y:
@@ -188,11 +192,11 @@ class LearningVisualizer:
 
             for depth in range(max_depth + 1):
                 for j in range(10, 0, -1):
-                    id_: str = f"{depth:05},{j:05}"
-                    if id_ in y:
+                    string_id: str = f"{depth:05},{j:05}"
+                    if string_id in y:
                         plt.text(
                             x[-1],
-                            y[id_][-1],
+                            y[string_id][-1],
                             f"{2 ** depth} days",
                             transform=trans_offset,
                         )

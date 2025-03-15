@@ -88,7 +88,7 @@ class LexiconVisualizer:
         ax.spines["left"].set_visible(False)
 
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
-            lexicons, margin if margin is not None else 0
+            lexicons, margin if margin is not None else 0.0
         )
 
         for data_range in lexicon_data:
@@ -96,7 +96,7 @@ class LexiconVisualizer:
             title = data_range.language.get_name()
             if self.plot_main:
                 plt.plot(
-                    data_range.xs,
+                    mdates.date2num(data_range.xs),
                     [sum(a) / len(a) for a in data_range.y_ranges],
                     color=color.hex,
                     linewidth=1,
@@ -119,7 +119,7 @@ class LexiconVisualizer:
                         for y_range in data_range.y_ranges
                     ]
                     plt.fill_between(
-                        data_range.xs,
+                        mdates.date2num(data_range.xs),
                         ys_1,
                         ys_2,
                         color=color.hex,
@@ -131,7 +131,7 @@ class LexiconVisualizer:
                     ax.transData, fig=fig, x=0.1, y=0
                 )
                 plt.text(
-                    data_range.xs[-1],
+                    mdates.date2num(data_range.xs[-1]),
                     sum(data_range.y_ranges[-1]) / len(data_range.y_ranges[-1]),
                     title,
                     transform=trans_offset,
@@ -152,7 +152,7 @@ class LexiconVisualizer:
 
             if self.plot_precise_values:
                 plt.plot(
-                    [end for _, end in date_ranges],
+                    mdates.date2num([end for _, end in date_ranges]),
                     rates,
                     "o",
                     alpha=0.1,
@@ -166,7 +166,7 @@ class LexiconVisualizer:
 
             if self.plot_precision_interval:
                 plt.plot(
-                    date_ranges[-1],
+                    mdates.date2num([date_ranges[-1][0], date_ranges[-1][1]]),
                     [rates[-1], rates[-1]],
                     color=language.get_color().hex,
                 )

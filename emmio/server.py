@@ -1,3 +1,5 @@
+# type: ignore
+
 import getpass
 import logging
 from argparse import Namespace
@@ -30,13 +32,16 @@ class LexiconWorker(Worker):
         self.lexicon: Lexicon = lexicon
 
     def __lt__(self, other: "LexiconWorker") -> bool:
-        pass
+        raise NotImplementedError
 
     def is_ready(self) -> bool:
-        pass
+        raise NotImplementedError
 
     def do(self) -> None:
-        pass
+        raise NotImplementedError
+
+    def get_greetings(self) -> ui.Text:
+        raise NotImplementedError
 
 
 class ServerState(Enum):
@@ -49,18 +54,17 @@ class ServerState(Enum):
 class EmmioServer:
     """Server for Emmio learning and testing processes."""
 
-    def __init__(self, data: Data, user_id: str):
+    def __init__(self, data: Data, user_id: str, interface: ui.Interface):
         self.data: Data = data
         self.user_data: UserData = data.users_data[user_id]
+        self.interface: ui.Interface = interface
 
         learnings: Iterator[Learning] = self.user_data.get_active_learnings()
         self.learnings: Iterator[LearningWorker] = (
             LearningWorker(
                 learning,
-                self.user_data.get_lexicon(
-                    construct_language(learning.config.learning_language)
-                ),
                 data,
+                interface,
             )
             for learning in learnings
         )
@@ -133,7 +137,7 @@ class EmmioServer:
                 return ""
 
         if self.state == ServerState.WORKER:
-            if self.worker.is_ready():
+            if self.worker and self.worker.is_ready():
                 markup = types.ReplyKeyboardMarkup(
                     resize_keyboard=True, one_time_keyboard=True
                 )
@@ -142,8 +146,9 @@ class EmmioServer:
                     types.KeyboardButton("Next sentence"),
                     types.KeyboardButton("Don't know"),
                 )
-                for text in self.worker.get_next_question():
-                    self.send(text)
+                next_question: ui.Text | None = self.worker.get_next_question()
+                if next_question:
+                    self.send(str(next_question))
                 self.state = ServerState.ASKING
                 return "wait for answer"
 
@@ -176,8 +181,7 @@ class TerminalServer(EmmioServer):
     """Emmio server with command-line interface."""
 
     def __init__(self, data: Data, user_id: str, interface: ui.Interface):
-        super().__init__(data, user_id)
-        self.interface: ui.Interface = interface
+        super().__init__(data, user_id, interface)
 
     def send(self, message: str):
         self.interface.print(message)

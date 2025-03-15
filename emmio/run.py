@@ -13,12 +13,20 @@ from emmio.graph import Visualizer
 from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
-from emmio.learn.visualizer import LearningVisualizer
+from emmio.learn.visualizer import LearningVisualizer  # type: ignore
 from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
-from emmio.ui import Block, Header, Interface, Table, Title, progress
+from emmio.ui import (
+    Block,
+    Header,
+    InlineElement,
+    Interface,
+    Table,
+    Title,
+    progress,
+)
 from emmio.user.data import UserData
 
 LEXICON_HELP: str = """
@@ -283,10 +291,6 @@ class Emmio:
             else:
                 parser.print_help()
 
-        # Command `serve`.
-        if arguments.command == "serve":
-            await self.serve()
-
         # Command `learn`.
         elif arguments.command == "learn":
             # We cannot use iterators here!
@@ -361,74 +365,7 @@ class Emmio:
 
             # Command `stat lexicon`.
             elif arguments.process == "lexicon":
-                rows = []
-
-                lexicons: list[Lexicon] = []
-                for language, language_lexicons in data.get_frequency_lexicons(
-                    self.user_id
-                ).items():
-                    lexicons_to_check = [
-                        x
-                        for x in language_lexicons
-                        if x.get_precision_per_week()
-                    ]
-                    if len(lexicons_to_check) == 1:
-                        lexicons.append(lexicons_to_check[0])
-                    else:
-                        logging.fatal(
-                            f"More than one lexicon to check for {language}."
-                        )
-
-                for lexicon in sorted(
-                    lexicons, key=lambda x: -x.get_last_rate_number()
-                ):
-                    now: datetime = datetime.now()
-                    rate: float | None = lexicon.get_last_rate()
-                    rate_year_before: float | None = lexicon.get_last_rate(
-                        before=now - timedelta(days=365.25)
-                    )
-                    last_week_precision: int = lexicon.count_unknowns(
-                        now - timedelta(days=7), now
-                    )
-                    need: int = max(
-                        0,
-                        lexicon.get_precision_per_week() - last_week_precision,
-                    )
-                    change: float = (
-                        abs(rate) - abs(rate_year_before)
-                        if rate_year_before is not None and rate is not None
-                        else 0.0
-                    )
-                    change_text: str = ""
-                    match change:
-                        case float() as change if change >= 0.1:
-                            change_text = f"[green]▲ +{change:.1f}[/green]"
-                        case float() as change if change <= -0.1:
-                            change_text = f"[red]▼ {change:.1f}[/red]"
-                        case _:
-                            change_text = ""
-                    if not rate:
-                        continue
-                    rows.append(
-                        [
-                            f"[bold]{lexicon.language.get_code()}[/bold]"
-                            f" {lexicon.language.get_name()}",
-                            progress(need),
-                            (
-                                f"{abs(rate):.1f}  " + progress(int(rate * 10))
-                                if rate is not None
-                                else "N/A"
-                            ),
-                            change,
-                        ]
-                    )
-
-                self.interface.print(
-                    Table(
-                        ["Language", "Need", "Rate", "Year change"],
-                        rows,
-                    )
-                )
+                await self.stat_lexicon(arguments)
 
         if arguments.command == "plot":
 
@@ -474,16 +411,9 @@ class Emmio:
 
         # Command `audio`.
         if arguments.command == "audio":
-            self.listen(arguments.id, arguments.start_from, arguments.repeat)
-
-        # Command `data`.
-        if command == "data":
-            for learning in self.user_data.get_active_learnings():
-                logging.info(f"construct data for {learning.config.name}")
-                self.fill_data(
-                    learning.learning_language,
-                    data.get_frequency_list(learning.frequency_list_ids[-1]),
-                )
+            await self.listen(
+                arguments.id, arguments.start_from, arguments.repeat
+            )
 
         # Command `to learn`.
         if command == "to learn":
@@ -492,6 +422,74 @@ class Emmio:
         # Command `schedule`.
         if command == "schedule":
             await self.schedule()
+
+    async def stat_lexicon(self, arguments: argparse.Namespace) -> None:
+        """Print lexicon statistics."""
+
+        rows: list[list[InlineElement | str]] = []
+
+        lexicons: list[Lexicon] = []
+        for language, language_lexicons in self.data.get_frequency_lexicons(
+            self.user_id
+        ).items():
+            lexicons_to_check = [
+                x for x in language_lexicons if x.get_precision_per_week()
+            ]
+            if len(lexicons_to_check) == 1:
+                lexicons.append(lexicons_to_check[0])
+            else:
+                logging.fatal(f"More than one lexicon to check for {language}.")
+
+        for lexicon in sorted(
+            lexicons, key=lambda x: -x.get_last_rate_number()
+        ):
+            now: datetime = datetime.now()
+            rate: float | None = lexicon.get_last_rate()
+            rate_year_before: float | None = lexicon.get_last_rate(
+                before=now - timedelta(days=365.25)
+            )
+            last_week_precision: int = lexicon.count_unknowns(
+                now - timedelta(days=7), now
+            )
+            need: int = max(
+                0,
+                lexicon.get_precision_per_week() - last_week_precision,
+            )
+            change: float = (
+                abs(rate) - abs(rate_year_before)
+                if rate_year_before is not None and rate is not None
+                else 0.0
+            )
+            change_text: str = ""
+            match change:
+                case float() as change if change >= 0.1:
+                    change_text = f"[green]▲ +{change:.1f}[/green]"
+                case float() as change if change <= -0.1:
+                    change_text = f"[red]▼ {change:.1f}[/red]"
+                case _:
+                    change_text = ""
+            if not rate:
+                continue
+            rows.append(
+                [
+                    f"[bold]{lexicon.language.get_code()}[/bold]"
+                    f" {lexicon.language.get_name()}",
+                    progress(need),
+                    (
+                        f"{abs(rate):.1f}  " + progress(int(rate * 10))
+                        if rate is not None
+                        else "N/A"
+                    ),
+                    change_text,
+                ]
+            )
+
+        self.interface.print(
+            Table(
+                ["Language", "Need", "Rate", "Year change"],
+                rows,
+            )
+        )
 
     async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
         """Check user vocabulary."""
@@ -506,15 +504,18 @@ class Emmio:
 
             self.interface.print(Header(f"Lexicon for {language.get_name()}"))
 
-            frequency_list: FrequencyList | None = self.data.get_frequency_list(
-                lexicon.config.frequency_list
-            )
+            frequency_list: FrequencyList | None = None
+            if lexicon.config.frequency_list:
+                frequency_list = self.data.get_frequency_list(
+                    lexicon.config.frequency_list
+                )
             if frequency_list is None:
                 logging.error(
                     "Frequency list with config "
                     f"`{lexicon.config.frequency_list}` cannot be loaded."
                 )
                 continue
+
             await lexicon.check(
                 self.interface,
                 self.user_data,
@@ -530,11 +531,18 @@ class Emmio:
             break
 
     async def learn(self, learnings: list[Learning]) -> None:
+        """Start learning process."""
+
+        reply: str
+        do_continue: bool
+        teacher: Teacher
+        learning: Learning
+
         while True:
             learnings = sorted(learnings, key=lambda x: x.compare_by_old())
-            learning: Learning = learnings[0]
+            learning = learnings[0]
             if learning.count_questions_to_repeat() > 0:
-                teacher: Teacher = Teacher(
+                teacher = Teacher(
                     self.interface,
                     self.data,
                     self.user_data,
@@ -547,20 +555,20 @@ class Emmio:
                         + learning.learning_language.get_name()
                     )
                 )
-                do_continue: bool = await teacher.repeat(max_actions=10)
+                do_continue = await teacher.repeat(max_actions=10)
                 self.data.print_learning_statistics(
                     self.interface, self.user_id
                 )
-                reply: str = self.interface.choice(
+                reply = self.interface.choice(
                     [("Yes", "y"), ("No", "n")], "Continue?"
                 )
                 if reply == "No" or not do_continue:
                     return
             else:
                 learnings = sorted(learnings, key=lambda x: x.compare_by_new())
-                learning: Learning = learnings[0]
+                learning = learnings[0]
                 if learning.count_questions_to_add() > 0:
-                    teacher: Teacher = Teacher(
+                    teacher = Teacher(
                         self.interface,
                         self.data,
                         self.user_data,
@@ -573,12 +581,12 @@ class Emmio:
                             + learning.learning_language.get_name()
                         )
                     )
-                    do_continue: bool = await teacher.learn_new()
+                    do_continue = await teacher.learn_new()
                     self.interface.print(Header("All new words added"))
                     self.data.print_learning_statistics(
                         self.interface, self.user_id
                     )
-                    reply: str = self.interface.choice(
+                    reply = self.interface.choice(
                         [("Yes", "y"), ("No", "n")], "Continue?"
                     )
                     if reply == "No" or not do_continue:
@@ -589,31 +597,38 @@ class Emmio:
         print()
 
         now: datetime = datetime.now()
-        time_to_repetition: timedelta = (
-            min(
-                x.get_nearest()
-                for x in self.user_data.get_learn_data().learnings.values()
-                if x.config.is_active
-                and x.get_nearest()
-                and x.get_nearest() > now
-            )
-            - now
-        )
+        total_nearest: datetime = now
+
+        for learning in self.user_data.get_learn_data().learnings.values():
+            if not learning.config.is_active:
+                continue
+            nearest: datetime | None = learning.get_nearest()
+            if nearest is None or nearest <= now:
+                continue
+            total_nearest = min(total_nearest, nearest)
+
+        time_to_repetition: timedelta = total_nearest - now
         time_to_new: timedelta = util.day_end(now) - now
+
         if time_to_repetition < time_to_new:
             print(f"    Repetition in {time_to_repetition}.")
         else:
             print(f"    New question in {time_to_new}.")
         print()
 
-    def listen(self, listening_id: str, start_from: int, repeat: int) -> None:
-        Listener(
+    async def listen(
+        self, listening_id: str, start_from: int, repeat: int
+    ) -> None:
+        listener: Listener = Listener(
             self.user_data.get_listening(listening_id),
             self.data,
             self.user_data,
-        ).listen(start_from, repeat)
+        )
+        await listener.listen(start_from, repeat)
 
-    def plot_lexicon(self, arguments, interactive):
+    def plot_lexicon(
+        self, arguments: argparse.Namespace, interactive: bool
+    ) -> None:
         languages = (
             [Language.from_code(x) for x in arguments.languages.split(";")]
             if arguments.languages
@@ -666,7 +681,7 @@ class Emmio:
                 margin=arguments.margin,
             )
 
-    def plot_actions(self, arguments):
+    def plot_actions(self, arguments: argparse.Namespace) -> None:
         """Plot actions."""
 
         records: list[tuple[LearningRecord, Learning]] = []
@@ -674,7 +689,7 @@ class Emmio:
             records += [(x, learning) for x in learning.process.records]
         records = sorted(records, key=lambda x: x[0].time)
 
-        days: int
+        days: float
 
         if arguments.moving:
             match arguments.interval:
@@ -713,7 +728,7 @@ class Emmio:
     async def to_learn(self) -> None:
         """Print words to learn."""
 
-        rows: list[list[str]] = []
+        rows: list[list[InlineElement | str]] = []
         for learning in self.user_data.get_active_learnings():
             rows.append([f"== {learning.config.name} =="])
             for word, knowledge in learning.knowledge.items():
@@ -769,7 +784,7 @@ class Emmio:
             case _:
                 return
 
-        rows: list[list[str]] = []
+        rows: list[list[InlineElement | str]] = []
         for learning in self.user_data.get_active_learnings():
             for question_id, knowledge in learning.knowledge.items():
                 if not knowledge.is_learning():

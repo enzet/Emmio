@@ -73,7 +73,7 @@ async def asynchronous_main() -> None:
 
     match arguments.command:
         case "server":
-            from emmio.server import start as start_server
+            from emmio.server import start as start_server  # type: ignore
 
             logging.basicConfig(level=logging.DEBUG)
             start_server(data, arguments)

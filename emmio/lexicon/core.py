@@ -131,7 +131,7 @@ def compute_lexicon_rate(
     data: list[tuple[datetime, int]],
     precision: int = 100,
     before: datetime | None = None,
-) -> tuple[list[tuple[datetime, datetime]], list[float | None]]:
+) -> tuple[list[tuple[datetime, datetime]], list[float]]:
     """Given lexicon records, compute rate values with given precision.
 
     :param data: list of (response time, lexicon response), is assumed to be
@@ -151,19 +151,21 @@ def compute_lexicon_rate(
         return [], []
 
     date_ranges: list[tuple[datetime, datetime]] = []
-    rate_values: list[float | None] = []
+    rate_values: list[float] = []
 
     index: int = 0
     while index <= len(unknown_indices) - precision:
         data_index_1: int = unknown_indices[index - 1] + 1 if index > 0 else 0
         data_index_2: int = unknown_indices[index + precision - 1]
-        date_ranges.append((data[data_index_1][0], data[data_index_2][0]))
         length: int = data_index_2 - data_index_1 + 1
         number_of_knows: int = sum(
             x[1] for x in data[data_index_1 : data_index_2 + 1]
         )
-        rate_values.append(rate((length - number_of_knows) / length))
-        index += 1
+        current_rate: float | None = rate((length - number_of_knows) / length)
+        if current_rate is not None:
+            rate_values.append(current_rate)
+            date_ranges.append((data[data_index_1][0], data[data_index_2][0]))
+            index += 1
 
     return date_ranges, rate_values
 

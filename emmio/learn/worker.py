@@ -1,3 +1,5 @@
+# type: ignore
+
 import logging
 import math
 import random
@@ -35,7 +37,6 @@ class LearningWorker(Worker):
     def __init__(
         self,
         learning: Learning,
-        lexicon: Lexicon,
         data: Data,
         interface: Interface,
     ) -> None:
@@ -43,16 +44,18 @@ class LearningWorker(Worker):
         """Data storage: dictionaries, sentences, audio."""
 
         self.learning: Learning = learning
-        self.lexicon: Lexicon = lexicon
         self.interface: Interface = interface
         """User interface for learning."""
 
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
-        self.sentences: SentencesCollection = data.get_sentences_collection(
-            self.learning.config.sentences
-        )
+        if self.learning.config.sentences:
+            self.sentences: SentencesCollection = data.get_sentences_collection(
+                self.learning.config.sentences
+            )
+        else:
+            self.sentences: SentencesCollection = SentencesCollection([])
 
         self.skip: set[str] = set()
 

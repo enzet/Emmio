@@ -11,7 +11,7 @@ from emmio.dictionary.core import (
     DictionaryItem,
     SimpleDictionary,
 )
-from emmio.language import construct_language
+from emmio.language import Language, construct_language
 from emmio.learn.config import Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
@@ -84,9 +84,13 @@ class Teacher:
                 self.question_ids.append((word, list_, index))
 
         # Load dictionaries for checking questions.
-        self.dictionaries_to_check: DictionaryCollection = (
-            data.get_dictionaries(self.scheme.new_question.ignore_not_common)
-        )
+        self.dictionaries_to_check: DictionaryCollection
+        if self.scheme.new_question.ignore_not_common:
+            self.dictionaries_to_check = data.get_dictionaries(
+                self.scheme.new_question.ignore_not_common
+            )
+        else:
+            self.dictionaries_to_check = DictionaryCollection([])
 
         self.stop_after_answer: bool = stop_after_answer
 
@@ -94,9 +98,13 @@ class Teacher:
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
-        self.sentences: SentencesCollection = data.get_sentences_collection(
-            self.learning.config.sentences
-        )
+        self.sentences: SentencesCollection
+        if self.learning.config.sentences:
+            self.sentences = data.get_sentences_collection(
+                self.learning.config.sentences
+            )
+        else:
+            self.sentences = SentencesCollection([])
         self.audio: AudioCollection = data.get_audio_collection(
             self.learning.config.audio
         )
@@ -112,6 +120,8 @@ class Teacher:
             good_question_id: bool = await self.check_question_id(question_id)
             if good_question_id:
                 return question_id
+
+        return None
 
     async def check_question_id(self, question_id) -> bool:
         # Check whether the learning process already has the word: whether
@@ -255,7 +265,7 @@ class Teacher:
         while True:
             if (
                 self.learning.count_questions_added_today() < self.max_for_day
-                and (question_id := self.get_new_question()) is not None
+                and (question_id := await self.get_new_question()) is not None
             ):
                 code: str = await self.learn(question_id, None)
                 if code != "bad question":
@@ -287,12 +297,12 @@ class Teacher:
         session: LearningSession = LearningSession(
             type="repeat_and_learn_new", start=datetime.now()
         )
+        code: str
+
         while True:
             # Repeat words.
             if word := self.learning.get_next_question():
-                code: str = await self.learn(
-                    word, self.learning.knowledge[word]
-                )
+                code = await self.learn(word, self.learning.knowledge[word])
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -306,9 +316,9 @@ class Teacher:
             # Learn new words.
             elif (
                 self.learning.count_questions_added_today() < self.max_for_day
-                and (question_id := self.get_new_question()) is not None
+                and (question_id := await self.get_new_question()) is not None
             ):
-                code: str = await self.learn(question_id, None)
+                code = await self.learn(question_id, None)
                 if code != "bad question":
                     self.learning.write()
                 if code == "stop":
@@ -357,7 +367,6 @@ class Teacher:
 
         result: str = ""
 
-        sentence_translations: SentenceTranslations
         words: list[tuple[str, str]] = sentence_translations.sentence.get_words(
             self.learning.learning_language
         )
@@ -378,7 +387,7 @@ class Teacher:
 
         self.interface.print(result)
 
-        translations: list[Text] = [
+        translations: list[str] = [
             x.text
             for x in sentence_translations.translations[:max_translations]
         ]
@@ -387,9 +396,12 @@ class Teacher:
         self.interface.print("\n".join(translations))
 
     async def learn(self, word: str, knowledge: Knowledge | None) -> str:
+
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
+
+        translation: list[Element] = []
 
         statistics: str = ""
         if knowledge:
@@ -411,7 +423,7 @@ class Teacher:
         # if word in self.data.exclude_translations:
         #     exclude_translations = set(self.data.exclude_translations[word])
 
-        if self.scheme.actions:
+        if self.scheme and self.scheme.actions:
             for action in self.scheme.actions:
                 if action["type"] == "show_question_id":
                     self.interface.print(word)
@@ -433,7 +445,7 @@ class Teacher:
         if items:
             self.interface.print(statistics)
             for item in items:
-                translation: list[Element] = item.to_text(
+                translation = item.to_text(
                     self.learning.base_languages,
                     False,
                     words_to_hide=words_to_hide | exclude_translations,
@@ -442,9 +454,7 @@ class Teacher:
                 )
                 for element in translation:
                     self.interface.print(element)
-            alternative_forms: set[str] = set(
-                x.link_value for x in items[0].get_links()
-            )
+            alternative_forms = set(x.link_value for x in items[0].get_links())
         else:
             self.interface.print(statistics)
             self.interface.print("No translations.")
@@ -460,9 +470,10 @@ class Teacher:
             self.print_sentence(word, rated_sentences, index)
 
         request_time: datetime = datetime.now()
+        answer: str
 
         while True:
-            answer: str = self.interface.get_word(
+            answer = self.interface.get_word(
                 word, alternative_forms, self.learning.learning_language
             )
             sentence_id: int = (
@@ -472,7 +483,7 @@ class Teacher:
             )
 
             # Preprocess answer.
-            answer: str = self.learning.learning_language.decode_text(answer)
+            answer = self.learning.learning_language.decode_text(answer)
 
             if answer == word:
                 self.learning.register(
@@ -480,9 +491,7 @@ class Teacher:
                 )
                 if items:
                     for item in items:
-                        translation: list[Element] = item.to_text(
-                            self.learning.base_languages
-                        )
+                        translation = item.to_text(self.learning.base_languages)
                         for element in translation:
                             self.interface.print(element)
 
@@ -491,7 +500,9 @@ class Teacher:
                 if self.stop_after_answer:
                     new_answer = self.interface.input("> ")
                     while new_answer:
-                        self.process_command(new_answer, word, sentence_id)
+                        await self.process_command(
+                            new_answer, word, sentence_id
+                        )
                         new_answer = self.interface.input("> ")
 
                 self.learning.write()
@@ -556,9 +567,7 @@ class Teacher:
                 self.interface.print(word)
                 if items:
                     for item in items:
-                        translation: list[Element] = item.to_text(
-                            self.learning.base_languages
-                        )
+                        translation = item.to_text(self.learning.base_languages)
                         for element in translation:
                             self.interface.print(element)
                 self.interface.print(word)
@@ -572,7 +581,7 @@ class Teacher:
                     if new_answer in ["s", "skip"]:
                         self.learning.register(Response.SKIP, sentence_id, word)
                         break
-                    self.process_command(new_answer, word, sentence_id)
+                    await self.process_command(new_answer, word, sentence_id)
                     new_answer = self.interface.input("> ")
 
                 self.learning.write()
@@ -586,14 +595,15 @@ class Teacher:
                 elif index == len(rated_sentences):
                     self.interface.print("No more sentences.")
 
-    def process_command(self, command: str, word: str, sentence_id: int):
+    async def process_command(self, command: str, word: str, sentence_id: int):
+
         if command in ["s", "/skip"]:
             self.learning.register(Response.SKIP, sentence_id, word)
             print(f'Word "{word}" is no longer in the learning process.')
         elif command.startswith("/hint "):
-            _, language, definition = command.split(" ", maxsplit=2)
+            _, language_code, definition = command.split(" ", maxsplit=2)
             dictionary_id: str = (
-                f"{self.learning.learning_language}_{language}_"
+                f"{self.learning.learning_language}_{language_code}_"
                 f"{self.user_data.user_id}"
             )
             dictionary: Dictionary | None = self.dictionaries.get_dictionary(
@@ -607,7 +617,9 @@ class Teacher:
                 print(f"No personal dictionary `{dictionary_id}` found.")
         elif command.startswith("/define "):
             _, language_code, word_to_define = command.split(" ", maxsplit=2)
-            language = construct_language(language_code)
-            items = self.dictionaries.get_items(word_to_define, language)
+            language: Language = Language.from_code(language_code)
+            items: list[DictionaryItem] = await self.dictionaries.get_items(
+                word_to_define, language
+            )
             for item in items:
-                item.to_str([language], self.interface)
+                self.interface.print(item.to_text([language]))

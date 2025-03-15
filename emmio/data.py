@@ -141,8 +141,10 @@ class Data:
     def get_audio_collection(self, usage_configs: list[dict]):
         return self.get_audio_data().get_audio_collection(usage_configs)
 
-    def get_words(self, id_: str) -> list[str]:
-        return self.get_list(id_).get_words()
+    def get_words(self, id_: str) -> list[str] | None:
+        if not (list := self.get_list({"id": id_})):
+            return None
+        return list.get_words()
 
     def get_learning(self, user_id: str, id_: str) -> Learning:
         return self.users_data[user_id].get_learning(id_)
@@ -174,12 +176,12 @@ class Data:
             ]
             for learning in learnings
         ]
-        footer: list[str] = ["Total"] + [
-            str(sum(x[i] for x in rows)) for i in range(1, 4)
+        footer: list[str | int] = ["Total"] + [
+            sum(int(x[i]) for x in rows) for i in range(1, 4)
         ]
         for row in rows:
             for i in range(1, 3):
-                row[i] = progress(row[i])
+                row[i] = progress(int(row[i]))
             row[3] = str(row[3])
 
         rows.append(footer)

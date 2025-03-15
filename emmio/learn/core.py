@@ -21,7 +21,6 @@ __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
-SMALLEST_INTERVAL: timedelta = timedelta(days=1)
 MULTIPLIER: float = 2.0
 
 
@@ -131,18 +130,24 @@ class LearningProcess(BaseModel):
 
 @dataclass
 class Knowledge:
-    """Knowledge of the question."""
+    """Knowledge of the question: list of learning records."""
 
     question_id: str
-    records: list[LearningRecord] = field(default_factory=list)
+    """Question identifier."""
+
+    records: list[LearningRecord]
+    """List of learning records ordered from the latest to the newest."""
 
     def __post_init__(self):
+        assert self.records, "Knowledge should contain at least one record."
         self.__responses = [x.response for x in self.records]
 
     def get_last_record(self) -> LearningRecord:
+        """Get the latest learning record."""
         return self.records[-1]
 
     def get_responses(self) -> list[Response]:
+        """Get list of responses."""
         return self.__responses
 
     def get_last_response(self) -> Response:
@@ -166,6 +171,7 @@ class Knowledge:
         return self.__responses.count(Response.WRONG)
 
     def count_right_streak(self) -> int:
+        """Get number of right answers after the last wrong answer."""
         result: int = 0
         for response in self.__responses[::-1]:
             if response == Response.RIGHT:
@@ -181,16 +187,20 @@ class Knowledge:
         return len(self.__responses)
 
     def add_record(self, record: LearningRecord) -> None:
+        """Add a learning record."""
         self.records.append(record)
         self.__responses.append(record.response)
 
-    def added_time(self):
+    def added_time(self) -> datetime:
+        """Get the time when the question was added."""
         return self.records[0].time
 
     def get_records(self) -> list[LearningRecord]:
+        """Get list of learning records."""
         return self.records
 
     def estimate(self, point: datetime) -> float:
+        """Estimate the knowledge of the question at the given point in time."""
         last_record = self.get_last_record()
         right_streak: int = self.count_right_streak()
         if right_streak == 0:
@@ -257,8 +267,9 @@ class Learning:
     def __update_knowledge(self, record: LearningRecord) -> None:
         question_id: str = record.question_id
         if question_id not in self.knowledge:
-            self.knowledge[question_id] = Knowledge(question_id)
-        self.knowledge[question_id].add_record(record)
+            self.knowledge[question_id] = Knowledge(question_id, [record])
+        else:
+            self.knowledge[question_id].add_record(record)
 
     def register(
         self,
@@ -298,8 +309,11 @@ class Learning:
         return timedelta(days=2)
 
     def get_next_time(self, knowledge: Knowledge) -> datetime:
+        return knowledge.get_last_record().time + self.get_interval(knowledge)
+
+    def get_interval(self, knowledge: Knowledge) -> timedelta:
         if knowledge.get_last_response() == Response.POSTPONE:
-            return knowledge.get_last_record().time + self.get_postpone_time()
+            return self.get_postpone_time()
         seconds: float
         right_streak: int = knowledge.count_right_streak()
         if right_streak == 0:
@@ -315,7 +329,7 @@ class Learning:
             seconds = (
                 right_records[-1].time - right_records[-2].time
             ).total_seconds() * (MULTIPLIER + ((random.random() - 0.5) * 0.0))
-        return knowledge.get_last_record().time + timedelta(seconds=seconds)
+        return timedelta(seconds=seconds)
 
     def __get_next_questions(self) -> list[Knowledge]:
         now: datetime = datetime.now()
@@ -339,6 +353,7 @@ class Learning:
 
     def is_initially_known(self, question_id: str) -> bool:
         """Check whether the answer to the question was initially known."""
+
         knowledge: Knowledge = self.knowledge[question_id]
 
         return (
@@ -349,6 +364,7 @@ class Learning:
 
     def get_nearest(self) -> datetime | None:
         """Get the nearest repetition time."""
+
         if times := [
             self.get_next_time(self.knowledge[question_id])
             for question_id in self.knowledge
@@ -360,6 +376,7 @@ class Learning:
 
     def count_questions_added_today(self) -> int:
         """Count questions added today and in learning process."""
+
         now: datetime = datetime.now()
         today_start: datetime = datetime(
             year=now.year, month=now.month, day=now.day
@@ -493,7 +510,7 @@ def load_old_format(path: Path):
         process: dict[str, dict[str, Any]] = yaml.load(
             input_file, Loader=yaml.FullLoader
         )
-    added = set()
+    added: set[datetime] = set()
     learning_records: list[LearningRecord] = []
     for question_id, records in process.items():
         if (
