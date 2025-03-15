@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
-__Emmio__ is an experimental project focused on language learning. It provides
+**Emmio** is an experimental project focused on language learning. It provides
 learning and testing algorithms:
   1. a [learning](#learning) system based on spaced repetition,
   2. a [lexicon](#lexicon) (vocabulary) level assessment tool.
@@ -16,7 +16,7 @@ The project manages four kinds of artifacts:
 
 ## Installation
 
-Requires __Python 3.12__ or later.
+Requires **Python 3.12** or later.
 
 ```shell
 pip install git+https://github.com/enzet/emmio
@@ -80,14 +80,16 @@ arbitrary text.
 |    1 |          50.00 % |    50.00 % |         |
 |    0 |         100.00 % |     0.00 % |         |
 
-*&nbsp;Level is a __very rough__ approximation of a level of the Common European
+*&nbsp;Level is a **very rough** approximation of a level of the Common European
 Framework of Reference for Languages. Please, don't take it as a strict
 definition.
 
-In order to run lexicon checking, simply execute `lexicon` command or `lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language code.
+In order to run lexicon checking, simply execute `lexicon` command or
+`lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language
+code.
 
   * `frequency list id` is an identifier of [full frequency file](#frequency). 
-    __Important__: for Lexicon you can use only full (not stripped) frequency 
+    **Important**: for Lexicon you can use only full (not stripped) frequency
     list.
 
 ## Data directory structure
@@ -113,8 +115,9 @@ words.  Artifacts are controlled by configuration file
 
 Emmio supports:
   - dictionaries stored in JSON files,
-  - English Wiktionary (through
-    [WiktionaryParser](https://github.com/Suyash458/WiktionaryParser)).
+  - English Wiktionary (through [Kaikki.org](https://kaikki.org) website,
+    containing dictionaries extracted from English Wiktionary using
+    [wiktextract](https://github.com/tatuylonen/wiktextract)).
 
 ## Sentences
 
