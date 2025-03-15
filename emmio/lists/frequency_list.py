@@ -2,15 +2,15 @@ import json
 import logging
 import random
 import sys
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Self, override
 
 import urllib3
 
 from emmio.language import Language
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
-from emmio.lists.core import List, ListCollection
+from emmio.lists.core import List
 
 
 class WordOccurrences:
@@ -29,20 +29,38 @@ class FrequencyList(List):
 
     file_path: Path
     config: FrequencyListConfig
-    data: dict[str, int] | None = None
+    data: dict[str, int]
     _occurrences: int = 0
     _sorted_keys: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_config(cls, path: Path, config: FrequencyListConfig):
-        return cls(path / config.path, config)
+    def from_config(cls, path: Path, config: FrequencyListConfig) -> Self:
+        """Load frequency list from file or URL.
 
-    def __post_init__(self):
+        :param path: path to the directory with lists
+        :param config: configuration of the frequency list
+        """
+
+        file_path: Path = path / config.path
+
+        if file_path.exists():
+            return cls.from_file(path, config, file_path)
+        elif config.url:
+            return cls.from_url(path, config, config.url)
+        else:
+            raise Exception(f"Unable to load frequency list {config}.")
+
+    def __post_init__(self) -> None:
         if self.data:
             self._occurrences: int = sum(self.data.values())
             self._sorted_keys: list[str] = sorted(
                 self.data.keys(), key=lambda x: -self.data[x]
             )
+
+        assert self._occurrences == sum(self.data.values()), (
+            f"Precomputed number of occurences {self._occurrences} is not "
+            f"equal to the sum of occurences: {sum(self.data.values())}."
+        )
 
     def __len__(self) -> int:
         return len(self.data)
@@ -96,7 +114,6 @@ class FrequencyList(List):
 
     def get_words(self) -> list[str]:
         """Get all unique words."""
-        self.load()
         return self._sorted_keys
 
     def get_random_word(self) -> tuple[str, int]:
@@ -127,15 +144,13 @@ class FrequencyList(List):
         return word, self.data[word]
 
     def get_random_word_by_frequency(self) -> tuple[str, int]:
-        """
-        Return random word based on its frequency as if you pick up random word
-        from the text.
+        """Return random word based on its frequency.
 
-        :return word, number of its occurrences in text
-        """
-        if self._occurrences == 0:
-            self.load()
+        This function is equivalent to picking up random word from the text,
+        which was used to create this frequency list in the first place.
 
+        :return (word, number of its occurrences in text)
+        """
         number: int = random.randint(0, self._occurrences)
 
         index: int = 0
@@ -160,6 +175,7 @@ class FrequencyList(List):
             return self._sorted_keys.index(word)
         return -1
 
+    @override
     def get_name(self) -> str | None:
         """Get name of the list."""
         return self.config.name
@@ -168,95 +184,100 @@ class FrequencyList(List):
         """Get information about the list."""
         return f"  Length: {len(self)}\n" f"  Language: {self.config.language}"
 
-    def load(self) -> None:
-        """Load data if necessary."""
-        if self.data:
-            return
+    @classmethod
+    def from_file(
+        cls, path: Path, config: FrequencyListConfig, file_path: Path
+    ) -> Self:
+        """Load frequency list from file."""
 
-        if self.file_path.exists():
-            self.load_from_file()
-        elif self.config.url:
-            self.load_from_url()
-        else:
-            raise Exception(f"Unable to load frequency list {self.config}.")
-
-        assert self._occurrences == sum(self.data.values()), (
-            f"Precomputed number of occurences {self._occurrences} is not "
-            f"equal to the sum of occurences: {sum(self.data.values())}."
-        )
-
-    def load_from_file(self) -> None:
-        match self.config.file_format:
+        match config.file_format:
             case FrequencyListFileFormat.JSON:
-                self.load_from_json_file()
+                return cls.from_json_file(path, config, file_path)
             case FrequencyListFileFormat.LIST:
-                self.load_from_list_file()
+                return cls.from_list_file(path, config, file_path)
             case FrequencyListFileFormat.CSV:
-                self.load_from_csv_file(
-                    self.config.csv_delimiter, self.config.csv_header
-                )
+                return cls.from_csv_file(path, config, file_path)
             case _:
-                raise Exception(
-                    f"unknown file format {self.config.file_format}"
-                )
+                raise Exception(f"unknown file format {config.file_format}")
 
-    def load_from_csv_file(self, delimiter: str, header: list[str]) -> None:
-        logging.debug(f"Loading frequency list from CSV file {self.file_path}.")
+    @classmethod
+    def from_csv_file(
+        cls, path: Path, config: FrequencyListConfig, file_path: Path
+    ) -> Self:
+        """Load frequency list from CSV file."""
 
-        self.data = {}
-        self._occurrences = 0
-        self._sorted_keys = []
+        logging.debug(f"Loading frequency list from CSV file {path}.")
 
-        count_index: int = header.index("count")
-        word_index: int = header.index("word")
+        data: dict[str, int] = {}
+        occurrences: int = 0
+        sorted_keys: list[str] = []
 
-        with self.file_path.open() as input_file:
+        count_index: int = config.csv_header.index("count")
+        word_index: int = config.csv_header.index("word")
+
+        with file_path.open() as input_file:
             for line in input_file.readlines()[1:]:
-                parts = line.split(delimiter)
+                parts = line.split(config.csv_delimiter)
                 count: int = int(parts[count_index])
                 word: str = parts[word_index]
-                if word in self.data:
+                if word in data:
                     # This can happen when frequency list considers different
                     # forms as different words.
-                    self.data[word] += count
+                    data[word] += count
                 else:
-                    self.data[word] = count
-                self._occurrences += count
-                self._sorted_keys.append(word)
+                    data[word] = count
+                occurrences += count
+                sorted_keys.append(word)
 
-    def load_from_json_file(self) -> None:
-        logging.debug(
-            f"Loading frequency list from JSON file {self.file_path}."
-        )
-        with self.file_path.open() as input_file:
-            structure: list[(str, int)] = json.load(input_file)
+        return cls(path, config, data, occurrences, sorted_keys)
 
-        self.data = {word: occurrences for word, occurrences in structure}
-        self.__post_init__()
+    @classmethod
+    def from_json_file(
+        cls, path: Path, config: FrequencyListConfig, file_path: Path
+    ) -> Self:
+        """Load frequency list from JSON file."""
 
-    def load_from_list_file(self) -> None:
-        logging.debug(
-            f"Loading frequency list from list file {self.file_path}."
-        )
-        self.data = {}
+        logging.debug(f"Loading frequency list from JSON file {path}.")
+        with file_path.open() as input_file:
+            structure: list[tuple[str, int]] = json.load(input_file)
 
-        with self.file_path.open() as input_file:
+        data: dict[str, int] = {
+            word: occurrences for word, occurrences in structure
+        }
+        return cls(path, config, data)
+
+    @classmethod
+    def from_list_file(
+        cls, path: Path, config: FrequencyListConfig, file_path: Path
+    ) -> Self:
+        """Load frequency list from list file."""
+
+        logging.debug(f"Loading frequency list from list file {path}.")
+        data: dict[str, int] = {}
+
+        with file_path.open() as input_file:
             while line := input_file.readline():
                 try:
                     position: int = line.find(" ")
                     word: str = line[:position]
                     occurrences: int = int(line[position + 1 :])
-                    self.data[word] = occurrences
+                    data[word] = occurrences
                 except ValueError:
                     pass
-        self.__post_init__()
 
-    def load_from_url(self) -> None:
-        logging.info(f"Loading frequency list from url `{self.config.url}`...")
+        return cls(path, config, data)
+
+    @classmethod
+    def from_url(
+        cls, path: Path, config: FrequencyListConfig, url: str
+    ) -> Self:
+        """Load frequency list from URL."""
+
+        logging.info(f"Loading frequency list from url `{config.url}`...")
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()
-        response: urllib3.HTTPResponse = pool_manager.request(
-            "GET", self.config.url, preload_content=False
+        response: urllib3.BaseHTTPResponse = pool_manager.request(
+            "GET", url, preload_content=False
         )
         pool_manager.clear()
         data: bytearray = bytearray()
@@ -270,14 +291,16 @@ class FrequencyList(List):
             data.extend(buffer)
         sys.stdout.write("\n")
 
-        with self.file_path.open("bw+") as cache_file:
+        file_path: Path = path / config.path
+
+        with file_path.open("bw+") as cache_file:
             cache_file.write(data)
 
-        self.load_from_file()
+        return cls.from_file(path, config, file_path)
 
 
 class FrequencyWordsList(FrequencyList):
-    """Frequency list from project FrequencyWords.
+    """Frequency list from FrequencyWords project.
 
     FrequencyWords is a project that contains frequency lists extracted from
     Opensubtitles.
@@ -286,13 +309,13 @@ class FrequencyWordsList(FrequencyList):
     """
 
     def __init__(self, path: Path, language: Language, year: int):
-        super().__init__(
+        super().from_config(
             path / f"{language.get_code()}_opensubtitles_{year}.txt",
             FrequencyListConfig(
                 name=f"{language.get_name()} Opensubtitles {year}",
                 source="FrequencyWords by Hermit Dave",
                 path=f"{language.get_code()}_opensubtitles_{year}.txt",
-                file_format="list",
+                file_format=FrequencyListFileFormat.LIST,
                 language=language.get_code(),
                 is_stripped=False,
                 url=(
@@ -302,13 +325,3 @@ class FrequencyWordsList(FrequencyList):
                 ),
             ),
         )
-
-
-@dataclass
-class FrequencyListCollection(ListCollection):
-    def get_words_by_turn(self, minimum_frequency: int = 0) -> Iterator[str]:
-        index: int = 0
-        for frequency_list in self.collection:
-            if len(frequency_list) > index:
-                yield frequency_list.get_words()[index]
-            index += 1

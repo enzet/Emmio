@@ -24,7 +24,10 @@ class ListsData(ArtifactData):
 
     @classmethod
     def from_config(cls, path: Path) -> "ListsData":
-        """Initialize lists from a directory."""
+        """Initialize lists from a directory.
+
+        :param path: path to the directory with lists
+        """
 
         config: dict = ArtifactData.read_config(path)
 
@@ -60,13 +63,10 @@ class ListsData(ArtifactData):
                     Language.from_code(list_usage_config["language"]),
                     list_usage_config["year"],
                 )
-                frequency_list.load()
                 return frequency_list
             case _:
                 if id_ not in self.frequency_lists:
                     return None
-
-                self.frequency_lists[id_].load()
 
                 return self.frequency_lists[id_]
 

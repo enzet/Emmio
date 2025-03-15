@@ -36,7 +36,7 @@ class FrequencyListConfig(BaseModel):
     language: LanguageConfig
     """Language of the list. E.g. Esperanto."""
 
-    path: Path
+    path: str
     """Path to the file."""
 
     url: str | None = None
@@ -70,5 +70,5 @@ class WordListConfig(BaseModel):
     language: LanguageConfig
     """Language of the list. E.g. Esperanto."""
 
-    path: Path
+    path: str
     """Path to the file."""

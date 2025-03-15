@@ -11,7 +11,7 @@ class List(ABC):
     """Interface for word lists and frequency lists."""
 
     @abstractmethod
-    def get_name(self) -> str:
+    def get_name(self) -> str | None:
         """Get list name."""
         raise NotImplementedError()
 

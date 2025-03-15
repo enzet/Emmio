@@ -4,21 +4,23 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
+from emmio.lists.config import FrequencyListConfig
 from emmio.lists.frequency_list import FrequencyList
 
 
 @pytest.fixture
 def empty_frequency_list() -> FrequencyList:
     """Create minimal frequency list."""
+
     return FrequencyList(
-        file_path=Path("tests/data/test_frequency.txt"),
+        file_path=Path("tests", "data", "test_frequency.txt"),
         config=FrequencyListConfig(
-            path=Path("test_frequency.txt"),
-            file_format=FrequencyListFileFormat.LIST,
+            path="test_frequency.txt",
+            file_format="list",
             language="en",
             is_stripped=False,
         ),
+        data={},
     )
 
 
@@ -67,23 +69,21 @@ def test_read_csv() -> None:
     def mock_file(file_path: Path, *args, **kwargs):
         if file_path.name == file_name:
             return mock_open(read_data=csv_content)(file_path, *args, **kwargs)
-        else:
-            raise FileNotFoundError(f"File `{file_path}` not found.")
+        raise FileNotFoundError(f"File `{file_path}` not found.")
 
     with (
         patch("pathlib.Path.exists") as mock_exists,
         patch("pathlib.Path.open", mock_file),
     ):
         mock_exists.return_value = True
-        frequency_list: FrequencyList = FrequencyList(
-            file_path=Path(file_name),
+        frequency_list: FrequencyList = FrequencyList.from_config(
+            path=Path("tests", "data"),
             config=FrequencyListConfig(
-                path=Path(file_name),
-                file_format=FrequencyListFileFormat.CSV,
+                path=file_name,
+                file_format="csv",
                 language="en",
                 is_stripped=False,
                 csv_header=["number", "word", "form", "count"],
                 csv_delimiter=";",
             ),
         )
-        frequency_list.load()
