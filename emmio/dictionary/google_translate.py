@@ -65,6 +65,8 @@ class GoogleTranslate(Dictionary):
             )
         except httpx.ConnectError:
             return None
+        except httpx.ConnectTimeout:
+            return None
 
         with (self.cache_directory / word).open("w") as output_file:
             output_file.write(translation.text)
