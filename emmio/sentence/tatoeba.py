@@ -150,9 +150,16 @@ class TatoebaSentences(Sentences):
                 self.links.pop(id_1)
 
     def read_link_sets(self, file_name: Path):
+        """Read link cache from a JSON file."""
+
         logging.info("Reading link cache...")
         with file_name.open() as input_file:
-            self.links = json.load(input_file)
+            links: dict[str, list[int]] = json.load(input_file)
+
+        # JSON file may contain only string keys, so we need to convert them to
+        # integers.
+        for key, value in links.items():
+            self.links[int(key)] = set(value)
 
     def fill_cache(self, file_name: str) -> None:
         """Construct dictionary from words to sentences."""
@@ -222,13 +229,13 @@ class TatoebaSentences(Sentences):
                 continue
             index = sentence.text.lower().find(word)
             assert index >= 0
-            if str(id_) in self.links:
+            if id_ in self.links:
                 result.append(
                     SentenceTranslations(
                         sentence,
                         [
                             self.database.get_sentence(self.language_1, x)
-                            for x in self.links[str(id_)]
+                            for x in self.links[id_]
                         ],
                     )
                 )
