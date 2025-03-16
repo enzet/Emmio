@@ -1,0 +1,16 @@
+#!/bin/sh
+
+echo "Looking for changes..."
+files=`git status --porcelain | wc -l`
+if [ ${files} == 0 ] ; then
+    echo "OK"
+else
+    echo "FAIL"
+    git status
+    exit 1
+fi
+
+# Run checks from `pre-commit` hook.
+.githooks/pre-commit || { echo "FAIL"; exit 1; }
+
+exit 0

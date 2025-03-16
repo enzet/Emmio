@@ -7,7 +7,6 @@ Emmio.egg-info
 __pycache__
 c/text
 cache
-data
 out
 test
 tests/temp

@@ -160,3 +160,9 @@ To run Emmio server on the Telegram, use
 ```shell
 emmio server --mode telegram --token ${TELEGRAM_TOKEN}
 ```
+
+# Contributing
+
+Before contributing, please follow these steps:
+  1. Install development dependencies with `pip install -e .[dev]`.
+  2. Enable Git hooks with `git config core.hooksPath .githooks`.
