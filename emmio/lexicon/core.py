@@ -1,7 +1,6 @@
 import json
 import logging
 import math
-import sys
 from datetime import datetime
 from enum import Enum
 from pathlib import Path

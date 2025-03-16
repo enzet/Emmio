@@ -463,7 +463,7 @@ class Teacher:
         index: int = 0
         rated_sentences: list[tuple[float, SentenceTranslations]] = (
             self.sentences.filter_by_word_and_rate(
-                word, self.user_data, ids_to_skip, 120
+                word, self.user_data.is_known, ids_to_skip, 120
             )
         )
         if index < len(rated_sentences):

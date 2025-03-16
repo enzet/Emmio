@@ -2,6 +2,7 @@ import bz2
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from os.path import join
 from pathlib import Path
@@ -11,7 +12,6 @@ from tqdm import tqdm
 from emmio.language import Language
 from emmio.sentence.core import Sentence, Sentences, SentenceTranslations
 from emmio.sentence.database import SentenceDatabase
-from emmio.user.data import UserData
 from emmio.util import download
 
 __author__ = "Sergey Vartanov"
@@ -228,7 +228,7 @@ class TatoebaSentences(Sentences):
                         sentence,
                         [
                             self.database.get_sentence(self.language_1, x)
-                            for x in self.links[id_]
+                            for x in self.links[str(id_)]
                         ],
                     )
                 )
@@ -237,13 +237,13 @@ class TatoebaSentences(Sentences):
     def filter_by_word_and_rate(
         self,
         word: str,
-        user_data: UserData,
+        is_known: Callable[[str, Language], bool],
         ids_to_skip: set[int],
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceTranslations]]:
         return Sentences.rate(
-            user_data,
+            is_known,
             self.filter_by_word(word, ids_to_skip, max_length, max_number),
             self.language_2,
         )
