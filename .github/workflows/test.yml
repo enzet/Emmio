@@ -35,7 +35,7 @@ jobs:
         isort --check-only emmio/ tests/
     - name: Check types with Mypy
       run: |
-        mypy emmio/
+        mypy emmio/ tests/
     - name: Test with pytest
       run: |
         pytest -v

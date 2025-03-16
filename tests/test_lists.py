@@ -5,7 +5,7 @@ from unittest.mock import mock_open, patch
 import pytest
 
 from emmio.lists.config import FrequencyListConfig
-from emmio.lists.frequency_list import FrequencyList
+from emmio.lists.frequency_list import FrequencyList, FrequencyListFileFormat
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def empty_frequency_list() -> FrequencyList:
         file_path=Path("tests", "data", "test_frequency.txt"),
         config=FrequencyListConfig(
             path="test_frequency.txt",
-            file_format="list",
+            file_format=FrequencyListFileFormat.LIST,
             language="en",
             is_stripped=False,
         ),
@@ -80,7 +80,7 @@ def test_read_csv() -> None:
             path=Path("tests", "data"),
             config=FrequencyListConfig(
                 path=file_name,
-                file_format="csv",
+                file_format=FrequencyListFileFormat.CSV,
                 language="en",
                 is_stripped=False,
                 csv_header=["number", "word", "form", "count"],

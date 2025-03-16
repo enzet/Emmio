@@ -4,7 +4,6 @@ import json
 import shutil
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 from unittest.mock import patch
 
 from pytest import CaptureFixture
@@ -86,7 +85,7 @@ def initialize(
 
 
 def check_main(
-    capsys: Callable[[], CaptureFixture],
+    capsys: CaptureFixture[str],
     temp_directory: Path,
     temp_user_id: str,
     user_commands: list[str],
@@ -112,7 +111,7 @@ def check_main(
             ),
         ):
             main()
-            captured: CaptureFixture = capsys.readouterr()
+            captured = capsys.readouterr()
             if expected_output:
                 split_expected_output: list[str] = expected_output.splitlines()
                 split_captured_output: list[str] = captured.out.splitlines()
@@ -142,7 +141,7 @@ HEADER: str = dedent(
 ).strip()
 
 
-def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
+def test_new_user_empty_data(capsys: CaptureFixture[str]) -> None:
     """Test that a new user is created with empty data."""
 
     check_main(
@@ -164,7 +163,7 @@ def test_new_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
     )
 
 
-def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
+def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
     """Test that existing user is loaded with empty data."""
 
     temp_directory: Path = Path("__test_existing_data")
@@ -247,7 +246,7 @@ def test_existing_user_empty_data(capsys: Callable[[], CaptureFixture]) -> None:
     )
 
 
-def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
+def test_plot_lexicon(capsys: CaptureFixture[str]) -> None:
     """Test `plot lexicon` command."""
 
     temp_directory: Path = Path("__test_existing_data")
@@ -265,7 +264,7 @@ def test_plot_lexicon(capsys: Callable[[], CaptureFixture]) -> None:
     )
 
 
-def test_stat_actions(capsys: Callable[[], CaptureFixture]) -> None:
+def test_stat_actions(capsys: CaptureFixture[str]) -> None:
     """Test `stat actions` command."""
 
     temp_directory: Path = Path("__test_existing_data")
