@@ -348,7 +348,7 @@ class Lexicon:
                 response=response,
                 answer_type=answer_type,
                 to_skip=to_skip,
-                start_time=request_time,
+                request_time=request_time,
             )
         )
 
@@ -387,15 +387,15 @@ class Lexicon:
 
     def get_bounds(
         self, point_1: datetime, point_2: datetime
-    ) -> tuple[int, int]:
+    ) -> tuple[int | None, int | None]:
         min_value, max_value, min_index, max_index = None, None, None, None
 
         for i in range(len(self.dates)):
             if point_1 <= self.dates[i] <= point_2:
-                if not min_index or self.dates[i] < min_value:
+                if not min_index or not min_value or self.dates[i] < min_value:
                     min_value = self.dates[i]
                     min_index = i
-                if not max_index or self.dates[i] > max_value:
+                if not max_index or not max_value or self.dates[i] > max_value:
                     max_value = self.dates[i]
                     max_index = i
 
@@ -421,12 +421,14 @@ class Lexicon:
             / len(self.responses[index_1:index_2])
         )
 
-    def get_preferred_interval(self, precision: int = 100) -> int:
-        return int(precision / self.get_average())
+    def get_preferred_interval(self, precision: int = 100) -> int | None:
+        if average := self.get_average():
+            return int(precision / average)
+        return None
 
     def construct_precise(
         self, precision: int = 100, before: datetime | None = None
-    ) -> tuple[list[tuple[datetime, datetime]], list[float | None]]:
+    ) -> tuple[list[tuple[datetime, datetime]], list[float]]:
         return compute_lexicon_rate(
             list(zip(self.dates, self.responses)), precision, before
         )
@@ -469,17 +471,19 @@ class Lexicon:
         :param point_2: finish point in time.
         :return: None if there is no enough data to compute rate.
         """
-        preferred_interval: int = self.get_preferred_interval()
+        preferred_interval: int | None = self.get_preferred_interval()
+        if not preferred_interval:
+            return None, None
 
         index_1, index_2 = self.get_bounds(point_1, point_2)
 
         if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
             if rate := self.get_average(index_1, index_2):
                 return rate, 1.0
-        elif index_2 and index_2 >= preferred_interval:
+        elif index_1 and index_2 and index_2 >= preferred_interval:
             if rate := self.get_average(index_2 - preferred_interval, index_2):
                 return rate, (index_2 - index_1) / preferred_interval
-        elif index_2:
+        elif index_1 and index_2:
             return None, (index_2 - index_1) / preferred_interval
 
         return None, None
@@ -780,8 +784,8 @@ class Lexicon:
     ) -> bool:
         lexicon_records: list[LexiconLogRecord] = []
 
+        lexicon: Lexicon
         for lexicon in user_data.get_lexicons_by_language(self.language):
-            lexicon: Lexicon
             if lexicon.has(picked_word):
                 lexicon_records += lexicon.get_records(picked_word)
 

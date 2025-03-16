@@ -75,7 +75,7 @@ class Sentence:
         for word, type_ in words:
             if type_ == SentenceElement.WORD:
                 word_number += 1
-                if is_known(word):
+                if is_known(word, language):
                     rating += 1
         if word_number == 0:
             return 0.0

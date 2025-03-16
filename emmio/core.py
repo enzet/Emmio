@@ -1,17 +1,20 @@
 import json
 import logging
+from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 
 
-class Record:
+class Record(ABC):
     """An abstraction for a record of actions."""
 
+    @abstractmethod
     def get_time(self) -> datetime:
         """Get the time when user response was received."""
         raise NotImplementedError()
 
-    def get_request_time(self) -> datetime:
+    @abstractmethod
+    def get_request_time(self) -> datetime | None:
         """Get the time when questioning was started."""
         raise NotImplementedError()
 
