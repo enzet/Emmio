@@ -1,3 +1,5 @@
+"""Data for audio files."""
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +26,11 @@ class AudioData(ArtifactData):
 
     @classmethod
     def from_config(cls, path: Path) -> "AudioData":
+        """Create an audio data from a configuration.
+
+        :param path: path to the configuration file
+        :return audio data
+        """
         config: dict = ArtifactData.read_config(path)
 
         audio_providers: dict[str, AudioProvider] = {}
@@ -34,6 +41,11 @@ class AudioData(ArtifactData):
         return cls(path, audio_providers)
 
     def get_audio_provider(self, usage_config: dict) -> AudioProvider:
+        """Get an audio provider from a usage configuration.
+
+        :param usage_config: usage configuration
+        :return audio provider
+        """
         match id_ := usage_config["id"]:
             case "wikimedia_commons":
                 return WikimediaCommonsAudioProvider(
@@ -46,6 +58,11 @@ class AudioData(ArtifactData):
     def get_audio_collection(
         self, usage_configs: list[dict]
     ) -> AudioCollection:
+        """Get an audio collection from a list of usage configurations.
+
+        :param usage_configs: list of usage configurations
+        :return audio collection
+        """
         return AudioCollection(
             [self.get_audio_provider(x) for x in usage_configs]
         )

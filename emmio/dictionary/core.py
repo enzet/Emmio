@@ -12,11 +12,13 @@ Dictionary: collection of all items.
 
 import asyncio
 import json
+import logging
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Coroutine, override
+from typing import Any, Coroutine, Self, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
@@ -59,15 +61,24 @@ class WordStatus(Enum):
 
 @dataclass
 class Link:
+    """Link between words.
+
+    E.g. `books` is a plural form of `book`, hence we have a link from `books`
+    to `book` with the type "plural form of".
+    """
+
     link_type: str
+    """Type of the link, e.g. "plural form of"."""
+
     link_value: str
+    """Word that is linked to."""
 
     def is_common(self) -> bool:
         """Check whether this link is common.
 
         Meaning is not
-            - slang, colloquial,
-            - obsolete, etc.
+          - slang, colloquial,
+          - obsolete, etc.
         """
         parts: list[str] = self.link_type.lower().split(" ")
 
@@ -83,11 +94,21 @@ class Link:
 
 @dataclass
 class DefinitionValue:
+    """Definition of a word."""
+
     value: str
+    """Text of the definition."""
+
     description: str = ""
+    """Some additional information about the definition."""
 
     @classmethod
     def from_text(cls, text: str) -> "DefinitionValue":
+        """Create a definition value from a text.
+
+        :param text: simple definition
+        :return definition value
+        """
         if matcher := re.match(
             "(?P<value>[^(]*) \\((?P<description>.*)\\)$", text
         ):
@@ -100,7 +121,6 @@ class DefinitionValue:
 
         :param to_hide: list of words to be hidden from the output
         """
-
         value: str = self.value
 
         if to_hide is not None:
@@ -115,13 +135,12 @@ class DefinitionValue:
 
 
 @dataclass
-class Audio:
-    url: str
-
-
-@dataclass
 class Definition:
     """Definition of a word.
+
+    E.g. for word "book", one of the definitions may be "(theater) The script of
+    a musical or opera", in which case the value is "The script of a musical or
+    opera" and the descriptor is "theater".
 
     If the language of the word and the definition differ, the definition is
     a translation.
@@ -135,14 +154,19 @@ class Definition:
 
     @classmethod
     def from_simple_translation(cls, translation: str) -> "Definition":
+        """Create a definition from a simple translation.
+
+        :param translation: text of the definition
+        :return definition
+        """
         return cls([DefinitionValue.from_text(translation)])
 
     def is_common(self) -> bool:
         """Check whether this definition is common.
 
         Meaning is not
-            - slang, colloquial,
-            - obsolete, etc.
+          - slang, colloquial,
+          - obsolete, etc.
         """
         for descriptor in DESCRIPTORS_OF_WORDS_TO_IGNORE:
             if descriptor in self.descriptors:
@@ -178,16 +202,30 @@ class Form:
     """Word form: noun, verb, etc."""
 
     word: str
+    """Word, the form of which is being defined."""
 
     part_of_speech: str | None = None
+    """Part of speech, e.g. "noun", "verb", etc."""
+
     transcriptions: set[str] = field(default_factory=set)
+    """IPA transcriptions of the word."""
+
     definitions: dict[Language, list[Definition]] = field(default_factory=dict)
+    """Definitions of the word in different languages."""
+
     links: list[Link] = field(default_factory=list)
+    """Links to other words."""
 
     # Optional characteristics.
+
     gender: str | None = None
+    """Gender of the word, e.g. "masculine", "feminine", "neuter"."""
+
     verb_group: int | None = None
+    """Group of the verb, e.g. 1, 2, 3, etc."""
+
     is_singular: bool | None = None
+    """Whether the word is singular (otherwise it is plural)."""
 
     @classmethod
     def from_simple_translation(
@@ -195,7 +233,14 @@ class Form:
         word: str,
         language: Language,
         translation: str,
-    ) -> "Form":
+    ) -> Self:
+        """Create a word form from a simple translation.
+
+        :param word: word being defined
+        :param language: language of the translation
+        :param translation: text of the translation
+        :return word form
+        """
         return cls(
             word,
             None,
@@ -203,38 +248,6 @@ class Form:
             {language: [Definition.from_simple_translation(translation)]},
             [],
         )
-
-    def add_transcription(self, transcription: str) -> None:
-        """Add word form IPA transcription."""
-        self.transcriptions.add(transcription)
-
-    def add_translations(
-        self, translations: list[Definition], language: Language
-    ) -> None:
-        """Add word translations."""
-        for translation in translations:
-            self.add_translation(translation, language)
-
-    def add_translation(
-        self, translation: Definition, language: Language
-    ) -> None:
-        """Add word translation.
-
-        It is assumed that translations are sorted by usage frequency.
-
-        :param language: language of translation
-        :param translation: word translation
-        """
-        if language not in self.definitions:
-            self.definitions[language] = []
-        self.definitions[language].append(translation)
-
-    def add_link(self, link: Link) -> None:
-        """Add link to another dictionary item if the word is a form.
-
-        :param link: link to another dictionary item
-        """
-        self.links.append(link)
 
     def is_not_common(self, language: Language) -> bool:
         """Check whether the word is not common.
@@ -267,20 +280,25 @@ class Form:
         language: Language,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
-        hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions: int = 5,
     ) -> list[Element] | None:
-        """Get human-readable representation of the word form."""
+        """Get human-readable representation of the word form.
 
+        :param language: language of definitions (if language is the same as the
+            language of the word form) or translations (if language is
+            different)
+        :param show_word: if false, hide word from the output
+        :param words_to_hide: set of words to be hidden from the output
+        :param only_common: return only common words
+        :param max_definitions: maximum number of definitions to be returned
+        """
         result: list[Element] = []
 
         to_hide: list[str] | None = None
 
-        if not show_word and words_to_hide and hide_translations:
-            to_hide = sorted(
-                list(words_to_hide | hide_translations), key=lambda x: -len(x)
-            )
+        if not show_word and words_to_hide:
+            to_hide = sorted(list(words_to_hide), key=lambda x: -len(x))
 
         description: list[str] = []
         if self.part_of_speech:
@@ -334,6 +352,10 @@ class Form:
         return result
 
     def get_links(self, only_common: bool = True) -> list[Link]:
+        """Get links to other words.
+
+        :param only_common: return only common links
+        """
         return [
             link for link in self.links if not only_common or link.is_common()
         ]
@@ -358,7 +380,14 @@ class DictionaryItem:
     @classmethod
     def from_simple_translation(
         cls, word: str, language: Language, translation: str
-    ) -> "DictionaryItem":
+    ) -> Self:
+        """Create a dictionary item from a simple translation.
+
+        :param word: word being defined
+        :param language: language of the translation
+        :param translation: text of the translation
+        :return dictionary item
+        """
         return cls(
             word, [Form.from_simple_translation(word, language, translation)]
         )
@@ -386,17 +415,16 @@ class DictionaryItem:
         languages: list[Language],
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
-        hide_translations: set[str] | None = None,
         only_common: bool = True,
         max_definitions_per_form: int = 5,
     ) -> list[Element]:
         """Get human-readable representation of the dictionary item.
 
-        :param languages: the languages of translation
-        :param show_word: if false, hide word transcription and word occurrences
-            in examples
+        :param languages: the languages of definitions (if language is the same
+            as the language of the word form) or translations (if language is
+            different)
+        :param show_word: if false, hide word from the output
         :param words_to_hide: set of words to be hidden from the output
-        :param hide_translations: list of translations that should be hidden
         :param only_common: return only common words
         :param max_definitions_per_form: maximum number of definitions to be
             returned for each form
@@ -421,7 +449,6 @@ class DictionaryItem:
                     language,
                     show_word,
                     words_to_hide,
-                    hide_translations,
                     only_common,
                     max_definitions_per_form,
                 )
@@ -446,14 +473,19 @@ class DictionaryItem:
         return True
 
     def get_one_word_definitions(self, language: Language) -> list[str]:
+        """Get definitions and translations that contain exactly one word.
+
+        :param language: language of definitions
+        """
         result: list[str] = []
 
         for form in self.get_forms():
-            if language in form.definitions:
-                for definition in form.definitions[language]:
-                    for value in definition.values:
-                        if " " not in value.value and value.value not in result:
-                            result.append(value.value)
+            if language not in form.definitions:
+                continue
+            for definition in form.definitions[language]:
+                for value in definition.values:
+                    if " " not in value.value and value.value not in result:
+                        result.append(value.value)
 
         return result
 
@@ -495,6 +527,8 @@ class DictionaryItem:
         return transcription, flatten(texts, 1, 1, 1)
 
     def get_transcriptions(self) -> list[str]:
+        """Get all transcriptions."""
+
         result: list[str] = []
         for form in self.get_forms():
             for transcription in form.transcriptions:
@@ -503,22 +537,35 @@ class DictionaryItem:
         return result
 
 
-class Dictionary:
+class Dictionary(ABC):
     """Dictionary of word definitions."""
 
     def __init__(self, id_: str) -> None:
+        """Initialize dictionary.
+
+        :param id_: unique string identifier of the dictionary
+        """
         self.id_: str = id_
         self.__items: dict[str, DictionaryItem] = {}
 
     def add(self, word: str, item: DictionaryItem) -> None:
-        """Add word definition."""
+        """Add word definition.
+
+        :param word: word to add dictionary item for
+        :param item: dictionary item to add
+        """
         self.__items[word] = item
 
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
-        """Get word definition."""
+        """Get word definition.
 
+        :param word: word to get definition for
+        :param cache_only: if true, return only cached definition, do not use
+            network
+        :return: word definition or `None` if definition is not cached
+        """
         if word in self.__items:
             return self.__items[word]
 
@@ -531,7 +578,6 @@ class Dictionary:
     async def get_items_marked(
         self,
         word: str,
-        language: Language,
         ignore_words: set[str] | None = None,
         follow_links: bool = True,
     ) -> list[tuple["Dictionary", DictionaryItem]]:
@@ -539,8 +585,12 @@ class Dictionary:
 
         Get item for the word itself, and recursively items for links if
         `follow_links` is set.
-        """
 
+        :param word: word to get dictionary items for
+        :param ignore_words: set of words to ignore
+        :param follow_links: if true, follow links
+        :return: list of dictionaries and dictionary items
+        """
         if ignore_words and word in ignore_words:
             return []
         if not ignore_words:
@@ -570,7 +620,6 @@ class Dictionary:
                 Any, Any, list[tuple["Dictionary", DictionaryItem]]
             ] = self.get_items_marked(
                 link_value,
-                language,
                 ignore_words,
                 follow_links,
             )
@@ -584,17 +633,15 @@ class Dictionary:
 
         return items_marked
 
-    def check_from_language(self, language: Language) -> bool:
-        raise NotImplementedError()
-
-    def check_to_language(self, language: Language) -> bool:
-        raise NotImplementedError()
-
+    @abstractmethod
     def get_name(self) -> str:
+        """Get the name of the dictionary."""
         raise NotImplementedError()
 
 
 class SimpleDictionary(Dictionary):
+    """Simple dictionary with word-definition pairs."""
+
     def __init__(
         self,
         id_: str,
@@ -604,6 +651,15 @@ class SimpleDictionary(Dictionary):
         from_language: Language,
         to_language: Language,
     ) -> None:
+        """Initialize simple dictionary.
+
+        :param id_: unique string identifier of the dictionary
+        :param path: path to the dictionary file
+        :param name: name of the dictionary
+        :param data: dictionary data
+        :param from_language: language of the dictionary
+        :param to_language: language of the dictionary
+        """
         super().__init__(id_)
         self.path: Path = path
         self.name: str = name
@@ -612,12 +668,24 @@ class SimpleDictionary(Dictionary):
         self.to_language: Language = to_language
 
     def add_simple(self, word: str, definition: str) -> None:
+        """Add a simple word-definition pair.
+
+        :param word: word to add definition for
+        :param definition: definition to add
+        """
         self.data[word] = definition
 
     @classmethod
     def from_config(
         cls, path: Path, id_: str, config: DictionaryConfig
-    ) -> "SimpleDictionary":
+    ) -> Self:
+        """Initialize simple dictionary from configuration.
+
+        :param path: path to the directory with dictionaries and `config.json`
+            file
+        :param id_: unique string identifier of the dictionary
+        :param config: dictionary configuration
+        """
         with (path / config.file_name).open() as input_file:
             data: dict[str, str] = json.load(input_file)
 
@@ -630,6 +698,7 @@ class SimpleDictionary(Dictionary):
             construct_language(config.to_language),
         )
 
+    @override
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
@@ -641,14 +710,9 @@ class SimpleDictionary(Dictionary):
         item.add_form(Form(word, definitions={self.to_language: definitions}))
         return item
 
-    def check_from_language(self, language: Language) -> bool:
-        return self.from_language == language
-
-    def check_to_language(self, language: Language) -> bool:
-        return self.to_language == language
-
     def write(self):
-        print(f"dumped to {self.path}")
+        """Write the dictionary to the file."""
+        logging.info(f"Dictionary `{self.id_}` dumped to `{self.path}`.")
         with self.path.open("w") as output_file:
             json.dump(
                 self.data,
@@ -668,11 +732,14 @@ class DictionaryCollection:
     """A set of dictionaries for a language."""
 
     dictionaries: list[Dictionary] = field(default_factory=list)
+    """List of dictionaries."""
 
     def add_dictionary(self, dictionary: Dictionary) -> None:
         """Add dictionary to the list.
 
         It will have lower priority than previously added dictionaries.
+
+        :param dictionary: dictionary to add
         """
         self.dictionaries.append(dictionary)
 
@@ -681,7 +748,11 @@ class DictionaryCollection:
     ) -> list[tuple[Dictionary, DictionaryItem]]:
         """Get dictionary items from all dictionaries.
 
-        :return: list of dictionaries and dictionary items
+        :param word: word to get dictionary items for
+        :param language: language of the word
+        :param follow_links: if true, follow links and include items of linked
+            words
+        :return: list of (dictionary, dictionary item) pairs
         """
         if not word:
             return []
@@ -692,9 +763,7 @@ class DictionaryCollection:
         dictionary: Dictionary
         for dictionary in self.dictionaries:
             coroutine = dictionary.get_items_marked(
-                word,
-                language,
-                follow_links=follow_links,
+                word, follow_links=follow_links
             )
             tasks.append(asyncio.create_task(coroutine))
 
@@ -743,6 +812,11 @@ class DictionaryCollection:
         ]
 
     def get_dictionary(self, dictionary_id: str) -> Dictionary | None:
+        """Get dictionary by its identifier.
+
+        :param dictionary_id: identifier of the dictionary
+        :return: dictionary or `None` if dictionary is not found
+        """
         for dictionary in self.dictionaries:
             if dictionary.id_ == dictionary_id:
                 return dictionary
@@ -755,8 +829,14 @@ class DictionaryCollection:
         language: Language,
         languages: list[Language],
     ) -> list[Element] | None:
-        """Get formatted dictionary items."""
+        """Get formatted dictionary items.
 
+        :param word: word to get dictionary items for
+        :param language: language of the word
+        :param languages: languages of definitions or translations
+        :return: formatted definitions or translations of the word or `None` if
+            no items are found
+        """
         result: list[Element] = []
 
         items: list[tuple[Dictionary, DictionaryItem]] = (

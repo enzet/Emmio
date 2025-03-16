@@ -3,6 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+from typing import Self
 
 
 class Record(ABC):
@@ -43,11 +44,12 @@ class Session:
         raise NotImplementedError()
 
 
-class ArtifactData:
+class ArtifactData(ABC):
     """A manager for data of a particular artifact."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "ArtifactData":
+    @abstractmethod
+    def from_config(cls, path: Path) -> Self:
         """Create an artifact data manager from the configuration file.
 
         :param path: path to the artifact data directory; if the directory

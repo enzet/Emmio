@@ -171,6 +171,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     @override
     def get_paths(self, word: str) -> list[Path]:
+
         if path := self.get_path(word):
             return [path]
         return []
@@ -266,21 +267,34 @@ class AudioCollection:
     """List of audio providers sorted by priority."""
 
     def get_paths(self, word: str) -> list[Path]:
-        """Get paths to audio files with the specified word."""
+        """Get paths to audio files with the specified word.
+
+        :param word: word to get audio paths for
+        :return list of paths to the audio files
+        """
         result: list[Path] = []
         for audio_provider in self.audio_providers:
             result += audio_provider.get_paths(word)
         return result
 
     def play(self, word: str, repeat: int = 1) -> bool:
-        """Voice the word."""
+        """Play pronunciations of the word from different providers.
+
+        :param word: word to play pronunciations for
+        :param repeat: number of times to play each pronunciation
+        :return true iff at least one pronunciation was played
+        """
         for audio in self.audio_providers:
             if audio.play(word, repeat):
                 return True
         return False
 
     def has(self, word: str) -> bool:
-        """Check whether the audio collection has audio for the word."""
+        """Check whether the audio collection has audio for the word.
+
+        :param word: word to check audio for
+        :return true iff at least one pronunciation is available
+        """
         for audio_provider in self.audio_providers:
             if audio_provider.has(word):
                 return True

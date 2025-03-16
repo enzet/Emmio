@@ -418,10 +418,6 @@ class Teacher:
         )
 
         alternative_forms: set[str] = set()
-        exclude_translations: set[str] = set()
-
-        # if word in self.data.exclude_translations:
-        #     exclude_translations = set(self.data.exclude_translations[word])
 
         if self.scheme and self.scheme.actions:
             for action in self.scheme.actions:
@@ -448,8 +444,7 @@ class Teacher:
                 translation = item.to_text(
                     self.learning.base_languages,
                     False,
-                    words_to_hide=words_to_hide | exclude_translations,
-                    hide_translations=exclude_translations,
+                    words_to_hide=words_to_hide,
                     only_common=False,
                 )
                 for element in translation:
