@@ -490,10 +490,10 @@ class Learning:
         total_actions: int = 0
 
         for session in self.process.sessions:
-            time: timedelta = session.get_time()
+            time: timedelta | None = session.get_time()
             if time:
                 total_time += time
-                total_actions += session.actions
+                total_actions += session.actions or 0
 
         if total_actions:
             return total_time / total_actions
@@ -535,14 +535,14 @@ def load_old_format(path: Path):
                 + timedelta(seconds=(x - array[-1]) * 24 * 60 * 60)
                 for x in array
             ]
-            for time, answer, interval in zip(times, answers, intervals):
+            for delta, answer, interval in zip(times, answers, intervals):
                 record: LearningRecord = LearningRecord(
                     question_id=str(question_id),
                     response=(
                         Response.RIGHT if answer == "y" else Response.WRONG
                     ),
                     sentence_id=0,
-                    time=time,
+                    time=delta,
                 )
                 learning_records.append(record)
 

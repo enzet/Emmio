@@ -12,6 +12,8 @@ from typing import Any
 
 import yaml
 
+from emmio.language import Language
+from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.serialization import DATE_FORMAT, EPOCH, Decoder, Encoder
 from emmio.util import MalformedFile
@@ -45,7 +47,14 @@ class LearningYAMLDecoder:
 
         learning: Learning = Learning(
             path,
-            {"frequency_lists": []},
+            LearnConfig(
+                file_name=path.name,
+                name=path.stem,
+                learning_language=Language.from_code(path.name[:2]),
+                base_languages=[],
+                scheme=None,
+                dictionaries=[],
+            ),
             id_,
         )
 
@@ -61,10 +70,14 @@ class LearningYAMLDecoder:
             ):
                 continue
 
-            added: datetime = EPOCH + timedelta(seconds=process["added"] * 60)
-            last: datetime = EPOCH + timedelta(seconds=process["last"] * 60)
+            added: datetime = EPOCH + timedelta(
+                seconds=float(process["added"]) * 60
+            )
+            last: datetime = EPOCH + timedelta(
+                seconds=float(process["last"]) * 60
+            )
 
-            answers: str = process["answers"]
+            answers: str = str(process["answers"])
             count: float = 0.0
 
             # Learning interval in minutes.
@@ -207,10 +220,10 @@ if __name__ == "__main__":
       - path to directory to store created JSON files.
     """
 
-    path: str = sys.argv[1]
+    file_name: str = sys.argv[1]
     learning_directory: str = sys.argv[2]
 
-    with Path(path).open() as input_file:
+    with Path(file_name).open() as input_file:
         content: dict[str, dict[str, dict[str, str | int]]] = yaml.load(
             input_file, Loader=yaml.FullLoader
         )
