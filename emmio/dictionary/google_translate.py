@@ -49,7 +49,7 @@ class GoogleTranslate(Dictionary):
         # Try to read cached file.
         cache_path: Path = self.cache_directory / word
         if cache_path.exists():
-            with cache_path.open() as input_file:
+            with cache_path.open(encoding="utf-8") as input_file:
                 return DictionaryItem.from_simple_translation(
                     word, self.to_language, input_file.read()
                 )
@@ -68,7 +68,9 @@ class GoogleTranslate(Dictionary):
         except httpx.ConnectTimeout:
             return None
 
-        with (self.cache_directory / word).open("w") as output_file:
+        with (self.cache_directory / word).open(
+            "w", encoding="utf-8"
+        ) as output_file:
             output_file.write(translation.text)
 
         return DictionaryItem.from_simple_translation(

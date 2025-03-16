@@ -65,6 +65,9 @@ disable = [
     "W0511",  # `TODO`/`FIXME` comments warning.
     "R0902",  # Too many instance attributes.
     "R0903",  # Too few public methods.
+    "R0912",  # Too many branches.
     "R0913",  # Too many arguments in function.
     "R0914",  # Too many local variables.
+    "R0915",  # Too many statements.
+    "R0917",  # Too many positional arguments.
 ]

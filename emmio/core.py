@@ -73,5 +73,5 @@ class ArtifactData(ABC):
                 logging.fatal(f"{path.parent} doesn't exist.")
                 raise FileExistsError()
         else:
-            with (path / "config.json").open() as config_file:
+            with (path / "config.json").open(encoding="utf-8") as config_file:
                 return json.load(config_file)

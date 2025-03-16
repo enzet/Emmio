@@ -68,7 +68,7 @@ def fill_data(
     result = list(sorted(result, key=lambda x: x["index"]))
 
     with (Path("web") / f"{lexicon.language.get_code()}.js").open(
-        "w"
+        "w", encoding="utf-8"
     ) as output_file:
         output_file.write(f"{lexicon.language.get_code()} = ")
         json.dump(result, output_file)

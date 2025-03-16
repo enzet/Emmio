@@ -240,7 +240,7 @@ class UserData:
             None,
             ListenData(path / LISTEN_DIRECTORY_NAME),
         )
-        with (path / "config.json").open("w+") as output_file:
+        with (path / "config.json").open("w+", encoding="utf-8") as output_file:
             json.dump(config, output_file, ensure_ascii=False, indent=4)
             user_data.config = config
 
@@ -248,7 +248,9 @@ class UserData:
 
     def write_config(self) -> None:
         """Write configuration to the JSON file."""
-        with (self.path / "config.json").open("w+") as output_file:
+        with (self.path / "config.json").open(
+            "w+", encoding="utf-8"
+        ) as output_file:
             config: dict = {
                 "id": self.user_id,
                 "name": self.user_name,

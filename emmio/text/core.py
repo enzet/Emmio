@@ -25,7 +25,9 @@ class Texts:
         data: dict[Language, list[str]] = {}
         for text_config in config.texts:
             language: Language = construct_language(text_config.language)
-            with (path / text_config.file_path).open() as input_file:
+            with (path / text_config.file_path).open(
+                encoding="utf-8"
+            ) as input_file:
                 lines: list[str] = input_file.readlines()
             data[language] = [x[:-1] for x in lines]
 

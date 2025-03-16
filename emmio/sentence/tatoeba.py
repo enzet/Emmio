@@ -62,21 +62,21 @@ class TatoebaSentences(Sentences):
         else:
             self.read_links(self.path / "cache")
             logging.info("Caching links...")
-            with open(links_cache_path, "w+") as output_file:
+            with links_cache_path.open("w+", encoding="utf-8") as output_file:
                 content = {}
                 for key in self.links:
                     assert isinstance(key, int)
                     content[key] = list(self.links[key])
                 json.dump(content, output_file)
 
-        word_cache_path: str = join(
-            self.path / "cache", f"cache_{self.language_2.get_part3()}.json"
+        word_cache_path: Path = (
+            self.path / "cache" / f"cache_{self.language_2.get_part3()}.json"
         )
         # FIXME: remove cache file.
 
         if os.path.isfile(word_cache_path):
             logging.info("Reading word cache...")
-            with open(word_cache_path) as input_file:
+            with word_cache_path.open(encoding="utf-8") as input_file:
                 self.cache = json.load(input_file)
         else:
             self.fill_cache(word_cache_path)
@@ -102,7 +102,7 @@ class TatoebaSentences(Sentences):
             f"Reading links from `links.csv` between {self.language_1.get_name()} "
             f"and {self.language_2.get_name()}..."
         )
-        with file_path.open() as input_1:
+        with file_path.open(encoding="utf-8") as input_1:
             lines = input_1.readlines()
 
         links: dict[int, set[int]] = {}
@@ -153,7 +153,7 @@ class TatoebaSentences(Sentences):
         """Read link cache from a JSON file."""
 
         logging.info("Reading link cache...")
-        with file_name.open() as input_file:
+        with file_name.open(encoding="utf-8") as input_file:
             links: dict[str, list[int]] = json.load(input_file)
 
         # JSON file may contain only string keys, so we need to convert them to
@@ -161,7 +161,7 @@ class TatoebaSentences(Sentences):
         for key, value in links.items():
             self.links[int(key)] = set(value)
 
-    def fill_cache(self, file_name: str) -> None:
+    def fill_cache(self, file_name: Path) -> None:
         """Construct dictionary from words to sentences."""
         logging.info("Fill word cache...")
         for index, id_ in enumerate(tqdm(self.links.keys())):
@@ -184,7 +184,7 @@ class TatoebaSentences(Sentences):
                 if word not in self.cache:
                     self.cache[word] = []
                 self.cache[word].append(id_)
-        with open(file_name, "w+") as output_file:
+        with file_name.open("w+", encoding="utf-8") as output_file:
             logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
 

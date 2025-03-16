@@ -8,5 +8,7 @@ API.
 import json
 from pathlib import Path
 
-with (Path(__file__).parent / "config.json").open() as config_file:
+with (Path(__file__).parent / "config.json").open(
+    encoding="utf-8"
+) as config_file:
     CONFIG: dict[str, list[str]] = json.load(config_file)

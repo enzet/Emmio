@@ -63,7 +63,7 @@ class SentenceDatabase(Database):
             f"CREATE TABLE {table_id} (id integer primary key, sentence text)"
         )
         logging.info(f"Reading table `{table_id}`...")
-        with file_path.open() as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
                 self.cursor.execute(

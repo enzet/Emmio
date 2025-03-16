@@ -27,7 +27,7 @@ class WordList(List):
         file_path: Path = path / config.path
         logging.debug(f"Loading word list from list file {file_path}.")
 
-        with file_path.open() as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             data = [x[:-1] for x in input_file.readlines()]
 
         return cls(file_path, config, data)

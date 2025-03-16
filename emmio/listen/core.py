@@ -39,7 +39,7 @@ class Listening:
             self.process = ListeningProcess(records=[])
             self.write()
         else:
-            with self.file_path.open() as input_file:
+            with self.file_path.open(encoding="utf-8") as input_file:
                 self.process = ListeningProcess(**json.load(input_file))
 
         self.__words_cache: dict[str, int] = defaultdict(int)
@@ -56,7 +56,7 @@ class Listening:
         """Write data to the output file."""
         temp_path: Path = self.file_path.with_suffix(".temp")
 
-        with temp_path.open("w+") as output_file:
+        with temp_path.open("w+", encoding="utf-8") as output_file:
             data = self.process.json(ensure_ascii=False, indent=4)
             output_file.write(data)
 

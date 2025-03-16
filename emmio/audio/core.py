@@ -164,7 +164,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         cache_file: Path = (
             cache_directory / f"wikimedia_commons_{language.get_code()}.json"
         )
-        with cache_file.open() as input_file:
+        with cache_file.open(encoding="utf-8") as input_file:
             self.cache = json.load(input_file)
 
     @override

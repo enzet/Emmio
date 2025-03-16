@@ -219,11 +219,10 @@ if __name__ == "__main__":
       - path to learning process YAML file version 0.1,
       - path to directory to store created JSON files.
     """
-
     file_name: str = sys.argv[1]
     learning_directory: str = sys.argv[2]
 
-    with Path(file_name).open() as input_file:
+    with Path(file_name).open(encoding="utf-8") as input_file:
         content: dict[str, dict[str, dict[str, str | int]]] = yaml.load(
             input_file, Loader=yaml.FullLoader
         )

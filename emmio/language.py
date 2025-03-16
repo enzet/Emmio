@@ -18,7 +18,9 @@ __email__ = "me@enzet.ru"
 DEFAULT_COLOR: Color = Color("black")
 
 DIGRAPHS: dict[str, dict[str, str]]
-with (Path(__file__).parent / "digraphs.json").open() as config_file:
+with (Path(__file__).parent / "digraphs.json").open(
+    encoding="utf-8"
+) as config_file:
     DIGRAPHS = json.load(config_file)
 
 

@@ -215,7 +215,7 @@ class FrequencyList(List):
         count_index: int = config.csv_header.index("count")
         word_index: int = config.csv_header.index("word")
 
-        with file_path.open() as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines()[1:]:
                 parts = line.split(config.csv_delimiter)
                 count: int = int(parts[count_index])
@@ -238,7 +238,7 @@ class FrequencyList(List):
         """Load frequency list from JSON file."""
 
         logging.debug(f"Loading frequency list from JSON file {file_path}.")
-        with file_path.open() as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             structure: list[tuple[str, int]] = json.load(input_file)
 
         data: dict[str, int] = {
@@ -255,7 +255,7 @@ class FrequencyList(List):
         logging.debug(f"Loading frequency list from list file {file_path}.")
         data: dict[str, int] = {}
 
-        with file_path.open() as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             while line := input_file.readline():
                 try:
                     position: int = line.find(" ")

@@ -249,7 +249,7 @@ class Learning:
             self.write()
         elif self.file_path.name.endswith(".json"):
             logging.info(f"Reading {self.file_path}...")
-            with self.file_path.open() as log_file:
+            with self.file_path.open(encoding="utf-8") as log_file:
                 try:
                     self.process = LearningProcess(**(json.load(log_file)))
                 except json.decoder.JSONDecodeError:
@@ -408,7 +408,7 @@ class Learning:
         """Serialize learning process to a file."""
         if self.file_path.name.endswith(".json"):
             logging.debug(f"Saving learning process to {self.file_path}...")
-            with self.file_path.open("w+") as output_file:
+            with self.file_path.open("w+", encoding="utf-8") as output_file:
                 output_file.write(self.process.model_dump_json(indent=4))
 
     def is_ready(self) -> bool:
@@ -506,7 +506,7 @@ def time_format(minutes: int) -> datetime:
 
 
 def load_old_format(path: Path):
-    with path.open() as input_file:
+    with path.open(encoding="utf-8") as input_file:
         process: dict[str, dict[str, Any]] = yaml.load(
             input_file, Loader=yaml.FullLoader
         )

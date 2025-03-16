@@ -89,9 +89,9 @@ class Data:
             users_path.mkdir()
 
         for user_path in users_path.iterdir():
-            with (
-                user_path / CONFIGURATION_FILE_NAME
-            ).open() as user_config_file:
+            with (user_path / CONFIGURATION_FILE_NAME).open(
+                encoding="utf-8"
+            ) as user_config_file:
                 user_data[user_path.name] = UserData.from_config(
                     user_path.name, user_path, json.load(user_config_file)
                 )

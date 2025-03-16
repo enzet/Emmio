@@ -261,10 +261,10 @@ class Lexicon:
         # Read data from file.
 
         if not self.file_path.exists():
-            with self.file_path.open("w+") as output:
+            with self.file_path.open("w+", encoding="utf-8") as output:
                 output.write("{}")
 
-        with self.file_path.open() as input_file:
+        with self.file_path.open(encoding="utf-8") as input_file:
             data = json.load(input_file)
 
         self.log: LexiconLog = LexiconLog(**data)
@@ -294,7 +294,7 @@ class Lexicon:
         """Write lexicon to a JSON file using string writing."""
         logging.debug(f"writing lexicon to {self.file_path}")
 
-        with self.file_path.open("w+") as output:
+        with self.file_path.open("w+", encoding="utf-8") as output:
             output.write(self.log.model_dump_json(indent=4, exclude_none=True))
 
     def know(self, word: str) -> bool:

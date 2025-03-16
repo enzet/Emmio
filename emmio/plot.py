@@ -240,7 +240,7 @@ class Graph:
             self.last_text_y = text_y
 
     def write(self, svg):
-        with Path(svg.filename).open("w+") as output_file:
+        with Path(svg.filename).open("w+", encoding="utf-8") as output_file:
             svg.write(output_file)
 
         logging.info(f"Graph was saved to {Path(svg.filename).absolute()}.")

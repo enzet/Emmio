@@ -151,7 +151,7 @@ class EnglishWiktionaryKaikki(Dictionary):
         logging.info(
             f"Creating cache for {self.from_language.get_name()} Kaikki..."
         )
-        with open(file_path) as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             for line in tqdm(input_file.readlines()):
                 item = json.loads(line)
                 word: str = item["word"]
@@ -161,8 +161,8 @@ class EnglishWiktionaryKaikki(Dictionary):
                     (self.cache_directory / word[0].lower()).mkdir(
                         parents=True, exist_ok=True
                     )
-                    with open(
-                        self.get_cache_file_path(word), "a"
+                    with self.get_cache_file_path(word).open(
+                        "a", encoding="utf-8"
                     ) as output_file:
                         output_file.write(line)
 
@@ -281,7 +281,7 @@ class EnglishWiktionaryKaikki(Dictionary):
         self.processed_file_paths.add(cache_file_path)
 
         dictionary_item: DictionaryItem
-        with open(cache_file_path) as input_file:
+        with cache_file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 item: dict[str, Any] = json.loads(line)
                 if item["word"] in self.items:

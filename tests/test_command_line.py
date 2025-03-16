@@ -40,26 +40,38 @@ def initialize(
     if dictionaries_configuration is None:
         dictionaries_configuration = {}
     with open(
-        temp_directory / "dictionaries" / "config.json", "w"
+        temp_directory / "dictionaries" / "config.json",
+        "w",
+        encoding="utf-8",
     ) as output_file:
         json.dump(dictionaries_configuration, output_file)
 
     if dictionaries is not None:
         for file_name, content in dictionaries.items():
             with open(
-                temp_directory / "dictionaries" / file_name, "w"
+                temp_directory / "dictionaries" / file_name,
+                "w",
+                encoding="utf-8",
             ) as output_file:
                 output_file.write(content)
 
     # Configurate lists.
 
     if lists_configuration is not None:
-        with open(temp_directory / "lists" / "config.json", "w") as output_file:
+        with open(
+            temp_directory / "lists" / "config.json",
+            "w",
+            encoding="utf-8",
+        ) as output_file:
             json.dump(lists_configuration, output_file)
 
     if lists is not None:
         for file_name, content in lists.items():
-            with open(temp_directory / "lists" / file_name, "w") as output_file:
+            with open(
+                temp_directory / "lists" / file_name,
+                "w",
+                encoding="utf-8",
+            ) as output_file:
                 output_file.write(content)
 
     # Configurate user.
@@ -73,13 +85,15 @@ def initialize(
     }
     if lexicons_configuration is not None:
         user_configuration["lexicon"] = lexicons_configuration
-    with open(temp_user_config, "w") as output_file:
+    with open(temp_user_config, "w", encoding="utf-8") as output_file:
         json.dump(user_configuration, output_file)
 
     if lexicons is not None:
         for file_name, lexicon_structure in lexicons.items():
             with open(
-                temp_user_directory / "lexicon" / file_name, "w"
+                temp_user_directory / "lexicon" / file_name,
+                "w",
+                encoding="utf-8",
             ) as output_file:
                 json.dump(lexicon_structure, output_file)
 

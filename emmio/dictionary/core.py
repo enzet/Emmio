@@ -686,7 +686,7 @@ class SimpleDictionary(Dictionary):
         :param id_: unique string identifier of the dictionary
         :param config: dictionary configuration
         """
-        with (path / config.file_name).open() as input_file:
+        with (path / config.file_name).open(encoding="utf-8") as input_file:
             data: dict[str, str] = json.load(input_file)
 
         return cls(
@@ -713,7 +713,7 @@ class SimpleDictionary(Dictionary):
     def write(self):
         """Write the dictionary to the file."""
         logging.info(f"Dictionary `{self.id_}` dumped to `{self.path}`.")
-        with self.path.open("w") as output_file:
+        with self.path.open("w", encoding="utf-8") as output_file:
             json.dump(
                 self.data,
                 output_file,
