@@ -111,7 +111,7 @@ class TatoebaSentences(Sentences):
             f"Caching links between {self.language_1.get_name()} and "
             f"{self.language_2.get_name()} Tatoeba sentences..."
         )
-        for index, line in enumerate(tqdm(lines)):
+        for line in tqdm(lines):
             try:
                 id_1, id_2 = map(int, line[:-1].split("\t"))
             except ValueError:
@@ -164,7 +164,7 @@ class TatoebaSentences(Sentences):
     def fill_cache(self, file_name: Path) -> None:
         """Construct dictionary from words to sentences."""
         logging.info("Fill word cache...")
-        for index, id_ in enumerate(tqdm(self.links.keys())):
+        for id_ in tqdm(self.links.keys()):
             id_ = int(id_)
             word: str = ""
             sentence_words: set[str] = set()

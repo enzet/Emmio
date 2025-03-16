@@ -125,9 +125,7 @@ class UserData:
         if self.is_known(word, language):
             return True
 
-        learning_responses, lexicon_responses = self.get_word_status(
-            word, language
-        )
+        _, lexicon_responses = self.get_word_status(word, language)
         for lexicon_response in lexicon_responses:
             if lexicon_response in [
                 LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,

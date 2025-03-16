@@ -436,7 +436,7 @@ class Lexicon:
     def get_last_rate(
         self, precision: int = 100, before: datetime | None = None
     ) -> float | None:
-        dates, rates = self.construct_precise(precision, before)
+        _, rates = self.construct_precise(precision, before)
         if rates:
             return rates[-1]
         return None
@@ -619,7 +619,7 @@ class Lexicon:
             index: int = int((left_border + right_border) / 2)
             picked_word, occurrences = frequency_list.get_word_by_index(index)
             print(occurrences)
-            to_skip, response, dictionary = await self.ask(
+            _, response, _ = await self.ask(
                 interface,
                 picked_word,
                 dictionaries=dictionaries,
@@ -716,16 +716,11 @@ class Lexicon:
             picked_word: str
 
             if log_type == "frequency":
-                (
-                    picked_word,
-                    occurrences,
-                ) = frequency_list.get_random_word_by_frequency()
+                picked_word, _ = frequency_list.get_random_word_by_frequency()
             elif log_type == "random":
-                picked_word, occurrences = frequency_list.get_random_word()
+                picked_word, _ = frequency_list.get_random_word()
             elif log_type == "most frequent":
-                picked_word, occurrences = frequency_list.get_word_by_index(
-                    mf_index
-                )
+                picked_word, _ = frequency_list.get_word_by_index(mf_index)
                 mf_index += 1
                 if self.has(picked_word):
                     continue
@@ -742,7 +737,7 @@ class Lexicon:
             if self.do_skip(picked_word, user_data, skip_known, skip_unknown):
                 continue
 
-            to_skip, response, dictionary = await self.ask(
+            _, response, _ = await self.ask(
                 interface,
                 picked_word,
                 dictionaries,

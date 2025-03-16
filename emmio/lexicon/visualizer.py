@@ -330,7 +330,7 @@ class LexiconVisualizer:
 
         index: int = 0
         for index, current_range in enumerate(date_ranges):
-            start, end = current_range
+            _, end = current_range
             if point < end:
                 while point < end:
                     xs.append(point)

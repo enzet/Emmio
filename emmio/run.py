@@ -97,8 +97,6 @@ class Emmio:
     async def process_command(
         self, command: str, interactive: bool = True
     ) -> None:
-        data: Data = self.data
-
         parser: ArgumentParser = ArgumentParser(
             exit_on_error=False, add_help=False
         )
@@ -304,7 +302,7 @@ class Emmio:
                     learnings = [
                         self.data.get_learning(self.user_id, arguments.topic)
                     ]
-                except ValueError as e:
+                except ValueError:
                     self.interface.print(
                         f"No learning found for `{arguments.topic}`."
                     )
@@ -801,7 +799,7 @@ class Emmio:
 
         rows: list[list[InlineElement | str]] = []
         for learning in self.user_data.get_active_learnings():
-            for question_id, knowledge in learning.knowledge.items():
+            for knowledge in learning.knowledge.values():
                 if not knowledge.is_learning():
                     continue
                 if start <= learning.get_next_time(knowledge) < start + delta:

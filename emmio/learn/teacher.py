@@ -360,7 +360,7 @@ class Teacher:
         :param show_index: show current sentence index
         :param max_translations: maximum number of translations to show
         """
-        rating, sentence_translations = rated_sentences[index]
+        _, sentence_translations = rated_sentences[index]
         text: str = sentence_translations.sentence.text
         if show_index:
             text += f" ({index + 1}/{len(rated_sentences)})"
@@ -524,7 +524,7 @@ class Teacher:
                 return "stop"
 
             if answer.startswith("/know "):
-                command, command_word = answer.split(" ")
+                _, command_word = answer.split(" ")
                 # TODO: sanitize user input.
                 if self.learning_lexicon:
                     self.learning_lexicon.register(
@@ -539,7 +539,7 @@ class Teacher:
                     self.interface.print("No lexicon specified.")
 
             if answer.startswith("/not_a_word "):
-                command, command_word = answer.split(" ")
+                _, command_word = answer.split(" ")
                 # TODO: sanitize user input.
                 if self.learning_lexicon:
                     self.learning_lexicon.register(

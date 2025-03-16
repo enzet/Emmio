@@ -165,7 +165,7 @@ class Visualizer:
 
         data: list[int] = [0] * ((day_max - day_min).days + 1)
 
-        for record, learning in records:
+        for record, _ in records:
             if record.response in [Response.RIGHT, Response.WRONG]:
                 data[(day_start(record.time) - day_min).days] += 1
 
@@ -262,7 +262,7 @@ class Visualizer:
             for pr in values_map
         }
 
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         plt.plot(
             [mdates.date2num(z) for z in xs],
@@ -420,7 +420,7 @@ class Visualizer:
 
         last_record: LearningRecord | None = records[0][0] if records else None
 
-        for record, learning in records:
+        for record, _ in records:
             if last_record is None:
                 last_record = record
                 continue

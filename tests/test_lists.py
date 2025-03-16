@@ -78,7 +78,7 @@ def test_read_csv() -> None:
         patch("pathlib.Path.open", mock_file),
     ):
         mock_exists.return_value = True
-        frequency_list: FrequencyList = FrequencyList.from_config(
+        FrequencyList.from_config(
             path=Path("tests", "data"),
             config=FrequencyListConfig(
                 path=file_name,
