@@ -3,6 +3,7 @@ import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio import ui
 from emmio.audio.data import AudioData
@@ -68,9 +69,11 @@ class Data:
     """Mapping from used unique identifiers to user data managers."""
 
     @classmethod
-    def from_directory(cls, path: Path) -> "Data":
-        """Initialize Emmio data from its directory."""
+    def from_directory(cls, path: Path) -> Self:
+        """Initialize Emmio data from its directory.
 
+        :param path: path to the directory with Emmio data
+        """
         sentences: SentencesData = SentencesData.from_config(
             path / SENTENCES_DIRECTORY_NAME
         )

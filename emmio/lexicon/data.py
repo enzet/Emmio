@@ -3,6 +3,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Self
 
 from pydantic import ValidationError
 
@@ -22,7 +23,7 @@ class LexiconData:
     """Mapping from lexicon identifier to lexicon."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict) -> "LexiconData":
+    def from_config(cls, path: Path, config: dict) -> Self:
         lexicons: dict[str, Lexicon] = {}
 
         for lexicon_id, lexicon_config in config.items():

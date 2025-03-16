@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.core import ArtifactData
 from emmio.dictionary.config import DictionaryConfig
@@ -24,8 +25,11 @@ class DictionaryData(ArtifactData):
     """Mapping from unique dictionary string identifier to dictionary."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "DictionaryData":
-        """Initialize dictionaries from a directory."""
+    def from_config(cls, path: Path) -> Self:
+        """Initialize dictionaries from a directory.
+
+        :param path: path to the directory with dictionaries
+        """
         config: dict = ArtifactData.read_config(path)
 
         dictionaries: dict[str, Dictionary] = {}

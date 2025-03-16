@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.core import ArtifactData
 from emmio.language import Language
@@ -23,7 +24,7 @@ class ListsData(ArtifactData):
     """Collection of word lists."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "ListsData":
+    def from_config(cls, path: Path) -> Self:
         """Initialize lists from a directory.
 
         :param path: path to the directory with lists

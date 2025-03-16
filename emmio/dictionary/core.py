@@ -103,7 +103,7 @@ class DefinitionValue:
     """Some additional information about the definition."""
 
     @classmethod
-    def from_text(cls, text: str) -> "DefinitionValue":
+    def from_text(cls, text: str) -> Self:
         """Create a definition value from a text.
 
         :param text: simple definition
@@ -153,7 +153,7 @@ class Definition:
     """Descriptors of the definition (e.g. "slang", "colloquial", etc.)."""
 
     @classmethod
-    def from_simple_translation(cls, translation: str) -> "Definition":
+    def from_simple_translation(cls, translation: str) -> Self:
         """Create a definition from a simple translation.
 
         :param translation: text of the definition

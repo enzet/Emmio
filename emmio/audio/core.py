@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import override
+from typing import Self, override
 
 try:
     import mpv
@@ -90,9 +90,7 @@ class DirectoryAudioProvider(AudioProvider):
                 logging.warning(f"Unknown file `{path}`.")
 
     @classmethod
-    def from_config(
-        cls, path: Path, config: AudioConfig
-    ) -> "DirectoryAudioProvider":
+    def from_config(cls, path: Path, config: AudioConfig) -> Self:
         """Create an audio provider from a configuration.
 
         :param path: path to the directory with audio files

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.core import ArtifactData
 from emmio.text.config import TextTranslationConfig
@@ -19,9 +20,11 @@ class TextData(ArtifactData):
     """Mapping of text identifiers to texts."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "TextData":
-        """Read texts from a configuration file."""
+    def from_config(cls, path: Path) -> Self:
+        """Read texts from a configuration file.
 
+        :param path: path to the directory with texts
+        """
         config: dict = ArtifactData.read_config(path)
 
         texts: dict[str, Texts] = {}

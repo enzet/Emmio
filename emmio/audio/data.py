@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.audio.config import AudioConfig
 from emmio.audio.core import (
@@ -25,7 +26,7 @@ class AudioData(ArtifactData):
     """Providers of audio files."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "AudioData":
+    def from_config(cls, path: Path) -> Self:
         """Create an audio data from a configuration.
 
         :param path: path to the configuration file

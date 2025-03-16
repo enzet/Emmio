@@ -4,7 +4,7 @@ import math
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel
 
@@ -57,7 +57,7 @@ class LexiconResponse(Enum):
         return self.name.lower()
 
     @classmethod
-    def from_string(cls, string: str) -> "LexiconResponse":
+    def from_string(cls, string: str) -> Self:
         return cls[string.upper()]
 
     def get_symbol(self) -> str:

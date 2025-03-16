@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.core import ArtifactData
 from emmio.language import construct_language
@@ -17,12 +18,17 @@ class SentencesData(ArtifactData):
     """The directory managed by this class."""
 
     database: SentenceDatabase
+    """The database with sentences."""
 
     sentences: dict[str, Sentences]
+    """Mapping from sentence identifiers to sentence providers."""
 
     @classmethod
-    def from_config(cls, path: Path) -> "SentencesData":
-        """Initialize sentences from a directory."""
+    def from_config(cls, path: Path) -> Self:
+        """Initialize sentences from a directory.
+
+        :param path: path to the directory with sentences
+        """
         config: dict = ArtifactData.read_config(path)
 
         database: SentenceDatabase = SentenceDatabase(path / "sentences.db")
@@ -32,7 +38,12 @@ class SentencesData(ArtifactData):
 
         return cls(path, database, sentences)
 
-    def get_sentences(self, usage_config: dict):
+    def get_sentences(self, usage_config: dict) -> Sentences:
+        """Get sentences by its identifier.
+
+        :param usage_config: configuration for sentences
+        :return: sentences
+        """
         match id_ := usage_config["id"]:
             case "tatoeba":
                 language_1, language_2 = usage_config["languages"]

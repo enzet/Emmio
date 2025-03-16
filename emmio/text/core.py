@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from emmio.language import Language, construct_language
 from emmio.text.config import TextTranslationConfig
@@ -15,9 +16,12 @@ class Texts:
     """Mapping of languages to lists of sentences in these languages."""
 
     @classmethod
-    def from_config(cls, path: Path, config: TextTranslationConfig) -> "Texts":
-        """Read texts from a configuration file."""
+    def from_config(cls, path: Path, config: TextTranslationConfig) -> Self:
+        """Read texts from a configuration file.
 
+        :param path: path to the directory with texts
+        :param config: configuration for texts
+        """
         data: dict[Language, list[str]] = {}
         for text_config in config.texts:
             language: Language = construct_language(text_config.language)

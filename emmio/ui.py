@@ -3,7 +3,7 @@
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, Self, override
 
 import readchar
 from rich import box
@@ -101,7 +101,7 @@ class Text(InlineElement):
             [] if text is None else [text]
         )
 
-    def add(self, element: InlineElement | str) -> "Text":
+    def add(self, element: InlineElement | str) -> Self:
         """Chainable method to add element to the text."""
         self.elements.append(element)
         return self
