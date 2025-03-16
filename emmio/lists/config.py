@@ -24,6 +24,7 @@ class FrequencyListConfig(BaseModel):
 
     name: str | None = None
     """Name of the list, e.g. "WortSchatz Esperanto 2011 Literature 10K"."""
+
     source: str | None = None
     """Source of the list.
 

@@ -28,7 +28,6 @@ class ListsData(ArtifactData):
 
         :param path: path to the directory with lists
         """
-
         config: dict = ArtifactData.read_config(path)
 
         frequency_lists: dict[str, FrequencyList] = {}
@@ -58,10 +57,12 @@ class ListsData(ArtifactData):
 
         match id_ := list_usage_config["id"]:
             case "frequency_words":
-                frequency_list: FrequencyWordsList = FrequencyWordsList(
-                    self.path,
-                    Language.from_code(list_usage_config["language"]),
-                    list_usage_config["year"],
+                frequency_list: FrequencyWordsList = (
+                    FrequencyWordsList.from_short_config(
+                        self.path,
+                        Language.from_code(list_usage_config["language"]),
+                        list_usage_config["year"],
+                    )
                 )
                 return frequency_list
             case _:
