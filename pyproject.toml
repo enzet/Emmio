@@ -56,3 +56,14 @@ profile = "black"
 [tool.mypy]
 python_version = "3.12"
 disable_error_code = ["import-untyped"]
+
+[tool.pylint]
+py-version = "3.12"
+disable = [
+    "E0401",  # Import error (Pylint usually fails to track imports correctly).
+    "W0511",  # `TODO`/`FIXME` comments warning.
+    "R0902",  # Too many instance attributes.
+    "R0903",  # Too few public methods.
+    "R0913",  # Too many arguments in function.
+    "R0914",  # Too many local variables.
+]

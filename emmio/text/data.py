@@ -1,3 +1,5 @@
+"""Data for texts."""
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,10 +13,15 @@ class TextData(ArtifactData):
     """Manages data inside texts directory."""
 
     path: Path
+    """Path to the directory containing the texts."""
+
     texts: dict[str, Texts]
+    """Mapping of text identifiers to texts."""
 
     @classmethod
     def from_config(cls, path: Path) -> "TextData":
+        """Read texts from a configuration file."""
+
         config: dict = ArtifactData.read_config(path)
 
         texts: dict[str, Texts] = {}
@@ -26,5 +33,6 @@ class TextData(ArtifactData):
 
         return cls(path, texts)
 
-    def get_text(self, text_id) -> Texts:
+    def get_text(self, text_id: str) -> Texts:
+        """Get a text by its identifier."""
         return self.texts[text_id]

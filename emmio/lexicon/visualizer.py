@@ -1,3 +1,5 @@
+"""Visualization of lexicons."""
+
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -27,15 +29,24 @@ class LexiconRangeData:
     """Data for plotting lexicon rate change through time."""
 
     xs: list[datetime]
+    """Time points."""
+
     y_ranges: list[list[float]]
+    """Ranges of rates for each time point."""
+
     language: Language
+    """Language of the lexicon."""
 
     def get_average_rate(self) -> float:
+        """Get the average rate."""
+
         return sum(self.y_ranges[-1]) / len(self.y_ranges[-1])
 
 
 @dataclass
 class LexiconVisualizer:
+    """Visualizer for lexicons."""
+
     plot_main: bool = True
     """Plot main line."""
 
@@ -52,16 +63,19 @@ class LexiconVisualizer:
     """How many wrong answers is needed to construct data point."""
 
     first_point: Callable[[datetime], datetime] = first_day_of_week
-    """
-    Function to compute starting point in time based on the minimal point in
-    time from data.
+    """Function to compute starting point.
+
+    It is based on the minimal point in time from data.
     """
 
     next_point: Callable[[datetime], datetime] = lambda x: x + timedelta(days=7)
     """Function to compute next point in time."""
 
     impulses: bool = True
+    """Plot stepped graph instead of smooth line."""
+
     interactive: bool = True
+    """Show the plot in a separate window."""
 
     def graph_with_matplot(
         self,
@@ -82,10 +96,9 @@ class LexiconVisualizer:
         locator = mdates.YearLocator()
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.spines["left"].set_visible(False)
+
+        for side in ["top", "right", "bottom", "left"]:
+            ax.spines[side].set_visible(False)
 
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin if margin is not None else 0.0
@@ -192,11 +205,18 @@ class LexiconVisualizer:
         colors,
         background_color: Color,
         grid_color: Color,
-    ):
+    ) -> None:
+        """Plot lexicon rate change through time into an SVG file.
+
+        :param lexicons: mapping of languages to lexicons
+        :param margin: do not show languages that never had rate over the margin
+        :param colors: colors for each language
+        :param background_color: background color
+        """
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin
         )
-        data = []
+        data: list[tuple[list[datetime], list[float], Color, str]] = []
         for data_range in lexicon_data:
             language_name: str = data_range.language.get_self_name()
             language_name = language_name[0].upper() + language_name[1:]
@@ -333,6 +353,13 @@ class LexiconVisualizer:
         margin: float | None,
         skip_first_point: bool = False,
     ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
+        """Construct data for plotting lexicon rate change through time.
+
+        :param lexicons: mapping of languages to lexicons
+        :param margin: do not show languages that never had rate over the margin
+        :param skip_first_point: skip first point in time
+        """
+
         data: list[LexiconRangeData] = []
 
         for language, language_lexicons in lexicons.items():

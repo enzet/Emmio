@@ -1,8 +1,11 @@
+"""Core functionality for listening."""
+
 import hashlib
 import json
 import logging
 import os.path
 import re
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,9 +25,10 @@ MIN_AUDIO_FILE_SIZE: int = 500
 """File smaller than this number of bytes should be treated as empty."""
 
 
-class AudioProvider:
+class AudioProvider(ABC):
     """Provider that can play audio files with word pronunciations."""
 
+    @abstractmethod
     def get_paths(self, word: str) -> list[Path]:
         """Get paths to audio files with the specified word.
 
@@ -33,6 +37,7 @@ class AudioProvider:
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def play(self, word: str, repeat: int = 1) -> bool:
         """Play pronunciation of the word.
 
@@ -42,6 +47,7 @@ class AudioProvider:
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def has(self, word: str) -> bool:
         """Check whether the audio provider has audio for the word."""
         raise NotImplementedError()
@@ -61,6 +67,8 @@ class DirectoryAudioProvider(AudioProvider):
     """Wrapper for the MPV player."""
 
     def __post_init__(self) -> None:
+        """Initialize the audio provider."""
+
         self.path_pattern: re.Pattern = re.compile(
             rf"(?P<word>[^()]*)\s*(\([^()]*\))?\s*\d?\.{self.file_extension}"
         )
@@ -68,22 +76,28 @@ class DirectoryAudioProvider(AudioProvider):
         self.fill_cache(self.directory)
 
     def fill_cache(self, path: Path) -> None:
+        """Fill the cache with audio files.
+
+        :param path: path to the directory with audio files or an audio file
+        """
         if path.is_dir():
             for sub_path in path.iterdir():
                 self.fill_cache(sub_path)
         elif path.is_file():
-            if matcher := re.match(
-                self.path_pattern,
-                path.name,
-            ):
+            if matcher := re.match(self.path_pattern, path.name):
                 self.cache[matcher.group("word")].append(path)
             else:
-                logging.warning(f"Unknown file {path}.")
+                logging.warning(f"Unknown file `{path}`.")
 
     @classmethod
     def from_config(
         cls, path: Path, config: AudioConfig
     ) -> "DirectoryAudioProvider":
+        """Create an audio provider from a configuration.
+
+        :param path: path to the directory with audio files
+        :param config: configuration of a collection of audio files
+        """
         return cls(path / config.directory_name, config.format)
 
     @override
@@ -91,11 +105,20 @@ class DirectoryAudioProvider(AudioProvider):
         """Return paths of the audio files.
 
         Return an empty list if files do not exist.
+
+        :param word: word to get audio for
+        :return list of paths to the audio files
         """
         return self.cache.get(word, [])
 
     @override
     def play(self, word: str, repeat: int = 1) -> bool:
+        """Play the audio files.
+
+        :param word: word to play audio for
+        :param repeat: number of times to play the audio
+        :return true iff an audio was played
+        """
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
             return False
@@ -115,6 +138,11 @@ class DirectoryAudioProvider(AudioProvider):
 
     @override
     def has(self, word: str) -> bool:
+        """Check whether the audio provider has audio for the word.
+
+        :param word: word to check audio for
+        :return true iff an audio is available
+        """
         return bool(self.get_paths(word))
 
 
@@ -126,6 +154,11 @@ class WikimediaCommonsAudioProvider(AudioProvider):
     """
 
     def __init__(self, language: Language, cache_directory: Path) -> None:
+        """Initialize the audio provider.
+
+        :param language: language of the audio files
+        :param cache_directory: path to the directory with cache files
+        """
         self.cache_directory: Path = cache_directory / "wikimedia_commons"
         self.player = mpv.MPV() if mpv else None
         self.language: Language = language
@@ -144,6 +177,12 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     @staticmethod
     def download(name: str, cache_path: Path) -> bool:
+        """Download the audio file.
+
+        :param name: name of the audio file
+        :param cache_path: path to the cache file
+        :return true iff the audio file was successfully downloaded
+        """
         hashcode: str = hashlib.md5(name.encode()).hexdigest()[:2]
         url: str = (
             "https://upload.wikimedia.org/wikipedia/commons"
@@ -160,6 +199,9 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         For Wikimedia Commons hashing scheme see
         https://commons.wikimedia.org/wiki/Commons:FAQ, part
         "What are the strangely named components in file paths?"
+
+        :param word: word to get audio for
+        :return path to the audio file or `None` if file does not exist
         """
         if word not in self.cache:
             return None
@@ -189,6 +231,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     @override
     def play(self, word: str, repeat: int = 1) -> bool:
+
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
             return False

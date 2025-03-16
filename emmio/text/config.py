@@ -1,3 +1,5 @@
+"""Configuration for texts."""
+
 from pydantic import BaseModel
 
 from emmio.language import LanguageConfig
