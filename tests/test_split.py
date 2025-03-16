@@ -1,3 +1,5 @@
+"""Test for sentence splitting."""
+
 import pytest
 
 from emmio.language import ENGLISH, FRENCH

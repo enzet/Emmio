@@ -1,3 +1,5 @@
+"""Test for frequency and word lists."""
+
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import mock_open, patch
@@ -8,8 +10,8 @@ from emmio.lists.config import FrequencyListConfig
 from emmio.lists.frequency_list import FrequencyList, FrequencyListFileFormat
 
 
-@pytest.fixture
-def empty_frequency_list() -> FrequencyList:
+@pytest.fixture(name="empty_frequency_list")
+def fixture_empty_frequency_list() -> FrequencyList:
     """Create minimal frequency list."""
 
     return FrequencyList(
@@ -24,8 +26,8 @@ def empty_frequency_list() -> FrequencyList:
     )
 
 
-@pytest.fixture
-def frequency_list_with_data(
+@pytest.fixture(name="frequency_list_with_data")
+def fixture_frequency_list_with_data(
     empty_frequency_list: FrequencyList,
 ) -> FrequencyList:
     """Create a frequency list with data."""

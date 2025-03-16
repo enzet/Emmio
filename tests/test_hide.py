@@ -1,3 +1,5 @@
+"""Test for hiding words in text."""
+
 import pytest
 
 from emmio.text_util import sanitize

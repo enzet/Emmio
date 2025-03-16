@@ -1,4 +1,4 @@
-from pathlib import Path
+"""Test for English Wiktionary."""
 
 from emmio.dictionary.en_wiktionary import get_file_name
 

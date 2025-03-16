@@ -1,3 +1,5 @@
+"""Test for lexicon."""
+
 from datetime import datetime
 from pathlib import Path
 
@@ -7,12 +9,12 @@ from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
 
 
-@pytest.fixture
-def lexicon() -> Lexicon:
+@pytest.fixture(name="lexicon")
+def fixture_lexicon() -> Lexicon:
     """Test lexicon checking process."""
     temp_directory: Path = Path("/tmp") / "emmio_test_temp_directory"
     temp_directory.mkdir(exist_ok=True)
-    lexicon: Lexicon = Lexicon(
+    lexicon_instance: Lexicon = Lexicon(
         temp_directory,
         LexiconConfig(
             file_name="en.json",
@@ -21,8 +23,8 @@ def lexicon() -> Lexicon:
             selection=LexiconSelection.ARBITRARY,
         ),
     )
-    lexicon.log = LexiconLog()
-    return lexicon
+    lexicon_instance.log = LexiconLog()
+    return lexicon_instance
 
 
 def test_register(lexicon: Lexicon) -> None:
