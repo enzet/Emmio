@@ -712,7 +712,7 @@ class SimpleDictionary(Dictionary):
 
     def write(self):
         """Write the dictionary to the file."""
-        logging.info(f"Dictionary `{self.id_}` dumped to `{self.path}`.")
+        logging.info("Dictionary `%s` dumped to `%s`.", self.id_, self.path)
         with self.path.open("w", encoding="utf-8") as output_file:
             json.dump(
                 self.data,

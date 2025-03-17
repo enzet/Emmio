@@ -132,7 +132,7 @@ class EmmioServer:
 
             else:
                 seconds = 60
-                logging.debug(f"Waiting {seconds} seconds...")
+                logging.debug("Waiting %s seconds...", seconds)
                 sleep(seconds)
                 return ""
 
@@ -237,7 +237,7 @@ class TelegramServer(EmmioServer):
             pass
 
     def receive_message(self, message: Message):
-        print(f"Received {message.text}.")
+        logging.info("Received %s.", message.text)
 
         self.id_ = message.chat.id
 

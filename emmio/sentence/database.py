@@ -45,7 +45,7 @@ class SentenceDatabase(Database):
                 # Check if file has appropriate size.
                 if zip_path.stat().st_size < 1000:
                     logging.error(
-                        f"File `{zip_path}` seems to be empty. " f"Removing it."
+                        "File `%s` seems to be empty. Removing it.", zip_path
                     )
                     # Remove zip file.
                     zip_path.unlink()
@@ -54,15 +54,17 @@ class SentenceDatabase(Database):
                 with bz2.open(zip_path) as zip_file:
                     with file_path.open("wb+") as cache_file:
                         logging.info(
-                            f"Unzipping sentences for {language.get_name()} from "
-                            f"`{zip_path}` to `{file_path}`."
+                            "Unzipping sentences for `%s` from `%s` to `%s`.",
+                            language.get_name(),
+                            zip_path,
+                            file_path,
                         )
                         cache_file.write(zip_file.read())
 
         self.cursor.execute(
             f"CREATE TABLE {table_id} (id integer primary key, sentence text)"
         )
-        logging.info(f"Reading table `{table_id}`...")
+        logging.info("Reading table `%s`...", table_id)
         with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
@@ -96,7 +98,7 @@ class SentenceDatabase(Database):
 
         # Check if table exists.
         if not self.has_table(table_id):
-            logging.error(f"Table `{table_id}` does not exist.")
+            logging.error("Table `%s` does not exist.", table_id)
             return {}
 
         result: dict[int, Sentence] = {}

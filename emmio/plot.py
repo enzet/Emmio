@@ -243,7 +243,7 @@ class Graph:
         with Path(svg.filename).open("w+", encoding="utf-8") as output_file:
             svg.write(output_file)
 
-        logging.info(f"Graph was saved to {Path(svg.filename).absolute()}.")
+        logging.info("Graph was saved to `%s`.", Path(svg.filename).absolute())
 
     def draw_grid(self, svg: Drawing) -> None:
         group: Group = Group(opacity=0.25)

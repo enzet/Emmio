@@ -1,3 +1,5 @@
+"""Lexicon data."""
+
 import logging
 import sys
 from collections import defaultdict
@@ -29,7 +31,6 @@ class LexiconData:
         :param path: path to the directory with lexicons
         :param config: configuration
         """
-
         lexicons: dict[str, Lexicon] = {}
 
         for lexicon_id, lexicon_config in config.items():
@@ -39,8 +40,10 @@ class LexiconData:
                 )
             except ValidationError as e:
                 logging.fatal(
-                    f"Error loading lexicon `{lexicon_id}` with config "
-                    f"`{lexicon_config}`: {e}."
+                    "Error loading lexicon `%s` with config `%s`: %s.",
+                    lexicon_id,
+                    lexicon_config,
+                    e,
                 )
                 sys.exit(1)
 

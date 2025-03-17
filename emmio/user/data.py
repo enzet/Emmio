@@ -73,7 +73,7 @@ class UserData:
         """Lazy-loads learning data."""
 
         if not self._learn_data:
-            logging.info(f"Loading {self.user_id} learning data...")
+            logging.info("Loading `%s` learning data...", self.user_id)
             self._learn_data = LearnData.from_config(
                 self.path / LEARN_DIRECTORY_NAME, self.config["learn"]
             )
@@ -83,7 +83,7 @@ class UserData:
         """Lazy-loads lexicon data."""
 
         if not self._lexicon_data:
-            logging.info(f"Loading {self.user_id} lexicon data...")
+            logging.info("Loading `%s` lexicon data...", self.user_id)
             self._lexicon_data = LexiconData.from_config(
                 self.path / LEXICON_DIRECTORY_NAME, self.config["lexicon"]
             )

@@ -104,7 +104,7 @@ class EnglishWiktionaryKaikki(Dictionary):
 
         if not from_language.has_symbols():
             logging.error(
-                f"Language {from_language.get_name()} does not have symbols."
+                "Language `%s` does not have symbols.", from_language.get_name()
             )
             sys.exit(1)
 
@@ -127,8 +127,8 @@ class EnglishWiktionaryKaikki(Dictionary):
             / f"kaikki.org-dictionary-{self.from_language_name}-words.jsonl"
         )
         if not file_path.exists():
-            logging.info(f"File {file_path} does not exist.")
-            logging.info(f"Downloading {self.from_language_name} Kaikki...")
+            logging.info("File `%s` does not exist.", file_path)
+            logging.info("Downloading `%s` Kaikki...", self.from_language_name)
             url: str = (
                 f"https://kaikki.org/dictionary/{self.from_language_name}/"
                 f'words/kaikki.org-dictionary-{self.from_language_name.replace(" ", "")}-words.jsonl'
@@ -138,7 +138,9 @@ class EnglishWiktionaryKaikki(Dictionary):
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
                 logging.error(
-                    f"Failed to download {self.from_language_name} Kaikki from `{url}`."
+                    "Failed to download `%s` Kaikki from `%s`.",
+                    self.from_language_name,
+                    url,
                 )
                 # Remove created directory.
                 os.rmdir(self.cache_directory)
@@ -149,7 +151,7 @@ class EnglishWiktionaryKaikki(Dictionary):
                         output_file.write(chunk)
 
         logging.info(
-            f"Creating cache for {self.from_language.get_name()} Kaikki..."
+            "Creating cache for `%s` Kaikki...", self.from_language.get_name()
         )
         with file_path.open(encoding="utf-8") as input_file:
             for line in tqdm(input_file.readlines()):

@@ -25,7 +25,7 @@ class WordList(List):
         """Load a word list from a config."""
 
         file_path: Path = path / config.path
-        logging.debug(f"Loading word list from list file {file_path}.")
+        logging.debug("Loading word list from list file `%s`.", file_path)
 
         with file_path.open(encoding="utf-8") as input_file:
             data = [x[:-1] for x in input_file.readlines()]

@@ -114,7 +114,7 @@ class Teacher:
         for question_id, list_, index in self.question_ids[
             self.question_index :
         ]:
-            logging.info(f"{index}th word from {list_.get_name()}")
+            logging.info("%dth word from `%s`.", index, list_.get_name())
             self.question_index += 1
 
             good_question_id: bool = await self.check_question_id(question_id)

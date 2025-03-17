@@ -56,7 +56,7 @@ def test_get_occurrences(frequency_list_with_data: FrequencyList) -> None:
 
     assert frequency_list_with_data.get_occurrences("test") == 5
     assert frequency_list_with_data.get_occurrences("word") == 3
-    assert frequency_list_with_data._occurrences == 8
+    assert frequency_list_with_data.get_all_occurrences() == 8
 
 
 def test_read_csv() -> None:

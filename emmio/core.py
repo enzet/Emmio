@@ -73,7 +73,7 @@ class ArtifactData(ABC):
                 path.mkdir()
                 return {}
             else:
-                logging.fatal(f"{path.parent} doesn't exist.")
+                logging.fatal("`%s` doesn't exist.", path.parent)
                 raise FileExistsError()
         else:
             with (path / "config.json").open(encoding="utf-8") as config_file:

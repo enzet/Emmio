@@ -281,7 +281,7 @@ class Emmio:
             try:
                 arguments = parser.parse_args(command.split(" "))
             except argparse.ArgumentError as e:
-                logging.error(f"Error parsing command: {e}.")
+                logging.error("Error parsing command: %s.", e)
                 return
         else:
             arguments = argparse.Namespace(command="learn", topic=None)
@@ -451,7 +451,9 @@ class Emmio:
             if len(lexicons_to_check) == 1:
                 lexicons.append(lexicons_to_check[0])
             else:
-                logging.fatal(f"More than one lexicon to check for {language}.")
+                logging.fatal(
+                    "More than one lexicon to check for %s.", language
+                )
 
         for lexicon in sorted(
             lexicons, key=lambda x: -x.get_last_rate_number()
@@ -524,8 +526,8 @@ class Emmio:
                 )
             if frequency_list is None:
                 logging.error(
-                    "Frequency list with config "
-                    f"`{lexicon.config.frequency_list}` cannot be loaded."
+                    "Frequency list with config `%s` cannot be loaded.",
+                    lexicon.config.frequency_list,
                 )
                 continue
 
@@ -624,9 +626,9 @@ class Emmio:
         time_to_new: timedelta = util.day_end(now) - now
 
         if time_to_repetition < time_to_new:
-            print(f"    Repetition in {time_to_repetition}.")
+            print(f"    Repetition in {time_to_repetition}.")  # FIXME
         else:
-            print(f"    New question in {time_to_new}.")
+            print(f"    New question in {time_to_new}.")  # FIXME
         print()
 
     async def listen(

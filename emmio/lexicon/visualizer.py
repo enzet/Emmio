@@ -320,7 +320,7 @@ class LexiconVisualizer:
         xs: list[datetime] = []
         y_ranges: list[list[float]] = []
 
-        point: datetime = self.first_point(min([end for _, end in date_ranges]))
+        point: datetime = self.first_point(min(end for _, end in date_ranges))
 
         if skip_first_point:
             point = self.next_point(point)

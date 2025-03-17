@@ -61,7 +61,6 @@ async def asynchronous_main() -> None:
     data_path.mkdir(parents=True, exist_ok=True)
 
     data: Data = Data.from_directory(data_path)
-    logging.basicConfig(level=logging.DEBUG)
 
     user_id: str
 

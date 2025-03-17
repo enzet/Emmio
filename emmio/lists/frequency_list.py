@@ -206,7 +206,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from CSV file."""
 
-        logging.debug(f"Loading frequency list from CSV file {file_path}.")
+        logging.debug("Loading frequency list from CSV file `%s`.", file_path)
 
         data: dict[str, int] = {}
         occurrences: int = 0
@@ -237,7 +237,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from JSON file."""
 
-        logging.debug(f"Loading frequency list from JSON file {file_path}.")
+        logging.debug("Loading frequency list from JSON file `%s`.", file_path)
         with file_path.open(encoding="utf-8") as input_file:
             structure: list[tuple[str, int]] = json.load(input_file)
 
@@ -252,7 +252,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from list file."""
 
-        logging.debug(f"Loading frequency list from list file {file_path}.")
+        logging.debug("Loading frequency list from list file `%s`.", file_path)
         data: dict[str, int] = {}
 
         with file_path.open(encoding="utf-8") as input_file:
@@ -273,7 +273,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from URL."""
 
-        logging.info(f"Loading frequency list from url `{url}`...")
+        logging.info("Loading frequency list from url `%s`...", url)
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()
         response: urllib3.BaseHTTPResponse = pool_manager.request(

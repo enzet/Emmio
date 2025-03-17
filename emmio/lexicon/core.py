@@ -294,7 +294,7 @@ class Lexicon:
 
     def write(self) -> None:
         """Write lexicon to a JSON file using string writing."""
-        logging.debug(f"writing lexicon to {self.file_path}")
+        logging.debug("Writing lexicon to `%s`...", self.file_path)
 
         with self.file_path.open("w+", encoding="utf-8") as output:
             output.write(self.log.model_dump_json(indent=4, exclude_none=True))

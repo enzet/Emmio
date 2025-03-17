@@ -99,8 +99,9 @@ class TatoebaSentences(Sentences):
                         cache_file.write(zip_file.read())
 
         logging.info(
-            f"Reading links from `links.csv` between {self.language_1.get_name()} "
-            f"and {self.language_2.get_name()}..."
+            "Reading links from `links.csv` between `%s` and `%s`...",
+            self.language_1.get_name(),
+            self.language_2.get_name(),
         )
         with file_path.open(encoding="utf-8") as input_1:
             lines = input_1.readlines()
@@ -108,8 +109,9 @@ class TatoebaSentences(Sentences):
         links: dict[int, set[int]] = {}
 
         logging.info(
-            f"Caching links between {self.language_1.get_name()} and "
-            f"{self.language_2.get_name()} Tatoeba sentences..."
+            "Caching links between `%s` and `%s` Tatoeba sentences...",
+            self.language_1.get_name(),
+            self.language_2.get_name(),
         )
         for line in tqdm(lines):
             try:

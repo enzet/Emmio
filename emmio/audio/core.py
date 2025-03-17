@@ -87,7 +87,7 @@ class DirectoryAudioProvider(AudioProvider):
             if matcher := re.match(self.path_pattern, path.name):
                 self.cache[matcher.group("word")].append(path)
             else:
-                logging.warning(f"Unknown file `{path}`.")
+                logging.warning("Unknown file `%s`.", path)
 
     @classmethod
     def from_config(cls, path: Path, config: AudioConfig) -> Self:
@@ -123,15 +123,15 @@ class DirectoryAudioProvider(AudioProvider):
 
         if paths := self.get_paths(word):
             for _ in range(repeat):
-                logging.info(f"Playing {paths[0]}...")
+                logging.info("Playing `%s`...", paths[0])
                 try:
                     self.player.play(str(paths[0]))
                 except Exception as e:
-                    logging.error(f"Unable to play {paths[0]}.")
+                    logging.error("Unable to play `%s`.", paths[0])
                     logging.error(e)
             return True
 
-        logging.debug(f"Audio was not found in {self.directory}.")
+        logging.debug("Audio was not found in `%s`.", self.directory)
         return False
 
     @override
@@ -237,11 +237,11 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         if path := self.get_path(word):
             for _ in range(repeat):
-                logging.info(f"Playing {path}...")
+                logging.info("Playing `%s`...", path)
                 try:
                     self.player.play(str(path))
                 except Exception as e:
-                    logging.error(f"Unable to play {path}.")
+                    logging.error("Unable to play `%s`.", path)
                     logging.error(e)
             return True
 

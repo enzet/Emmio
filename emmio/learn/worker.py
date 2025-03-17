@@ -82,9 +82,11 @@ class LearningWorker(Worker):
 
     def print_state(self):
         logging.debug(
-            f"sent.: {self.index}/{len(self.current_sentences)}, "
-            f"skip: {len(self.skip)}, "
-            f"to repeat: {self.learning.count_questions_to_repeat()}"
+            "sent.: %d/%d, skip: %d, to repeat: %d",
+            self.index,
+            len(self.current_sentences),
+            len(self.skip),
+            self.learning.count_questions_to_repeat(),
         )
 
     def __lt__(self, other: object) -> bool:

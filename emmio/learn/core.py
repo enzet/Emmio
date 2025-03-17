@@ -240,18 +240,18 @@ class Learning:
             self.process = LearningProcess(records=[])
             self.write()
         elif self.file_path.name.endswith(".json"):
-            logging.info(f"Reading {self.file_path}...")
+            logging.info("Reading `%s`...", self.file_path)
             with self.file_path.open(encoding="utf-8") as log_file:
                 try:
                     self.process = LearningProcess(**(json.load(log_file)))
                 except json.decoder.JSONDecodeError:
-                    logging.fatal(f"Cannot process file {self.file_path}.")
+                    logging.fatal("Cannot process file `%s`.", self.file_path)
                     sys.exit(1)
         elif self.file_path.name.endswith(".yml"):
-            logging.info(f"Reading {self.file_path}...")
+            logging.info("Reading `%s`...", self.file_path)
             self.process = load_old_format(self.file_path)
         else:
-            raise ValueError(f"Unknown file format: `{self.file_path.name}`.")
+            raise ValueError("Unknown file format: `%s`.", self.file_path.name)
 
         for record in self.process.records:
             self.__update_knowledge(record)
@@ -399,7 +399,7 @@ class Learning:
     def write(self) -> None:
         """Serialize learning process to a file."""
         if self.file_path.name.endswith(".json"):
-            logging.debug(f"Saving learning process to {self.file_path}...")
+            logging.debug("Saving learning process to `%s`...", self.file_path)
             with self.file_path.open("w+", encoding="utf-8") as output_file:
                 output_file.write(self.process.model_dump_json(indent=4))
 
