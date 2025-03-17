@@ -13,9 +13,9 @@ from matplotlib import pyplot as plt
 from matplotlib import transforms as mtransforms
 from svgwrite import Drawing
 
-from emmio.__main__ import get_default_output_directory
 from emmio.language import Language
 from emmio.lexicon.core import Lexicon, compute_lexicon_rate
+from emmio.paths import get_default_output_directory
 from emmio.plot import Graph
 from emmio.util import first_day_of_week, year_end, year_start
 
