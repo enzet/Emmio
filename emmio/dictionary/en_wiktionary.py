@@ -131,9 +131,12 @@ class EnglishWiktionaryKaikki(Dictionary):
             logging.info("Downloading `%s` Kaikki...", self.from_language_name)
             url: str = (
                 f"https://kaikki.org/dictionary/{self.from_language_name}/"
-                f'words/kaikki.org-dictionary-{self.from_language_name.replace(" ", "")}-words.jsonl'
+                f'words/kaikki.org-dictionary-'
+                f'{self.from_language_name.replace(" ", "")}-words.jsonl'
             )
-            response: requests.Response = requests.get(url, stream=True)
+            response: requests.Response = requests.get(
+                url, stream=True, timeout=5
+            )
             try:
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
