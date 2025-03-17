@@ -4,7 +4,7 @@ import math
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, override
 
 from pydantic import BaseModel
 
@@ -61,6 +61,7 @@ class LexiconResponse(Enum):
         return cls[string.upper()]
 
     def get_symbol(self) -> str:
+        """Get short symbol for the response."""
         match self:
             case self.KNOW:
                 return "K"
@@ -204,23 +205,24 @@ class LexiconLogSession(BaseModel, Session):
         self.end = time
 
 
-class LexiconLogRecord(BaseModel, Record):
+class LexiconLogRecord(Record):
     """Record of user's answer."""
 
     word: str
+    """Word that was checked."""
+
     response: LexiconResponse
+    """User's response."""
+
     answer_type: AnswerType | None = None
+    """Type of the answer."""
+
     to_skip: bool | None = None
-    time: datetime
-    request_time: datetime | None = None
+    """Skip this word in the future."""
 
-    def get_time(self) -> datetime:
-        return self.time
-
-    def get_request_time(self) -> datetime | None:
-        return self.request_time
-
+    @override
     def get_symbol(self) -> str:
+        """Get short symbol for the lexicon record."""
         return self.response.get_symbol()
 
 

@@ -187,7 +187,7 @@ class UserData:
             session = sessions[session_index]
             record = records[record_index]
 
-            if record.get_time() < session.get_start():
+            if record.time < session.get_start():
                 record_index += 1
                 if record_index == len(records):
                     break
@@ -195,14 +195,14 @@ class UserData:
 
             if (
                 end := session.get_end()
-            ) and session.get_start() <= record.get_time() <= end:
+            ) and session.get_start() <= record.time <= end:
                 current[1].append(record)
                 record_index += 1
                 if record_index == len(records):
                     break
                 continue
 
-            if (end := session.get_end()) and record.get_time() > end:
+            if (end := session.get_end()) and record.time > end:
                 session_index += 1
                 result.append(current)
                 if session_index == len(sessions):

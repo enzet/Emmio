@@ -82,7 +82,7 @@ class LexiconVisualizer:
         lexicons: dict[Language, list[Lexicon]],
         legend: str | None = None,
         margin: float | None = None,
-    ):
+    ) -> None:
         """Plot lexicon rate change through time.
 
         :param lexicons: list of lexicons
@@ -93,7 +93,7 @@ class LexiconVisualizer:
         matplotlib.rc("font", **font)
 
         fig, ax = plt.subplots()
-        locator = mdates.YearLocator()
+        locator: mdates.YearLocator = mdates.YearLocator()
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
 
@@ -202,7 +202,7 @@ class LexiconVisualizer:
         self,
         lexicons: dict[Language, list[Lexicon]],
         margin: float | None,
-        colors,
+        colors: list[Color] | None,
         background_color: Color,
         grid_color: Color,
     ) -> None:
@@ -243,8 +243,8 @@ class LexiconVisualizer:
             )
 
         if y_min == math.inf:
-            y_min = 0
-            y_max = 0
+            y_min = 0.0
+            y_max = 0.0
 
         graph: Graph = Graph(
             x_min,
@@ -304,7 +304,6 @@ class LexiconVisualizer:
         :param margin: do not show languages that never had rate over the margin
         :param skip_first_point: skip first point in time
         """
-
         dates: list[datetime] = []
         responses: list[int] = []
 
@@ -326,7 +325,7 @@ class LexiconVisualizer:
         if skip_first_point:
             point = self.next_point(point)
 
-        current = [rates[0]]
+        current: list[float] = [rates[0]]
 
         index: int = 0
         for index, current_range in enumerate(date_ranges):
@@ -359,7 +358,6 @@ class LexiconVisualizer:
         :param margin: do not show languages that never had rate over the margin
         :param skip_first_point: skip first point in time
         """
-
         data: list[LexiconRangeData] = []
 
         for language, language_lexicons in lexicons.items():

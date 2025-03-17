@@ -258,6 +258,8 @@ class TelegramServer(EmmioServer):
 
 
 def start(data: Data, arguments: Namespace):
+    """Start the server."""
+
     user_id: str = arguments.user if arguments.user else getpass.getuser()
     server: EmmioServer
 

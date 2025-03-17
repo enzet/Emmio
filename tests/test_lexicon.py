@@ -1,4 +1,4 @@
-"""Test for lexicon."""
+"""Tests for lexicon."""
 
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +12,7 @@ from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
 @pytest.fixture(name="lexicon")
 def fixture_lexicon() -> Lexicon:
     """Test lexicon checking process."""
+
     temp_directory: Path = Path("/tmp") / "emmio_test_temp_directory"
     temp_directory.mkdir(exist_ok=True)
     lexicon_instance: Lexicon = Lexicon(
@@ -28,7 +29,8 @@ def fixture_lexicon() -> Lexicon:
 
 
 def test_register(lexicon: Lexicon) -> None:
-    """Test register."""
+    """Test registering a word in the lexicon."""
+
     lexicon.register(
         word="apple",
         response=LexiconResponse.KNOW,
@@ -42,7 +44,8 @@ def test_register(lexicon: Lexicon) -> None:
 
 
 def register(lexicon: Lexicon, args: list[int]) -> None:
-    """Register."""
+    """Register a word in the lexicon."""
+
     for index, arg in enumerate(args):
         lexicon.register(
             word="apple",
@@ -54,12 +57,13 @@ def register(lexicon: Lexicon, args: list[int]) -> None:
 
 
 def test_rate_empty(lexicon: Lexicon) -> None:
-    """Test rate empty."""
+    """Test empty rate."""
     assert lexicon.construct_precise(precision=2) == ([], [])
 
 
 def test_rate_zero_minimal(lexicon: Lexicon) -> None:
-    """Test rate."""
+    """Test zero rate with minimal data."""
+
     register(lexicon, [0, 0])
     assert lexicon.construct_precise(precision=1) == (
         [
@@ -75,7 +79,8 @@ def test_rate_zero_minimal(lexicon: Lexicon) -> None:
 
 
 def test_rate_zero_additional(lexicon: Lexicon) -> None:
-    """Test rate with additional data."""
+    """Test zero rate with additional data."""
+
     register(lexicon, [0, 0, 0])
     assert lexicon.construct_precise(precision=2) == (
         [
@@ -88,6 +93,7 @@ def test_rate_zero_additional(lexicon: Lexicon) -> None:
 
 def test_half_minimal(lexicon: Lexicon) -> None:
     """Test half minimal."""
+
     register(lexicon, [1, 0])
     assert lexicon.construct_precise(precision=1) == (
         [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
@@ -119,6 +125,7 @@ def test_half_additional(lexicon: Lexicon) -> None:
 
 def test_quarter_minimal(lexicon: Lexicon) -> None:
     """Test quarter minimal."""
+
     register(lexicon, [1, 1, 1, 0])
     assert lexicon.construct_precise(precision=1) == (
         [(datetime(2000, 1, 1), datetime(2000, 1, 4))],

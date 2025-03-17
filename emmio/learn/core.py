@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 import yaml
 from pydantic.main import BaseModel
@@ -37,8 +37,10 @@ class Response(Enum):
     """Question was excluded from the learning process."""
 
     POSTPONE = "p"
+    """Question was postponed."""
 
-    def get_symbol(self):
+    def get_symbol(self) -> str:
+        """Get short symbol for the response."""
         match self:
             case Response.RIGHT:
                 return "-"
@@ -50,7 +52,7 @@ class Response(Enum):
                 return ">"
 
 
-class LearningRecord(BaseModel, Record):
+class LearningRecord(Record):
     """Learning record for a question."""
 
     question_id: str
@@ -65,19 +67,9 @@ class LearningRecord(BaseModel, Record):
     sentence_id: int
     """Sentence identifier used to learn the question."""
 
-    time: datetime
-    """The time when user response was received."""
-
-    request_time: datetime | None = None
-    """The time when questioning was started."""
-
-    def get_time(self) -> datetime:
-        return self.time
-
-    def get_request_time(self) -> datetime | None:
-        return self.request_time
-
+    @override
     def get_symbol(self) -> str:
+        """Get short symbol for the learning record."""
         return self.response.get_symbol()
 
 

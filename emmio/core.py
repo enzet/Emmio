@@ -5,18 +5,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Self
 
+from pydantic import BaseModel
 
-class Record(ABC):
+
+class Record(BaseModel, ABC):
     """An abstraction for a record of actions."""
 
-    @abstractmethod
-    def get_time(self) -> datetime:
-        """Get the time when user response was received."""
-        raise NotImplementedError()
+    time: datetime
+    """Time of the response."""
+
+    request_time: datetime | None = None
+    """Time of the request."""
 
     @abstractmethod
-    def get_request_time(self) -> datetime | None:
-        """Get the time when questioning was started."""
+    def get_symbol(self) -> str:
+        """Get short symbol for the record."""
         raise NotImplementedError()
 
 

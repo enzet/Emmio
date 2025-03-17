@@ -31,6 +31,7 @@ def fixture_frequency_list_with_data(
     empty_frequency_list: FrequencyList,
 ) -> FrequencyList:
     """Create a frequency list with data."""
+
     empty_frequency_list.add("test", 5)
     empty_frequency_list.add("word", 3)
     return empty_frequency_list
@@ -38,18 +39,21 @@ def fixture_frequency_list_with_data(
 
 def test_data(frequency_list_with_data: FrequencyList) -> None:
     """Test `data` property."""
+
     assert frequency_list_with_data.data["test"] == 5
     assert frequency_list_with_data.data["word"] == 3
 
 
 def test_has(frequency_list_with_data: FrequencyList) -> None:
     """Test `has()` method."""
+
     assert frequency_list_with_data.has("test") is True
     assert frequency_list_with_data.has("missing") is False
 
 
 def test_get_occurrences(frequency_list_with_data: FrequencyList) -> None:
     """Test occurrences."""
+
     assert frequency_list_with_data.get_occurrences("test") == 5
     assert frequency_list_with_data.get_occurrences("word") == 3
     assert frequency_list_with_data._occurrences == 8
