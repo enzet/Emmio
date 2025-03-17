@@ -35,7 +35,7 @@ class LexiconData:
 
         for lexicon_id, lexicon_config in config.items():
             try:
-                lexicons[lexicon_id] = Lexicon(
+                lexicons[lexicon_id] = Lexicon.from_config(
                     path, LexiconConfig(**lexicon_config)
                 )
             except ValidationError as e:

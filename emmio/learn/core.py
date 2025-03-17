@@ -73,7 +73,7 @@ class LearningRecord(Record):
         return self.response.get_symbol()
 
 
-class LearningSession(BaseModel, Session):
+class LearningSession(Session):
     """Learning session.
 
     It is assumed that all time spent in the session is spent in learning.
@@ -82,26 +82,20 @@ class LearningSession(BaseModel, Session):
     type: str
     """Session type."""
 
-    start: datetime
-    """The time when the session was started."""
-
-    end: datetime | None = None
-    """The time when the session was finished."""
-
     actions: int | None = None
     """Number of actions recorded in the session."""
 
-    def get_start(self) -> datetime:
-        return self.start
-
-    def get_end(self) -> datetime | None:
-        return self.end
-
     def end_session(self, time: datetime, actions: int) -> None:
+        """End the session.
+
+        :param time: time when session was finished
+        :param actions: number of actions performed during the session
+        """
         self.actions = actions
         self.end = time
 
     def get_time(self) -> timedelta | None:
+        """Get the time spent in the session."""
         if self.end is None:
             return None
         return self.end - self.start

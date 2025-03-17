@@ -1,6 +1,9 @@
+"""Core functionality for lexicon."""
+
 import json
 import logging
 import math
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -54,10 +57,12 @@ class LexiconResponse(Enum):
     """
 
     def to_string(self) -> str:
+        """Get string identifier of the response."""
         return self.name.lower()
 
     @classmethod
     def from_string(cls, string: str) -> Self:
+        """Get response from string identifier."""
         return cls[string.upper()]
 
     def get_symbol(self) -> str:
@@ -77,6 +82,7 @@ class LexiconResponse(Enum):
         raise Exception("Unknown response type")
 
     def get_message(self) -> str:
+        """Get human-readable message for the response."""
         match self:
             case self.KNOW:
                 return "knows at least one meaning of the word"
@@ -93,51 +99,63 @@ class LexiconResponse(Enum):
 
 
 class AnswerType(Enum):
+    """Type of the answer: how it was obtained."""
+
     UNKNOWN = "unknown"
+    """Answer type is unknown."""
 
     USER_ANSWER = "user_answer"
     """User answer."""
 
     ASSUME__NOT_A_WORD__ALPHABET = "assume_not_a_word"
-    """Assume that the word is not a dictionary word, because it contains
-    symbols that are not common in the language.
+    """It was automatically assumed that the word contain non-language symbols.
+
+    We have a list of all possible symbols in the language, and the word
+    contains at least one symbol that is not in the list, meaning that the word
+    is probably a foreign or some special word.
     """
 
     ASSUME__NOT_A_WORD__DICTIONARY = "assume_not_a_word_dict"
-    """Assume that the word is not a dictionary word, because some selected
-    dictionary does not have it.
+    """It was automatically assumed that the word is not a dictionary word.
+
+    We have one or several dictionaries, that we suppose contain all possible
+    words in the language, but the word is not in any of them.
     """
 
     PROPAGATE__SKIP = "propagate_skip"
     """Previous answer was propagated because of a special flag set by the user.
+
+    The user has set a flag that the word should be skipped, and the word should
+    not be checked again.
     """
 
     PROPAGATE__NOT_A_WORD = "propagate_not_a_word"
-    """Previous answer was propagated because it stated that the word is not a
-    dictionary word.
-    """
+    """Word is not a dictionary word, and this answer was propagated."""
 
     PROPAGATE__TIME = "propagate_time"
-    """Not enough time passed since last answer, therefore it was propagated."""
+    """Not enough time passed since last answer, therefore it was propagated.
+
+    Time for different answer types are user-defined.
+    """
 
     def __str__(self) -> str:
+        """Get string identifier of the answer type."""
         return self.value
 
     def __repr__(self) -> str:
+        """Get string identifier of the answer type."""
         return self.value
 
 
 def compute_lexicon_rate(
     data: list[tuple[datetime, int]],
     precision: int = 100,
-    before: datetime | None = None,
 ) -> tuple[list[tuple[datetime, datetime]], list[float]]:
     """Given lexicon records, compute rate values with given precision.
 
     :param data: list of (response time, lexicon response), is assumed to be
         sorted by date
     :param precision: desired number of "don't know" answers
-    :param before: right data bound
     :return: list of ((start date, end date), rate value)
     """
 
@@ -186,22 +204,15 @@ class WordKnowledge:
         return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
-class LexiconLogSession(BaseModel, Session):
+class LexiconLogSession(Session):
     """User session of checking lexicon."""
 
-    start: datetime
-    """Session start time."""
+    def end_session(self, time: datetime) -> None:
+        """Mark session as finished at the specified time.
 
-    end: datetime | None = None
-    """Session end time."""
-
-    def get_start(self) -> datetime:
-        return self.start
-
-    def get_end(self) -> datetime | None:
-        return self.end
-
-    def end_session(self, time: datetime, actions: int = 0):
+        :param time: time when session was finished
+        :param actions: number of actions performed during the session
+        """
         self.end = time
 
 
@@ -241,56 +252,104 @@ class WordSelection(Enum):
 
 
 class LexiconLog(BaseModel):
+    """Registered answers to words from lexicon."""
+
     records: list[LexiconLogRecord] = []
+    """Answers to words from lexicon."""
+
     sessions: list[LexiconLogSession] = []
+    """Sessions in which lexicon was checked."""
 
 
+@dataclass
 class Lexicon:
     """Tracking of lexicon for one particular language through time."""
 
-    def __init__(self, path: Path, config: LexiconConfig):
-        self.language = Language.from_code(config.language)
-        self.config: LexiconConfig = config
+    log: LexiconLog
+    """Log of lexicon."""
 
-        self.file_path = path / config.file_name
+    language: Language
+    """Language of the lexicon."""
 
-        self.words: dict[str, WordKnowledge] = {}
-        self.dates: list[datetime] = []
-        self.responses: list[int] = []
-        self.start: datetime | None = None
-        self.finish: datetime | None = None
+    config: LexiconConfig
+    """Configuration of the lexicon."""
+
+    file_path: Path
+    """Path to the lexicon file."""
+
+    words: dict[str, WordKnowledge]
+    """Words in the lexicon."""
+
+    dates: list[datetime]
+    """Dates of the answers."""
+
+    responses: list[int]
+    """Responses of the answers."""
+
+    start: datetime | None
+    """Start date of the lexicon."""
+
+    finish: datetime | None
+    """Finish date of the lexicon."""
+
+    @classmethod
+    def from_config(cls, path: Path, config: LexiconConfig) -> Self:
+        """Initialize lexicon.
+
+        :param path: path to the directory with lexicon files
+        :param config: lexicon configuration
+        """
+        language: Language = Language.from_code(config.language)
+
+        file_path: Path = path / config.file_name
+
+        words: dict[str, WordKnowledge] = {}
+        dates: list[datetime] = []
+        responses: list[int] = []
+        start: datetime | None = None
+        finish: datetime | None = None
 
         # Read data from file.
 
-        if not self.file_path.exists():
-            with self.file_path.open("w+", encoding="utf-8") as output:
+        if not file_path.exists():
+            with file_path.open("w+", encoding="utf-8") as output:
                 output.write("{}")
 
-        with self.file_path.open(encoding="utf-8") as input_file:
+        with file_path.open(encoding="utf-8") as input_file:
             data = json.load(input_file)
 
-        self.log: LexiconLog = LexiconLog(**data)
+        log: LexiconLog = LexiconLog(**data)
 
-        for record in self.log.records:
-            self.words[record.word] = WordKnowledge(
-                record.response, record.to_skip
-            )
+        for record in log.records:
+            words[record.word] = WordKnowledge(record.response, record.to_skip)
 
         # Fill data.
 
-        for record in self.log.records:
+        for record in log.records:
             if record.response in [
                 LexiconResponse.KNOW,
                 LexiconResponse.DONT,
             ]:
-                self.dates.append(record.time)
-                self.responses.append(
+                dates.append(record.time)
+                responses.append(
                     1 if record.response == LexiconResponse.KNOW else 0
                 )
 
-                if self.start is None:
-                    self.start = record.time
-                self.finish = record.time
+                if start is None:
+                    start = record.time
+                finish = record.time
+
+        return cls(
+            log,
+            language,
+            config,
+            file_path,
+            words,
+            dates,
+            responses,
+            start,
+            finish,
+        )
 
     def write(self) -> None:
         """Write lexicon to a JSON file using string writing."""
@@ -313,6 +372,8 @@ class Lexicon:
         return self.words[word].knowing == LexiconResponse.DONT
 
     def get_last_answer(self, word: str) -> LexiconLogRecord | None:
+        """Get last answer for the word."""
+
         for record in reversed(self.log.records):
             if word == record.word:
                 return record
@@ -353,7 +414,6 @@ class Lexicon:
                 request_time=request_time,
             )
         )
-
         if response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
             self.dates.append(time)
             self.responses.append(1 if response == LexiconResponse.KNOW else 0)
@@ -371,29 +431,23 @@ class Lexicon:
         """Get the most recent response from all logs."""
         return self.words[word].knowing
 
-    def get_log_size(self) -> int:
-        responses = [x.response for x in self.log.records]
-        return responses.count(LexiconResponse.DONT) + responses.count(
-            LexiconResponse.KNOW
-        )
-
     def count_unknowns(
-        self, point_1: datetime | None = None, point_2: datetime | None = None
+        self, after: datetime | None = None, before: datetime | None = None
     ) -> int:
         """Return the number of "Don't know" answers."""
         return [
             x.response
             for x in self.log.records
-            if not point_1 or not point_2 or point_1 <= x.time <= point_2
+            if not after or not before or after <= x.time <= before
         ].count(LexiconResponse.DONT)
 
     def get_bounds(
-        self, point_1: datetime, point_2: datetime
+        self, after: datetime, before: datetime
     ) -> tuple[int | None, int | None]:
         min_value, max_value, min_index, max_index = None, None, None, None
 
         for i in range(len(self.dates)):
-            if point_1 <= self.dates[i] <= point_2:
+            if after <= self.dates[i] <= before:
                 if not min_index or not min_value or self.dates[i] < min_value:
                     min_value = self.dates[i]
                     min_index = i
@@ -431,22 +485,54 @@ class Lexicon:
     def construct_precise(
         self, precision: int = 100, before: datetime | None = None
     ) -> tuple[list[tuple[datetime, datetime]], list[float]]:
-        return compute_lexicon_rate(
-            list(zip(self.dates, self.responses)), precision, before
+        """Construct precise rate values for the lexicon.
+
+        For all possible time intervals, just big enough to have a requested
+        precision, compute the rate for this interval.
+
+        :param precision: precision of the rate
+        :param before: before this date
+        :return: tuple of (date ranges, rate values for each date range)
+        """
+        dates_and_responses: list[tuple[datetime, int]] = list(
+            zip(self.dates, self.responses)
         )
+        if before:
+            dates_and_responses = [
+                (date, response)
+                for date, response in dates_and_responses
+                if date <= before
+            ]
+        return compute_lexicon_rate(dates_and_responses, precision)
 
     def get_last_rate(
         self, precision: int = 100, before: datetime | None = None
     ) -> float | None:
+        """Get last rate value.
+
+        Get the rate of the last interval that gives the requested precision.
+
+        :param precision: precision of the rate
+        :param before: before this date
+        :return: last rate value or None if there is no rate values
+        """
+        # TODO: rewrite, the implementation is too resource-consuming.
+
         _, rates = self.construct_precise(precision, before)
         if rates:
             return rates[-1]
         return None
 
     def get_precision_per_week(self) -> int:
+        """Get precision value suggested to get every week."""
         return self.config.precision_per_week
 
     def get_last_rate_number(self, precision: int = 100) -> float:
+        """Get last rate value.
+
+        :param precision: precision of the rate
+        :return: last rate value or 0.0 if there is no rate values
+        """
         value: float | None = self.get_last_rate(precision)
         if value is None:
             return 0.0
@@ -465,19 +551,19 @@ class Lexicon:
                 unknowns += frequency_list.get_occurrences(word)
 
     def get_rate(
-        self, point_1: datetime, point_2: datetime
+        self, after: datetime, before: datetime
     ) -> tuple[float | None, float | None]:
         """Get rate for selected time interval.
 
-        :param point_1: start point in time.
-        :param point_2: finish point in time.
+        :param after: start point in time.
+        :param before: finish point in time.
         :return: None if there is no enough data to compute rate.
         """
         preferred_interval: int | None = self.get_preferred_interval()
         if not preferred_interval:
             return None, None
 
-        index_1, index_2 = self.get_bounds(point_1, point_2)
+        index_1, index_2 = self.get_bounds(after, before)
 
         if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
             if rate := self.get_average(index_1, index_2):
@@ -853,9 +939,9 @@ class Lexicon:
         # in language.
 
         is_foreign: bool = False
-        if self.language.get_symbols():
+        if (symbols := self.language.get_symbols()) and symbols:
             for symbol in picked_word:
-                if symbol not in self.language.get_symbols():
+                if symbol not in symbols:
                     is_foreign = True
                     break
 

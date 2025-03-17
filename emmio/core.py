@@ -1,6 +1,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Self
@@ -23,28 +24,18 @@ class Record(BaseModel, ABC):
         raise NotImplementedError()
 
 
-class Session:
+class Session(BaseModel):
     """User session.
 
     Relatively short period of time when user is interacting with the
     application in a particular way: learning, testing, etc.
     """
 
-    def end_session(self, time: datetime, actions: int) -> None:
-        """Mark session as finished at the specified time.
+    start: datetime
+    """Time when session was started."""
 
-        :param time: time when session was finished
-        :param actions: number of actions performed during the session
-        """
-        raise NotImplementedError()
-
-    def get_start(self) -> datetime:
-        """Get the time when session was started."""
-        raise NotImplementedError()
-
-    def get_end(self) -> datetime | None:
-        """Get the time when session was finished."""
-        raise NotImplementedError()
+    end: datetime | None = None
+    """Time when session was finished."""
 
 
 class ArtifactData(ABC):

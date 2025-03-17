@@ -171,7 +171,7 @@ class UserData:
             sessions += learning.get_sessions()
         for lexicon in self.get_lexicon_data().get_lexicons():
             sessions += lexicon.get_sessions()
-        sessions = sorted(sessions, key=lambda x: x.get_start())
+        sessions = sorted(sessions, key=lambda x: x.start)
         return sessions
 
     def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
@@ -187,22 +187,20 @@ class UserData:
             session = sessions[session_index]
             record = records[record_index]
 
-            if record.time < session.get_start():
+            if record.time < session.start:
                 record_index += 1
                 if record_index == len(records):
                     break
                 continue
 
-            if (
-                end := session.get_end()
-            ) and session.get_start() <= record.time <= end:
+            if session.end and session.start <= record.time <= session.end:
                 current[1].append(record)
                 record_index += 1
                 if record_index == len(records):
                     break
                 continue
 
-            if (end := session.get_end()) and record.time > end:
+            if session.end and record.time > session.end:
                 session_index += 1
                 result.append(current)
                 if session_index == len(sessions):

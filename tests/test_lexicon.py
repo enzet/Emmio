@@ -15,7 +15,7 @@ def fixture_lexicon() -> Lexicon:
 
     temp_directory: Path = Path("/tmp") / "emmio_test_temp_directory"
     temp_directory.mkdir(exist_ok=True)
-    lexicon_instance: Lexicon = Lexicon(
+    lexicon_instance: Lexicon = Lexicon.from_config(
         temp_directory,
         LexiconConfig(
             file_name="en.json",
