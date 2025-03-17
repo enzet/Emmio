@@ -99,7 +99,7 @@ class LearningSession(BaseModel, Session):
 
     def end_session(self, time: datetime, actions: int) -> None:
         self.actions = actions
-        self.end = datetime.now()
+        self.end = time
 
     def get_time(self) -> timedelta | None:
         if self.end is None:
