@@ -446,14 +446,14 @@ class Lexicon:
     ) -> tuple[int | None, int | None]:
         min_value, max_value, min_index, max_index = None, None, None, None
 
-        for i in range(len(self.dates)):
-            if after <= self.dates[i] <= before:
-                if not min_index or not min_value or self.dates[i] < min_value:
-                    min_value = self.dates[i]
-                    min_index = i
-                if not max_index or not max_value or self.dates[i] > max_value:
-                    max_value = self.dates[i]
-                    max_index = i
+        for index, date in enumerate(self.dates):
+            if after <= date <= before:
+                if not min_index or not min_value or date < min_value:
+                    min_value = date
+                    min_index = index
+                if not max_index or not max_value or date > max_value:
+                    max_value = date
+                    max_index = index
 
         return min_index, max_index
 
@@ -469,8 +469,7 @@ class Lexicon:
         if not index_1 and not index_2:
             if len(self.responses) == 0:
                 return None
-            else:
-                return 1 - (sum(self.responses) / len(self.responses))
+            return 1 - (sum(self.responses) / len(self.responses))
 
         return 1 - (
             sum(self.responses[index_1:index_2])
