@@ -36,6 +36,9 @@ jobs:
     - name: Check types with Mypy
       run: |
         mypy emmio/ tests/
+    - name: Check with Pylint
+      run: |
+        pylint emmio/ tests/
     - name: Test with pytest
       run: |
         pytest -v

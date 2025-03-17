@@ -36,6 +36,7 @@ dev = [
     "black~=24.4.2",
     "isort~=6.0.1",
     "mypy~=1.15.0",
+    "pylint~=3.3.5",
     "pytest~=8.3.4",
 ]
 
@@ -60,6 +61,7 @@ disable_error_code = ["import-untyped"]
 
 [tool.pylint]
 py-version = "3.12"
+fail-under = 9.0
 disable = [
     "E0401",  # Import error (Pylint usually fails to track imports correctly).
     "W0511",  # `TODO`/`FIXME` comments warning.

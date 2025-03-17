@@ -21,6 +21,12 @@ if ! mypy ${python_files}; then
     exit 1
 fi
 
+echo "Checking with Pylint..."
+if ! pylint ${python_files}; then
+    echo "FAIL"
+    exit 1
+fi
+
 echo "Checking with Pytest..."
 if ! pytest -vv; then
     echo "FAIL"
