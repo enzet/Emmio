@@ -474,30 +474,14 @@ class Lexicon:
             if not after or not before or after <= x.time <= before
         ].count(LexiconResponse.DONT)
 
-    def get_bounds(
-        self, after: datetime, before: datetime
-    ) -> tuple[int | None, int | None]:
-        min_value, max_value, min_index, max_index = None, None, None, None
-
-        for index, date in enumerate(self.dates):
-            if after <= date <= before:
-                if not min_index or not min_value or date < min_value:
-                    min_value = date
-                    min_index = index
-                if not max_index or not max_value or date > max_value:
-                    max_value = date
-                    max_index = index
-
-        return min_index, max_index
-
     def get_average(
         self, index_1: int | None = None, index_2: int | None = None
     ) -> float | None:
         """Get average ratio.
 
-        :param index_1: start index.
-        :param index_2: finish index.
-        :return: average ratio or None if ratio is infinite.
+        :param index_1: start index
+        :param index_2: finish index
+        :return: average ratio or None if ratio is infinite
         """
         if not index_1 and not index_2:
             if len(self.responses) == 0:
@@ -508,11 +492,6 @@ class Lexicon:
             sum(self.responses[index_1:index_2])
             / len(self.responses[index_1:index_2])
         )
-
-    def get_preferred_interval(self, precision: int = 100) -> int | None:
-        if average := self.get_average():
-            return int(precision / average)
-        return None
 
     def construct_precise(
         self, precision: int = 100, before: datetime | None = None
@@ -526,6 +505,8 @@ class Lexicon:
         :param before: before this date
         :return: tuple of (date ranges, rate values for each date range)
         """
+        # TODO: rename.
+
         dates_and_responses: list[tuple[datetime, int]] = list(
             zip(self.dates, self.responses)
         )
@@ -569,34 +550,6 @@ class Lexicon:
         if value is None:
             return 0.0
         return value
-
-    def get_rate(
-        self, after: datetime, before: datetime
-    ) -> tuple[float | None, float | None]:
-        """Get rate for selected time interval.
-
-        :param after: start point in time.
-        :param before: finish point in time.
-        :return: None if there is no enough data to compute rate.
-        """
-        preferred_interval: int | None = self.get_preferred_interval()
-        if not preferred_interval:
-            return None, None
-
-        index_1, index_2 = self.get_bounds(after, before)
-
-        if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
-            if current_rate := self.get_average(index_1, index_2):
-                return current_rate, 1.0
-        elif index_1 and index_2 and index_2 >= preferred_interval:
-            if current_rate := self.get_average(
-                index_2 - preferred_interval, index_2
-            ):
-                return current_rate, (index_2 - index_1) / preferred_interval
-        elif index_1 and index_2:
-            return None, (index_2 - index_1) / preferred_interval
-
-        return None, None
 
     def get_top_unknown(self, frequency_list: FrequencyList) -> list[str]:
         """Get all words user marked as unknown in order of frequency.
