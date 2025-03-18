@@ -1,7 +1,10 @@
+"""Emmio entry point."""
+
 import argparse
 import logging
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -49,6 +52,21 @@ class ArgumentParser(argparse.ArgumentParser):
 
 class Emmio:
     """Emmio entry point."""
+
+    path: Path
+    """Path to the data directory, `~/.emmio` by default."""
+
+    interface: Interface
+    """Interface to interact with the user."""
+
+    data: Data
+    """Data to store user data."""
+
+    user_id: str
+    """User ID."""
+
+    user_data: UserData
+    """User data."""
 
     def __init__(
         self, path: Path, interface: Interface, data: Data, user_id: str
@@ -378,7 +396,7 @@ class Emmio:
 
             # Command `stat lexicon`.
             elif arguments.process == "lexicon":
-                await self.stat_lexicon(arguments)
+                await self.stat_lexicon()
 
         if arguments.command == "plot":
 
@@ -436,7 +454,7 @@ class Emmio:
         if command == "schedule":
             await self.schedule()
 
-    async def stat_lexicon(self, arguments: argparse.Namespace) -> None:
+    async def stat_lexicon(self) -> None:
         """Print lexicon statistics."""
 
         rows: list[list[InlineElement | str]] = []
@@ -649,18 +667,20 @@ class Emmio:
             if arguments.languages
             else None
         )
+        first_point: Callable[[datetime], datetime]
+        next_point: Callable[[datetime], datetime]
 
-        first_point = util.year_start
-        next_point = lambda x: x + timedelta(days=365.25)
-        if arguments.interval == "week":
-            first_point = util.first_day_of_week
-
-            def next_point(x):
-                return x + timedelta(days=7)
-
-        if arguments.interval == "month":
-            first_point = util.first_day_of_month
+        if arguments.interval == "year":
+            first_point = util.year_start
+            next_point = util.plus_year
+        elif arguments.interval == "week":
+            first_point = util.week_start
+            next_point = util.plus_week
+        elif arguments.interval == "month":
+            first_point = util.month_start
             next_point = util.plus_month
+        else:
+            raise ValueError(f"Unknown interval: `{arguments.interval}`.")
 
         lexicons: dict[Language, list[Lexicon]] = (
             self.user_data.get_frequency_lexicons(languages)
@@ -726,9 +746,9 @@ class Emmio:
             days = 1
 
             if arguments.interval == "week":
-                locator, days = util.first_day_of_week, 7
+                locator, days = util.week_start, 7
             elif arguments.interval == "month":
-                locator, days = util.first_day_of_month, 31
+                locator, days = util.month_start, 31
             elif arguments.interval == "year":
                 locator, days = util.year_start, 365 * 0.6
 

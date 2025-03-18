@@ -3,7 +3,7 @@
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib
@@ -17,7 +17,7 @@ from emmio.language import Language
 from emmio.lexicon.core import Lexicon, compute_lexicon_rate
 from emmio.paths import get_default_output_directory
 from emmio.plot import Graph
-from emmio.util import first_day_of_week, year_end, year_start
+from emmio.util import plus_week, week_start, year_end, year_start
 
 DEFAULT_LEXICON_GRAPH_PATH: Path = (
     get_default_output_directory() / "lexicon.svg"
@@ -62,13 +62,13 @@ class LexiconVisualizer:
     precision: int = 100
     """How many wrong answers is needed to construct data point."""
 
-    first_point: Callable[[datetime], datetime] = first_day_of_week
+    first_point: Callable[[datetime], datetime] = week_start
     """Function to compute starting point.
 
     It is based on the minimal point in time from data.
     """
 
-    next_point: Callable[[datetime], datetime] = lambda x: x + timedelta(days=7)
+    next_point: Callable[[datetime], datetime] = plus_week
     """Function to compute next point in time."""
 
     impulses: bool = True

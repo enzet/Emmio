@@ -48,22 +48,24 @@ def fill_data(
             "index": frequency_list.get_index(word),
         }
 
-    min_add_time = min(words[x]["addTime"] for x in words)
-    min_next_question_time = min(words[x]["nextQuestionTime"] for x in words)
+    min_add_time = min(structure["addTime"] for structure in words.values())
+    min_next_question_time = min(
+        structure["nextQuestionTime"] for structure in words.values()
+    )
     min_time = min(min_add_time, min_next_question_time)
 
-    for word in words:
-        words[word]["addTime"] = (
-            words[word]["addTime"] - min_add_time
+    for word, structure in words.items():
+        structure["addTime"] = (
+            structure["addTime"] - min_add_time
         ).total_seconds()
-        words[word]["nextQuestionTime"] = (
-            words[word]["nextQuestionTime"] - min_time
+        structure["nextQuestionTime"] = (
+            structure["nextQuestionTime"] - min_time
         ).total_seconds()
 
     result: list = []
 
-    for word in words:
-        result.append(words[word])
+    for word, structure in words.items():
+        result.append(structure)
 
     result = list(sorted(result, key=lambda x: x["index"]))
 

@@ -35,7 +35,11 @@ def year_end(point: datetime) -> datetime:
     return datetime(year=point.year + 1, month=1, day=1)
 
 
-def first_day_of_month(point: datetime) -> datetime:
+def plus_year(point: datetime) -> datetime:
+    return point + timedelta(days=365.25)
+
+
+def month_start(point: datetime) -> datetime:
     return datetime(year=point.year, month=point.month, day=1)
 
 
@@ -48,9 +52,13 @@ def plus_month(point: datetime) -> datetime:
     return datetime(year=new_year, month=new_month, day=1)
 
 
-def first_day_of_week(point: datetime) -> datetime:
+def week_start(point: datetime) -> datetime:
     day = point.date() - timedelta(days=point.weekday())
     return datetime.combine(day, datetime.min.time())
+
+
+def plus_week(point: datetime) -> datetime:
+    return point + timedelta(days=7)
 
 
 def format_delta_hm(delta: timedelta) -> str:

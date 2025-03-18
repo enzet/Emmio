@@ -248,8 +248,8 @@ class Visualizer:
                     for coef in values_map:
                         values_c[coef] += 0.0
                     values_l[id_.split("///")[0]] += 0.0
-            for coef in values_map:
-                values_map[coef].append(values_c[coef])
+            for coef, value_map in values_map.items():
+                value_map.append(values_c[coef])
             for id_ in values_language:
                 values_language[id_].append(values_l[id_])
             values_total.append(
@@ -257,8 +257,8 @@ class Visualizer:
             )
 
         values_map_bad = {
-            pr: [v1 - v2 for v1, v2 in zip(values_map[pr], values_total)]
-            for pr in values_map
+            pr: [v1 - v2 for v1, v2 in zip(value_map, values_total)]
+            for pr, value_map in values_map.items()
         }
 
         _, ax = plt.subplots()

@@ -29,12 +29,13 @@ GRADIENT_2: list[Color] = [
 
 def map_(value, current_min, current_max, target_min, target_max):
     """Remap value from current bounds to target bounds."""
+
     if current_max - current_min == 0:
         return target_min
-    else:
-        return target_min + (value - current_min) / (
-            current_max - current_min
-        ) * (target_max - target_min)
+
+    return target_min + (value - current_min) / (current_max - current_min) * (
+        target_max - target_min
+    )
 
 
 def map_array(value, current_min, current_max, target_min, target_max):
@@ -204,15 +205,15 @@ class Graph:
                 self.map_((0, 1)),
                 gradientUnits="userSpaceOnUse",
             )
-            for index, color in enumerate(self.color):
+            for index, current_color in enumerate(self.color):
                 linear_gradient.add_stop_color(
-                    index / (len(self.color) - 1), color.hex
+                    index / (len(self.color) - 1), current_color.hex
                 )
 
             gradient: LinearGradient = svg.defs.add(linear_gradient)
             recolor = gradient.get_funciri()
 
-        last_text_y = 0
+        last_text_y: int = 0
 
         if recolor:
             color = recolor
@@ -222,12 +223,12 @@ class Graph:
         assert len(xs) == len(ys_1)
         assert len(xs) == len(ys_2)
 
-        points_1 = self.to_points(xs, ys_1)
-        points_2 = self.to_points(xs, ys_2)
+        points_1: list[np.ndarray] = self.to_points(xs, ys_1)
+        points_2: list[np.ndarray] = self.to_points(xs, ys_2)
 
-        points = points_1 + list(reversed(points_2))
+        points: list[np.ndarray] = points_1 + list(reversed(points_2))
 
-        d = f"M {points[0][0]},{points[0][1]}"
+        d: str = f"M {points[0][0]},{points[0][1]}"
         for point in points[1:]:
             d += f" L {point[0]},{point[1]}"
         d += " Z"

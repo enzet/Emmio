@@ -43,17 +43,6 @@ colors = {
 }
 
 
-def colorize(text: str, color: str):
-    if color in colors:
-        return f"\033[{colors[color]}m{text}\033[0m"
-    else:
-        return text
-
-
-def button():
-    pass
-
-
 def table(columns: list[str], rows: list[list[str]]) -> str:
     result: str = ""
 
@@ -111,33 +100,31 @@ class Text(InlineElement):
         return len(self.elements) == 0
 
 
+@dataclass
 class Formatted(InlineElement):
     """Formatted text element."""
 
-    def __init__(self, text: InlineElement | str, format: str) -> None:
-        assert format in ["bold", "italic", "underline"]
-        self.text = text
-        self.format: str = format
+    text: InlineElement | str
+    format_: str
+
+    def __post_init__(self) -> None:
+        assert self.format_ in ["bold", "italic", "underline"]
 
 
+@dataclass
 class Colorized(InlineElement):
     """Colorized text element."""
 
-    def __init__(self, text: InlineElement | str, color: str) -> None:
-        self.text = text
-        self.color: str = color
+    text: InlineElement | str
+    color: str
 
 
+@dataclass
 class Block(BlockElement):
     """Block of text."""
 
-    def __init__(
-        self,
-        text: InlineElement | str,
-        padding: tuple[int, int, int, int],
-    ) -> None:
-        self.text: InlineElement | str = text
-        self.padding: tuple[int, int, int, int] = padding
+    text: InlineElement | str
+    padding: tuple[int, int, int, int]
 
 
 @dataclass
@@ -399,7 +386,7 @@ class RichInterface(TerminalInterface):
             else:
                 wrapped = RichElementText(sub_element)
 
-            match element.format:
+            match element.format_:
                 case "bold":
                     wrapped.stylize("bold")
                 case "italic":
