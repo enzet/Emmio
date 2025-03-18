@@ -22,7 +22,7 @@ from typing import Any, Coroutine, Self, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.text_util import sanitize
 from emmio.ui import Block, Colorized, Element, Formatted, Text
 from emmio.util import flatten
@@ -402,9 +402,7 @@ class DictionaryItem:
 
     def get_links(self) -> set[Link]:
         """Get keys to other dictionary items."""
-        return set(
-            [link for form in self.get_forms() for link in form.get_links()]
-        )
+        return {link for form in self.get_forms() for link in form.get_links()}
 
     def get_forms(self) -> list[Form]:
         """Get all forms."""
@@ -556,6 +554,7 @@ class Dictionary(ABC):
         """
         self.__items[word] = item
 
+    @abstractmethod
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
@@ -566,10 +565,7 @@ class Dictionary(ABC):
             network
         :return: word definition or `None` if definition is not cached
         """
-        if word in self.__items:
-            return self.__items[word]
-
-        return None
+        raise NotImplementedError()
 
     async def get_items(self) -> dict[str, DictionaryItem]:
         """Get all dictionary items."""
@@ -638,6 +634,16 @@ class Dictionary(ABC):
         """Get the name of the dictionary."""
         raise NotImplementedError()
 
+    @abstractmethod
+    def check_from_language(self, language: Language) -> bool:
+        """Check if the dictionary contains words in that language."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def check_to_language(self, language: Language) -> bool:
+        """Check if the dictionary contains definitions in that language."""
+        raise NotImplementedError()
+
 
 class SimpleDictionary(Dictionary):
     """Simple dictionary with word-definition pairs."""
@@ -694,8 +700,8 @@ class SimpleDictionary(Dictionary):
             path / config.file_name,
             config.name,
             data,
-            construct_language(config.from_language),
-            construct_language(config.to_language),
+            Language.from_code(config.from_language),
+            Language.from_code(config.to_language),
         )
 
     @override
@@ -710,8 +716,9 @@ class SimpleDictionary(Dictionary):
         item.add_form(Form(word, definitions={self.to_language: definitions}))
         return item
 
-    def write(self):
+    def write(self) -> None:
         """Write the dictionary to the file."""
+
         logging.info("Dictionary `%s` dumped to `%s`.", self.id_, self.path)
         with self.path.open("w", encoding="utf-8") as output_file:
             json.dump(
@@ -725,6 +732,14 @@ class SimpleDictionary(Dictionary):
     @override
     def get_name(self) -> str:
         return self.name
+
+    @override
+    def check_from_language(self, language: Language) -> bool:
+        return language == self.from_language
+
+    @override
+    def check_to_language(self, language: Language) -> bool:
+        return language == self.to_language
 
 
 @dataclass
@@ -782,7 +797,7 @@ class DictionaryCollection:
                 item: DictionaryItem = main_item_marked[1]
                 links: set[str] = set()
                 for form in item.get_forms():
-                    links |= set([x.link_value for x in form.links])
+                    links |= set(x.link_value for x in form.links)
                 for link in links:
                     if link_item := await dictionary.get_item(link):
                         items_marked.append((dictionary, link_item))

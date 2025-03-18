@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.text.config import TextTranslationConfig
 
 
@@ -24,7 +24,7 @@ class Texts:
         """
         data: dict[Language, list[str]] = {}
         for text_config in config.texts:
-            language: Language = construct_language(text_config.language)
+            language: Language = Language.from_code(text_config.language)
             with (path / text_config.file_path).open(
                 encoding="utf-8"
             ) as input_file:

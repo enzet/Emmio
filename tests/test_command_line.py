@@ -24,10 +24,7 @@ def initialize(
 ) -> None:
     """Initialize Emmio configuration directory."""
 
-    for subdirectory in (
-        "lists",
-        "dictionaries",
-    ):
+    for subdirectory in "lists", "dictionaries":
         (temp_directory / subdirectory).mkdir(parents=True, exist_ok=True)
     temp_user_directory: Path = temp_directory / "users" / temp_user_id
     temp_user_directory.mkdir(parents=True, exist_ok=True)

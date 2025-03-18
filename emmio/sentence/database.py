@@ -1,3 +1,5 @@
+"""Database with sentences."""
+
 import bz2
 import logging
 from pathlib import Path
@@ -9,21 +11,22 @@ from emmio.util import download
 
 
 class SentenceDatabase(Database):
-    """Database with tables:
+    """Database for sentences.
+
+    Database schema is as follows:
 
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
     """
 
-    def create(self, language: Language, cache_path: Path) -> None:
+    def create_table(self, language: Language, cache_path: Path) -> None:
         """Create table for sentences written in the specified language.
 
         :param language: language of the sentences
         :param cache_path: path to the cache directory
         """
-
         table_id: str = f"{language.get_code()}_sentences"
-        file_path = cache_path / f"{language.get_part3()}_sentences.tsv"
+        file_path: Path = cache_path / f"{language.get_part3()}_sentences.tsv"
 
         if not file_path.exists():
             zip_path: Path = (
@@ -103,7 +106,7 @@ class SentenceDatabase(Database):
 
         result: dict[int, Sentence] = {}
         if not self.has_table(table_id):
-            self.create(language, cache_path)
+            self.create_table(language, cache_path)
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
             id_, text = row
             result[id_] = Sentence(id_, text)

@@ -1,3 +1,5 @@
+"""Data of learning processes."""
+
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -30,7 +32,9 @@ class LearnData:
     def from_config(cls, path: Path, config: dict) -> Self:
         """Initialize learn data from the configuration."""
         learnings: dict[str, Learning] = {
-            learn_id: Learning(path, LearnConfig(**learn_config), learn_id)
+            learn_id: Learning.from_config(
+                path, LearnConfig(**learn_config), learn_id
+            )
             for learn_id, learn_config in config.items()
         }
         return cls(path, learnings)
@@ -57,6 +61,11 @@ class LearnData:
         return sum(x.compute_pressure() for x in self.learnings.values())
 
     def get_learnings_by_language(self, language: Language) -> list[Learning]:
+        """Get learnings by the language.
+
+        :param language: language
+        :return: list of learnings
+        """
         return [
             learning
             for learning in self.learnings.values()
@@ -64,13 +73,20 @@ class LearnData:
         ]
 
     def count_postponed(self):
+        """Count questions that were postponed."""
         return sum(x.count_postponed() for x in self.learnings.values())
 
     def count_actions(
         self,
         since: datetime,
         types: tuple[Response, ...] = (Response.RIGHT, Response.WRONG),
-    ):
+    ) -> int:
+        """Count actions of the given types.
+
+        :param since: since when to count
+        :param types: types of actions to count
+        :return: number of actions
+        """
         return sum(
             x.count_actions(since, types) for x in self.learnings.values()
         )

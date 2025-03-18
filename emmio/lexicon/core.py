@@ -79,7 +79,7 @@ class LexiconResponse(Enum):
             case self.NOT_A_WORD:
                 return "N"
 
-        raise Exception("Unknown response type")
+        raise ValueError("Unknown response type")
 
     def get_message(self) -> str:
         """Get human-readable message for the response."""
@@ -95,7 +95,7 @@ class LexiconResponse(Enum):
             case self.NOT_A_WORD:
                 return "not a word"
 
-        raise Exception("Unknown response type")
+        raise ValueError("Unknown response type")
 
 
 class AnswerType(Enum):
@@ -201,6 +201,7 @@ class WordKnowledge:
         return structure
 
     def to_json_str(self) -> str:
+        """Serialize to JSON string."""
         return json.dumps(self.to_structure(), ensure_ascii=False)
 
 
@@ -565,11 +566,13 @@ class Lexicon:
         index_1, index_2 = self.get_bounds(after, before)
 
         if index_1 and index_2 and index_2 - index_1 >= preferred_interval:
-            if rate := self.get_average(index_1, index_2):
-                return rate, 1.0
+            if current_rate := self.get_average(index_1, index_2):
+                return current_rate, 1.0
         elif index_1 and index_2 and index_2 >= preferred_interval:
-            if rate := self.get_average(index_2 - preferred_interval, index_2):
-                return rate, (index_2 - index_1) / preferred_interval
+            if current_rate := self.get_average(
+                index_2 - preferred_interval, index_2
+            ):
+                return current_rate, (index_2 - index_1) / preferred_interval
         elif index_1 and index_2:
             return None, (index_2 - index_1) / preferred_interval
 
@@ -864,8 +867,14 @@ class Lexicon:
         skip_known: bool,
         skip_unknown: bool,
     ) -> bool:
-        lexicon_records: list[LexiconLogRecord] = []
+        """Check whether the word should be skipped.
 
+        :param picked_word: word to check
+        :param user_data: user-specific data
+        :param skip_known: if the known words should be skipped
+        :param skip_unknown: if the unknown words should be skipped
+        """
+        lexicon_records: list[LexiconLogRecord] = []
         lexicon: Lexicon
         for lexicon in user_data.get_lexicons_by_language(self.language):
             if lexicon.has(picked_word):
@@ -964,7 +973,9 @@ class Lexicon:
         return f"<User lexicon {self.language.get_name()}>"
 
     def get_user_records(self, word: str) -> list[LexiconLogRecord]:
-        records = []
+        """Get all records for a specific word."""
+
+        records: list[LexiconLogRecord] = []
         for record in self.log.records:
             if (
                 record.word == word
@@ -980,7 +991,12 @@ class Lexicon:
         return [x for x in self.log.records if x.word == word]
 
     def get_sessions(self) -> list[LexiconLogSession]:
+        """Get all sessions."""
         return self.log.sessions
 
     def is_frequency(self) -> bool:
+        """Check whether the lexicon selection is frequency.
+
+        It allows to compute knowledge rate based on the frequency list.
+        """
         return self.config.selection == LexiconSelection.FREQUENCY

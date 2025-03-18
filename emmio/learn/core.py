@@ -4,17 +4,17 @@ import json
 import logging
 import random
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, override
+from typing import Any, Self, override
 
 import yaml
 from pydantic.main import BaseModel
 
 from emmio.core import Record, Session
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.learn.config import LearnConfig
 
 __author__ = "Sergey Vartanov"
@@ -96,6 +96,7 @@ class LearningSession(Session):
 
     def get_time(self) -> timedelta | None:
         """Get the time spent in the session."""
+
         if self.end is None:
             return None
         return self.end - self.start
@@ -142,12 +143,14 @@ class Knowledge:
 
     def is_learning(self) -> bool:
         """Is the question should be repeated in the future."""
+
         return self.get_last_response() != Response.SKIP and not (
             len(self.__responses) == 1 and self.__responses[0] == Response.RIGHT
         )
 
     def get_depth(self) -> int:
         """Get learning depth (length of the last sequence of right answers)."""
+
         if Response.WRONG in self.__responses:
             return list(reversed(self.__responses)).index(Response.WRONG)
         return len(self.__responses)
@@ -158,6 +161,7 @@ class Knowledge:
 
     def count_right_streak(self) -> int:
         """Get number of right answers after the last wrong answer."""
+
         result: int = 0
         for response in self.__responses[::-1]:
             if response == Response.RIGHT:
@@ -174,6 +178,7 @@ class Knowledge:
 
     def add_record(self, record: LearningRecord) -> None:
         """Add a learning record."""
+
         self.records.append(record)
         self.__responses.append(record.response)
 
@@ -187,6 +192,7 @@ class Knowledge:
 
     def estimate(self, point: datetime) -> float:
         """Estimate the knowledge of the question at the given point in time."""
+
         last_record = self.get_last_record()
         right_streak: int = self.count_right_streak()
         if right_streak == 0:
@@ -205,57 +211,87 @@ class Knowledge:
         return (point - last_record.time).total_seconds() / seconds
 
 
+def update_knowledge(
+    knowledge: dict[str, Knowledge], record: LearningRecord
+) -> None:
+    """Register new learning record."""
+
+    question_id: str = record.question_id
+    if question_id not in knowledge:
+        knowledge[question_id] = Knowledge(question_id, [record])
+    else:
+        knowledge[question_id].add_record(record)
+
+
+@dataclass
 class Learning:
     """Learning process."""
 
-    def __init__(self, path: Path, config: LearnConfig, id_: str) -> None:
+    id_: str
+    """Unique identifier of the learning process."""
 
-        self.id_: str = id_
-        """Unique identifier of the learning process."""
+    config: LearnConfig
+    """Learning configuration."""
 
-        self.config: LearnConfig = config
-        """Learning configuration."""
+    knowledge: dict[str, Knowledge]
+    """Mapping from question identifiers to their knowledge data."""
 
-        self.knowledge: dict[str, Knowledge] = {}
-        """Mapping from question identifiers to their knowledge data."""
+    learning_language: Language
+    """Learning language."""
 
-        self.learning_language: Language = construct_language(
+    base_languages: list[Language]
+    """Base languages."""
+
+    file_path: Path
+    """Path to the learning file."""
+
+    process: LearningProcess
+    """Learning process."""
+
+    @classmethod
+    def from_config(cls, path: Path, config: LearnConfig, id_: str) -> Self:
+        """Create a learning process from a configuration."""
+
+        learning_language: Language = Language.from_code(
             config.learning_language
         )
-        self.base_languages: list[Language] = [
-            construct_language(x) for x in config.base_languages
+        base_languages: list[Language] = [
+            Language.from_code(x) for x in config.base_languages
         ]
-        self.file_path: Path = path / config.file_name
+        file_path: Path = path / config.file_name
 
-        self.process: LearningProcess
+        process: LearningProcess
 
         # Create learning file if it doesn't exist.
-        if not self.file_path.is_file():
-            self.process = LearningProcess(records=[])
-            self.write()
-        elif self.file_path.name.endswith(".json"):
-            logging.info("Reading `%s`...", self.file_path)
-            with self.file_path.open(encoding="utf-8") as log_file:
+        if not file_path.is_file():
+            process = LearningProcess(records=[])
+        elif file_path.name.endswith(".json"):
+            logging.info("Reading `%s`...", file_path)
+            with file_path.open(encoding="utf-8") as log_file:
                 try:
-                    self.process = LearningProcess(**(json.load(log_file)))
+                    process = LearningProcess(**(json.load(log_file)))
                 except json.decoder.JSONDecodeError:
-                    logging.fatal("Cannot process file `%s`.", self.file_path)
+                    logging.fatal("Cannot process file `%s`.", file_path)
                     sys.exit(1)
-        elif self.file_path.name.endswith(".yml"):
-            logging.info("Reading `%s`...", self.file_path)
-            self.process = load_old_format(self.file_path)
+        elif file_path.name.endswith(".yml"):
+            logging.info("Reading `%s`...", file_path)
+            process = load_old_format(file_path)
         else:
-            raise ValueError("Unknown file format: `%s`.", self.file_path.name)
+            raise ValueError(f"Unknown file format: `{file_path.name}`.")
 
-        for record in self.process.records:
-            self.__update_knowledge(record)
+        knowledge: dict[str, Knowledge] = {}
+        for record in process.records:
+            update_knowledge(knowledge, record)
 
-    def __update_knowledge(self, record: LearningRecord) -> None:
-        question_id: str = record.question_id
-        if question_id not in self.knowledge:
-            self.knowledge[question_id] = Knowledge(question_id, [record])
-        else:
-            self.knowledge[question_id].add_record(record)
+        return cls(
+            id_,
+            config,
+            knowledge,
+            learning_language,
+            base_languages,
+            file_path,
+            process,
+        )
 
     def register(
         self,
@@ -284,20 +320,28 @@ class Learning:
             request_time=request_time,
         )
         self.process.records.append(record)
-        self.__update_knowledge(record)
+        update_knowledge(self.knowledge, record)
 
     def postpone(self, question_id: str) -> None:
+        """Postpone the question."""
         self.register(Response.POSTPONE, 0, question_id)
 
     def get_postpone_time(self) -> timedelta:
+        """Get postpone time.
+
+        This defines how much time to wait before asking the question again.
+        """
         if self.config.scheme and self.config.scheme.postpone_time:
             return timedelta(seconds=self.config.scheme.postpone_time)
         return timedelta(days=2)
 
     def get_next_time(self, knowledge: Knowledge) -> datetime:
+        """Get the time the question should be asked next."""
         return knowledge.get_last_record().time + self.get_interval(knowledge)
 
     def get_interval(self, knowledge: Knowledge) -> timedelta:
+        """Get the interval to wait before asking the question again."""
+
         if knowledge.get_last_response() == Response.POSTPONE:
             return self.get_postpone_time()
         seconds: float
@@ -318,6 +362,8 @@ class Learning:
         return timedelta(seconds=seconds)
 
     def __get_next_questions(self) -> list[Knowledge]:
+        """Get list of questions that should be asked next."""
+
         now: datetime = datetime.now()
         return [
             x
@@ -327,10 +373,11 @@ class Learning:
 
     def get_next_question(self) -> str | None:
         """Get question identifier of the next question."""
+
         knowledge: list[Knowledge] = self.__get_next_questions()
         if not knowledge:
             return None
-        knowledge = sorted(knowledge, key=lambda x: self.get_next_time(x))
+        knowledge = sorted(knowledge, key=self.get_next_time)
         return knowledge[0].question_id
 
     def has(self, question_id: str) -> bool:
@@ -377,7 +424,9 @@ class Learning:
         )
 
     def count_questions_to_repeat(self) -> int:
-        """Return the number of learning items that are being learning and ready
+        """Count the number of ready to repeat questions.
+
+        Return the number of learning items that are being learning and ready
         to repeat at the current moment.
         """
         now: datetime = datetime.now()
@@ -392,6 +441,7 @@ class Learning:
 
     def write(self) -> None:
         """Serialize learning process to a file."""
+
         if self.file_path.name.endswith(".json"):
             logging.debug("Saving learning process to `%s`...", self.file_path)
             with self.file_path.open("w+", encoding="utf-8") as output_file:
@@ -420,8 +470,10 @@ class Learning:
         )
 
     def get_safe_question_ids(self) -> list[str]:
-        """Get list of identifiers of questions, that is being learning and not
-        close to be repeated.
+        """Get questions that are being learning and not close to be repeated.
+
+        For these questions it is safe to show them to the user in any context
+        and not spoil the checking results.
         """
         now: datetime = datetime.now()
         return [
@@ -431,12 +483,22 @@ class Learning:
         ]
 
     def compare_by_new(self) -> int:
+        """Compare learning process by questions needed for today.
+
+        Prioritize learning process that need more questions to be answered
+        today.
+        """
         return self.count_questions_added_today() - self.config.max_for_day
 
     def compare_by_old(self) -> int:
+        """Compare learning process by questions needed to repeat.
+
+        Prioritize learning process that need more questions to repeat.
+        """
         return -self.count_questions_to_repeat()
 
     def get_knowledge(self, word: str) -> Knowledge | None:
+        """Get knowledge for the word."""
         return self.knowledge.get(word)
 
     def get_actions(self) -> int:
@@ -464,9 +526,11 @@ class Learning:
         )
 
     def get_records(self) -> list[LearningRecord]:
+        """Get list of all records in the learning process."""
         return self.process.records
 
     def get_sessions(self) -> list[LearningSession]:
+        """Get list of all sessions in the learning process."""
         return self.process.sessions
 
     def compute_average_action_time(self) -> timedelta:
@@ -488,10 +552,15 @@ class Learning:
 
 
 def time_format(minutes: int) -> datetime:
+    """Convert time in old format into datetime objects."""
     return datetime(1970, 1, 1) + timedelta(seconds=minutes * 60)
 
 
-def load_old_format(path: Path):
+def load_old_format(path: Path) -> LearningProcess:
+    """Load learning process from the old experimental format.
+
+    TODO: remove this someday.
+    """
     with path.open(encoding="utf-8") as input_file:
         process: dict[str, dict[str, Any]] = yaml.load(
             input_file, Loader=yaml.FullLoader

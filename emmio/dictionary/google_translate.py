@@ -1,5 +1,11 @@
+"""An interface to Google Translate dictionary.
+
+See https://translate.google.com/
+"""
+
 import os
 from pathlib import Path
+from typing import override
 
 import httpx
 from googletrans import Translator
@@ -18,6 +24,13 @@ class GoogleTranslate(Dictionary):
         from_language: Language,
         to_language: Language,
     ) -> None:
+        """Initialize Google Translate dictionary.
+
+        :param path: path to the dictionary
+        :param cache_directory: path to the cache directory
+        :param from_language: language of requests
+        :param to_language: language of translations
+        """
         super().__init__("google_translate")
         self.path: Path = path
         self.cache_directory: Path = (
@@ -36,12 +49,18 @@ class GoogleTranslate(Dictionary):
 
         self.items: dict[str, DictionaryItem] = {}
 
+    @override
     def get_name(self) -> str:
-        return f"Google Translate {self.from_language.get_name()} to {self.to_language.get_name()}"
+        return (
+            f"Google Translate {self.from_language.get_name()} to "
+            f"{self.to_language.get_name()}"
+        )
 
+    @override
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
+
         # Return already loaded item.
         if word in self.items:
             return self.items[word]
@@ -76,3 +95,11 @@ class GoogleTranslate(Dictionary):
         return DictionaryItem.from_simple_translation(
             word, self.to_language, translation.text
         )
+
+    @override
+    def check_from_language(self, language: Language) -> bool:
+        return language == self.from_language
+
+    @override
+    def check_to_language(self, language: Language) -> bool:
+        return language == self.to_language

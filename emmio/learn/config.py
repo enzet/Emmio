@@ -1,3 +1,5 @@
+"""Learning configuration."""
+
 from enum import Enum
 
 from pydantic import BaseModel
@@ -90,8 +92,21 @@ class LearnConfig(BaseModel):
     """Dictionary usage configurations."""
 
     audio: list[dict] = []
-    """Configurations for voice-over."""
+    """Configurations for audio pronunciations."""
 
     check_lexicon: bool = False
+    """Whether to check lexicon for new questions.
+
+    If this property is set to `True`, the system will check if the new question
+    is already in the lexicon.
+    """
+
     ask_lexicon: bool = False
+    """Whether to ask if the user already knows the question before adding it.
+
+    If this property is set to `True`, the system will ask the user if they
+    already know the question. The answer will be stored in the lexicon.
+    """
+
     max_for_day: int = 10
+    """Maximum number of questions per day."""

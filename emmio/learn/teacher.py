@@ -11,13 +11,13 @@ from emmio.dictionary.core import (
     DictionaryItem,
     SimpleDictionary,
 )
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.learn.config import Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
 from emmio.sentence.core import SentencesCollection, SentenceTranslations
-from emmio.ui import Element, Interface, Text
+from emmio.ui import Element, Interface
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -51,9 +51,9 @@ class Teacher:
         """Learning scheme: how to learn."""
 
         if self.scheme is None:
-            raise Exception("No scheme found.")
+            raise ValueError("No scheme found.")
         if self.scheme.new_question is None:
-            raise Exception("No new question scheme found.")
+            raise ValueError("No new question scheme found.")
 
         # Load lexicons.
         self.check_lexicons: list[Lexicon] | None = None
@@ -79,7 +79,9 @@ class Teacher:
         for list_config in self.scheme.new_question.pick_from:
             list_: List | None = data.get_list(list_config)
             if list_ is None:
-                raise Exception(f'No list with id `{list_config["id"]}` found.')
+                raise ValueError(
+                    f'No list with id `{list_config["id"]}` found.'
+                )
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 
@@ -111,6 +113,7 @@ class Teacher:
         self.max_for_day: int = self.learning.config.max_for_day
 
     async def get_new_question(self) -> str | None:
+
         for question_id, list_, index in self.question_ids[
             self.question_index :
         ]:
@@ -149,6 +152,7 @@ class Teacher:
         return await self.check2(question_id)
 
     async def check2(self, question_id: str) -> bool:
+        # TODO: rename.
         # Check user lexicon. Skip the word if it was mark as known by user
         # while checking lexicon. This should be done after checking
         # definitions in dictionary, because if user answer is "no", the

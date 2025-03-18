@@ -12,7 +12,6 @@ from typing import Any
 
 import yaml
 
-from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.serialization import DATE_FORMAT, EPOCH, Decoder, Encoder
@@ -26,14 +25,14 @@ INTERVALS: list[float] = [
     30.0 * 24.0,
     90.0 * 24.0,
 ]
-"""
-Learning intervals in minutes, other intervals are 2.5 times previous interval.
+"""Learning intervals in minutes.
+
+Other intervals are 2.5 times previous interval.
 """
 
 
 class LearningYAMLDecoder:
-    """
-    Reader for learning process scheme version 0.1.
+    """Reader for learning process scheme version 0.1.
 
     These are YAML files with predefined learning intervals and no precise
     information on each individual learning record.
@@ -45,19 +44,18 @@ class LearningYAMLDecoder:
     ) -> Learning:
         """Decode learning process from structure."""
 
-        learning: Learning = Learning(
+        learning: Learning = Learning.from_config(
             path,
             LearnConfig(
                 file_name=path.name,
                 name=path.stem,
-                learning_language=Language.from_code(path.name[:2]),
+                learning_language=path.name[:2],
                 base_languages=[],
                 scheme=None,
                 dictionaries=[],
             ),
             id_,
         )
-
         if not structure:
             raise MalformedFile(path)
 
@@ -214,11 +212,10 @@ class LearningBinaryDecoder(Decoder):
 
 
 if __name__ == "__main__":
-    """
-    Arguments:
-      - path to learning process YAML file version 0.1,
-      - path to directory to store created JSON files.
-    """
+    # Arguments:
+    #   - path to learning process YAML file version 0.1,
+    #   - path to directory to store created JSON files.
+
     file_name: str = sys.argv[1]
     learning_directory: str = sys.argv[2]
 
@@ -230,17 +227,17 @@ if __name__ == "__main__":
     for course_id, course_content in content.items():
         try:
             print(course_id)
-            path: Path = (
+            learning_path: Path = (
                 Path(learning_directory) / f"{course_id.replace('/', '_')}.json"
             )
             try:
-                path.unlink()
-            except Exception:
+                learning_path.unlink()
+            except FileNotFoundError:
                 pass
 
-            learning: Learning = LearningYAMLDecoder().decode(
-                course_id, path, course_content
+            current_learning: Learning = LearningYAMLDecoder().decode(
+                course_id, learning_path, course_content
             )
-            learning.write()
+            current_learning.write()
         except MalformedFile:
             continue

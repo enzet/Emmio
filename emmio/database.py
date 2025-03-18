@@ -11,8 +11,9 @@ __email__ = "me@enzet.ru"
 class Database:
     """Pretty simple wrapper for SQLite database."""
 
-    def __init__(self, database_file_path: Path):
-        """
+    def __init__(self, database_file_path: Path) -> None:
+        """Initialize database.
+
         :param database_file_path: path to SQLite database file
         """
         self.connection: Connection = sqlite3.connect(
@@ -22,6 +23,7 @@ class Database:
 
     def get_table_ids(self) -> list[str]:
         """Get identifiers of all tables in the database."""
+
         self.cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table';"
         )

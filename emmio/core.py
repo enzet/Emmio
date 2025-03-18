@@ -63,9 +63,9 @@ class ArtifactData(ABC):
             if path.parent.exists():
                 path.mkdir()
                 return {}
-            else:
-                logging.fatal("`%s` doesn't exist.", path.parent)
-                raise FileExistsError()
-        else:
-            with (path / "config.json").open(encoding="utf-8") as config_file:
-                return json.load(config_file)
+
+            logging.fatal("`%s` doesn't exist.", path.parent)
+            raise FileExistsError()
+
+        with (path / "config.json").open(encoding="utf-8") as config_file:
+            return json.load(config_file)

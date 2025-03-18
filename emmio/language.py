@@ -66,7 +66,12 @@ class Language:
             self.has_symbol = lambda x: x in self.symbols
 
     @classmethod
-    def from_code(cls, code: str):
+    def from_code(cls, code: str) -> Language:
+        """Get language by its code.
+
+        :param code: ISO 639-1:2002 two-letter code
+        :return: language
+        """
         for language in KNOWN_LANGUAGES:
             if code == language.get_code():
                 return language
@@ -82,21 +87,32 @@ class Language:
         return hash(self.code)
 
     def get_name(self) -> str:
+        """Get language name in English."""
         return re.sub(" \\(.*\\)", "", self.iso639_language.name)
 
     def get_self_name(self) -> str:
+        """Get language name in its own language."""
         if self.self_name:
             return self.self_name
         return self.get_name()
 
     def get_parent(self) -> Optional["Language"]:
+        """Get parent language.
+
+        E.g. Norwegian (`no`) is the parent language of Norwegian Bokmål (`nb`).
+        """
         if self.parent:
             return self.parent
         return None
 
     def get_adjusted_color(self) -> Color:
+        """Try to get adjusted color.
+
+        If the language has a tone color, use it. Otherwise, if the language
+        has a color, use it. Otherwise, use the default color.
+        """
         if self.tone is not None:
-            c = Color()
+            c: Color = Color()
             c.set_hue(self.tone.get_hue())
             c.set_saturation(0.5)
             c.set_luminance(0.4)
@@ -106,6 +122,7 @@ class Language:
         return DEFAULT_COLOR
 
     def get_color(self) -> Color:
+        """Get language color or default color if it is not set."""
         if self.color is not None:
             return self.color
         return DEFAULT_COLOR
@@ -143,10 +160,12 @@ class Language:
         return self.get_code()
 
     def get_random_color(self) -> str:
+        """Get random color for the language."""
         return "#" + str(hex(abs(hash(self.get_code()))))[2:8]
 
     def get_variant(self, word: str) -> str | None:
         """Get another way to write the word."""
+
         if self == LATIN:
             decoded = self.decode_text(word)
             if decoded != word:
@@ -158,6 +177,7 @@ class Language:
 
 
 def letter_range(start: str, stop: str) -> str:
+    """Get range of letters from Unicode code point."""
     return "".join(chr(x) for x in range(ord(start), ord(stop) + 1))
 
 
@@ -345,8 +365,7 @@ KNOWN_LANGUAGES: set[Language] = {
 
 
 def decode_ukrainian(text: str) -> str:
-    """
-    Decode text in Ukrainian.
+    """Decode text in Ukrainian.
 
     Merely replace ASCII "i" symbol with Unicode U+0456.
     """
@@ -354,19 +373,19 @@ def decode_ukrainian(text: str) -> str:
 
 
 def decode_latin(text: str) -> str:
+    """Remove diacritics from Latin text.
+
+    :param text: text to decode
+    :return: text without diacritics
+    """
     for symbol, replacement in LATIN_CODE.items():
         text = text.replace(symbol, replacement)
     return text
 
 
 @dataclass
-class LanguageNotFound(Exception):
+class LanguageNotFound(ValueError):
+    """Language with the given code was not found."""
+
     code: str
-
-
-def construct_language(code: str) -> Language:
-    for language in KNOWN_LANGUAGES:
-        if code == language.get_code():
-            return language
-
-    raise LanguageNotFound(code)
+    """ISO 639-1:2002 two-letter code."""

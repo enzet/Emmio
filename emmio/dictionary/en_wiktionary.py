@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 import requests
 from tqdm import tqdm
@@ -62,6 +62,13 @@ def get_file_name(word: str) -> str:
 
 
 def check_link_type(link_type: str) -> bool:
+    """Check if the link type is valid.
+
+    TODO: recheck this function and probably remove.
+
+    :param link_type: link type
+    :return: true iff the link type is valid
+    """
     link_type = (
         link_type.replace("(t\u00fa)", "")
         .replace("(usted)", "")
@@ -131,7 +138,7 @@ class EnglishWiktionaryKaikki(Dictionary):
             logging.info("Downloading `%s` Kaikki...", self.from_language_name)
             url: str = (
                 f"https://kaikki.org/dictionary/{self.from_language_name}/"
-                f'words/kaikki.org-dictionary-'
+                f"words/kaikki.org-dictionary-"
                 f'{self.from_language_name.replace(" ", "")}-words.jsonl'
             )
             response: requests.Response = requests.get(
@@ -181,6 +188,11 @@ class EnglishWiktionaryKaikki(Dictionary):
         return "English Wiktionary Kaikki"
 
     def get_cache_file_path(self, word: str) -> Path:
+        """Get path to cache file for a word.
+
+        :param word: word to get cache file path for
+        :return path to cache file
+        """
         return (
             self.cache_directory / word[0].lower() / f"{word[:2].lower()}.jsonl"
         )
@@ -299,3 +311,11 @@ class EnglishWiktionaryKaikki(Dictionary):
                 )  # Fill dictionary item.
 
         return self.items.get(word)
+
+    @override
+    def check_from_language(self, language: Language) -> bool:
+        return language == self.from_language
+
+    @override
+    def check_to_language(self, language: Language) -> bool:
+        return language == ENGLISH

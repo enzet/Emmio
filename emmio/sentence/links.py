@@ -1,3 +1,5 @@
+"""Links between Tatoeba sentences."""
+
 from emmio.serialization import Decoder, Encoder
 
 

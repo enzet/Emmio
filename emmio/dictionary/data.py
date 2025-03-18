@@ -1,3 +1,5 @@
+"""Data for dictionaries."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
@@ -67,6 +69,11 @@ class DictionaryData(ArtifactData):
     def get_dictionaries(
         self, dictionary_usage_configs: list[dict]
     ) -> DictionaryCollection:
+        """Get dictionaries by dictionary usage configurations.
+
+        :param dictionary_usage_configs: list of dictionary usage configurations
+        :return: collection of dictionaries
+        """
         dictionaries: list[Dictionary] = []
         for dictionary_usage_config in dictionary_usage_configs:
             dictionary: Dictionary | None = self.get_dictionary(
@@ -77,12 +84,19 @@ class DictionaryData(ArtifactData):
         return DictionaryCollection(dictionaries)
 
     def get_dictionaries_by_language(
-        self, language_1: Language, language_2: Language
+        self, from_language: Language, to_language: Language
     ) -> DictionaryCollection:
-        def check(dictionary) -> bool:
+        """Get dictionaries by languages.
+
+        :param from_language: language of requests
+        :param to_language: language of definitions
+        :return: collection of dictionaries
+        """
+
+        def check(dictionary: Dictionary) -> bool:
             return dictionary.check_from_language(
-                language_1
-            ) and dictionary.check_from_language(language_2)
+                from_language
+            ) and dictionary.check_to_language(to_language)
 
         return DictionaryCollection(
             [x for x in self.dictionaries.values() if check(x)]

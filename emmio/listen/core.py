@@ -1,3 +1,5 @@
+"""Core functionality for listening."""
+
 import json
 from collections import defaultdict
 from datetime import datetime
@@ -11,23 +13,39 @@ PAUSE_AFTER_PLAY: float = 2.0
 
 
 class ListeningRecord(BaseModel):
+    """Record of one listening."""
+
     word: str
+    """Word in the learning language that was listened."""
+
     translations: list[str]
+    """Translations of the word in the base language."""
+
     time: datetime
+    """Time of the listening."""
 
     def get_symbol(self) -> str:
+        """Get symbol to display in the progress bar."""
         return "L"
 
 
 class ListeningProcess(BaseModel):
-    records: list[ListeningRecord]
+    """Process of listening."""
 
-    def register(self, record: ListeningRecord):
+    records: list[ListeningRecord]
+    """Records of listening."""
+
+    def register(self, record: ListeningRecord) -> None:
+        """Register new record of listening."""
         self.records.append(record)
 
 
 class Listening:
-    def __init__(self, path: Path, config: ListenConfig, id_: str):
+    """Listening process."""
+
+    def __init__(self, path: Path, config: ListenConfig, id_: str) -> None:
+        """Initialize listening process."""
+
         self.path: Path = path
         self.config: ListenConfig = config
         self.id_: str = id_
@@ -54,15 +72,18 @@ class Listening:
 
     def write(self) -> None:
         """Write data to the output file."""
+
         temp_path: Path = self.file_path.with_suffix(".temp")
 
         with temp_path.open("w+", encoding="utf-8") as output_file:
-            data = self.process.json(ensure_ascii=False, indent=4)
+            data: str = self.process.model_dump_json(indent=4)
             output_file.write(data)
 
         temp_path.replace(self.file_path)
 
     def register(self, word: str, translations: list[str]) -> None:
+        """Register new record of listening."""
+
         record: ListeningRecord = ListeningRecord(
             word=word, translations=translations, time=datetime.now()
         )
@@ -72,7 +93,11 @@ class Listening:
         self.write()
 
     def get_hearings(self, word: str) -> int:
+        """Get number of how many times the word was heard."""
+
         return self.__words_cache.get(word, 0)
 
     def get_records(self, word: str) -> list[ListeningRecord]:
+        """Get records of how the word was heard."""
+
         return self.__records_cache.get(word, [])

@@ -1,5 +1,6 @@
+"""Configuration of lists."""
+
 from enum import Enum
-from pathlib import Path
 
 from pydantic import BaseModel
 

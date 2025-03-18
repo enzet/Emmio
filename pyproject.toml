@@ -65,9 +65,11 @@ fail-under = 9.0
 disable = [
     "E0401",  # Import error (Pylint usually fails to track imports correctly).
     "W0511",  # `TODO`/`FIXME` comments warning.
+    "C0302",  # Too many lines in module.
     "R0902",  # Too many instance attributes.
     "R0903",  # Too few public methods.
-    "R0903",  # Too many public methods.
+    "R0904",  # Too many public methods.
+    "R0911",  # Too many return statements.
     "R0912",  # Too many branches.
     "R0913",  # Too many arguments in function.
     "R0914",  # Too many local variables.

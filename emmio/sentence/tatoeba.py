@@ -1,10 +1,14 @@
+"""Tatoeba sentences.
+
+See https://tatoeba.org/
+"""
+
 import bz2
 import json
 import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from os.path import join
 from pathlib import Path
 
 from tqdm import tqdm
@@ -56,17 +60,16 @@ class TatoebaSentences(Sentences):
             self.path / "cache" / f"links_{self.language_1.get_part3()}_"
             f"{self.language_2.get_part3()}.json"
         )
-
         if links_cache_path.is_file():
             self.read_link_sets(links_cache_path)
         else:
             self.read_links(self.path / "cache")
             logging.info("Caching links...")
             with links_cache_path.open("w+", encoding="utf-8") as output_file:
-                content = {}
-                for key in self.links:
+                content: dict[int, list[int]] = {}
+                for key, value in self.links.items():
                     assert isinstance(key, int)
-                    content[key] = list(self.links[key])
+                    content[key] = list(value)
                 json.dump(content, output_file)
 
         word_cache_path: Path = (
@@ -82,6 +85,10 @@ class TatoebaSentences(Sentences):
             self.fill_cache(word_cache_path)
 
     def read_links(self, cache_path: Path):
+        """Read links from a cache file.
+
+        :param cache_path: path to the cache directory
+        """
         file_path: Path = cache_path / "links.csv"
 
         if not file_path.exists():

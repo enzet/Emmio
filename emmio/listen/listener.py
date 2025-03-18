@@ -1,3 +1,5 @@
+"""Listening functionality."""
+
 import logging
 from pathlib import Path
 from time import sleep
@@ -22,9 +24,18 @@ from emmio.user.data import UserData
 
 
 class Listener:
+    """Manager for listening."""
+
     def __init__(
         self, listening: Listening, data: Data, user_data: UserData
     ) -> None:
+        """Initialize listener.
+
+        :param listening: listening process
+        :param data: Emmio data
+        :param user_data: user-specific data
+        """
+
         self.data: Data = data
         self.user_data: UserData = user_data
         self.listening: Listening = listening
@@ -63,8 +74,17 @@ class Listener:
         )
 
     async def play(
-        self, question_id: str, audio_translations, learning_paths: list[Path]
+        self,
+        question_id: str,
+        audio_translations: list[str],
+        learning_paths: list[Path],
     ) -> None:
+        """Play audio for the question.
+
+        :param question_id: question identifier, usually just a word
+        :param audio_translations: translations of the word
+        :param learning_paths: paths to the learning audio files
+        """
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
             return
@@ -82,21 +102,12 @@ class Listener:
         sleep(2)
         self.listening.register(question_id, audio_translations)
 
-    async def listen__(self) -> None:
-        index: int = 0
-        for question_id in self.learning.get_safe_question_ids():
-            print(f"{index}th word: {question_id}")
-            index += 1
-            if self.learning.has(question_id):
-                if question_id not in self.safe_question_ids:
-                    logging.info("Not safe time")
-                    continue
-                elif not self.teacher.check2(question_id):
-                    continue
-
-                await self.process(question_id, index)
-
     async def listen(self, start_from: int = 0, repeat: int = 1) -> None:
+        """Start listening process.
+
+        :param start_from: start from the word number
+        :param repeat: how many times to repeat the word
+        """
         logging.getLogger().setLevel(logging.ERROR)
         if self.list_ is None:
             return
@@ -116,6 +127,11 @@ class Listener:
             await self.process(question_id, index)
 
     async def process(self, question_id: str, index: int) -> None:
+        """Process the question.
+
+        :param question_id: question identifier
+        :param index: index of the question
+        """
         translations: list[str] = []
         if items := await self.dictionary_collection.get_items(
             question_id, self.base_language

@@ -1,3 +1,5 @@
+"""Data for lists."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
@@ -45,8 +47,9 @@ class ListsData(ArtifactData):
                         path, WordListConfig(**list_config)
                     )
                 case _:
-                    raise Exception(
-                        f"unknown list configuration type {list_config['type']}"
+                    raise ValueError(
+                        "Unknown list configuration type "
+                        f"`{list_config['type']}`."
                     )
 
         return cls(path, frequency_lists, word_lists)

@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from emmio import util
-from emmio.language import Language, construct_language
+from emmio.language import Language
 from emmio.learn.core import Knowledge, Learning, LearningRecord, Response
 from emmio.learn.visualizer import DEPTH_COLORS  # type: ignore
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconLogRecord
@@ -296,7 +296,7 @@ class Visualizer:
         total = [0.0] * len(xs)
         index = 0
         for id_, language_data in values_language.items():
-            language: Language = construct_language(id_)
+            language: Language = Language.from_code(id_)
             color = language.get_random_color()
             color = language.get_color().hex
             title = language.get_name()

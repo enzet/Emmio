@@ -1,3 +1,5 @@
+"""Frequency list."""
+
 import json
 import logging
 import random
@@ -25,13 +27,26 @@ class WordOccurrences:
 
 @dataclass
 class FrequencyList(List):
-    """Frequency list of some text."""
+    """Frequency list of some text.
+
+    It is a list of all unique words in the text and the number of their
+    occurrences.
+    """
 
     file_path: Path
+    """Path to the file with the frequency list."""
+
     config: FrequencyListConfig
+    """Configuration of the frequency list."""
+
     data: dict[str, int]
+    """Mapping from words to their number of occurrences."""
+
     _occurrences: int = 0
+    """Total number of occurrences of all words in the frequency list."""
+
     _sorted_keys: list[str] = field(default_factory=list)
+    """List of words sorted by their number of occurrences."""
 
     @classmethod
     def from_config(cls, path: Path, config: FrequencyListConfig) -> Self:
@@ -45,10 +60,9 @@ class FrequencyList(List):
 
         if file_path.exists():
             return cls.from_file(path, config, file_path)
-        elif config.url:
+        if config.url:
             return cls.from_url(path, config, config.url)
-        else:
-            raise Exception(f"Unable to load frequency list {config}.")
+        raise ValueError(f"Unable to load frequency list {config}.")
 
     def __post_init__(self) -> None:
         if self.data:
@@ -100,9 +114,10 @@ class FrequencyList(List):
         return 0
 
     def get_position(self, word: str) -> int:
-        """
-        Get word index in frequency list.  The most popular word in the text has
-        index 1.  If word is not in frequency list, return -1.
+        """Get word index in frequency list.
+
+        The most popular word in the text has index 1. If word is not in
+        frequency list, return -1.
         """
         if word in self._sorted_keys:
             return self._sorted_keys.index(word)
@@ -117,8 +132,7 @@ class FrequencyList(List):
         return self._sorted_keys
 
     def get_random_word(self) -> tuple[str, int]:
-        """
-        Return random unique word regardless of its frequency.
+        """Return random unique word regardless of its frequency.
 
         :return word, number of its occurrences in text
         """
@@ -126,9 +140,7 @@ class FrequencyList(List):
         return word, self.data[word]
 
     def get_word_by_occurrences(self, occurrences: int) -> tuple[str, int]:
-        """
-        Get first word with the number of occurrences more or equals to
-        specified number.
+        """Get first word with occurrences more or equals to specified number.
 
         :return word and its number of occurrences in the text
         """
@@ -140,6 +152,7 @@ class FrequencyList(List):
 
     def get_word_by_index(self, index: int) -> tuple[str, int]:
         """Get word of the specified index."""
+
         word: str = self._sorted_keys[index]
         return word, self.data[word]
 
@@ -159,7 +172,7 @@ class FrequencyList(List):
             if index >= number:
                 return word, self.data[word]
 
-        raise Exception(
+        raise OverflowError(
             "Unable to get word from a frequency list. Total occurrences "
             f"number is {self._occurrences}. Number is {number}. Last index "
             "is {index}."
@@ -198,7 +211,7 @@ class FrequencyList(List):
             case FrequencyListFileFormat.CSV:
                 return cls.from_csv_file(path, config, file_path)
             case _:
-                raise Exception(f"unknown file format {config.file_format}")
+                raise ValueError(f"unknown file format `{config.file_format}`")
 
     @classmethod
     def from_csv_file(
@@ -312,6 +325,12 @@ class FrequencyWordsList(FrequencyList):
     def from_short_config(
         cls, path: Path, language: Language, year: int
     ) -> Self:
+        """Create frequency list from language and year.
+
+        :param path: path to the directory with lists
+        :param language: language of the frequency list
+        :param year: year of the frequency list
+        """
         return cls.from_config(
             path,
             FrequencyListConfig(
