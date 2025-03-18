@@ -2,7 +2,6 @@ import random
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
-from typing import Any
 
 import numpy as np
 from matplotlib import dates as mdates

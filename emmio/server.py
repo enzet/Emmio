@@ -16,7 +16,6 @@ from telebot.types import Message
 
 from emmio import ui, util
 from emmio.data import Data
-from emmio.language import construct_language
 from emmio.learn.core import Learning
 from emmio.learn.worker import LearningWorker
 from emmio.lexicon.core import Lexicon

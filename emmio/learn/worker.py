@@ -12,7 +12,6 @@ from emmio.language import GERMAN
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.core import (
     AnswerType,
-    Lexicon,
     LexiconLog,
     LexiconResponse,
     WordSelection,
@@ -22,7 +21,7 @@ from emmio.sentence.core import (
     SentencesCollection,
     SentenceTranslations,
 )
-from emmio.text import sanitize
+from emmio.text_util import sanitize
 from emmio.ui import Interface
 from emmio.util import HIDE_SYMBOL
 from emmio.worker import Worker
