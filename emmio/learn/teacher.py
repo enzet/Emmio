@@ -159,16 +159,18 @@ class Teacher:
         # learning process starts immediately.
         if self.check_lexicons:
             for check_lexicon in self.check_lexicons:
-                if check_lexicon.has(question_id):
-                    if check_lexicon.get(question_id) != LexiconResponse.DONT:
-                        logging.info("Known in lexicon")
-                        return False
-                    else:
-                        logging.info("Lexicon response was DONT KNOW")
-                        # FIXME: user response may be DONT KNOW, but the word is
-                        #     still may be just a form or not common, so we
-                        #     don't want to learn it.
-                        return True
+                if not check_lexicon.has(question_id):
+                    continue
+
+                if check_lexicon.get(question_id) != LexiconResponse.DONT:
+                    logging.info("Known in lexicon")
+                    return False
+
+                logging.info("Lexicon response was DONT KNOW")
+                # FIXME: user response may be DONT KNOW, but the word is
+                #     still may be just a form or not common, so we don't
+                #     want to learn it.
+                return True
 
         # If `ask_lexicon` option is enabled, show the word to user before
         # testing.
@@ -187,9 +189,9 @@ class Teacher:
             if response == LexiconResponse.DONT:
                 logging.info("Lexicon response was DONT KNOW")
                 return True
-            else:
-                logging.info("Lexicon response was KNOW")
-                return False
+
+            logging.info("Lexicon response was KNOW")
+            return False
 
         logging.info("Nothing is known about the word")
         return True

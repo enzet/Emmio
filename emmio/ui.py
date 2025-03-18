@@ -210,9 +210,6 @@ class Interface(ABC):
 class TerminalInterface(Interface):
     """Simple terminal interface with only necessary unicode characters."""
 
-    def __init__(self, use_input: bool):
-        super().__init__(use_input)
-
     def print(self, text: Element | str) -> None:
         print(self.construct(text))
 
@@ -222,27 +219,21 @@ class TerminalInterface(Interface):
         if isinstance(element, str):
             return element
 
-        elif isinstance(element, Text):
+        if isinstance(element, Text):
             result: str = ""
-            for element in element.elements:
-                result += self.construct(element)
+            for sub_element in element.elements:
+                result += self.construct(sub_element)
             return result
 
         # Ignore block margins in terminal interface.
-        elif isinstance(element, Block):
+        if isinstance(element, Block):
             return self.construct(element.text)
 
         # Ignore colors and formatting in terminal interface.
-        elif isinstance(element, Formatted) or isinstance(element, Colorized):
+        if isinstance(element, (Formatted, Colorized, Title, Header)):
             return self.construct(element.text)
 
-        elif isinstance(element, Title):
-            return self.construct(element.text)
-
-        elif isinstance(element, Header):
-            return self.construct(element.text)
-
-        elif isinstance(element, Table):
+        if isinstance(element, Table):
             columns: list[str] = []
             rows: list[list[str]] = []
             for column in element.columns:
@@ -251,10 +242,9 @@ class TerminalInterface(Interface):
                 rows.append([self.construct(cell) for cell in row])
             return table(columns, rows)
 
-        else:
-            raise Exception(
-                f"Unsuppoted text type in terminal interface `{type(element)}`."
-            )
+        raise ValueError(
+            f"Unsuppoted text type in terminal interface `{type(element)}`."
+        )
 
     @override
     def button(self, text: str) -> None:
@@ -365,19 +355,19 @@ class RichInterface(TerminalInterface):
         if isinstance(element, str):
             return element
 
-        elif isinstance(element, Text):
+        if isinstance(element, Text):
             result: RichElementText = RichElementText()
             for sub_element in element.elements:
                 result.append(self.construct(sub_element))
             return result
 
-        elif isinstance(element, Title):
+        if isinstance(element, Title):
             return RichElementPanel(self.construct(element.text))
 
-        elif isinstance(element, Header):
+        if isinstance(element, Header):
             return RichElementPanel(self.construct(element.text))
 
-        elif isinstance(element, Formatted):
+        if isinstance(element, Formatted):
             sub_element = self.construct(element.text)
             wrapped: RichElementText
 
@@ -396,30 +386,29 @@ class RichInterface(TerminalInterface):
 
             return wrapped
 
-        elif isinstance(element, Colorized):
+        if isinstance(element, Colorized):
             sub_element = self.construct(element.text)
             if isinstance(sub_element, RichElementText):
                 sub_element.stylize(element.color)
                 return sub_element
-            else:
-                rich_element: RichElementText = RichElementText(sub_element)
-                rich_element.stylize(element.color)
-                return rich_element
+            rich_element: RichElementText = RichElementText(sub_element)
+            rich_element.stylize(element.color)
+            return rich_element
 
-        elif isinstance(element, Block):
+        if isinstance(element, Block):
             return RichElementPadding(
                 self.construct(element.text), element.padding
             )
 
-        elif isinstance(element, Table):
-            table: RichElementTable = RichElementTable()
+        if isinstance(element, Table):
+            rich_table: RichElementTable = RichElementTable()
             if element.style == "rounded":
-                table.box = box.ROUNDED
+                rich_table.box = box.ROUNDED
             for column in element.columns:
-                table.add_column(self.construct(column))
+                rich_table.add_column(self.construct(column))
             for row in element.rows:
-                table.add_row(*[self.construct(cell) for cell in row])
-            return table
+                rich_table.add_row(*[self.construct(cell) for cell in row])
+            return rich_table
 
         assert False, element
 

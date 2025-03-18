@@ -76,7 +76,7 @@ class LearningVisualizer:
                 )
             return get_depth(knowledges[record.question_id].interval)
 
-        def parse_data_id() -> list[int]:
+        def parse_data_id(id_: str) -> list[int]:
             return [int(z) for z in id_.split(",")]
 
         count: int = 0
@@ -100,21 +100,21 @@ class LearningVisualizer:
                     else:
                         data[10] += 1
                 continue
-            else:
-                last_answers: list[LearningRecord] = (
-                    knowledges[record.question_id].records
-                    if record.question_id in knowledges
-                    else []
-                )
-                knowledges[record.question_id] = Knowledge(
-                    record.question_id,
-                    last_answers + [record],
-                )
-                data[compute_data_id()] += (
-                    1 / (2 ** knowledges[record.question_id].get_depth())
-                    if self.count_by_depth
-                    else 1
-                )
+
+            last_answers: list[LearningRecord] = (
+                knowledges[record.question_id].records
+                if record.question_id in knowledges
+                else []
+            )
+            knowledges[record.question_id] = Knowledge(
+                record.question_id,
+                last_answers + [record],
+            )
+            data[compute_data_id()] += (
+                1 / (2 ** knowledges[record.question_id].get_depth())
+                if self.count_by_depth
+                else 1
+            )
             x.append(record.time if self.is_time else count)
             count += 1
 
@@ -137,7 +137,7 @@ class LearningVisualizer:
         for id_ in sorted(data.keys()):
             if not self.by_language:
                 if self.use_subtypes:
-                    depth, returns = parse_data_id()
+                    depth, returns = parse_data_id(id_)
                 else:
                     depth, returns = id_, 1
                 max_depth = max(max_depth, depth)

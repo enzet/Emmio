@@ -161,8 +161,8 @@ class Graph:
                     svg.add(line)
                 previous_point = point
 
-            if title:
-                text_y = max(last_text_y + 15, point[1] + 4)
+            if title and previous_point:
+                text_y = max(last_text_y + 15, previous_point[1] + 4)
                 self.text(
                     svg,
                     (self.canvas.workspace[1][0] + 10, text_y),
@@ -236,8 +236,8 @@ class Graph:
         line: Line = svg.path(d=d, fill=color, opacity=opacity)
         svg.add(line)
         if label:
-            text_y = max(last_text_y + 15, point[1] + 5)
-            self.text(svg, (point[0] + 15, text_y), label, color)
+            text_y = max(last_text_y + 15, points[-1][1] + 5)
+            self.text(svg, (points[-1][0] + 15, text_y), label, color)
             self.last_text_y = text_y
 
     def write(self, svg):

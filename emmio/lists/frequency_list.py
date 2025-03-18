@@ -254,10 +254,7 @@ class FrequencyList(List):
         with file_path.open(encoding="utf-8") as input_file:
             structure: list[tuple[str, int]] = json.load(input_file)
 
-        data: dict[str, int] = {
-            word: occurrences for word, occurrences in structure
-        }
-        return cls(path, config, data)
+        return cls(path, config, dict(structure))
 
     @classmethod
     def from_list_file(

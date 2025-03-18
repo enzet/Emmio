@@ -121,7 +121,7 @@ class Listener:
                 if question_id not in self.safe_question_ids:
                     logging.info("Not safe time")
                     continue
-                elif not self.teacher.check2(question_id):
+                if not self.teacher.check2(question_id):
                     continue
 
             await self.process(question_id, index)

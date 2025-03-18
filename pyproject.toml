@@ -66,6 +66,7 @@ disable = [
     "E0401",  # Import error (Pylint usually fails to track imports correctly).
     "W0511",  # `TODO`/`FIXME` comments warning.
     "C0302",  # Too many lines in module.
+    "C0415",  # Import outside toplevel.
     "R0902",  # Too many instance attributes.
     "R0903",  # Too few public methods.
     "R0904",  # Too many public methods.
