@@ -145,22 +145,6 @@ Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
 
-## Audio
-
-## Server
-
-Emmio can be used as a server.
-
-```shell
-emmio server
-```
-
-To run Emmio server on the Telegram, use
-
-```shell
-emmio server --mode telegram --token ${TELEGRAM_TOKEN}
-```
-
 # Contributing
 
 Before contributing, please follow these steps:

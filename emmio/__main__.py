@@ -2,7 +2,6 @@
 
 import asyncio
 import getpass
-import logging
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -41,14 +40,6 @@ async def asynchronous_main() -> None:
     )
     execute_parser.add_argument("single_command")
 
-    # Command `server`.
-    server_parser: ArgumentParser = subparser.add_parser(
-        "server", help="run Emmio server"
-    )
-    server_parser.add_argument("--user", help="user name")
-    server_parser.add_argument("--mode", help="server mode", default="terminal")
-    server_parser.add_argument("--token", help="Telegram messenger token")
-
     arguments: Namespace = parser.parse_args(sys.argv[1:])
 
     interface: Interface = get_interface(arguments.interface)
@@ -65,12 +56,6 @@ async def asynchronous_main() -> None:
     user_id: str
 
     match arguments.command:
-        case "server":
-            from emmio.server import start as start_server  # type: ignore
-
-            logging.basicConfig(level=logging.DEBUG)
-            start_server(data, arguments)
-
         case "execute":
             from emmio.run import Emmio
 
