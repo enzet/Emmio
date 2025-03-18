@@ -287,5 +287,5 @@ def start(data: Data, arguments: Namespace):
         while True:
             try:
                 bot.polling(non_stop=True)
-            except Exception as e:
+            except telebot.apihelper.ApiTelegramException as e:
                 print(e)

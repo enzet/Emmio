@@ -126,6 +126,8 @@ class DirectoryAudioProvider(AudioProvider):
                 logging.info("Playing `%s`...", paths[0])
                 try:
                     self.player.play(str(paths[0]))
+                # pylint: disable=broad-exception-caught
+                # We want to catch and ignore all exceptions.
                 except Exception as e:
                     logging.error("Unable to play `%s`.", paths[0])
                     logging.error(e)
@@ -240,6 +242,8 @@ class WikimediaCommonsAudioProvider(AudioProvider):
                 logging.info("Playing `%s`...", path)
                 try:
                     self.player.play(str(path))
+                # pylint: disable=broad-exception-caught
+                # We want to catch and ignore all exceptions.
                 except Exception as e:
                     logging.error("Unable to play `%s`.", path)
                     logging.error(e)
