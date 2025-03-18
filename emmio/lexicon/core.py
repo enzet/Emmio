@@ -188,10 +188,15 @@ def compute_lexicon_rate(
     return date_ranges, rate_values
 
 
+@dataclass
 class WordKnowledge:
-    def __init__(self, knowing: LexiconResponse, to_skip: bool | None):
-        self.knowing: LexiconResponse = knowing
-        self.to_skip: bool | None = to_skip
+    """User's knowledge of a word."""
+
+    knowing: LexiconResponse
+    """Last user's response to the word."""
+
+    to_skip: bool | None
+    """Whether to skip this word in the future."""
 
     def to_structure(self) -> dict[str, Any]:
         """Serialize to structure."""
@@ -239,17 +244,44 @@ class LexiconLogRecord(Record):
 
 
 def rate(ratio: float) -> float | None:
+    """Compute Emmio lexicon rating.
+
+    Rate is just a more readable representation of the ratio of unknown words.
+
+    :param ratio: the ratio of unknown words to all words in some text, corpus
+        of texts or some random sample of text or corpus of texts
+    :return rating or None if ratio is 0
+    """
     if not ratio:
         return None
     return -math.log(ratio, 2)
 
 
 class WordSelection(Enum):
+    """How to select words for checking."""
+
     ARBITRARY = "arbitrary"
+    """Select words arbitrarily."""
+
     RANDOM_WORD_FROM_LIST = "random"
+    """Select a word randomly from a list of all unique words.
+
+    Note, that is not the same as selecting a random word from the whole
+    corpus of texts.
+    """
+
     FREQUENCY = "frequency"
+    """Select word randomly from the corpus of texts.
+
+    This is the same as selecting words from frequency list, taking into account
+    the frequency of the words.
+    """
+
     UNKNOWN = "unknown"
+    """Select unknown words."""
+
     TOP = "top"
+    """Select most frequent words first."""
 
 
 class LexiconLog(BaseModel):
@@ -537,18 +569,6 @@ class Lexicon:
         if value is None:
             return 0.0
         return value
-
-    def construct_by_frequency(self, frequency_list: FrequencyList):
-        response = None
-        knowns: int = 0
-        unknowns: int = 0
-        for word in frequency_list.get_words():
-            if self.has(word):
-                response = self.get(word)
-            if response == LexiconResponse.KNOW:
-                knowns += frequency_list.get_occurrences(word)
-            elif response == LexiconResponse.DONT:
-                unknowns += frequency_list.get_occurrences(word)
 
     def get_rate(
         self, after: datetime, before: datetime

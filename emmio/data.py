@@ -1,3 +1,15 @@
+"""Manager for all Emmio data artifacts.
+
+This class manages Emmio data directory which is by default located in
+`~/.emmio`. It expects to find directories
+  - `lists`,
+  - `sentences`,
+  - `dictionaries`,
+  - `audio`,
+  - `texts`,
+with artifacts and directory `users` with user data.
+"""
+
 import json
 import logging
 from collections.abc import Iterator
@@ -6,6 +18,7 @@ from pathlib import Path
 from typing import Self
 
 from emmio import ui
+from emmio.audio.core import AudioCollection, AudioProvider
 from emmio.audio.data import AudioData
 from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
@@ -98,6 +111,7 @@ class Data:
         return cls(path, None, sentences, dictionaries, None, texts, user_data)
 
     def get_lists_data(self) -> ListsData:
+        """Get frequency and word lists data."""
         if not self._lists_data:
             logging.info("Loading list data...")
             self._lists_data = ListsData.from_config(
@@ -106,31 +120,40 @@ class Data:
         return self._lists_data
 
     def get_list(self, usage_config: dict) -> List | None:
+        """Get a list by usage configuration."""
         return self.get_lists_data().get_list(usage_config)
 
     def get_frequency_list(self, usage_config: dict) -> FrequencyList | None:
+        """Get a frequency list by usage configuration."""
         return self.get_lists_data().get_frequency_list(usage_config)
 
     def get_dictionary(self, usage_config: dict) -> Dictionary | None:
+        """Get a dictionary by usage configuration."""
         return self.dictionaries.get_dictionary(usage_config)
 
     def get_dictionaries(
         self, usage_configs: list[dict]
     ) -> DictionaryCollection:
+        """Get a collection of dictionaries by usage configurations."""
         return self.dictionaries.get_dictionaries(usage_configs)
 
     def get_sentences(self, usage_config: dict) -> Sentences:
+        """Get sentences by usage configuration."""
         return self.sentences.get_sentences(usage_config)
 
     def get_text(self, text_id: str) -> Texts:
+        """Get a text by its identifier."""
         return self.texts.get_text(text_id)
 
     def get_sentences_collection(
         self, usage_configs: list[dict]
     ) -> SentencesCollection:
+        """Get a collection of sentences by usage configurations."""
         return self.sentences.get_sentences_collection(usage_configs)
 
     def get_audio_data(self) -> AudioData:
+        """Get audio data."""
+
         if not self._audio_data:
             logging.info("Loading audio data...")
             self._audio_data = AudioData.from_config(
@@ -138,34 +161,46 @@ class Data:
             )
         return self._audio_data
 
-    def get_audio_provider(self, usage_config: dict):
+    def get_audio_provider(self, usage_config: dict) -> AudioProvider:
+        """Get an audio provider by usage configuration."""
         return self.get_audio_data().get_audio_provider(usage_config)
 
-    def get_audio_collection(self, usage_configs: list[dict]):
+    def get_audio_collection(
+        self, usage_configs: list[dict]
+    ) -> AudioCollection:
+        """Get an audio collection by usage configurations."""
         return self.get_audio_data().get_audio_collection(usage_configs)
 
     def get_words(self, id_: str) -> list[str] | None:
-        if not (list := self.get_list({"id": id_})):
+        """Get words from a list by its identifier."""
+
+        if not (list_ := self.get_list({"id": id_})):
             return None
-        return list.get_words()
+        return list_.get_words()
 
     def get_learning(self, user_id: str, id_: str) -> Learning:
+        """Get a learning by its identifier."""
         return self.users_data[user_id].get_learning(id_)
 
     def get_learnings(self, user_id: str) -> Iterator[Learning]:
+        """Get all learnings for a user."""
         return self.users_data[user_id].get_all_learnings()
 
     def get_active_learnings(self, user_id: str) -> Iterator[Learning]:
+        """Get all active learnings for a user."""
         return self.users_data[user_id].get_active_learnings()
 
     def get_lexicons(
         self, user_id: str, languages: list[Language] | None = None
     ) -> list[Lexicon]:
+        """Get lexicons for a user."""
         return self.users_data[user_id].get_lexicons(languages)
 
     def print_learning_statistics(
         self, interface: ui.Interface, user_id: str
     ) -> None:
+        """Print learning statistics."""
+
         learnings: list[Learning] = sorted(
             self.get_active_learnings(user_id),
             key=lambda x: -x.count_questions_to_repeat(),
@@ -203,6 +238,7 @@ class Data:
 
     def create_user(self, user_id: str, user_name: str) -> None:
         """Create new user."""
+
         path: Path = self.path / USERS_DIRECTORY_NAME / user_id
         path.mkdir()
         self.users_data[user_id] = UserData.create(path, user_id, user_name)
@@ -210,4 +246,5 @@ class Data:
     def get_frequency_lexicons(
         self, user_id: str, languages: list[Language] | None = None
     ) -> dict[Language, list[Lexicon]]:
+        """Get frequency lexicons for a user."""
         return self.users_data[user_id].get_frequency_lexicons(languages)
