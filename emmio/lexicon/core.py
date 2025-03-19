@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -293,6 +294,31 @@ class LexiconLog(BaseModel):
     sessions: list[LexiconLogSession] = []
     """Sessions in which lexicon was checked."""
 
+    def model_dump_json(self, *args, **kwargs) -> str:
+        """Serialize to JSON string.
+
+        This field order is such for historical reasons. We should change it in
+        the future.
+        """
+        order: list[str] = [
+            "word",
+            "response",
+            "answer_type",
+            "to_skip",
+            "time",
+        ]
+        data: dict = super().model_dump(mode="json", exclude_none=True)
+        records: list[dict[str, Any]] = [
+            OrderedDict((key, record[key]) for key in order if key in record)
+            for record in data["records"]
+        ]
+        return json.dumps(
+            {"records": records, "sessions": data["sessions"]},
+            ensure_ascii=False,
+            *args,
+            **kwargs,
+        )
+
 
 @dataclass
 class Lexicon:
@@ -389,7 +415,7 @@ class Lexicon:
         logging.debug("Writing lexicon to `%s`...", self.file_path)
 
         with self.file_path.open("w+", encoding="utf-8") as output:
-            output.write(self.log.model_dump_json(indent=4, exclude_none=True))
+            output.write(self.log.model_dump_json(indent=4))
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""
