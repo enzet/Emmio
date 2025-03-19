@@ -1,5 +1,12 @@
 #!/bin/sh
 
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+else
+    echo "No virtual environment found."
+    exit 1
+fi
+
 python_files="emmio/ tests/"
 
 tools=("Black" "isort" "Mypy" "Pylint" "Pytest")
