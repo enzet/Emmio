@@ -1,3 +1,5 @@
+"""Plotting utilities."""
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +41,8 @@ def map_(value, current_min, current_max, target_min, target_max):
 
 
 def map_array(value, current_min, current_max, target_min, target_max):
+    """Remap array of values from current bounds to target bounds."""
+
     result = [None, None]
     for index in 0, 1:
         result[index] = map_(
@@ -108,7 +112,9 @@ class Graph:
             self.canvas.workspace[1],
         )
 
-    def draw_background(self, svg) -> None:
+    def draw_background(self, svg: Drawing) -> None:
+        """Draw background as a rectangle."""
+
         svg.add(
             svg.rect(
                 insert=(0, 0),
@@ -119,7 +125,9 @@ class Graph:
             )
         )
 
-    def plot(self, svg: Drawing, data) -> None:
+    def plot(self, svg: Drawing, data: list) -> None:
+        """Plot data."""
+
         recolor: str | None = None
 
         if isinstance(self.color, list):
@@ -179,6 +187,8 @@ class Graph:
                 last_text_y = text_y
 
     def to_points(self, xs: list, ys: list) -> list:
+        """Convert data to points on the canvas."""
+
         xs_second: list[float] = [(x - self.min_x).total_seconds() for x in xs]
         points: list = []
 
@@ -195,8 +205,17 @@ class Graph:
         return points
 
     def fill_between(
-        self, svg: Drawing, xs, ys_1, ys_2, color=None, label=None, opacity=None
+        self,
+        svg: Drawing,
+        xs: list,
+        ys_1: list,
+        ys_2: list,
+        color: Color | str | None = None,
+        label: str | None = None,
+        opacity: float | None = None,
     ) -> None:
+        """Fill between two lines."""
+
         recolor: str | None = None
 
         if isinstance(self.color, list):
@@ -240,13 +259,17 @@ class Graph:
             self.text(svg, (points[-1][0] + 15, text_y), label, color)
             self.last_text_y = text_y
 
-    def write(self, svg):
+    def write(self, svg: Drawing) -> None:
+        """Write the graph to a file."""
+
         with Path(svg.filename).open("w+", encoding="utf-8") as output_file:
             svg.write(output_file)
 
         logging.info("Graph was saved to `%s`.", Path(svg.filename).absolute())
 
     def draw_grid(self, svg: Drawing) -> None:
+        """Draw grid."""
+
         group: Group = Group(opacity=0.25)
         for index in range(self.min_y, self.max_y + 1):
             mapped_1: np.ndarray = self.map_((0, index))

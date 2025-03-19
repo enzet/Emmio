@@ -15,6 +15,7 @@ times=()
 
 for i in "${!tools[@]}"; do
     SECONDS=0
+    echo "Checking with ${tools[i]}..."
     tool_name="${tools[i]}"
     command="${commands[i]}"
     if ! eval "$command"; then

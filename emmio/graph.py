@@ -1,3 +1,5 @@
+"""Visualization utilities."""
+
 import random
 from collections import defaultdict
 from collections.abc import Callable, Iterator
@@ -23,16 +25,24 @@ HATCHES: list[str] = [x + x for x in ".oO/\\|-+x*"]
 
 
 class Visualizer:
+    """Graph visualizer."""
+
+    interactive: bool
+    """Whether to show the graph interactively."""
+
     def __init__(self, interactive: bool = True):
         self.interactive: bool = interactive
 
     def plot(self):
+        """Plot the graph."""
         if self.interactive:
             plt.show()
         else:
             plt.savefig("out/graph.svg")
 
     def actions(self, records: list[tuple[LearningRecord, Learning]]):
+        """Show the graph of learning actions."""
+
         x: list[datetime] = []
         y: list[int] = []
         count_learning: int = 0
@@ -52,12 +62,13 @@ class Visualizer:
         width: float,
         by_language: bool = False,
     ) -> None:
+        """Show the graph of cumulative learning actions."""
 
         data: dict[str | int, dict[datetime, int]]
         size: int
 
         if by_language:
-            learnings = {x[1] for x in records}
+            learnings: set[Learning] = {x[1] for x in records}
             data = {
                 x.learning_language.get_code(): defaultdict(int)
                 for x in learnings
@@ -158,9 +169,11 @@ class Visualizer:
         self,
         records: list[tuple[LearningRecord, Learning]],
         days: int,
-    ):
-        day_min = day_start(min(x[0].time for x in records))
-        day_max = day_start(max(x[0].time for x in records))
+    ) -> None:
+        """Show the graph of cumulative learning actions with moving average."""
+
+        day_min: datetime = day_start(min(x[0].time for x in records))
+        day_max: datetime = day_start(max(x[0].time for x in records))
 
         data: list[int] = [0] * ((day_max - day_min).days + 1)
 
@@ -176,7 +189,9 @@ class Visualizer:
 
         self.plot()
 
-    def knowing(self, learnings: list[Learning]):
+    def knowing(self, learnings: list[Learning]) -> None:
+        """Show the graph of knowing words."""
+
         records: list[tuple[str, LearningRecord]] = []
 
         for learning in learnings:
@@ -324,6 +339,8 @@ class Visualizer:
     def history(
         self, learnings: Iterator[Learning], marker_size: float = 0.5
     ) -> None:
+        """Show the graph of learning history."""
+
         data: dict[datetime, int] = {}
         index: int = 0
         indices: dict[str, int] = {}
@@ -346,7 +363,9 @@ class Visualizer:
         )
         self.plot()
 
-    def next_question_time(self, learnings: Iterator[Learning]):
+    def next_question_time(self, learnings: Iterator[Learning]) -> None:
+        """Show the graph of next question time."""
+
         data: dict[datetime, float] = {}
         for learning in learnings:
             for word in learning.knowledge:
@@ -365,6 +384,8 @@ class Visualizer:
         self.plot()
 
     def graph_mistakes(self, learnings: Iterator[Learning]) -> None:
+        """Show the graph of mistakes."""
+
         for learning in learnings:
             records: list[tuple[str, LearningRecord]] = []
             for record in learning.process.records:
@@ -406,8 +427,7 @@ class Visualizer:
         steps: int = 5,
         max_: int = 60,
     ) -> None:
-        """
-        Draw user response time histogram.
+        """Draw user response time histogram.
 
         :param records: user response records
         :param steps: number of histogram steps per second

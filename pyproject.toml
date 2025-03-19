@@ -61,7 +61,6 @@ disable_error_code = ["import-untyped"]
 
 [tool.pylint]
 py-version = "3.12"
-fail-under = 9.0
 disable = [
     "E0401",  # Import error (Pylint usually fails to track imports correctly).
     "W0511",  # `TODO`/`FIXME` comments warning.

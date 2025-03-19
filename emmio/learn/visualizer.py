@@ -1,4 +1,5 @@
 # type: ignore
+"""Learning visualizer."""
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -26,6 +27,13 @@ DEPTH_COLORS: list[str] = [
 
 
 def get_depth(interval: timedelta) -> int:
+    """Get depth of the word learning.
+
+    The bigger the interval, the deeper the learning.
+
+    :param interval: interval of the learning process
+    :return: depth of the learning process
+    """
     if not (seconds := interval.total_seconds()):
         return 0
 
@@ -34,6 +42,8 @@ def get_depth(interval: timedelta) -> int:
 
 @dataclass
 class LearningVisualizer:
+    """Learning process visualizer."""
+
     # User responses.
     records: list[tuple[LearningRecord, Learning]]
 

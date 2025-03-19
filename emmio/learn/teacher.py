@@ -115,6 +115,7 @@ class Teacher:
         self.max_for_day: int = self.learning.config.max_for_day
 
     async def get_new_question(self) -> str | None:
+        """Get new question to learn."""
 
         for question_id, list_, index in self.question_ids[
             self.question_index :
@@ -129,8 +130,13 @@ class Teacher:
         return None
 
     async def check_question_id(self, question_id) -> bool:
-        # Check whether the learning process already has the word: whether
-        # it was initially known or it is learning.
+        """Check whether the learning process already has the word.
+
+        Whether it was initially known or it is learning.
+
+        :param question_id: question identifier
+        :return: whether the word is known
+        """
         if self.learning.has(question_id):
             if self.learning.is_initially_known(question_id):
                 logging.info("Was initially known")
@@ -154,6 +160,10 @@ class Teacher:
         return await self.check2(question_id)
 
     async def check2(self, question_id: str) -> bool:
+        """Check whether the word should be asked.
+
+        :param question_id: question identifier
+        """
         # TODO: rename.
         # Check user lexicon. Skip the word if it was mark as known by user
         # while checking lexicon. This should be done after checking
@@ -199,6 +209,10 @@ class Teacher:
         return True
 
     async def check_common(self, question_id: str) -> bool:
+        """Check whether the word is common.
+
+        :param question_id: question identifier
+        """
         # Request word definition in the dictionary.
         items: list[DictionaryItem] = (
             await self.dictionaries_to_check.get_items(
@@ -217,8 +231,7 @@ class Teacher:
                 question_id, self.learning.learning_language, follow_links=False
             )
         )
-
-        not_common = False
+        not_common: bool = False
         for item in items_no_links:
             for language in self.learning.base_languages:
                 if item.has_definitions() and item.is_not_common(language):
@@ -231,6 +244,11 @@ class Teacher:
         return True
 
     async def repeat(self, max_actions: int | None = None) -> bool:
+        """Start repeating process.
+
+        :param max_actions: maximum number of actions
+        :return: whether to continue
+        """
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
@@ -265,6 +283,11 @@ class Teacher:
         return to_continue
 
     async def learn_new(self, max_actions: int | None = None) -> bool:
+        """Start learning new words.
+
+        :param max_actions: maximum number of actions
+        :return: whether to continue
+        """
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
@@ -300,6 +323,11 @@ class Teacher:
     async def repeat_and_learn_new(
         self, max_actions: int | None = None
     ) -> bool:
+        """Start repeating and learning new words.
+
+        :param max_actions: maximum number of actions
+        :return: whether to continue
+        """
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
@@ -349,7 +377,11 @@ class Teacher:
 
         return to_continue
 
-    def play(self, word: str):
+    def play(self, word: str) -> None:
+        """Play the audio pronunciation of the word.
+
+        :param word: word to play
+        """
         self.audio.play(word)
 
     def print_sentence(
@@ -404,7 +436,11 @@ class Teacher:
         self.interface.print("\n".join(translations))
 
     async def learn(self, word: str, knowledge: Knowledge | None) -> str:
+        """Start learning the word.
 
+        :param word: word to learn
+        :param knowledge: knowledge of the word
+        """
         ids_to_skip: set[int] = set()
         # if word in self.data.exclude_sentences:
         #     ids_to_skip = set(self.data.exclude_sentences[word])
@@ -598,8 +634,15 @@ class Teacher:
                 elif index == len(rated_sentences):
                     self.interface.print("No more sentences.")
 
-    async def process_command(self, command: str, word: str, sentence_id: int):
+    async def process_command(
+        self, command: str, word: str, sentence_id: int
+    ) -> None:
+        """Process the command.
 
+        :param command: user command
+        :param word: current learning word
+        :param sentence_id: sentence identifier
+        """
         if command in ["s", "/skip"]:
             self.learning.register(Response.SKIP, sentence_id, word)
             print(f'Word "{word}" is no longer in the learning process.')
