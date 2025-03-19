@@ -361,8 +361,10 @@ class RichInterface(TerminalInterface):
     def print(self, text: Element | str) -> None:
         self.console.print(self.construct_rich(text))
 
-    def construct_rich(self, element: Element | str) -> RichCompatible | str:
-        """Construct rich element from text."""
+    def construct_rich_inner(
+        self, element: Element | str
+    ) -> RichElementText | str:
+        """Construct inner rich element from text."""
 
         if isinstance(element, str):
             return element
@@ -370,23 +372,19 @@ class RichInterface(TerminalInterface):
         if isinstance(element, Text):
             result: RichElementText = RichElementText()
             for sub_element in element.elements:
-                result.append(self.construct(sub_element))
+                result.append(self.construct_rich_inner(sub_element))
             return result
 
-        if isinstance(element, Title):
-            return RichElementPanel(self.construct(element.text))
-
-        if isinstance(element, Header):
-            return RichElementPanel(self.construct(element.text))
+        sub_rich_element: RichElementText | str
 
         if isinstance(element, Formatted):
-            sub_element = self.construct(element.text)
+            sub_rich_element = self.construct_rich_inner(element.text)
             wrapped: RichElementText
 
-            if isinstance(sub_element, RichElementText):
-                wrapped = sub_element
+            if isinstance(sub_rich_element, RichElementText):
+                wrapped = sub_rich_element
             else:
-                wrapped = RichElementText(sub_element)
+                wrapped = RichElementText(sub_rich_element)
 
             match element.format_:
                 case "bold":
@@ -399,17 +397,30 @@ class RichInterface(TerminalInterface):
             return wrapped
 
         if isinstance(element, Colorized):
-            sub_element = self.construct(element.text)
-            if isinstance(sub_element, RichElementText):
-                sub_element.stylize(element.color)
-                return sub_element
-            rich_element: RichElementText = RichElementText(sub_element)
+            sub_rich_element = self.construct_rich_inner(element.text)
+            if isinstance(sub_rich_element, RichElementText):
+                sub_rich_element.stylize(element.color)
+                return sub_rich_element
+            rich_element: RichElementText = RichElementText(sub_rich_element)
             rich_element.stylize(element.color)
             return rich_element
 
+        raise ValueError(
+            f"Unsupported text type in rich interface: `{type(element)}`."
+        )
+
+    def construct_rich(self, element: Element | str) -> RichCompatible | str:
+        """Construct block or inner rich element from text."""
+
+        if isinstance(element, Title):
+            return RichElementPanel(self.construct_rich_inner(element.text))
+
+        if isinstance(element, Header):
+            return RichElementPanel(self.construct_rich_inner(element.text))
+
         if isinstance(element, Block):
             return RichElementPadding(
-                self.construct(element.text), element.padding
+                self.construct_rich_inner(element.text), element.padding
             )
 
         if isinstance(element, Table):
@@ -417,12 +428,14 @@ class RichInterface(TerminalInterface):
             if element.style == "rounded":
                 rich_table.box = box.ROUNDED
             for column in element.columns:
-                rich_table.add_column(self.construct(column))
+                rich_table.add_column(self.construct_rich_inner(column))
             for row in element.rows:
-                rich_table.add_row(*[self.construct(cell) for cell in row])
+                rich_table.add_row(
+                    *[self.construct_rich_inner(cell) for cell in row]
+                )
             return rich_table
 
-        assert False, element
+        return self.construct_rich_inner(element)
 
     @override
     @staticmethod
