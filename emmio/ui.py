@@ -44,6 +44,8 @@ colors = {
 
 
 def table(columns: list[str], rows: list[list[str]]) -> str:
+    """Draw table with simple text."""
+
     result: str = ""
 
     lengths: list[int] = [len(x) for x in columns]
@@ -156,9 +158,11 @@ class Table(BlockElement):
         self.rows: list[list[InlineElement | str]] = rows
 
     def add_column(self, column: InlineElement | str) -> None:
+        """Add column header to the table."""
         self.columns.append(column)
 
     def add_row(self, row: list[InlineElement | str]) -> None:
+        """Add row to the table."""
         self.rows.append(row)
 
 
@@ -180,12 +184,19 @@ class Interface(ABC):
 
     @abstractmethod
     def get_char(self) -> str:
+        """Return user input character."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
     ) -> str:
+        """Return user input word and check it against the right word.
+
+        :param right_word: right word
+        :param alternative_forms: set of alternative forms of the right word
+        :param language: language of the word
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -433,6 +444,7 @@ BOXES_LENGTH: int = len(BOXES)
 
 
 def progress(a: int) -> str:
+    """Draw progress bar with Unicode characters."""
     return ((a // 8) * "█") + BOXES[a % 8]
 
 
@@ -442,6 +454,8 @@ BACKSPACE: int = 127
 
 
 def get_interface(interface: str) -> Interface:
+    """Get interface by its identifier."""
+
     match interface:
         case "terminal":
             return TerminalInterface(use_input=True)

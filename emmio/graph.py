@@ -123,7 +123,7 @@ class Visualizer:
         for index, i in enumerate(categories):
             if by_language:
                 language = Language.from_code(str(i))
-                color = util.get_color(i)
+                color = util.get_color(str(i))
                 # color = language.get_color().hex
                 label = language.get_name()
             elif i == 0:  # log

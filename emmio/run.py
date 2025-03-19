@@ -46,7 +46,10 @@ LEXICON_HELP: str = """
 
 
 class ArgumentParser(argparse.ArgumentParser):
+    """Argument parser with redefined `help`."""
+
     def help(self, _):
+        """Print help to stdout and don't exit."""
         self.print_help(sys.stdout)
 
 
@@ -94,6 +97,8 @@ class Emmio:
         self.user_id: str = user_id
 
     async def run(self) -> None:
+        """Run the main loop."""
+
         self.interface.print(Title("Emmio"))
 
         self.interface.print(
@@ -115,6 +120,8 @@ class Emmio:
     async def process_command(
         self, command: str, interactive: bool = True
     ) -> None:
+        """Process the user command."""
+
         parser: ArgumentParser = ArgumentParser(
             exit_on_error=False, add_help=False
         )
@@ -652,6 +659,8 @@ class Emmio:
     async def listen(
         self, listening_id: str, start_from: int, repeat: int
     ) -> None:
+        """Listen to the audio."""
+
         listener: Listener = Listener(
             self.user_data.get_listening(listening_id),
             self.data,
@@ -662,7 +671,9 @@ class Emmio:
     def plot_lexicon(
         self, arguments: argparse.Namespace, interactive: bool
     ) -> None:
-        languages = (
+        """Plot lexicon."""
+
+        languages: list[Language] | None = (
             [Language.from_code(x) for x in arguments.languages.split(";")]
             if arguments.languages
             else None

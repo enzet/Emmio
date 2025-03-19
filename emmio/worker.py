@@ -1,3 +1,5 @@
+"""Abstract worker."""
+
 from abc import ABC, abstractmethod
 
 from emmio.ui import Text

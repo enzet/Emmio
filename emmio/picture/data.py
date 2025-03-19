@@ -1,4 +1,5 @@
 # type: ignore
+"""Data for the picture."""
 
 import json
 from datetime import datetime

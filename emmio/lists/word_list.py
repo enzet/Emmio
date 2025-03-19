@@ -1,3 +1,5 @@
+"""Simple word list in one language."""
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path

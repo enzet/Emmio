@@ -1,3 +1,5 @@
+"""Text processing utility."""
+
 from collections import defaultdict
 from typing import IO
 

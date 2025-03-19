@@ -80,6 +80,8 @@ async def asynchronous_main() -> None:
 
 
 def main() -> None:
+    """Entry point."""
+
     asyncio.run(asynchronous_main())
 
 

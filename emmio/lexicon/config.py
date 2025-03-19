@@ -1,3 +1,5 @@
+"""Configuration for the lexicon."""
+
 from enum import Enum
 
 from pydantic.main import BaseModel
@@ -25,6 +27,8 @@ class LexiconSelection(Enum):
 
 
 class LexiconConfig(BaseModel):
+    """Configuration for the lexicon."""
+
     file_name: str
     """Path to the lexicon JSON file."""
 

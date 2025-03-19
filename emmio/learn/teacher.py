@@ -27,6 +27,8 @@ ESCAPE_CHARACTER: str = "_"  # "░"
 
 
 class Teacher:
+    """Teacher: manager for the learning process."""
+
     def __init__(
         self,
         interface: Interface,

@@ -676,6 +676,15 @@ class Lexicon:
         frequency_list: FrequencyList,
         dictionaries: DictionaryCollection,
     ) -> None:
+        """Try to find position of the balanced word.
+
+        This is an experimental function. It's result has meaning only if it is
+        repeated many times and the average is computed.
+
+        Firstly, we try the random word of the frequency list. If it is known,
+        we try the word in the middle of the right half, else we try the word
+        in the middle of the left half.
+        """
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
             print(left_border, right_border)

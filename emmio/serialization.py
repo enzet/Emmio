@@ -1,3 +1,5 @@
+"""Serialization of Emmio data."""
+
 import io
 from datetime import datetime
 from typing import Literal
@@ -20,6 +22,8 @@ class Encoder:
         self.code: io.BytesIO = code
 
     def encode_magic(self) -> None:
+        """Encode magic number that identifies the file type and version."""
+
         self.code.write(self.MAGIC)
         self.encode_int(self.VERSION_MAJOR, 1)
         self.encode_int(self.VERSION_MINOR, 1)
@@ -76,6 +80,8 @@ class Decoder:
         self.code: io.BytesIO = code
 
     def decode_magic(self) -> None:
+        """Decode magic number that identifies the file type and version."""
+
         assert self.code.read(6) == self.MAGIC
         assert self.decode_int(1) == self.VERSION_MAJOR
         assert self.decode_int(1) == self.VERSION_MINOR
