@@ -2,36 +2,32 @@
 
 python_files="emmio/ tests/"
 
-echo "Checking code format with Black..."
-if ! black --check ${python_files}; then
-    black --diff --color ${python_files}
-    echo "FAIL"
-    exit 1
-fi
+tools=("Black" "isort" "Mypy" "Pylint" "Pytest")
 
-echo "Checking imports with isort..."
-if ! isort --check-only ${python_files}; then
-    echo "FAIL"
-    exit 1
-fi
+commands=(
+    "black --check ${python_files}"
+    "isort --check-only ${python_files}"
+    "mypy ${python_files}"
+    "pylint ${python_files}"
+    "pytest -vv"
+)
+times=()
 
-echo "Checking types with Mypy..."
-if ! mypy ${python_files}; then
-    echo "FAIL"
-    exit 1
-fi
+for i in "${!tools[@]}"; do
+    SECONDS=0
+    tool_name="${tools[i]}"
+    command="${commands[i]}"
+    if ! eval "$command"; then
+        echo "FAIL"
+        exit 1
+    fi
+    times[i]=$SECONDS
+done
 
-echo "Checking with Pylint..."
-if ! pylint ${python_files}; then
-    echo "FAIL"
-    exit 1
-fi
-
-echo "Checking with Pytest..."
-if ! pytest -vv; then
-    echo "FAIL"
-    exit 1
-fi
+echo "Time taken in seconds by each tool:"
+for i in "${!tools[@]}"; do
+    echo "${tools[i]}: ${times[i]} s"
+done
 
 # Code from the example hook.
 
