@@ -169,7 +169,7 @@ class Graph:
                     svg.add(line)
                 previous_point = point
 
-            if title and previous_point:
+            if title and previous_point is not None:
                 text_y = max(last_text_y + 15, previous_point[1] + 4)
                 self.text(
                     svg,
