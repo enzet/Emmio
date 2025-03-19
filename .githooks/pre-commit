@@ -9,7 +9,7 @@ commands=(
     "isort --check-only ${python_files}"
     "mypy ${python_files}"
     "pylint ${python_files}"
-    "pytest -vv"
+    "pytest"
 )
 times=()
 

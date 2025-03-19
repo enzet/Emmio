@@ -298,6 +298,7 @@ class TerminalInterface(Interface):
                 if key.upper() == char or key.lower() == char:
                     return text
 
+    @override
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
     ) -> str:
@@ -327,7 +328,7 @@ class TerminalInterface(Interface):
             else:
                 word += char
 
-            buffer: str = "\r                    \r"
+            buffer: str = "\r" + (len(word) + 1) * " " + "\r"
 
             word = language.decode_text(word)
 
