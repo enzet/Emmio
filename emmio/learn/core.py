@@ -65,7 +65,7 @@ class LearningRecord(Record):
     response: Response
     """Response type: fail or success."""
 
-    sentence_id: int
+    sentence_id: int | None = None
     """Sentence identifier used to learn the question."""
 
     @override
@@ -455,10 +455,12 @@ class Learning(UserArtifact):
         Pressure is a float characteristic of a learning process that somehow
         reflects the amount of effort needed to repeat all the questions.
         """
-        return sum(
-            1.0 / (MULTIPLIER ** knowledge.get_depth())
-            for knowledge in self.knowledge.values()
-            if knowledge.is_learning()
+        return float(
+            sum(
+                1.0 / (MULTIPLIER ** knowledge.get_depth())
+                for knowledge in self.knowledge.values()
+                if knowledge.is_learning()
+            )
         )
 
     def get_safe_question_ids(self) -> list[str]:

@@ -1,40 +1,27 @@
 """Test `lexicon` command."""
 
 import json
-from pathlib import Path
 from textwrap import dedent
 
 from pytest import CaptureFixture
 
-from tests.test_command_line.core import HEADER, check_main, initialize
+from tests.test_command_line.test_core import (
+    DICTIONARY_NB_EN,
+    HEADER,
+    LIST_NB,
+    check_main,
+    initialize,
+)
 
 
 def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
     """Test that existing user is loaded with empty data."""
 
-    temp_directory: Path = Path("__test_existing_data")
-    temp_user_id: str = "alice"
     initialize(
-        temp_directory=temp_directory,
-        temp_user_id=temp_user_id,
-        dictionaries_configuration={
-            "nb_en": {
-                "type": "file",
-                "file_name": "nb_en.json",
-                "name": "Norwegian Bokmål-English Dictionary",
-                "from_language": "nb",
-                "to_language": "en",
-            }
-        },
+        dictionaries_configuration={"nb_en": DICTIONARY_NB_EN},
         dictionaries={"nb_en.json": json.dumps({"hei": "hi"})},
         lists_configuration={
-            "nb": {
-                "language": "nb",
-                "file_format": "list",
-                "path": "nb.txt",
-                "type": "frequency_list",
-                "is_stripped": False,
-            },
+            "nb": LIST_NB,
         },
         lists={"nb.txt": "hei 1"},
         lexicons_configuration={
@@ -63,8 +50,6 @@ def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
     )
     check_main(
         capsys,
-        temp_directory=temp_directory,
-        temp_user_id=temp_user_id,
         user_commands=[
             "lexicon",  # Start checking lexicon.
             "",  # Press "Show answer" button.

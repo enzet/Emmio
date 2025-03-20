@@ -1,4 +1,8 @@
-"""Command-line test core functionality."""
+"""Command-line test core functionality.
+
+This file contains no tests, but it's name should start with "test_" for
+asserts to work correctly in Pytest.
+"""
 
 import json
 import shutil
@@ -13,6 +17,21 @@ from emmio.__main__ import main
 DEFAULT_DATA_DIRECTORY: Path = Path("__test_existing_data")
 DEFAULT_USER_ID: str = "alice"
 DEFAULT_USER_NAME: str = "Alice"
+
+DICTIONARY_NB_EN: dict = {
+    "type": "file",
+    "file_name": "nb_en.json",
+    "name": "Norwegian Bokmål-English Dictionary",
+    "from_language": "nb",
+    "to_language": "en",
+}
+LIST_NB: dict = {
+    "language": "nb",
+    "file_format": "list",
+    "path": "nb.txt",
+    "type": "frequency_list",
+    "is_stripped": False,
+}
 
 
 def check_main(
@@ -47,13 +66,13 @@ def check_main(
             main()
             captured = capsys.readouterr()
             if expected_output:
-                split_expected_output: list[str] = expected_output.splitlines()
-                split_captured_output: list[str] = captured.out.splitlines()
-                for expected_line, actual_line in zip(
-                    split_expected_output, split_captured_output
-                ):
-                    assert expected_line.rstrip() == actual_line.rstrip()
-                assert len(split_expected_output) == len(split_captured_output)
+                split_expected_output: list[str] = [
+                    line.strip() for line in expected_output.splitlines()
+                ]
+                split_captured_output: list[str] = [
+                    line.strip() for line in captured.out.splitlines()
+                ]
+                assert split_captured_output == split_expected_output
 
         assert Path(temp_directory).exists()
         for subdirectory in "dictionaries", "sentences", "texts", "users":
@@ -85,6 +104,8 @@ def initialize(
     lists: dict[str, str] | None = None,
     lexicons_configuration: dict | None = None,
     lexicons: dict[str, dict] | None = None,
+    learning_configuration: dict | None = None,
+    learnings: dict[str, dict] | None = None,
 ) -> None:
     """Initialize Emmio configuration directory."""
 
@@ -144,6 +165,9 @@ def initialize(
         "read": {},
         "listen": {},
     }
+
+    # Configurate lexicons.
+
     if lexicons_configuration is not None:
         user_configuration["lexicon"] = lexicons_configuration
     with open(temp_user_config, "w", encoding="utf-8") as output_file:
@@ -157,3 +181,19 @@ def initialize(
                 encoding="utf-8",
             ) as output_file:
                 json.dump(lexicon_structure, output_file)
+
+    # Configurate learnings.
+
+    if learning_configuration is not None:
+        user_configuration["learn"] = learning_configuration
+    with open(temp_user_config, "w", encoding="utf-8") as output_file:
+        json.dump(user_configuration, output_file)
+
+    if learnings is not None:
+        for file_name, learning_structure in learnings.items():
+            with open(
+                temp_user_directory / "learn" / file_name,
+                "w",
+                encoding="utf-8",
+            ) as output_file:
+                json.dump(learning_structure, output_file)

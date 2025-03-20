@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pytest import CaptureFixture
 
-from tests.test_command_line.core import HEADER, check_main
+from tests.test_command_line.test_core import HEADER, check_main
 
 
 def test_new_user_empty_data(capsys: CaptureFixture[str]) -> None:

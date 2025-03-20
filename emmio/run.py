@@ -596,9 +596,6 @@ class Emmio:
                     )
                 )
                 do_continue = await teacher.repeat(max_actions=10)
-                self.data.print_learning_statistics(
-                    self.interface, self.user_id
-                )
                 reply = self.interface.choice(
                     [("Yes", "y"), ("No", "n")], "Continue?"
                 )
@@ -622,10 +619,7 @@ class Emmio:
                         )
                     )
                     do_continue = await teacher.learn_new()
-                    self.interface.print(Header("All new words added"))
-                    self.data.print_learning_statistics(
-                        self.interface, self.user_id
-                    )
+                    self.interface.print("All new words added")
                     reply = self.interface.choice(
                         [("Yes", "y"), ("No", "n")], "Continue?"
                     )

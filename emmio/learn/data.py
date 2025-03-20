@@ -53,12 +53,14 @@ class LearnData:
         """Get all learnings marked as active."""
         return iter(self.learnings.values())
 
-    def compute_pressure(self):
+    def compute_pressure(self) -> float:
         """Compute the sum of pressures of all learning processes.
 
         See `Learning.compute_pressure`.
         """
-        return sum(x.compute_pressure() for x in self.learnings.values())
+        return sum(
+            learning.compute_pressure() for learning in self.learnings.values()
+        )
 
     def get_learnings_by_language(self, language: Language) -> list[Learning]:
         """Get learnings by the language.
@@ -72,7 +74,7 @@ class LearnData:
             if learning.learning_language == language
         ]
 
-    def count_postponed(self):
+    def count_postponed(self) -> int:
         """Count questions that were postponed."""
         return sum(x.count_postponed() for x in self.learnings.values())
 

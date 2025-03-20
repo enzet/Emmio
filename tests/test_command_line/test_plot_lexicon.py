@@ -2,7 +2,7 @@
 
 from pytest import CaptureFixture
 
-from tests.test_command_line.core import HEADER, check_main, initialize
+from tests.test_command_line.test_core import HEADER, check_main, initialize
 
 
 def test_plot_lexicon(capsys: CaptureFixture[str]) -> None:

@@ -227,7 +227,7 @@ class Data:
         user_data: UserData = self.users_data[user_id]
 
         pressure: float = user_data.get_learn_data().compute_pressure()
-        postponed: float = user_data.get_learn_data().count_postponed()
+        postponed: int = user_data.get_learn_data().count_postponed()
 
         interface.print(f"Pressure: {pressure:.2f}")
         interface.print(f"Postponed: {postponed}")

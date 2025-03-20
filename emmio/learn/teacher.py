@@ -52,10 +52,12 @@ class Teacher:
         self.scheme: Scheme | None = self.learning.config.scheme
         """Learning scheme: how to learn."""
 
-        if self.scheme is None:
+        if not self.scheme:
             raise ValueError("No scheme found.")
-        if self.scheme.new_question is None:
+        if not self.scheme.new_question:
             raise ValueError("No new question scheme found.")
+        if not self.scheme.new_question.pick_from:
+            raise ValueError("No question lists found.")
 
         # Load lexicons.
         self.check_lexicons: list[Lexicon] | None = None
@@ -442,24 +444,14 @@ class Teacher:
         :param knowledge: knowledge of the word
         """
         ids_to_skip: set[int] = set()
-        # if word in self.data.exclude_sentences:
-        #     ids_to_skip = set(self.data.exclude_sentences[word])
-
         translation: list[Element] = []
 
-        statistics: str = ""
         if knowledge:
-            statistics += (
+            self.interface.print(
                 "".join(x.get_symbol() for x in knowledge.get_responses())
-                + "\n"
             )
         else:
-            statistics = "New question.\n"
-
-        statistics += (
-            f"Added today: {self.learning.count_questions_added_today()}, "
-            f"to repeat: {self.learning.count_questions_to_repeat()}."
-        )
+            self.interface.print("New question.")
 
         alternative_forms: set[str] = set()
 
@@ -483,7 +475,6 @@ class Teacher:
                 words_to_hide.add(link.link_value)
 
         if items:
-            self.interface.print(statistics)
             for item in items:
                 translation = item.to_text(
                     self.learning.base_languages,
@@ -495,7 +486,6 @@ class Teacher:
                     self.interface.print(element)
             alternative_forms = set(x.link_value for x in items[0].get_links())
         else:
-            self.interface.print(statistics)
             self.interface.print("No translations.")
             self.interface.print("")
 
