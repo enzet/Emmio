@@ -71,9 +71,6 @@ class LexiconVisualizer:
     next_point: Callable[[datetime], datetime] = plus_week
     """Function to compute next point in time."""
 
-    impulses: bool = True
-    """Plot stepped graph instead of smooth line."""
-
     interactive: bool = True
     """Show the plot in a separate window."""
 

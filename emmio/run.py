@@ -705,7 +705,6 @@ class Emmio:
             interactive=interactive,
             first_point=first_point,
             next_point=next_point,
-            impulses=False,
         )
         if arguments.color and ";" in arguments.color:
             color = [Color(x) for x in arguments.color.split(";")]
