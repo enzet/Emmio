@@ -12,6 +12,7 @@ from typing import Any, Self, override
 
 from pydantic import BaseModel
 
+from emmio import util
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
     Dictionary,
@@ -412,10 +413,9 @@ class Lexicon:
 
     def write(self) -> None:
         """Write lexicon to a JSON file using string writing."""
-        logging.debug("Writing lexicon to `%s`...", self.file_path)
 
-        with self.file_path.open("w+", encoding="utf-8") as output:
-            output.write(self.log.model_dump_json(indent=4))
+        logging.debug("Writing lexicon to `%s`...", self.file_path)
+        util.write_atomic(self.file_path, self.log.model_dump_json(indent=4))
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""

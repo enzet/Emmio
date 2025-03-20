@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from emmio import util
 from emmio.listen.config import ListenConfig
 
 PAUSE_AFTER_PLAY: float = 2.0
@@ -74,10 +75,7 @@ class Listening:
         """Write data to the output file."""
 
         temp_path: Path = self.file_path.with_suffix(".temp")
-
-        with temp_path.open("w+", encoding="utf-8") as output_file:
-            data: str = self.process.model_dump_json(indent=4)
-            output_file.write(data)
+        util.write_atomic(temp_path, self.process.model_dump_json(indent=4))
 
         temp_path.replace(self.file_path)
 

@@ -13,6 +13,7 @@ from typing import Any, Self, override
 import yaml
 from pydantic.main import BaseModel
 
+from emmio import util
 from emmio.core import Record, Session
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
@@ -444,8 +445,11 @@ class Learning:
 
         if self.file_path.name.endswith(".json"):
             logging.debug("Saving learning process to `%s`...", self.file_path)
-            with self.file_path.open("w+", encoding="utf-8") as output_file:
-                output_file.write(self.process.model_dump_json(indent=4))
+            util.write_atomic(
+                self.file_path, self.process.model_dump_json(indent=4)
+            )
+        else:
+            raise ValueError(f"Unknown file format: `{self.file_path.name}`.")
 
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""

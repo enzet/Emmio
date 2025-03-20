@@ -15,6 +15,18 @@ __email__ = "me@enzet.ru"
 HIDE_SYMBOL: str = "░"
 
 
+def write_atomic(path: Path, data: str) -> None:
+    """Write data to a file atomically."""
+
+    # Write to a temporary file.
+    temp_path: Path = path.with_suffix(path.suffix + ".tmp")
+    with temp_path.open("w+", encoding="utf-8") as output_file:
+        output_file.write(data)
+
+    # Atomically move the temporary file to the target path.
+    temp_path.rename(path)
+
+
 def day_start(point: datetime) -> datetime:
     """Get the start point of the day."""
     return datetime(year=point.year, month=point.month, day=point.day)
