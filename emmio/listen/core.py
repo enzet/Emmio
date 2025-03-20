@@ -2,13 +2,15 @@
 
 import json
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Self, override
 
 from pydantic import BaseModel
 
-from emmio import util
 from emmio.listen.config import ListenConfig
+from emmio.user.core import UserArtifact
 
 PAUSE_AFTER_PLAY: float = 2.0
 
@@ -41,43 +43,56 @@ class ListeningProcess(BaseModel):
         self.records.append(record)
 
 
-class Listening:
+@dataclass
+class Listening(UserArtifact):
     """Listening process."""
 
-    def __init__(self, path: Path, config: ListenConfig, id_: str) -> None:
+    process: ListeningProcess
+    """Listening process."""
+
+    config: ListenConfig
+    """Configuration of the listening process."""
+
+    _words_cache: dict[str, int]
+    """Cache of how many times the word was heard."""
+
+    _records_cache: dict[str, list[ListeningRecord]]
+    """Cache of records of how the word was heard."""
+
+    @classmethod
+    def from_config(cls, path: Path, id_: str, config: ListenConfig) -> Self:
         """Initialize listening process."""
 
-        self.path: Path = path
-        self.config: ListenConfig = config
-        self.id_: str = id_
+        file_path: Path = path / config.file_name
 
-        self.file_path: Path = path / config.file_name
-
-        self.process: ListeningProcess
-        if not self.file_path.is_file():
-            self.process = ListeningProcess(records=[])
-            self.write()
+        process: ListeningProcess
+        if not file_path.is_file():
+            process = ListeningProcess(records=[])
         else:
-            with self.file_path.open(encoding="utf-8") as input_file:
-                self.process = ListeningProcess(**json.load(input_file))
+            with file_path.open(encoding="utf-8") as input_file:
+                process = ListeningProcess(**json.load(input_file))
 
-        self.__words_cache: dict[str, int] = defaultdict(int)
-        for record in self.process.records:
-            self.__words_cache[record.word] += 1
+        words_cache: dict[str, int] = defaultdict(int)
+        for record in process.records:
+            words_cache[record.word] += 1
 
-        self.__records_cache: dict[str, list[ListeningRecord]] = defaultdict(
-            list
+        records_cache: dict[str, list[ListeningRecord]] = defaultdict(list)
+        for record in process.records:
+            records_cache[record.word].append(record)
+
+        return cls(
+            id_,
+            path,
+            process,
+            config,
+            words_cache,
+            records_cache,
         )
-        for record in self.process.records:
-            self.__records_cache[record.word].append(record)
 
-    def write(self) -> None:
-        """Write data to the output file."""
-
-        temp_path: Path = self.file_path.with_suffix(".temp")
-        util.write_atomic(temp_path, self.process.model_dump_json(indent=4))
-
-        temp_path.replace(self.file_path)
+    @override
+    def dump_json(self) -> str:
+        """Serialize listening process to a JSON string."""
+        return self.process.model_dump_json(indent=4)
 
     def register(self, word: str, translations: list[str]) -> None:
         """Register new record of listening."""
@@ -86,16 +101,14 @@ class Listening:
             word=word, translations=translations, time=datetime.now()
         )
         self.process.register(record)
-        self.__words_cache[word] += 1
-        self.__records_cache[word].append(record)
+        self._words_cache[word] += 1
+        self._records_cache[word].append(record)
         self.write()
 
     def get_hearings(self, word: str) -> int:
         """Get number of how many times the word was heard."""
-
-        return self.__words_cache.get(word, 0)
+        return self._words_cache.get(word, 0)
 
     def get_records(self, word: str) -> list[ListeningRecord]:
         """Get records of how the word was heard."""
-
-        return self.__records_cache.get(word, [])
+        return self._records_cache.get(word, [])

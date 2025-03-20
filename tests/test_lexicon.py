@@ -17,6 +17,7 @@ def fixture_lexicon() -> Lexicon:
     temp_directory.mkdir(exist_ok=True)
     lexicon_instance: Lexicon = Lexicon.from_config(
         temp_directory,
+        "en",
         LexiconConfig(
             file_name="en.json",
             language="en",

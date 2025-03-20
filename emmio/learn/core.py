@@ -13,10 +13,10 @@ from typing import Any, Self, override
 import yaml
 from pydantic.main import BaseModel
 
-from emmio import util
 from emmio.core import Record, Session
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
+from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -225,11 +225,8 @@ def update_knowledge(
 
 
 @dataclass
-class Learning:
+class Learning(UserArtifact):
     """Learning process."""
-
-    id_: str
-    """Unique identifier of the learning process."""
 
     config: LearnConfig
     """Learning configuration."""
@@ -242,9 +239,6 @@ class Learning:
 
     base_languages: list[Language]
     """Base languages."""
-
-    file_path: Path
-    """Path to the learning file."""
 
     process: LearningProcess
     """Learning process."""
@@ -286,11 +280,11 @@ class Learning:
 
         return cls(
             id_,
+            file_path,
             config,
             knowledge,
             learning_language,
             base_languages,
-            file_path,
             process,
         )
 
@@ -440,16 +434,10 @@ class Learning:
         """Count the number of learning items that are being learning."""
         return sum(x.is_learning() for x in self.knowledge.values())
 
-    def write(self) -> None:
-        """Serialize learning process to a file."""
-
-        if self.file_path.name.endswith(".json"):
-            logging.debug("Saving learning process to `%s`...", self.file_path)
-            util.write_atomic(
-                self.file_path, self.process.model_dump_json(indent=4)
-            )
-        else:
-            raise ValueError(f"Unknown file format: `{self.file_path.name}`.")
+    @override
+    def dump_json(self) -> str:
+        """Serialize learning process to a JSON string."""
+        return self.process.model_dump_json(indent=4)
 
     def is_ready(self) -> bool:
         """Check whether the learning is ready for the next question."""

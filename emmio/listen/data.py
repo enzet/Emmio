@@ -26,7 +26,9 @@ class ListenData:
         :param config: configuration for listen data
         """
         listenings: dict[str, Listening] = {
-            listen_id: Listening(path, ListenConfig(**learn_config), listen_id)
+            listen_id: Listening.from_config(
+                path, listen_id, ListenConfig(**learn_config)
+            )
             for listen_id, learn_config in config.items()
         }
         return cls(path, listenings)

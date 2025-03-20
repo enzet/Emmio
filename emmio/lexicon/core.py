@@ -1,7 +1,6 @@
 """Core functionality for lexicon."""
 
 import json
-import logging
 import math
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -12,7 +11,6 @@ from typing import Any, Self, override
 
 from pydantic import BaseModel
 
-from emmio import util
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
     Dictionary,
@@ -24,6 +22,7 @@ from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
 from emmio.ui import Block, Element, Interface, Text
+from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -322,7 +321,7 @@ class LexiconLog(BaseModel):
 
 
 @dataclass
-class Lexicon:
+class Lexicon(UserArtifact):
     """Tracking of lexicon for one particular language through time."""
 
     log: LexiconLog
@@ -333,9 +332,6 @@ class Lexicon:
 
     config: LexiconConfig
     """Configuration of the lexicon."""
-
-    file_path: Path
-    """Path to the lexicon file."""
 
     words: dict[str, WordKnowledge]
     """Words in the lexicon."""
@@ -353,7 +349,7 @@ class Lexicon:
     """Finish date of the lexicon."""
 
     @classmethod
-    def from_config(cls, path: Path, config: LexiconConfig) -> Self:
+    def from_config(cls, path: Path, id_: str, config: LexiconConfig) -> Self:
         """Initialize lexicon.
 
         :param path: path to the directory with lexicon files
@@ -400,10 +396,11 @@ class Lexicon:
                 finish = record.time
 
         return cls(
+            id_,
+            file_path,
             log,
             language,
             config,
-            file_path,
             words,
             dates,
             responses,
@@ -411,11 +408,9 @@ class Lexicon:
             finish,
         )
 
-    def write(self) -> None:
-        """Write lexicon to a JSON file using string writing."""
-
-        logging.debug("Writing lexicon to `%s`...", self.file_path)
-        util.write_atomic(self.file_path, self.log.model_dump_json(indent=4))
+    def dump_json(self) -> str:
+        """Serialize lexicon to a JSON string."""
+        return self.log.model_dump_json(indent=4)
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""
