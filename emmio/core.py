@@ -69,4 +69,5 @@ class ArtifactData(ABC):
             raise FileExistsError()
 
         with (path / "config.json").open(encoding="utf-8") as config_file:
-            return json.load(config_file)
+            result: dict = json.load(config_file)
+            return result

@@ -664,4 +664,5 @@ class Teacher:
                 word_to_define, language
             )
             for item in items:
-                self.interface.print(item.to_text([language]))
+                for element in item.to_text([language]):
+                    self.interface.print(element)

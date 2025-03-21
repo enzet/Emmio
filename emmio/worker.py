@@ -19,6 +19,6 @@ class Worker(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def process_answer(self, message) -> str:
+    def process_answer(self, message: str) -> str:
         """Process user response."""
         raise NotImplementedError()

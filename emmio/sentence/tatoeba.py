@@ -88,7 +88,7 @@ class TatoebaSentences(Sentences):
         else:
             self.fill_cache(word_cache_path)
 
-    def read_links(self, cache_path: Path):
+    def read_links(self, cache_path: Path) -> None:
         """Read links from a cache file.
 
         :param cache_path: path to the cache directory
@@ -162,7 +162,7 @@ class TatoebaSentences(Sentences):
             if not self.links[id_1]:
                 self.links.pop(id_1)
 
-    def read_link_sets(self, file_name: Path):
+    def read_link_sets(self, file_name: Path) -> None:
         """Read link cache from a JSON file."""
 
         logging.info("Reading link cache...")
@@ -200,9 +200,6 @@ class TatoebaSentences(Sentences):
         with file_name.open("w+", encoding="utf-8") as output_file:
             logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
-
-    def __len__(self):
-        raise NotImplementedError()
 
     @override
     def filter_by_word(

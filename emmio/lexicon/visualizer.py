@@ -243,11 +243,14 @@ class LexiconVisualizer:
             y_min = 0.0
             y_max = 0.0
 
+        if not x_min or not x_max:
+            return
+
         graph: Graph = Graph(
             x_min,
             x_max,
-            math.floor(y_min),
-            math.ceil(y_max + 0.25),
+            float(math.floor(y_min)),
+            float(math.ceil(y_max + 0.25)),
             background_color=background_color,
             grid_color=grid_color,
             color=colors,  # color=Color("#000000"))

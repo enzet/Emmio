@@ -173,7 +173,7 @@ class Interface(ABC):
         self.use_input: bool = use_input
 
     @abstractmethod
-    def print(self, text) -> None:
+    def print(self, text: Element | str) -> None:
         """Simply print text message."""
         raise NotImplementedError()
 

@@ -96,7 +96,7 @@ class Decoder:
         """Decode string value."""
         return self.code.read(self.decode_int(2)).decode()
 
-    def decode_enum(self, values) -> str | None:
+    def decode_enum(self, values: list[str]) -> str | None:
         """Decode enum value."""
         if (code := self.decode_int(1)) == 0:
             return None

@@ -185,7 +185,7 @@ class Sentences(ABC):
     @staticmethod
     def rate(
         is_known: Callable[[str, Language], bool],
-        sentence_translations,
+        sentence_translations: list[SentenceTranslations],
         language: Language,
     ) -> list[tuple[float, SentenceTranslations]]:
         """Rate sentences based on the knowledge of the words.
