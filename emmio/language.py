@@ -216,31 +216,40 @@ LATIN_LIGATURES: dict[str, str] = {
     "ﬅ": "ft",
 }
 
-ARABIC: Language = Language("ar", Color("#FF8800"), ARABIC_LETTERS)
+ARABIC: Language = Language(
+    "ar",
+    Color("#286035"),  # Green color of the Arab League flag.
+    ARABIC_LETTERS,
+)
 ARMENIAN: Language = Language(
     "hy",
-    Color("#888800"),
+    Color("#E8AD3B"),  # Orange color of the Armenian flag.
     ARMENIAN_LETTERS,
     tone=Color("#888800"),
     checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
     self_name="հայերեն",
 )
-CHINESE: Language = Language("zh", Color("#444400"), KANJI, self_name="中文")
+CHINESE: Language = Language(
+    "zh",
+    Color("#DB352F"),  # Red color of the Chinese flag.
+    KANJI,
+    self_name="中文",
+)
 ENGLISH: Language = Language(
     "en",
-    Color("#2F2FC5"),
+    Color("#071B65"),  # Blue color of the United Kingdom flag.
     LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
     tone=Color("#0B2065"),
 )
 ESPERANTO: Language = Language(
     "eo",
-    Color("#009900"),
+    Color("#44982A"),  # Green color of the Esperanto flag.
     EO_UPPER.lower() + EO_UPPER,
     tone=Color("#43972A"),
 )
 FRENCH: Language = Language(
     "fr",
-    Color("#4DA9CC"),  # #16ACEC
+    Color("#4193C3"),  # Blue color of the Francophonie flag.
     LATIN_LETTERS
     + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœ"
     + "".join(LATIN_LIGATURES.keys())
@@ -250,88 +259,106 @@ FRENCH: Language = Language(
 )
 GERMAN: Language = Language(
     "de",
-    Color("#C3A656"),
+    Color("#F7D046"),  # Yellow color of the German flag.
     LATIN_LETTERS + "ÄäÖöÜüß",
     self_name="deutsch",
     tone=Color("#F7D046"),
 )  # #FED12E
 GEORGIAN: Language = Language(
     "ka",
-    Color("#008844"),
+    Color("#EA3323"),  # Red color of the Georgian flag.
     "აბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰ" + "ჱჲჳჴჵ",
     self_name="ქართული",
 )
 HEBREW: Language = Language(
-    "he", Color("#008844"), letter_range("\u0590", "\u05F4"), self_name="עִברִית"
+    "he",
+    Color("#1334B2"),  # Blue color of the Israel flag.
+    letter_range("\u0590", "\u05F4"),
+    self_name="עִברִית",
 )
 ICELANDIC: Language = Language(
     "is",
-    Color("#008844"),
+    Color("#205098"),  # Blue color of the Iceland flag.
     "AÁBDÐEÉFGHIÍJKLMNOÓPRSTUÚVXYÝÞÆÖaábdðeéfghiíjklmnoóprstuúvxyýþæö",
     self_name="íslenska",
 )
 ITALIAN: Language = Language(
-    "it", Color("#008888"), LATIN_LETTERS, self_name="italiano"
+    "it",
+    Color("#41914D"),  # Green color of the Italy flag.
+    LATIN_LETTERS,
+    self_name="italiano",
 )
 JAPANESE: Language = Language(
-    "ja", Color("#CC2200"), JAPANESE_LETTERS, self_name="日本語"
+    "ja",
+    Color("#AE232F"),  # Red color of the Japan flag.
+    JAPANESE_LETTERS,
+    self_name="日本語",
 )
 KOREAN: Language = Language(
-    "ko", Color("#880088"), KOREAN_LETTERS, self_name="한국어"
+    "ko",
+    Color("#1B449C"),  # Blue color of the South Korea flag.
+    KOREAN_LETTERS,
+    self_name="한국어",
 )
 LATIN: Language = Language(
     "la",
-    Color("#666666"),
+    Color("#FDF351"),  # Yellow color of the Vatican flag.
     LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
     self_name="latīna",
 )
 MODERN_GREEK: Language = Language(
     "el",
-    Color("#444444"),
+    Color("#2A5DA9"),  # Blue color of the Greece flag.
     "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω",
     self_name="ελληνικά",
 )
 NORWEGIAN: Language = Language(
     "no",
-    Color("#00AA00"),
+    Color("#061A57"),  # Blue color of the Norway flag.
     LATIN_LETTERS + "ÆØÅæøå",
     self_name="norsk",
 )
 NORWEGIAN_BOKMAL: Language = Language(
     "nb",
-    Color("#00AA00"),
+    Color("#061A57"),  # Blue color of the Norway flag.
     LATIN_LETTERS + "ÆØÅæøå",
     self_name="norsk bokmål",
     parent=NORWEGIAN,
 )
 PORTUGUESE: Language = Language(
     "pt",
-    Color("#00AA00"),
+    Color("#2B6519"),  # Green color of the Portugal flag.
     LATIN_LETTERS + "ÁÂÃ̃ÀÇÉÊÍÓÔÕÚáâã̃àçéêíóôõú",
     self_name="português",
 )
 POLISH: Language = Language(
     "pl",
-    Color("#00AA00"),
+    Color("#CB2E3F"),  # Red color of the Poland flag.
     "AĄBCĆDEĘFGHIJKLŁMNŃOÓPQRSŚTUVWXYZŹŻaąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż",
     self_name="polski",
 )
 RUSSIAN: Language = Language(
-    "ru", Color("#AAAAAA"), RU_UPPER + RU_UPPER.lower(), self_name="русский"
+    "ru",
+    Color("#1335A1"),  # Blue color of the Russia flag.
+    RU_UPPER + RU_UPPER.lower(),
+    self_name="русский",
 )
 SPANISH: Language = Language(
     "es",
-    Color("#CB3636"),  # "C61323"
+    Color("#F6C844"),  # Yellow color of the Spain flag.
     LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü",
     self_name="español",
     tone=Color("#9E2823"),
 )
 SWEDISH: Language = Language(
-    "sv", Color("#004488"), LATIN_LETTERS + "ÅÄÖåäö", self_name="svenska"
+    "sv",
+    Color("#205090"),  # Blue color of the Sweden flag.
+    LATIN_LETTERS + "ÅÄÖåäö",
+    self_name="svenska",
 )
 UKRAINIAN: Language = Language(
     "uk",
-    Color("#E5D144"),
+    Color("#F9D849"),  # Yellow color of the Ukrainian flag.
     UK_UPPER.lower() + UK_UPPER + SKIPPERS,
     self_name="українська",
     tone=Color("#F8D648"),
