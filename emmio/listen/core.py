@@ -82,7 +82,7 @@ class Listening(UserArtifact):
 
         return cls(
             id_,
-            path,
+            file_path,
             process,
             config,
             words_cache,

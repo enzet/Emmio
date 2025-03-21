@@ -291,17 +291,17 @@ class Emmio:
             "--size", "-s", help="marker size", type=float
         )
 
-        audio_parser = subparsers.add_parser(
-            "audio", aliases=["listen", "play"], help="play audio learning"
+        listen_parser = subparsers.add_parser(
+            "listen", help="play audio learning"
         )
-        audio_parser.add_argument("id", help="listening process identifier")
-        audio_parser.add_argument(
+        listen_parser.add_argument("id", help="listening process identifier")
+        listen_parser.add_argument(
             "--start-from",
             help="start from the word in the list with that index",
             type=int,
             default=0,
         )
-        audio_parser.add_argument("--repeat", type=int, default=1)
+        listen_parser.add_argument("--repeat", type=int, default=1)
 
         analyze_parser = subparsers.add_parser("analyze")
         analyze_parser.add_argument("language")
@@ -451,8 +451,8 @@ class Emmio:
             elif arguments.process == "actions":
                 self.plot_actions(arguments)
 
-        # Command `audio`.
-        if arguments.command == "audio":
+        # Command `listen`.
+        if arguments.command == "listen":
             await self.listen(
                 arguments.id, arguments.start_from, arguments.repeat
             )

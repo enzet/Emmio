@@ -103,7 +103,7 @@ def format_delta(delta: timedelta) -> str:
 
 def download(
     address: str, cache_path: Path, buffer_size: int = 0x80000
-) -> bytes | None:
+) -> bytearray | None:
     """Download the file from the address and save it to the cache path."""
 
     logging.info("Downloading `%s`...", address)
