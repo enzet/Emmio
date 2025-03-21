@@ -267,8 +267,8 @@ class WordSelection(Enum):
     RANDOM_WORD_FROM_LIST = "random"
     """Select a word randomly from a list of all unique words.
 
-    Note, that is not the same as selecting a random word from the whole
-    corpus of texts.
+    Note, that is not the same as selecting a random word from the whole corpus
+    of texts.
     """
 
     FREQUENCY = "frequency"
@@ -297,8 +297,8 @@ class LexiconLog(BaseModel):
     def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
         """Serialize to JSON string.
 
-        This field order is such for historical reasons. We should change it in
-        the future.
+        TODO: This field order is such for historical reasons. We should change
+            it in the future.
         """
         order: list[str] = [
             "word",

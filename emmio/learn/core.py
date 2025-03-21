@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import sys
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -111,6 +112,45 @@ class LearningProcess(BaseModel):
 
     sessions: list[LearningSession] = []
     """Recorded leaning sessions."""
+
+    def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
+        """Serialize to JSON string.
+
+        TODO: This field order is such for historical reasons. We should change
+            it in the future.
+        """
+        record_order: list[str] = [
+            "question_id",
+            "response",
+            "sentence_id",
+            "time",
+            "request_time",
+        ]
+        session_order: list[str] = [
+            "type",
+            "start",
+            "end",
+            "actions",
+        ]
+        data: dict = super().model_dump(mode="json", exclude_none=True)
+        records: list[dict[str, Any]] = [
+            OrderedDict(
+                (key, record[key]) for key in record_order if key in record
+            )
+            for record in data["records"]
+        ]
+        sessions: list[dict[str, Any]] = [
+            OrderedDict(
+                (key, session[key]) for key in session_order if key in session
+            )
+            for session in data["sessions"]
+        ]
+        return json.dumps(
+            {"records": records, "sessions": sessions},
+            ensure_ascii=False,
+            *args,
+            **kwargs,
+        )
 
     def __len__(self) -> int:
         return len(self.records)
