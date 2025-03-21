@@ -20,7 +20,7 @@ def test_word_and_symbol() -> None:
 
 
 @pytest.mark.skip(reason="Fix apostrophe splitting.")
-def test_en_apostrophe():
+def test_en_apostrophe() -> None:
     """Test English sentence splitting with apostrophe."""
     assert split_sentence("don't", ENGLISH) == [("don't", SentenceElement.WORD)]
 

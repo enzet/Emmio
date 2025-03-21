@@ -33,14 +33,14 @@ class Visualizer:
     def __init__(self, interactive: bool = True):
         self.interactive: bool = interactive
 
-    def plot(self):
+    def plot(self) -> None:
         """Plot the graph."""
         if self.interactive:
             plt.show()
         else:
             plt.savefig("out/graph.svg")
 
-    def actions(self, records: list[tuple[LearningRecord, Learning]]):
+    def actions(self, records: list[tuple[LearningRecord, Learning]]) -> None:
         """Show the graph of learning actions."""
 
         x: list[datetime] = []

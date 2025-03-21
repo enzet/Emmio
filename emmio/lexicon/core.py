@@ -294,7 +294,7 @@ class LexiconLog(BaseModel):
     sessions: list[LexiconLogSession] = []
     """Sessions in which lexicon was checked."""
 
-    def model_dump_json(self, *args, **kwargs) -> str:
+    def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
         """Serialize to JSON string.
 
         This field order is such for historical reasons. We should change it in
@@ -761,7 +761,7 @@ class Lexicon(UserArtifact):
     async def check(
         self,
         interface: Interface,
-        user_data,
+        other_lexicons: list["Lexicon"],
         frequency_list: FrequencyList,
         stop_at: int | None,
         dictionaries: DictionaryCollection,
@@ -827,7 +827,9 @@ class Lexicon(UserArtifact):
             if picked_word:
                 checked_in_session.add(picked_word)
 
-            if self.do_skip(picked_word, user_data, skip_known, skip_unknown):
+            if self.do_skip(
+                picked_word, other_lexicons, skip_known, skip_unknown
+            ):
                 continue
 
             _, response, _ = await self.ask(
@@ -866,7 +868,7 @@ class Lexicon(UserArtifact):
     def do_skip(
         self,
         picked_word: str,
-        user_data,
+        other_lexicons: list["Lexicon"],
         skip_known: bool,
         skip_unknown: bool,
     ) -> bool:
@@ -878,8 +880,7 @@ class Lexicon(UserArtifact):
         :param skip_unknown: if the unknown words should be skipped
         """
         lexicon_records: list[LexiconLogRecord] = []
-        lexicon: Lexicon
-        for lexicon in user_data.get_lexicons_by_language(self.language):
+        for lexicon in other_lexicons:
             if lexicon.has(picked_word):
                 lexicon_records += lexicon.get_records(picked_word)
 

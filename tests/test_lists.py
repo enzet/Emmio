@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -72,7 +73,7 @@ def test_read_csv() -> None:
         """
     ).strip()
 
-    def mock_file(file_path: Path, *args, **kwargs):
+    def mock_file(file_path: Path, *args: Any, **kwargs: Any) -> Any:
         if file_path.name == file_name:
             return mock_open(read_data=csv_content)(file_path, *args, **kwargs)
         raise FileNotFoundError(f"File `{file_path}` not found.")

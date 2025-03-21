@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from colour import Color
 
@@ -48,7 +49,7 @@ LEXICON_HELP: str = """
 class ArgumentParser(argparse.ArgumentParser):
     """Argument parser with redefined `help`."""
 
-    def help(self, _):
+    def help(self, _: Any) -> None:
         """Print help to stdout and don't exit."""
         self.print_help(sys.stdout)
 
@@ -556,9 +557,12 @@ class Emmio:
                 )
                 continue
 
+            other_lexicons: list[Lexicon] = (
+                self.user_data.get_lexicons_by_language(language)
+            )
             await lexicon.check(
                 self.interface,
-                self.user_data,
+                other_lexicons,
                 frequency_list,
                 None,
                 self.data.get_dictionaries(lexicon.config.dictionaries),
@@ -744,8 +748,10 @@ class Emmio:
             Visualizer().cumulative_actions_moving(records, days=days)
         else:
 
-            def locator(x):
-                return datetime(day=x.day, month=x.month, year=x.year)
+            def locator(point: datetime) -> datetime:
+                return datetime(
+                    day=point.day, month=point.month, year=point.year
+                )
 
             days = 1
 

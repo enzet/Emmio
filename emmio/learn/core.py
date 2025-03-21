@@ -126,9 +126,9 @@ class Knowledge:
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         assert self.records, "Knowledge should contain at least one record."
-        self.__responses = [x.response for x in self.records]
+        self.__responses: list[Response] = [x.response for x in self.records]
 
     def get_last_record(self) -> LearningRecord:
         """Get the latest learning record."""

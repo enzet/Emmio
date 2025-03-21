@@ -58,6 +58,9 @@ profile = "black"
 [tool.mypy]
 python_version = "3.12"
 disable_error_code = ["import-untyped"]
+disallow_untyped_defs = true  # Report functions without type annotations.
+disallow_untyped_decorators = true  # Ensure decorators have types.
+warn_return_any = true  # Warn if return type is inferred as `Any`.
 
 [tool.pylint]
 py-version = "3.12"

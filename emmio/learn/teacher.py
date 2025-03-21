@@ -135,7 +135,7 @@ class Teacher:
 
         return None
 
-    async def check_question_id(self, question_id) -> bool:
+    async def check_question_id(self, question_id: str) -> bool:
         """Check whether the learning process already has the word.
 
         Whether it was initially known or it is learning.
@@ -397,7 +397,7 @@ class Teacher:
         index: int,
         show_index: bool = False,
         max_translations: int = 3,
-    ):
+    ) -> None:
         """Print sentence and its translations.
 
         :param word: learning word that should be hidden
