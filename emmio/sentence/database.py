@@ -95,7 +95,7 @@ class SentenceDatabase(Database):
 
         :param language: language of the sentences
         :param cache_path: path to the cache directory
-        :returns: a mapping from sentence identifiers to sentences
+        :return: a mapping from sentence identifiers to sentences
         """
         table_id: str = f"{language.get_code()}_sentences"
 

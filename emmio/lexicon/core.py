@@ -251,7 +251,7 @@ def rate(ratio: float) -> float | None:
 
     :param ratio: the ratio of unknown words to all words in some text, corpus
         of texts or some random sample of text or corpus of texts
-    :return rating or None if ratio is 0
+    :return: rating or None if ratio is 0
     """
     if not ratio:
         return None
@@ -445,13 +445,13 @@ class Lexicon(UserArtifact):
     ) -> None:
         """Register user's response.
 
-        :param word: the question id that user was responded to.
-        :param response: response type.
-        :param to_skip: skip this word in the future.
-        :param request_time: time of the question.
-        :param time: time of the response.
+        :param word: the question id that user was responded to
+        :param response: response type
+        :param to_skip: skip this word in the future
+        :param request_time: time of the question
+        :param time: time of the response
         :param answer_type: is it was a user answer or the previous answer was
-            used.
+            used
         """
         if not time:
             time = datetime.now()
@@ -575,7 +575,7 @@ class Lexicon(UserArtifact):
     def get_top_unknown(self, frequency_list: FrequencyList) -> list[str]:
         """Get all words user marked as unknown in order of frequency.
 
-        :param frequency_list: sort words using this list.
+        :param frequency_list: sort words using this list
         """
         result: list[str] = []
 
@@ -766,20 +766,19 @@ class Lexicon(UserArtifact):
         skip_unknown: bool,
         stop_at_wrong: int | None,
     ) -> str:
-        """
-        Check current user vocabulary.
+        """Check current user vocabulary.
 
-        :param interface: interface for communicating with the user.
-        :param frequency_list: list of the words with frequency to check.
-        :param stop_at: stop after a number of actions.
-        :param dictionaries: offer a translation from one of dictionaries.
-        :param sentences: offer a sentence from one of sentence collections.
-        :param log_type: the method of picking words.
-        :param skip_known: skip this word in the future if it is known.
-        :param skip_unknown: skip this word in the future if it is unknown.
-        :param stop_at_wrong: stop after a number of unknown words.
+        :param interface: interface for communicating with the user
+        :param frequency_list: list of the words with frequency to check
+        :param stop_at: stop after a number of actions
+        :param dictionaries: offer a translation from one of dictionaries
+        :param sentences: offer a sentence from one of sentence collections
+        :param log_type: the method of picking words
+        :param skip_known: skip this word in the future if it is known
+        :param skip_unknown: skip this word in the future if it is unknown
+        :param stop_at_wrong: stop after a number of unknown words
 
-        :return: exit code.
+        :return: exit code
         """
 
         session: LexiconLogSession = LexiconLogSession(start=datetime.now())

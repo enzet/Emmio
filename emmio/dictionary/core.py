@@ -107,7 +107,7 @@ class DefinitionValue:
         """Create a definition value from a text.
 
         :param text: simple definition
-        :return definition value
+        :return: definition value
         """
         if matcher := re.match(
             "(?P<value>[^(]*) \\((?P<description>.*)\\)$", text
@@ -157,7 +157,7 @@ class Definition:
         """Create a definition from a simple translation.
 
         :param translation: text of the definition
-        :return definition
+        :return: definition
         """
         return cls([DefinitionValue.from_text(translation)])
 
@@ -239,7 +239,7 @@ class Form:
         :param word: word being defined
         :param language: language of the translation
         :param translation: text of the translation
-        :return word form
+        :return: word form
         """
         return cls(
             word,
@@ -386,7 +386,7 @@ class DictionaryItem:
         :param word: word being defined
         :param language: language of the translation
         :param translation: text of the translation
-        :return dictionary item
+        :return: dictionary item
         """
         return cls(
             word, [Form.from_simple_translation(word, language, translation)]
@@ -499,7 +499,7 @@ class DictionaryItem:
         If the first value of the first form of the first definition is longer
         than the limit, it will be returned as is.
 
-        :returns (transcription, translation)
+        :return: (transcription, translation)
         """
         # Forms, definitions, values.
         texts: list[list[list[str]]] = []

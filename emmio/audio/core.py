@@ -33,7 +33,7 @@ class AudioProvider(ABC):
         """Get paths to audio files with the specified word.
 
         :param word: word or phrase to get audio for
-        :return list of paths or an empty list
+        :return: list of paths or an empty list
         """
         raise NotImplementedError()
 
@@ -43,7 +43,7 @@ class AudioProvider(ABC):
 
         :param word: word to play audio with pronunciation for
         :param repeat: number of times to play the audio
-        :return true iff an audio was played
+        :return: true iff an audio was played
         """
         raise NotImplementedError()
 
@@ -105,7 +105,7 @@ class DirectoryAudioProvider(AudioProvider):
         Return an empty list if files do not exist.
 
         :param word: word to get audio for
-        :return list of paths to the audio files
+        :return: list of paths to the audio files
         """
         return self.cache.get(word, [])
 
@@ -115,7 +115,7 @@ class DirectoryAudioProvider(AudioProvider):
 
         :param word: word to play audio for
         :param repeat: number of times to play the audio
-        :return true iff an audio was played
+        :return: true iff an audio was played
         """
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
@@ -141,7 +141,7 @@ class DirectoryAudioProvider(AudioProvider):
         """Check whether the audio provider has audio for the word.
 
         :param word: word to check audio for
-        :return true iff an audio is available
+        :return: true iff an audio is available
         """
         return bool(self.get_paths(word))
 
@@ -182,7 +182,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         :param name: name of the audio file
         :param cache_path: path to the cache file
-        :return true iff the audio file was successfully downloaded
+        :return: true iff the audio file was successfully downloaded
         """
         hashcode: str = hashlib.md5(name.encode()).hexdigest()[:2]
         url: str = (
@@ -202,7 +202,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         "What are the strangely named components in file paths?"
 
         :param word: word to get audio for
-        :return path to the audio file or `None` if file does not exist
+        :return: path to the audio file or `None` if file does not exist
         """
         if word not in self.cache:
             return None
@@ -272,7 +272,7 @@ class AudioCollection:
         """Get paths to audio files with the specified word.
 
         :param word: word to get audio paths for
-        :return list of paths to the audio files
+        :return: list of paths to the audio files
         """
         result: list[Path] = []
         for audio_provider in self.audio_providers:
@@ -284,7 +284,7 @@ class AudioCollection:
 
         :param word: word to play pronunciations for
         :param repeat: number of times to play each pronunciation
-        :return true iff at least one pronunciation was played
+        :return: true iff at least one pronunciation was played
         """
         for audio in self.audio_providers:
             if audio.play(word, repeat):
@@ -295,7 +295,7 @@ class AudioCollection:
         """Check whether the audio collection has audio for the word.
 
         :param word: word to check audio for
-        :return true iff at least one pronunciation is available
+        :return: true iff at least one pronunciation is available
         """
         for audio_provider in self.audio_providers:
             if audio_provider.has(word):

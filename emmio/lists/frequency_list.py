@@ -134,7 +134,7 @@ class FrequencyList(List):
     def get_random_word(self) -> tuple[str, int]:
         """Return random unique word regardless of its frequency.
 
-        :return word, number of its occurrences in text
+        :return: word, number of its occurrences in text
         """
         word: str = random.choice(list(self.data.keys()))
         return word, self.data[word]
@@ -142,7 +142,7 @@ class FrequencyList(List):
     def get_word_by_occurrences(self, occurrences: int) -> tuple[str, int]:
         """Get first word with occurrences more or equals to specified number.
 
-        :return word and its number of occurrences in the text
+        :return: word and its number of occurrences in the text
         """
         for word in self._sorted_keys:
             if self.data[word] >= occurrences:
@@ -162,7 +162,7 @@ class FrequencyList(List):
         This function is equivalent to picking up random word from the text,
         which was used to create this frequency list in the first place.
 
-        :return (word, number of its occurrences in text)
+        :return: (word, number of its occurrences in text)
         """
         number: int = random.randint(0, self._occurrences)
 
@@ -181,7 +181,7 @@ class FrequencyList(List):
     def get_index(self, word: str) -> int:
         """Get index of the word in the frequency list.
 
-        :return index of the word in the frequency list or -1 if the word is
+        :return: index of the word in the frequency list or -1 if the word is
             not in the frequency list
         """
         if word in self._sorted_keys:

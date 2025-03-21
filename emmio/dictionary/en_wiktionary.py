@@ -192,7 +192,7 @@ class EnglishWiktionaryKaikki(Dictionary):
         """Get path to cache file for a word.
 
         :param word: word to get cache file path for
-        :return path to cache file
+        :return: path to cache file
         """
         return (
             self.cache_directory / word[0].lower() / f"{word[:2].lower()}.jsonl"

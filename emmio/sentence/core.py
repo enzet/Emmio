@@ -29,7 +29,7 @@ def split_sentence(
 ) -> list[tuple[str, SentenceElement]]:
     """Split sentence by words and symbols.
 
-    :return tuples of text parts and its types, e.g. for `Hello, world!` the
+    :return: tuples of text parts and its types, e.g. for `Hello, world!` the
         result should be
           - ("Hello", word),
           - (",", symbol),

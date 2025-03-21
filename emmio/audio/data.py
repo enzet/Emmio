@@ -30,7 +30,7 @@ class AudioData(ArtifactData):
         """Create an audio data from a configuration.
 
         :param path: path to the configuration file
-        :return audio data
+        :return: audio data
         """
         config: dict = ArtifactData.read_config(path)
 
@@ -45,7 +45,7 @@ class AudioData(ArtifactData):
         """Get an audio provider from a usage configuration.
 
         :param usage_config: usage configuration
-        :return audio provider
+        :return: audio provider
         """
         match id_ := usage_config["id"]:
             case "wikimedia_commons":
@@ -62,7 +62,7 @@ class AudioData(ArtifactData):
         """Get an audio collection from a list of usage configurations.
 
         :param usage_configs: list of usage configurations
-        :return audio collection
+        :return: audio collection
         """
         return AudioCollection(
             [self.get_audio_provider(x) for x in usage_configs]
