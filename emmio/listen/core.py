@@ -9,13 +9,14 @@ from typing import Self, override
 
 from pydantic import BaseModel
 
+from emmio.core import Record
 from emmio.listen.config import ListenConfig
 from emmio.user.core import UserArtifact
 
 PAUSE_AFTER_PLAY: float = 2.0
 
 
-class ListeningRecord(BaseModel):
+class ListeningRecord(Record):
     """Record of one listening."""
 
     word: str
@@ -24,11 +25,8 @@ class ListeningRecord(BaseModel):
     translations: list[str]
     """Translations of the word in the base language."""
 
-    time: datetime
-    """Time of the listening."""
-
+    @override
     def get_symbol(self) -> str:
-        """Get symbol to display in the progress bar."""
         return "L"
 
 
