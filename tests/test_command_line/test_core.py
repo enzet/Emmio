@@ -102,6 +102,8 @@ def initialize(
     dictionaries: dict[str, str] | None = None,
     lists_configuration: dict | None = None,
     lists: dict[str, str] | None = None,
+    sentences_configuration: dict | None = None,
+    sentences: dict[str, str] | None = None,
     lexicons_configuration: dict | None = None,
     lexicons: dict[str, dict] | None = None,
     learning_configuration: dict | None = None,
@@ -109,7 +111,7 @@ def initialize(
 ) -> None:
     """Initialize Emmio configuration directory."""
 
-    for subdirectory in "lists", "dictionaries":
+    for subdirectory in "lists", "dictionaries", "sentences":
         (temp_directory / subdirectory).mkdir(parents=True, exist_ok=True)
     temp_user_directory: Path = temp_directory / "users" / temp_user_id
     temp_user_directory.mkdir(parents=True, exist_ok=True)
@@ -139,13 +141,14 @@ def initialize(
 
     # Configurate lists.
 
-    if lists_configuration is not None:
-        with open(
-            temp_directory / "lists" / "config.json",
-            "w",
-            encoding="utf-8",
-        ) as output_file:
-            json.dump(lists_configuration, output_file)
+    if lists_configuration is None:
+        lists_configuration = {}
+    with open(
+        temp_directory / "lists" / "config.json",
+        "w",
+        encoding="utf-8",
+    ) as output_file:
+        json.dump(lists_configuration, output_file)
 
     if lists is not None:
         for file_name, content in lists.items():
@@ -156,7 +159,25 @@ def initialize(
             ) as output_file:
                 output_file.write(content)
 
-    # Configurate user.
+    # Configurate sentences.
+
+    if sentences_configuration is None:
+        sentences_configuration = {}
+    with open(
+        temp_directory / "sentences" / "config.json",
+        "w",
+        encoding="utf-8",
+    ) as output_file:
+        json.dump(sentences_configuration, output_file)
+
+    if sentences is not None:
+        for file_name, content in sentences.items():
+            with open(
+                temp_directory / "sentences" / file_name,
+                "w",
+                encoding="utf-8",
+            ) as output_file:
+                output_file.write(content)
 
     user_configuration: dict = {
         "name": temp_user_name,

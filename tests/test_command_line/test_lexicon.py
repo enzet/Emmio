@@ -20,9 +20,7 @@ def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
     initialize(
         dictionaries_configuration={"nb_en": DICTIONARY_NB_EN},
         dictionaries={"nb_en.json": json.dumps({"hei": "hi"})},
-        lists_configuration={
-            "nb": LIST_NB,
-        },
+        lists_configuration={"nb": LIST_NB},
         lists={"nb.txt": "hei 1"},
         lexicons_configuration={
             "nb": {

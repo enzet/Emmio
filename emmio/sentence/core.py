@@ -5,8 +5,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Self, override
 
 from emmio.language import Language
+from emmio.sentence.config import SentenceConfig
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -142,11 +144,6 @@ class Sentences(ABC):
     """
 
     @abstractmethod
-    def __len__(self) -> int:
-        """Return the total number of sentences."""
-        raise NotImplementedError()
-
-    @abstractmethod
     def filter_by_word(
         self,
         word: str,
@@ -211,6 +208,88 @@ class Sentences(ABC):
 
 
 @dataclass
+class SimpleSentences(Sentences):
+    """Collection of sentences in two languages with translation relations."""
+
+    id_: str
+    """Unique sentence string identifier."""
+
+    sentences: list[SentenceTranslations]
+    """List of sentences."""
+
+    language_1: Language
+    """First language."""
+
+    language_2: Language
+    """Second language."""
+
+    @classmethod
+    def from_config(cls, path: Path, id_: str, config: SentenceConfig) -> Self:
+        """Initialize sentences from a directory.
+
+        :param path: path to the directory with sentences
+        :param config: configuration of the sentences
+        """
+        sentences: list[SentenceTranslations] = []
+
+        with (path / config.file_name).open(encoding="utf-8") as input_file:
+            index: int = 0
+            while True:
+                text: str = input_file.readline().strip()
+                if not text:
+                    break
+                translation: str = input_file.readline().strip()
+                if not translation:
+                    raise ValueError(f'Translation for "{text}" is missing.')
+
+                sentences.append(
+                    SentenceTranslations(
+                        Sentence(index, text),
+                        [Sentence(index + 1, translation)],
+                    )
+                )
+                index += 2
+
+        return cls(
+            id_,
+            sentences,
+            Language.from_code(config.language_1),
+            Language.from_code(config.language_2),
+        )
+
+    @override
+    def filter_by_word(
+        self,
+        word: str,
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
+    ) -> list[SentenceTranslations]:
+        return [
+            sentence
+            for sentence in self.sentences
+            if word in sentence.sentence.text
+            and sentence.sentence.id_ not in ids_to_skip
+            and len(sentence.sentence.text) <= max_length
+        ][:max_number]
+
+    @override
+    def filter_by_word_and_rate(
+        self,
+        word: str,
+        is_known: Callable[[str, Language], bool],
+        ids_to_skip: set[int],
+        max_length: int,
+        max_number: int | None = 1000,
+    ) -> list[tuple[float, SentenceTranslations]]:
+        return self.rate(
+            is_known,
+            self.filter_by_word(word, ids_to_skip, max_length, max_number),
+            self.language_1,
+        )
+
+
+@dataclass
 class SentencesCollection:
     """Collection of sentences."""
 
@@ -256,7 +335,3 @@ class SentencesCollection:
         result.sort(key=lambda x: -x[0])
 
         return result
-
-    def __len__(self) -> int:
-        """Return the total number of sentences."""
-        return sum(len(x) for x in self.collection)

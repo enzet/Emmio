@@ -6,7 +6,8 @@ from typing import Self
 
 from emmio.core import ArtifactData
 from emmio.language import Language
-from emmio.sentence.core import Sentences, SentencesCollection
+from emmio.sentence.config import SentenceConfig
+from emmio.sentence.core import Sentences, SentencesCollection, SimpleSentences
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.tatoeba import TatoebaSentences
 
@@ -21,20 +22,27 @@ class SentencesData(ArtifactData):
     database: SentenceDatabase
     """The database with sentences."""
 
+    sentences: dict[str, Sentences]
+    """Mapping from unique sentence string identifier to sentence."""
+
     @classmethod
     def from_config(cls, path: Path) -> Self:
         """Initialize sentences from a directory.
 
         :param path: path to the directory with sentences
         """
-        # This will create the directory if it doesn't exist, but we don't need
-        # any configuration, because we support only Tatoeba for now.
-        ArtifactData.read_config(path)
+        config: dict = ArtifactData.read_config(path)
+
+        sentences: dict[str, Sentences] = {}
+        for id_, data in config.items():
+            sentences[id_] = SimpleSentences.from_config(
+                path, id_, SentenceConfig(**data)
+            )
 
         database_path: Path = path / "sentences.db"
         database: SentenceDatabase = SentenceDatabase(database_path)
 
-        return cls(path, database)
+        return cls(path, database, sentences)
 
     def get_sentences(self, usage_config: dict) -> Sentences:
         """Get sentences by its identifier.
@@ -52,7 +60,8 @@ class SentencesData(ArtifactData):
                     self.database,
                 )
             case _:
-                # For now, only Tatoeba is supported.
+                if id_ in self.sentences:
+                    return self.sentences[id_]
                 raise ValueError(f"Unknown sentence type: `{id_}`.")
 
     def get_sentences_collection(

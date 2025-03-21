@@ -16,7 +16,11 @@ from emmio.learn.config import Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
-from emmio.sentence.core import SentencesCollection, SentenceTranslations
+from emmio.sentence.core import (
+    SentenceElement,
+    SentencesCollection,
+    SentenceTranslations,
+)
 from emmio.ui import Element, Interface
 from emmio.user.data import UserData
 
@@ -390,7 +394,7 @@ class Teacher:
         self,
         word: str,
         rated_sentences: list[tuple[float, SentenceTranslations]],
-        index,
+        index: int,
         show_index: bool = False,
         max_translations: int = 3,
     ):
@@ -409,13 +413,15 @@ class Teacher:
 
         result: str = ""
 
-        words: list[tuple[str, str]] = sentence_translations.sentence.get_words(
-            self.learning.learning_language
+        words: list[tuple[str, SentenceElement]] = (
+            sentence_translations.sentence.get_words(
+                self.learning.learning_language
+            )
         )
         all_known: bool = True
 
         for current_word, type_ in words:
-            if type_ == "symbol":
+            if type_ == SentenceElement.SYMBOL:
                 result += current_word
             elif current_word.lower() == word:
                 result += ESCAPE_CHARACTER * len(current_word)

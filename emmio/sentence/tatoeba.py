@@ -10,6 +10,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import override
 
 from tqdm import tqdm
 
@@ -24,7 +25,10 @@ __email__ = "me@enzet.ru"
 
 @dataclass
 class TatoebaSentences(Sentences):
-    """Collection of sentences in two languages with translation relations."""
+    """Collection of sentences in two languages from Tatoeba project.
+
+    See https://tatoeba.org/
+    """
 
     path: Path
     language_1: Language
@@ -200,6 +204,7 @@ class TatoebaSentences(Sentences):
     def __len__(self):
         raise NotImplementedError()
 
+    @override
     def filter_by_word(
         self,
         word: str,
@@ -207,16 +212,7 @@ class TatoebaSentences(Sentences):
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[SentenceTranslations]:
-        """
-        Get sentences that contain the specified word and their translations to
-        the first language.
 
-        :param word: word in the second language
-        :param ids_to_skip: identifiers of sentences that should not be added to
-            the result
-        :param max_length: maximum sentence length
-        :param max_number: maximum number of sentences to check
-        """
         result: list[SentenceTranslations] = []
 
         if word not in self.cache:
@@ -250,6 +246,7 @@ class TatoebaSentences(Sentences):
                 )
         return result
 
+    @override
     def filter_by_word_and_rate(
         self,
         word: str,
@@ -258,6 +255,7 @@ class TatoebaSentences(Sentences):
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceTranslations]]:
+
         return Sentences.rate(
             is_known,
             self.filter_by_word(word, ids_to_skip, max_length, max_number),
