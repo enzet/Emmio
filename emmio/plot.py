@@ -66,7 +66,7 @@ def map_array(
         )
         for index in range(2)
     ]
-    return (values[0], values[1])
+    return values[0], values[1]
 
 
 @dataclass
@@ -160,7 +160,7 @@ class Graph:
             gradient: LinearGradient = svg.defs.add(linear_gradient)
             recolor = Color(gradient.get_funciri())
 
-        last_text_y = 0
+        last_text_y: float = 0.0
 
         for xs, ys, color, title in data:
             if recolor:
@@ -170,9 +170,9 @@ class Graph:
 
             assert len(xs) == len(ys)
 
-            points = self.to_points(xs, ys)
+            points: list[tuple[float, float]] = self.to_points(xs, ys)
 
-            previous_point: np.ndarray | None = None
+            previous_point: tuple[float, float] | None = None
             for point in points:
                 if previous_point is not None:
                     line: Line = svg.line(
@@ -202,11 +202,13 @@ class Graph:
                 )
                 last_text_y = text_y
 
-    def to_points(self, xs: list, ys: list) -> list:
+    def to_points(
+        self, xs: list[datetime], ys: list[float]
+    ) -> list[tuple[float, float]]:
         """Convert data to points on the canvas."""
 
         xs_second: list[float] = [(x - self.min_x).total_seconds() for x in xs]
-        points: list = []
+        points: list[tuple[float, float]] = []
 
         for index, x in enumerate(xs_second):
             y = ys[index]
@@ -260,10 +262,10 @@ class Graph:
         assert len(xs) == len(ys_1)
         assert len(xs) == len(ys_2)
 
-        points_1: list[np.ndarray] = self.to_points(xs, ys_1)
-        points_2: list[np.ndarray] = self.to_points(xs, ys_2)
+        points_1: list[tuple[float, float]] = self.to_points(xs, ys_1)
+        points_2: list[tuple[float, float]] = self.to_points(xs, ys_2)
 
-        points: list[np.ndarray] = points_1 + list(reversed(points_2))
+        points: list[tuple[float, float]] = points_1 + list(reversed(points_2))
 
         d: str = f"M {points[0][0]},{points[0][1]}"
         for point in points[1:]:
@@ -273,8 +275,8 @@ class Graph:
         line: Line = svg.path(d=d, fill=color, opacity=opacity)
         svg.add(line)
         if label:
-            text_y = max(last_text_y + 15, points[-1][1] + 5)
-            self.text(svg, (points[-1][0] + 15, text_y), label, color.hex)
+            text_y = max(last_text_y + 15.0, points[-1][1] + 5.0)
+            self.text(svg, (points[-1][0] + 15.0, text_y), label, color.hex)
             self.last_text_y = text_y
 
     def write(self, svg: Drawing) -> None:

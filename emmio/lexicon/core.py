@@ -218,7 +218,6 @@ class LexiconLogSession(Session):
         """Mark session as finished at the specified time.
 
         :param time: time when session was finished
-        :param actions: number of actions performed during the session
         """
         self.end = time
 
@@ -352,6 +351,7 @@ class Lexicon(UserArtifact):
     def from_config(cls, path: Path, id_: str, config: LexiconConfig) -> Self:
         """Initialize lexicon.
 
+        :param id_: unique lexicon identifier
         :param path: path to the directory with lexicon files
         :param config: lexicon configuration
         """
@@ -595,14 +595,12 @@ class Lexicon(UserArtifact):
     ) -> list[Element]:
         """Get question text for picked word to ask user."""
 
-        result: list[Element] = []
-        result.append(Block(word, (0, 0, 0, 4)))
+        result: list[Element] = [Block(word, (0, 0, 0, 4))]
 
         if self.has(word):
             result.append(
                 Text(f"Last response was: {self.get(word).get_message()}.")
             )
-
         if sentences is not None:
             if sentence_translations := sentences.filter_by_word(
                 word, set(), 120
@@ -624,7 +622,7 @@ class Lexicon(UserArtifact):
     ) -> tuple[bool | None, LexiconResponse | None, Dictionary | None]:
         """Ask user if the word is known.
 
-        :return: tuple of (skip in future, response, dictionary)
+        :return: tuple of (skip in the future, response, dictionary)
         """
 
         # FIXME: get definitions languages from user settings.
@@ -769,6 +767,7 @@ class Lexicon(UserArtifact):
         """Check current user vocabulary.
 
         :param interface: interface for communicating with the user
+        :param other_lexicons: other user lexicons of the same language
         :param frequency_list: list of the words with frequency to check
         :param stop_at: stop after a number of actions
         :param dictionaries: offer a translation from one of dictionaries
@@ -818,6 +817,8 @@ class Lexicon(UserArtifact):
                 )
                 if not items or items[0].is_not_common(self.language):
                     continue
+            else:
+                raise ValueError(f"Unknown lexicon log type `{log_type}.")
 
             if picked_word:
                 checked_in_session.add(picked_word)
@@ -870,7 +871,7 @@ class Lexicon(UserArtifact):
         """Check whether the word should be skipped.
 
         :param picked_word: word to check
-        :param user_data: user-specific data
+        :param other_lexicons: other user lexicons of the same language
         :param skip_known: if the known words should be skipped
         :param skip_unknown: if the unknown words should be skipped
         """

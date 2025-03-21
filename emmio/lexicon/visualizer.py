@@ -253,7 +253,7 @@ class LexiconVisualizer:
             float(math.ceil(y_max + 0.25)),
             background_color=background_color,
             grid_color=grid_color,
-            color=colors,  # color=Color("#000000"))
+            color=colors,
         )
 
         svg: Drawing = Drawing(

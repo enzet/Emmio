@@ -341,8 +341,9 @@ class Learning(UserArtifact):
         :param response: user response
         :param sentence_id: sentence identifier was used to learn the word
         :param question_id: question identifier
-        :param time: a moment in time what the action was performed, if time is
-            None, use method call time
+        :param time: a moment in time what the user answer was registered
+        :param request_time: a moment in time when the question was presented
+            to the user
         """
         if time is None:
             time = datetime.now()
@@ -570,7 +571,7 @@ class Learning(UserArtifact):
     def compute_average_action_time(self) -> timedelta:
         """Compute average time needed for an action recorded in sessions."""
 
-        total_time: timedelta = timedelta(0)
+        total_time: timedelta = timedelta()
         total_actions: int = 0
 
         for session in self.process.sessions:
@@ -582,7 +583,7 @@ class Learning(UserArtifact):
         if total_actions:
             return total_time / total_actions
 
-        return timedelta(0)
+        return timedelta()
 
 
 def time_format(minutes: int) -> datetime:

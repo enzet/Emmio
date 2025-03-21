@@ -21,7 +21,7 @@ from emmio.sentence.core import (
     SentencesCollection,
     SentenceTranslations,
 )
-from emmio.ui import Colorized, Element, Interface, Text
+from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -450,7 +450,6 @@ class Teacher:
         :param knowledge: knowledge of the word
         """
         ids_to_skip: set[int] = set()
-        translation: list[Element] = []
 
         if knowledge:
             self.interface.print(

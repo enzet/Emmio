@@ -23,7 +23,6 @@ with (Path(__file__).parent / "digraphs.json").open(
 ) as config_file:
     DIGRAPHS = json.load(config_file)
 
-
 LATIN_CODE: dict[str, str] = {
     "ā": "a",
     "ē": "e",
@@ -34,6 +33,7 @@ LATIN_CODE: dict[str, str] = {
 
 
 LanguageConfig = str
+"""2-letter language code."""
 
 
 class Language:
@@ -46,7 +46,6 @@ class Language:
         symbols: str,
         self_name: str | None = None,
         parent: Language | None = None,
-        tone: Color | None = None,
         checking: Callable | None = None,
         sentence_end: str | None = None,
     ) -> None:
@@ -55,7 +54,6 @@ class Language:
         self.color: Color | None = color
         self.self_name: str | None = self_name
         self.parent: Language | None = parent
-        self.tone: Color | None = tone
         self.sentence_end: str | None = sentence_end
         self.iso639_language = ISO639Language(code)
 
@@ -111,12 +109,12 @@ class Language:
         If the language has a tone color, use it. Otherwise, if the language
         has a color, use it. Otherwise, use the default color.
         """
-        if self.tone is not None:
-            c: Color = Color()
-            c.set_hue(self.tone.get_hue())
-            c.set_saturation(0.5)
-            c.set_luminance(0.4)
-            return c
+        if self.color is not None:
+            color: Color = Color()
+            color.set_hue(self.color.get_hue())
+            color.set_saturation(0.7)
+            color.set_luminance(0.4)
+            return color
         if self.color is not None:
             return self.color
         return DEFAULT_COLOR
@@ -124,7 +122,7 @@ class Language:
     def get_color(self) -> Color:
         """Get language color or default color if it is not set."""
         if self.color is not None:
-            return self.color
+            return self.get_adjusted_color()
         return DEFAULT_COLOR
 
     def get_code(self) -> str:
@@ -225,7 +223,6 @@ ARMENIAN: Language = Language(
     "hy",
     Color("#E8AD3B"),  # Orange color of the Armenian flag.
     ARMENIAN_LETTERS,
-    tone=Color("#888800"),
     checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
     self_name="հայերեն",
 )
@@ -239,13 +236,11 @@ ENGLISH: Language = Language(
     "en",
     Color("#071B65"),  # Blue color of the United Kingdom flag.
     LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
-    tone=Color("#0B2065"),
 )
 ESPERANTO: Language = Language(
     "eo",
     Color("#44982A"),  # Green color of the Esperanto flag.
     EO_UPPER.lower() + EO_UPPER,
-    tone=Color("#43972A"),
 )
 FRENCH: Language = Language(
     "fr",
@@ -254,7 +249,6 @@ FRENCH: Language = Language(
     + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœ"
     + "".join(LATIN_LIGATURES.keys())
     + SKIPPERS,
-    tone=Color("#4192C1"),
     self_name="français",
 )
 GERMAN: Language = Language(
@@ -262,8 +256,7 @@ GERMAN: Language = Language(
     Color("#F7D046"),  # Yellow color of the German flag.
     LATIN_LETTERS + "ÄäÖöÜüß",
     self_name="deutsch",
-    tone=Color("#F7D046"),
-)  # #FED12E
+)
 GEORGIAN: Language = Language(
     "ka",
     Color("#EA3323"),  # Red color of the Georgian flag.
@@ -348,7 +341,6 @@ SPANISH: Language = Language(
     Color("#F6C844"),  # Yellow color of the Spain flag.
     LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü",
     self_name="español",
-    tone=Color("#9E2823"),
 )
 SWEDISH: Language = Language(
     "sv",
@@ -361,7 +353,6 @@ UKRAINIAN: Language = Language(
     Color("#F9D849"),  # Yellow color of the Ukrainian flag.
     UK_UPPER.lower() + UK_UPPER + SKIPPERS,
     self_name="українська",
-    tone=Color("#F8D648"),
 )
 
 KNOWN_LANGUAGES: set[Language] = {

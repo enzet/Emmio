@@ -513,7 +513,12 @@ class DictionaryItem:
             for link in form.get_links():
                 definitions.append(["→ " + link.link_value])
             for definition in form.definitions[language]:
-                definitions.append([value.value for value in definition.values])
+                definitions.append(
+                    [
+                        definition_value.value
+                        for definition_value in definition.values
+                    ]
+                )
             texts.append(definitions)
             if not transcription and form.transcriptions:
                 transcription = list(form.transcriptions)[0]
