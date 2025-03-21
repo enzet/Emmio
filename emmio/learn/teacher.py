@@ -21,7 +21,7 @@ from emmio.sentence.core import (
     SentencesCollection,
     SentenceTranslations,
 )
-from emmio.ui import Element, Interface
+from emmio.ui import Colorized, Element, Interface, Text
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -411,7 +411,7 @@ class Teacher:
         if show_index:
             text += f" ({index + 1}/{len(rated_sentences)})"
 
-        result: str = ""
+        result: Text = Text()
 
         words: list[tuple[str, SentenceElement]] = (
             sentence_translations.sentence.get_words(
@@ -422,15 +422,15 @@ class Teacher:
 
         for current_word, type_ in words:
             if type_ == SentenceElement.SYMBOL:
-                result += current_word
+                result.add(current_word)
             elif current_word.lower() == word:
-                result += ESCAPE_CHARACTER * len(current_word)
+                result.add(ESCAPE_CHARACTER * len(current_word))
             elif self.user_data.is_known_or_not_a_word(
                 current_word.lower(), self.learning.learning_language
             ):
-                result += "[green]" + current_word + "[/green]"
+                result.add(Colorized(current_word, color="green"))
             else:
-                result += "[grey]" + current_word + "[/grey]"
+                result.add(Colorized(current_word, color="grey"))
                 all_known = False
 
         self.interface.print(result)

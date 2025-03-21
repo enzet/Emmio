@@ -159,15 +159,15 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
             Learn new words for Norwegian Bokmål
             New question.
             yes
-            [green]hei[/green], [grey]Maria[/grey], __
+            hei, Maria, __
             hi, Maria, yes
-            __, [grey]Maria[/grey]
+            __, Maria
             yes, Maria
             ja
             yes
             New question.
             what
-            ___? [green]ja[/green]!
+            ___? ja!
             <Reveal translations>
             what? yes!
             hva

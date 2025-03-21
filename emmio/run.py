@@ -24,10 +24,13 @@ from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import (
     Block,
+    Colorized,
+    Formatted,
     Header,
     InlineElement,
     Interface,
     Table,
+    Text,
     Title,
     progress,
 )
@@ -501,29 +504,30 @@ class Emmio:
                 if rate_year_before is not None and rate is not None
                 else 0.0
             )
-            change_text: str = ""
+            change_text: InlineElement
             match change:
                 case float() as change if change >= 0.1:
-                    change_text = f"[green]▲ +{change:.1f}[/green]"
+                    change_text = Colorized(f"▲ +{change:.1f}", color="green")
                 case float() as change if change <= -0.1:
-                    change_text = f"[red]▼ {change:.1f}[/red]"
+                    change_text = Colorized(f"▼ {change:.1f}", color="red")
                 case _:
-                    change_text = ""
+                    change_text = Text("")
             if not rate:
                 continue
-            rows.append(
-                [
-                    f"[bold]{lexicon.language.get_code()}[/bold]"
-                    f" {lexicon.language.get_name()}",
-                    progress(need),
-                    (
-                        f"{abs(rate):.1f}  " + progress(int(rate * 10))
-                        if rate is not None
-                        else "N/A"
-                    ),
-                    change_text,
-                ]
+            code: Formatted = Formatted(
+                lexicon.language.get_code(), format_="bold"
             )
+            row: list[InlineElement | str] = [
+                Text().add(code).add(" " + lexicon.language.get_name()),
+                progress(need),
+                (
+                    f"{abs(rate):.1f}  " + progress(int(rate * 10))
+                    if rate is not None
+                    else "N/A"
+                ),
+                change_text,
+            ]
+            rows.append(row)
 
         self.interface.print(
             Table(
