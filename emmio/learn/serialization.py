@@ -1,5 +1,4 @@
-"""
-Learning process readers and writers.
+"""Learning process readers and writers.
 
 Versions are:
   - 0.1: old serialization in YAML files.

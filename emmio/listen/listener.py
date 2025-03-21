@@ -19,7 +19,7 @@ from emmio.learn.teacher import Teacher
 from emmio.listen.config import ListenConfig
 from emmio.listen.core import PAUSE_AFTER_PLAY, Listening
 from emmio.lists.frequency_list import FrequencyList
-from emmio.ui import RichInterface
+from emmio.ui import Interface
 from emmio.user.data import UserData
 
 
@@ -27,19 +27,24 @@ class Listener:
     """Manager for listening."""
 
     def __init__(
-        self, listening: Listening, data: Data, user_data: UserData
+        self,
+        listening: Listening,
+        data: Data,
+        user_data: UserData,
+        interface: Interface,
     ) -> None:
         """Initialize listener.
 
         :param listening: listening process
         :param data: Emmio data
         :param user_data: user-specific data
+        :param interface: user interface for printing messages
         """
-
         self.data: Data = data
         self.user_data: UserData = user_data
         self.listening: Listening = listening
         self.player = mpv.MPV() if mpv else None
+        self.interface: Interface = interface
 
         listen_config: ListenConfig = self.listening.config
 
@@ -62,8 +67,8 @@ class Listener:
             self.learning.get_safe_question_ids()
         )
 
-        self.teacher = Teacher(
-            RichInterface(use_input=False),
+        self.teacher: Teacher = Teacher(
+            self.interface,
             self.data,
             self.user_data,
             self.learning,
@@ -156,5 +161,7 @@ class Listener:
             learning_paths: list[Path] = (
                 self.learning_audio_collection.get_paths(question_id)
             )
-            print("   ", index, question_id, "—", ", ".join(translations))
+            self.interface.print(
+                f"   {index:03d} {question_id} — {', '.join(translations)}"
+            )
             await self.play(question_id, audio_translations[:3], learning_paths)

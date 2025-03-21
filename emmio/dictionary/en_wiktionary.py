@@ -184,6 +184,7 @@ class EnglishWiktionaryKaikki(Dictionary):
     def __repr__(self) -> str:
         return f"English Wiktionary Kaikki [{len(self.items)}]"
 
+    @override
     def get_name(self) -> str:
         return "English Wiktionary Kaikki"
 
@@ -258,7 +259,6 @@ class EnglishWiktionaryKaikki(Dictionary):
 
             definition_values: list[DefinitionValue] = []
             if "glosses" in sense:
-                # print(f"len(sense['glosses']): {len(sense['glosses'])}")
                 for gloss in sense["glosses"]:
                     definition_values.append(DefinitionValue.from_text(gloss))
 
@@ -281,6 +281,7 @@ class EnglishWiktionaryKaikki(Dictionary):
             )
         )
 
+    @override
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:

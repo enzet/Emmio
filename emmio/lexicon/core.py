@@ -708,10 +708,8 @@ class Lexicon(UserArtifact):
         """
         left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
         while True:
-            print(left_border, right_border)
             index: int = int((left_border + right_border) / 2)
             picked_word, occurrences = frequency_list.get_word_by_index(index)
-            print(occurrences)
             _, response, _ = await self.ask(
                 interface,
                 picked_word,
@@ -726,13 +724,10 @@ class Lexicon(UserArtifact):
                 right_border = index
             else:
                 left_border += 2
-            dont = 0
-            print(f"index: {index}, len: {len(frequency_list)}")
+            not_known: int = 0
             for i in range(index, len(frequency_list) - 1):
                 _, occurrences = frequency_list.get_word_by_index(i)
-                dont += occurrences
-            print(f"dont: {dont}, all: {frequency_list.get_all_occurrences()}")
-            print(f"Rate: {rate(dont / frequency_list.get_all_occurrences())}")
+                not_known += occurrences
             self.write()
 
     def get_statistics(self) -> list[Element]:
@@ -797,7 +792,7 @@ class Lexicon(UserArtifact):
 
         exit_code: str = "quit"
 
-        mf_index: int = 0
+        most_frequent_index: int = 0
 
         while True:
 
@@ -813,8 +808,10 @@ class Lexicon(UserArtifact):
             elif log_type == "random":
                 picked_word, _ = frequency_list.get_random_word()
             elif log_type == "most frequent":
-                picked_word, _ = frequency_list.get_word_by_index(mf_index)
-                mf_index += 1
+                picked_word, _ = frequency_list.get_word_by_index(
+                    most_frequent_index
+                )
+                most_frequent_index += 1
                 if self.has(picked_word):
                     continue
                 items: list[DictionaryItem] = await dictionaries.get_items(
@@ -822,7 +819,6 @@ class Lexicon(UserArtifact):
                 )
                 if not items or items[0].is_not_common(self.language):
                     continue
-                print(f"[{mf_index}]")
 
             if picked_word:
                 checked_in_session.add(picked_word)
@@ -958,7 +954,6 @@ class Lexicon(UserArtifact):
                     break
 
         if is_foreign:
-            print("[assume.not_a_word] " + picked_word)
             self.register(
                 picked_word,
                 LexiconResponse.NOT_A_WORD,

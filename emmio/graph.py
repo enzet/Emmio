@@ -1,5 +1,6 @@
 """Visualization utilities."""
 
+import logging
 import random
 from collections import defaultdict
 from collections.abc import Callable, Iterator
@@ -208,7 +209,7 @@ class Visualizer:
         points: list[datetime] = [
             util.day_start(min_x) + timedelta(days=i) for i in range(days + 2)
         ] + [datetime.now()]
-        print(f"Construct {days + 2} days...")
+        logging.info("Construct %d days...", days + 2)
 
         # Mapping: learning id -> last learning record.
         knowledge: dict[str, Knowledge] = {}

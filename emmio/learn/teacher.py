@@ -551,7 +551,9 @@ class Teacher:
             if answer == "/skip":
                 self.learning.register(Response.SKIP, 0, word)
                 self.learning.write()
-                print("Word is no longer in the learning process.")
+                self.interface.print(
+                    "Word is no longer in the learning process."
+                )
                 return "continue"
 
             if answer.startswith("/skip "):
@@ -641,7 +643,9 @@ class Teacher:
         """
         if command in ["s", "/skip"]:
             self.learning.register(Response.SKIP, sentence_id, word)
-            print(f'Word "{word}" is no longer in the learning process.')
+            self.interface.print(
+                f'Word "{word}" is no longer in the learning process.'
+            )
         elif command.startswith("/hint "):
             _, language_code, definition = command.split(" ", maxsplit=2)
             dictionary_id: str = (
@@ -654,9 +658,11 @@ class Teacher:
             if dictionary and isinstance(dictionary, SimpleDictionary):
                 dictionary.add_simple(word, definition)
                 dictionary.write()
-                print(f"Hint written to `{dictionary_id}`.")
+                self.interface.print(f"Hint written to `{dictionary_id}`.")
             else:
-                print(f"No personal dictionary `{dictionary_id}` found.")
+                self.interface.print(
+                    f"No personal dictionary `{dictionary_id}` found."
+                )
         elif command.startswith("/define "):
             _, language_code, word_to_define = command.split(" ", maxsplit=2)
             language: Language = Language.from_code(language_code)

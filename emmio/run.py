@@ -632,8 +632,6 @@ class Emmio:
                 else:
                     break
 
-        print()
-
         now: datetime = datetime.now()
         total_nearest: datetime = now
 
@@ -649,10 +647,14 @@ class Emmio:
         time_to_new: timedelta = util.day_end(now) - now
 
         if time_to_repetition < time_to_new:
-            print(f"    Repetition in {time_to_repetition}.")  # FIXME
+            self.interface.print(
+                Block(f"Repetition in {time_to_repetition}.", (1, 4, 1, 4))
+            )
+
         else:
-            print(f"    New question in {time_to_new}.")  # FIXME
-        print()
+            self.interface.print(
+                Block(f"New question in {time_to_new}.", (1, 4, 1, 4))
+            )
 
     async def listen(
         self, listening_id: str, start_from: int, repeat: int
@@ -663,6 +665,7 @@ class Emmio:
             self.user_data.get_listening(listening_id),
             self.data,
             self.user_data,
+            self.interface,
         )
         await listener.listen(start_from, repeat)
 

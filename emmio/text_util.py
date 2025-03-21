@@ -1,5 +1,6 @@
 """Text processing utility."""
 
+import logging
 from collections import defaultdict
 from typing import IO
 
@@ -22,7 +23,7 @@ class Text:
 
     def get_frequency_list(self) -> dict:
         """Construct frequency list of the text."""
-        print("Construct frequency list...")
+        logging.info("Construct frequency list...")
 
         result: dict[str, int] = defaultdict(int)
 
