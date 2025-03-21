@@ -32,7 +32,7 @@ from emmio.sentence.core import Sentences, SentencesCollection
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
 from emmio.text.data import TextData
-from emmio.ui import progress
+from emmio.ui import InlineElement, Table, progress
 from emmio.user.data import UserData
 
 __author__ = "Sergey Vartanov"
@@ -205,32 +205,17 @@ class Data:
             self.get_active_learnings(user_id),
             key=lambda x: -x.count_questions_to_repeat(),
         )
-        rows: list[list[str | int]] = [
+        rows: list[list[InlineElement | str]] = [
             [
                 learning.config.name,
-                learning.count_questions_to_repeat(),
-                learning.count_questions_to_add(),
-                learning.count_questions_to_learn(),
+                progress(learning.count_questions_to_repeat()),
+                progress(learning.count_questions_to_add()),
+                str(learning.count_questions_to_learn()),
             ]
             for learning in learnings
         ]
-        footer: list[str | int] = ["Total"] + [
-            sum(int(x[i]) for x in rows) for i in range(1, 4)
-        ]
-        for row in rows:
-            for i in range(1, 3):
-                row[i] = progress(int(row[i]))
-            row[3] = str(row[3])
-
-        rows.append(footer)
-
-        user_data: UserData = self.users_data[user_id]
-
-        pressure: float = user_data.get_learn_data().compute_pressure()
-        postponed: int = user_data.get_learn_data().count_postponed()
-
-        interface.print(f"Pressure: {pressure:.2f}")
-        interface.print(f"Postponed: {postponed}")
+        table: Table = Table(["Learning", "To repeat", "To add", "Total"], rows)
+        interface.print(table)
 
     def has_user(self, user_id: str) -> bool:
         """Check whether the user exists."""

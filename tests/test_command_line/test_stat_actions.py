@@ -6,7 +6,7 @@ from tests.test_command_line.test_core import HEADER, check_main, initialize
 
 
 def test_stat_actions(capsys: CaptureFixture[str]) -> None:
-    """Test simple `stat actions` command."""
+    """Test simplest possible `stat actions` command."""
 
     initialize()
     check_main(
