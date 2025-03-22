@@ -570,6 +570,7 @@ class Teacher:
                 if self.learning_lexicon:
                     self.learning_lexicon.register(
                         command_word,
+                        self.interface,
                         LexiconResponse.KNOW,
                         to_skip=False,
                         request_time=None,
@@ -585,6 +586,7 @@ class Teacher:
                 if self.learning_lexicon:
                     self.learning_lexicon.register(
                         command_word,
+                        self.interface,
                         LexiconResponse.NOT_A_WORD,
                         to_skip=False,
                         request_time=None,

@@ -147,6 +147,10 @@ class AnswerType(Enum):
         """Get string identifier of the answer type."""
         return self.value
 
+    def is_user_answer(self) -> bool:
+        """Check if the answer is a user answer."""
+        return self == self.USER_ANSWER
+
 
 def compute_lexicon_rate(
     data: list[tuple[datetime, int]],
@@ -437,6 +441,7 @@ class Lexicon(UserArtifact):
     def register(
         self,
         word: str,
+        interface: Interface,
         response: LexiconResponse,
         to_skip: bool | None,
         request_time: datetime | None,
@@ -446,6 +451,7 @@ class Lexicon(UserArtifact):
         """Register user's response.
 
         :param word: the question id that user was responded to
+        :param interface: interface for communicating with the user
         :param response: response type
         :param to_skip: skip this word in the future
         :param request_time: time of the question
@@ -476,6 +482,11 @@ class Lexicon(UserArtifact):
                 self.start = time
             if not self.finish or time > self.finish:
                 self.finish = time
+
+        # If user had no interaction with the word, print the reason it was
+        # registered.
+        if not answer_type.is_user_answer():
+            interface.print(f"[{answer_type.value}] {word}")
 
     def has(self, word: str) -> bool:
         """Check whether there is a response in at least one log."""
@@ -682,6 +693,7 @@ class Lexicon(UserArtifact):
 
         self.register(
             word,
+            interface,
             response,
             skip_in_future,
             start_time,
@@ -824,7 +836,11 @@ class Lexicon(UserArtifact):
                 checked_in_session.add(picked_word)
 
             if self.do_skip(
-                picked_word, other_lexicons, skip_known, skip_unknown
+                picked_word,
+                interface,
+                other_lexicons,
+                skip_known,
+                skip_unknown,
             ):
                 continue
 
@@ -864,6 +880,7 @@ class Lexicon(UserArtifact):
     def do_skip(
         self,
         picked_word: str,
+        interface: Interface,
         other_lexicons: list["Lexicon"],
         skip_known: bool,
         skip_unknown: bool,
@@ -871,9 +888,12 @@ class Lexicon(UserArtifact):
         """Check whether the word should be skipped.
 
         :param picked_word: word to check
+        :param interface: interface for communicating with the user
         :param other_lexicons: other user lexicons of the same language
         :param skip_known: if the known words should be skipped
         :param skip_unknown: if the unknown words should be skipped
+
+        :return: whether the word should be skipped
         """
         lexicon_records: list[LexiconLogRecord] = []
         for lexicon in other_lexicons:
@@ -903,6 +923,7 @@ class Lexicon(UserArtifact):
             ):
                 self.register(
                     picked_word,
+                    interface,
                     last_record.response,
                     skip_marker,
                     None,
@@ -913,6 +934,7 @@ class Lexicon(UserArtifact):
             if last_record.response == LexiconResponse.NOT_A_WORD:
                 self.register(
                     picked_word,
+                    interface,
                     LexiconResponse.NOT_A_WORD,
                     None,
                     None,
@@ -936,6 +958,7 @@ class Lexicon(UserArtifact):
             if was_answered_recently:
                 self.register(
                     picked_word,
+                    interface,
                     last_record.response,
                     None,
                     None,
@@ -956,6 +979,7 @@ class Lexicon(UserArtifact):
         if is_foreign:
             self.register(
                 picked_word,
+                interface,
                 LexiconResponse.NOT_A_WORD,
                 None,
                 None,

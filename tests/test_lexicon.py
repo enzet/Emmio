@@ -7,6 +7,7 @@ import pytest
 
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
+from emmio.ui import TerminalInterface
 
 
 @pytest.fixture(name="lexicon")
@@ -34,6 +35,7 @@ def test_register(lexicon: Lexicon) -> None:
 
     lexicon.register(
         word="apple",
+        interface=TerminalInterface(use_input=False),
         response=LexiconResponse.KNOW,
         to_skip=False,
         time=datetime(2000, 1, 1),
@@ -50,6 +52,7 @@ def register(lexicon: Lexicon, args: list[int]) -> None:
     for index, arg in enumerate(args):
         lexicon.register(
             word="apple",
+            interface=TerminalInterface(use_input=False),
             response=LexiconResponse.KNOW if arg == 1 else LexiconResponse.DONT,
             to_skip=False,
             time=datetime(2000, 1, index + 1),
