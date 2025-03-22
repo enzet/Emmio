@@ -315,11 +315,14 @@ class Emmio:
         analyze_parser = subparsers.add_parser("analyze")
         analyze_parser.add_argument("language")
 
+        arguments: argparse.Namespace
         if command:
             try:
                 arguments = parser.parse_args(command.split(" "))
             except argparse.ArgumentError as e:
                 logging.error("Error parsing command: %s.", e)
+                return
+            except SystemExit:
                 return
         else:
             arguments = argparse.Namespace(command="learn", topic=None)
