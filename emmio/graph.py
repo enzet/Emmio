@@ -69,7 +69,7 @@ class Visualizer:
         size: int
 
         if by_language:
-            learnings: set[Learning] = {x[1] for x in records}
+            learnings: list[Learning] = [x[1] for x in records]
             data = {
                 x.learning_language.get_code(): defaultdict(int)
                 for x in learnings
@@ -330,8 +330,8 @@ class Visualizer:
 
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(
-            reversed(handles),
-            reversed(labels),
+            list(reversed(handles)),
+            list(reversed(labels)),
             title="Language",
             loc="upper left",
         )

@@ -297,7 +297,7 @@ class Emmio:
             "history", help="plot history"
         )
         plot_history_parser.add_argument(
-            "--size", "-s", help="marker size", type=float
+            "--size", "-s", help="marker size", type=float, default=0.5
         )
 
         listen_parser = subparsers.add_parser(
