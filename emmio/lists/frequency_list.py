@@ -72,8 +72,8 @@ class FrequencyList(List):
             )
 
         assert self._occurrences == sum(self.data.values()), (
-            f"Precomputed number of occurences {self._occurrences} is not "
-            f"equal to the sum of occurences: {sum(self.data.values())}."
+            f"Precomputed number of occurrences {self._occurrences} is not "
+            f"equal to the sum of occurrences: {sum(self.data.values())}."
         )
 
     def __len__(self) -> int:

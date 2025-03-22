@@ -204,7 +204,16 @@ class Emmio:
         plot_lexicon_parser.add_argument(
             "--grid-color", "-gc", type=str, default="#888888"
         )
-        plot_lexicon_parser.add_argument("--color", "-c", type=str)
+        plot_lexicon_parser.add_argument(
+            "--color",
+            "-c",
+            type=str,
+            help=(
+                "color of the line, it may specify a single color (e.g. `red` "
+                "or `#FF0000`) or a gradient by specifying gradient anchor "
+                "colors separated with `;` (e.g. `red;blue;green`)"
+            ),
+        )
         plot_lexicon_parser.add_argument(
             "--show-main",
             action=argparse.BooleanOptionalAction,
@@ -701,7 +710,7 @@ class Emmio:
         lexicons: dict[Language, list[Lexicon]] = (
             self.user_data.get_frequency_lexicons(languages)
         )
-        lexicon_visualizer = LexiconVisualizer(
+        lexicon_visualizer: LexiconVisualizer = LexiconVisualizer(
             plot_main=arguments.show_main,
             plot_averages=arguments.show_averages,
             plot_precise_values=arguments.show_precise_values,
@@ -711,16 +720,18 @@ class Emmio:
             first_point=first_point,
             next_point=next_point,
         )
-        if arguments.color and ";" in arguments.color:
-            color = [Color(x) for x in arguments.color.split(";")]
-        else:
-            color = None
+        colors: list[Color] | None = None
+        if arguments.color:
+            if ";" in arguments.color:
+                colors = [Color(x) for x in arguments.color.split(";")]
+            else:
+                colors = [Color(arguments.color)]
 
         if arguments.svg:
             lexicon_visualizer.graph_with_svg(
                 lexicons,
                 arguments.margin,
-                color,
+                colors,
                 Color(arguments.background_color),
                 Color(arguments.grid_color),
             )

@@ -15,7 +15,7 @@ __email__ = "me@enzet.ru"
 
 
 class SentenceElement(Enum):
-    """Type of a sentence element."""
+    """Type of sentence element."""
 
     WORD = "word"
     """Word, e.g. "book"."""
@@ -228,6 +228,7 @@ class SimpleSentences(Sentences):
         """Initialize sentences from a directory.
 
         :param path: path to the directory with sentences
+        :param id_: unique sentences identifier
         :param config: configuration of the sentences
         """
         sentences: list[SentenceTranslations] = []

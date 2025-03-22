@@ -188,7 +188,7 @@ class UserData:
         return records
 
     def get_sessions(self) -> list[Session]:
-        """Get all sessions: learnings and lexicon checkings."""
+        """Get all sessions: learnings and lexicon checking."""
 
         sessions: list[Session] = []
         for learning in self.get_active_learnings():
@@ -281,11 +281,11 @@ class UserData:
                 "listen": {},
             }
             for learn_id, learning in self.get_learn_data().learnings.items():
-                config["learn"][learn_id] = learning.config.dict()
+                config["learn"][learn_id] = learning.config.model_dump()
             for lexicon_id, lexicon in self.get_lexicon_data().lexicons.items():
-                config["lexicon"][lexicon_id] = lexicon.config.dict()
+                config["lexicon"][lexicon_id] = lexicon.config.model_dump()
             for listen_id, listening in self.listenings.listenings.items():
-                config["listen"][listen_id] = listening.config.dict()
+                config["listen"][listen_id] = listening.config.model_dump()
 
             json.dump(config, output_file, ensure_ascii=False, indent=4)
 

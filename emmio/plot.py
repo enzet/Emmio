@@ -95,7 +95,7 @@ class Graph:
         min_y: float,
         max_y: float,
         canvas: Canvas = Canvas(),
-        color: Color | list[Color] | None = Color("black"),
+        colors: list[Color] | None = None,
         background_color: Color = Color("white"),
         grid_color: Color = Color("#AAAAAA"),
     ) -> None:
@@ -108,7 +108,7 @@ class Graph:
         self.max_x_second = (
             (max_x - min_x).total_seconds() if max_x and min_x else 0
         )
-        self.color: Color | list[Color] | None = color
+        self.colors: list[Color] | None = colors
         self.background_color: Color = background_color
         self.grid_color: Color = grid_color
 
@@ -144,29 +144,32 @@ class Graph:
     ) -> None:
         """Plot data."""
 
-        recolor: Color | None = None
+        recolor: str | None = None
 
-        if isinstance(self.color, list):
-            linear_gradient: LinearGradient = svg.linearGradient(
-                self.map_((0, self.max_y)),
-                self.map_((0, 0)),
-                gradientUnits="userSpaceOnUse",
-            )
-            for index, color in enumerate(self.color):
-                linear_gradient.add_stop_color(
-                    index / (len(self.color) - 1), color.hex
+        if self.colors:
+            if len(self.colors) == 1:
+                recolor = self.colors[0].hex
+            else:
+                linear_gradient: LinearGradient = svg.linearGradient(
+                    self.map_((0.0, self.max_y)),
+                    self.map_((0.0, 0.0)),
+                    gradientUnits="userSpaceOnUse",
                 )
-
-            gradient: LinearGradient = svg.defs.add(linear_gradient)
-            recolor = Color(gradient.get_funciri())
+                for index, color in enumerate(self.colors):
+                    linear_gradient.add_stop_color(
+                        index / (len(self.colors) - 1), color.hex
+                    )
+                gradient: LinearGradient = svg.defs.add(linear_gradient)
+                recolor = gradient.get_funciri()
 
         last_text_y: float = 0.0
 
         for xs, ys, color, title in data:
+
+            color_specification: str = color.hex
+
             if recolor:
-                color = recolor
-            if not color and isinstance(self.color, Color):
-                color = self.color
+                color_specification = recolor
 
             assert len(xs) == len(ys)
 
@@ -178,7 +181,7 @@ class Graph:
                     line: Line = svg.line(
                         (previous_point[0], previous_point[1]),
                         (point[0], point[1]),
-                        stroke=color,
+                        stroke=color_specification,
                         stroke_width=1,
                         stroke_linecap="round",
                     )
@@ -191,13 +194,13 @@ class Graph:
                     svg,
                     (self.canvas.workspace[1][0] + 10, text_y),
                     title,
-                    color.hex,
+                    color_specification,
                 )
                 self.text(
                     svg,
                     (self.canvas.workspace[1][0] + 110, text_y),
                     f"{ys[-1]:.2f}",
-                    color.hex,
+                    color_specification,
                     anchor="end",
                 )
                 last_text_y = text_y
@@ -236,26 +239,27 @@ class Graph:
 
         recolor: Color | None = None
 
-        if isinstance(self.color, list):
-            linear_gradient: LinearGradient = svg.linearGradient(
-                self.map_((0, self.max_y)),
-                self.map_((0, 1)),
-                gradientUnits="userSpaceOnUse",
-            )
-            for index, current_color in enumerate(self.color):
-                linear_gradient.add_stop_color(
-                    index / (len(self.color) - 1), current_color.hex
+        if self.colors:
+            if len(self.colors) == 1:
+                recolor = self.colors[0]
+            else:
+                linear_gradient: LinearGradient = svg.linearGradient(
+                    self.map_((0, self.max_y)),
+                    self.map_((0, 1)),
+                    gradientUnits="userSpaceOnUse",
                 )
+                for index, current_color in enumerate(self.colors):
+                    linear_gradient.add_stop_color(
+                        index / (len(self.colors) - 1), current_color.hex
+                    )
 
-            gradient: LinearGradient = svg.defs.add(linear_gradient)
-            recolor = Color(gradient.get_funciri())
+                gradient: LinearGradient = svg.defs.add(linear_gradient)
+                recolor = Color(gradient.get_funciri())
 
         last_text_y: int = 0
 
         if recolor:
             color = recolor
-        if not color and isinstance(self.color, Color):
-            color = self.color
         if not color:
             color = Color("black")
 
