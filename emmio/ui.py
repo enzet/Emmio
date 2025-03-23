@@ -22,26 +22,6 @@ RichCompatible = (
     RichElementText | RichElementPanel | RichElementTable | RichElementPadding
 )
 
-colors = {
-    "gray": "2",
-    "black": "30",
-    "red": "31",
-    "green": "32",
-    "yellow": "33",
-    "blue": "34",
-    "magenta": "35",
-    "cyan": "36",
-    "white": "37",
-    "fill_black": "40",
-    "fill_red": "41",
-    "fill_green": "42",
-    "fill_yellow": "43",
-    "fill_blue": "44",
-    "fill_magenta": "45",
-    "fill_cyan": "46",
-    "fill_white": "47",
-}
-
 
 def table(columns: list[str], rows: list[list[str]]) -> str:
     """Draw table with simple text."""

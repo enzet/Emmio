@@ -21,7 +21,7 @@ from emmio.language import ENGLISH, RUSSIAN, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
-from emmio.ui import Block, Element, Interface, Text
+from emmio.ui import Block, Colorized, Element, Interface, Text
 from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
@@ -486,7 +486,7 @@ class Lexicon(UserArtifact):
         # If user had no interaction with the word, print the reason it was
         # registered.
         if not answer_type.is_user_answer():
-            interface.print(f"[{answer_type}] {word}")
+            interface.print(Colorized(f"[{answer_type}] {word}", "#AAAAAA"))
 
     def has(self, word: str) -> bool:
         """Check whether there is a response in at least one log."""
@@ -606,18 +606,24 @@ class Lexicon(UserArtifact):
     ) -> list[Element]:
         """Get question text for picked word to ask user."""
 
-        result: list[Element] = [Block(word, (0, 0, 0, 4))]
-
+        result: list[Element] = [Block(Colorized(word, "bold"), (0, 0, 0, 4))]
         if self.has(word):
             result.append(
-                Text(f"Last response was: {self.get(word).get_message()}.")
+                Text(
+                    Colorized(
+                        f"Last response was: {self.get(word).get_message()}.",
+                        "#AAAAAA",
+                    )
+                )
             )
         if sentences is not None:
             if sentence_translations := sentences.filter_by_word(
                 word, set(), 120
             ):
-                example: Text = Text(
-                    f"Usage example: {sentence_translations[0].sentence.text}"
+                example: Text = (
+                    Text()
+                    .add(Colorized("Usage example: ", "#AAAAAA"))
+                    .add(sentence_translations[0].sentence.text)
                 )
                 result.append(example)
         return result
@@ -683,7 +689,7 @@ class Lexicon(UserArtifact):
             case _:
                 response = LexiconResponse.DONT
 
-        interface.print(response.get_message())
+        interface.print(Colorized(response.get_message(), "#AAAAAA"))
 
         if skip_in_future is None:
             if response == LexiconResponse.KNOW:
