@@ -92,7 +92,7 @@ code.
     **Important**: for Lexicon you can use only full (not stripped) frequency
     list.
 
-## Data directory structure
+## Data Directory Structure
 
 Emmio data directory is located by default in `~/.emmio` and contains all
 downloaded artifacts and their configuration files and collected user data.
@@ -125,7 +125,7 @@ Sentences are example parts of texts in one language, translated into another
 language. Artifacts are controlled by configuration file
 `sentences/config.json`.
 
-## Frequency and word lists
+## Frequency and Word Lists
 
 Frequency list is a relation between unique words and the number of their
 occurrences in some text or a corpus of texts. Some frequency lists are
@@ -150,3 +150,17 @@ different languages.
 Before contributing, please follow these steps:
   1. Install development dependencies with `pip install -e .[dev]`.
   2. Enable Git hooks with `git config core.hooksPath .githooks`.
+
+## Before Committing
+
+Before committing, please run
+
+```shell
+black .
+isort emmio/ tests/
+```
+
+to format the code and sort the imports.
+
+For commit messages we use 50/72 rule and each commit should start with a verb
+in the present tense. We also use Markdown for commit message formatting.
