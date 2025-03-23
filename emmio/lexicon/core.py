@@ -486,7 +486,7 @@ class Lexicon(UserArtifact):
         # If user had no interaction with the word, print the reason it was
         # registered.
         if not answer_type.is_user_answer():
-            interface.print(f"[{answer_type.value}] {word}")
+            interface.print(f"[{answer_type}] {word}")
 
     def has(self, word: str) -> bool:
         """Check whether there is a response in at least one log."""

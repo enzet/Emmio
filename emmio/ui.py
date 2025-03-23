@@ -351,6 +351,20 @@ class TerminalInterface(Interface):
                 return word
 
 
+def rich_escape(text: str) -> str:
+    """Escape `[` character in the text.
+
+    `[` and `]` are special characters in Rich.
+    """
+    result: str = ""
+    for index, char in enumerate(text):
+        if char == "[" and index > 0 and text[index - 1] != "\\":
+            result += "\\["
+        else:
+            result += char
+    return result
+
+
 class RichInterface(TerminalInterface):
     """Terminal interface with complex Unicode characters and colors."""
 
@@ -367,7 +381,7 @@ class RichInterface(TerminalInterface):
         """Construct inner rich element from text."""
 
         if isinstance(element, str):
-            return element
+            return rich_escape(element)
 
         if isinstance(element, Text):
             result: RichElementText = RichElementText()
