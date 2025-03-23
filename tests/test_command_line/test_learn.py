@@ -14,11 +14,7 @@ from tests.test_command_line.test_core import (
 )
 
 DICTIONARY_NB_EN_CONTENT: str = json.dumps(
-    {
-        "ja": "yes",
-        "hei": "hi",
-        "hva": "what",
-    }
+    {"ja": "yes", "hei": "hi", "hva": "what"}
 )
 LIST_NB_CONTENT: str = dedent(
     """
@@ -33,20 +29,12 @@ LEARNING_NB: dict = {
     "base_languages": ["en"],
     "file_name": "nb.json",
     "dictionaries": [{"id": "nb_en"}],
-    "scheme": {
-        "new_question": {
-            "pick_from": [{"id": "nb"}],
-        }
-    },
+    "scheme": {"new_question": {"pick_from": [{"id": "nb"}]}},
 }
 LEARNING_NB_CONTENT: dict = {
     "records": [
-        {
-            "question_id": "hei",
-            "response": "y",
-            "time": "2000-01-01T00:00:00",
-        },
-    ],
+        {"question_id": "hei", "response": "y", "time": "2000-01-01T00:00:00"}
+    ]
 }
 
 
@@ -107,7 +95,7 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
                 "name": "Norwegian Bokmål to English",
                 "language_1": "nb",
                 "language_2": "en",
-            },
+            }
         },
         sentences={
             "nb_en.txt": dedent(
@@ -119,7 +107,7 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
                 hei, Maria, ja
                 hi, Maria, yes
                 """
-            ).strip(),
+            ).strip()
         },
         lists_configuration={"nb": LIST_NB},
         lists={"nb.txt": LIST_NB_CONTENT},
@@ -130,13 +118,9 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
                 "base_languages": ["en"],
                 "file_name": "nb.json",
                 "dictionaries": [{"id": "nb_en"}],
-                "scheme": {
-                    "new_question": {
-                        "pick_from": [{"id": "nb"}],
-                    }
-                },
+                "scheme": {"new_question": {"pick_from": [{"id": "nb"}]}},
                 "sentences": [{"id": "nb_en"}],
-            },
+            }
         },
         learnings={"nb.json": LEARNING_NB_CONTENT},
     )

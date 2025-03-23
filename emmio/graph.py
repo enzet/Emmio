@@ -167,9 +167,7 @@ class Visualizer:
         self.plot()
 
     def cumulative_actions_moving(
-        self,
-        records: list[tuple[LearningRecord, Learning]],
-        days: int,
+        self, records: list[tuple[LearningRecord, Learning]], days: int
     ) -> None:
         """Show the graph of cumulative learning actions with moving average."""
 

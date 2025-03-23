@@ -77,10 +77,7 @@ class Canvas:
     """Width and height."""
 
     workspace: tuple[tuple[float, float], tuple[float, float]] = field(
-        default_factory=lambda: (
-            (100.0, 50.0),
-            (250.0, 550.0),
-        )
+        default_factory=lambda: ((100.0, 50.0), (250.0, 550.0))
     )
     """Left top point; right bottom point."""
 

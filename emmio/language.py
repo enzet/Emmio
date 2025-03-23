@@ -23,13 +23,7 @@ with (Path(__file__).parent / "digraphs.json").open(
 ) as config_file:
     DIGRAPHS = json.load(config_file)
 
-LATIN_CODE: dict[str, str] = {
-    "ā": "a",
-    "ē": "e",
-    "ī": "i",
-    "ō": "o",
-    "ū": "u",
-}
+LATIN_CODE: dict[str, str] = {"ā": "a", "ē": "e", "ī": "i", "ō": "o", "ū": "u"}
 
 
 LanguageConfig = str

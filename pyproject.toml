@@ -51,6 +51,7 @@ packages = ["emmio"]
 
 [tool.black]
 line-length = 80
+skip-magic-trailing-comma = true
 
 [tool.isort]
 profile = "black"

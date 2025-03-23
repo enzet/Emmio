@@ -78,14 +78,7 @@ class Listening(UserArtifact):
         for record in process.records:
             records_cache[record.word].append(record)
 
-        return cls(
-            id_,
-            file_path,
-            process,
-            config,
-            words_cache,
-            records_cache,
-        )
+        return cls(id_, file_path, process, config, words_cache, records_cache)
 
     @override
     def dump_json(self) -> str:

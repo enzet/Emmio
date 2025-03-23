@@ -196,10 +196,7 @@ class Teacher:
             self.ask_lexicon.write()
 
             _, response, _ = await self.ask_lexicon.ask(
-                self.interface,
-                question_id,
-                self.dictionaries,
-                self.sentences,
+                self.interface, question_id, self.dictionaries, self.sentences
             )
             if response is None:
                 return False

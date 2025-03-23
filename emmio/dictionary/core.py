@@ -229,10 +229,7 @@ class Form:
 
     @classmethod
     def from_simple_translation(
-        cls,
-        word: str,
-        language: Language,
-        translation: str,
+        cls, word: str, language: Language, translation: str
     ) -> Self:
         """Create a word form from a simple translation.
 
@@ -619,11 +616,7 @@ class Dictionary(ABC):
         for link_value in link_to_follow:
             coroutine: Coroutine[
                 Any, Any, list[tuple["Dictionary", DictionaryItem]]
-            ] = self.get_items_marked(
-                link_value,
-                ignore_words,
-                follow_links,
-            )
+            ] = self.get_items_marked(link_value, ignore_words, follow_links)
             tasks.append(asyncio.create_task(coroutine))
 
         results: list[list[tuple["Dictionary", DictionaryItem]]] = (
@@ -844,10 +837,7 @@ class DictionaryCollection:
         return None
 
     async def to_text(
-        self,
-        word: str,
-        language: Language,
-        languages: list[Language],
+        self, word: str, language: Language, languages: list[Language]
     ) -> list[Element] | None:
         """Get formatted dictionary items.
 

@@ -60,23 +60,15 @@ async def asynchronous_main() -> None:
             from emmio.run import Emmio
 
             user_id = arguments.user if arguments.user else getpass.getuser()
-            await Emmio(
-                data_path,
-                interface,
-                data,
-                user_id,
-            ).process_command(arguments.single_command)
+            await Emmio(data_path, interface, data, user_id).process_command(
+                arguments.single_command
+            )
 
         case _:
             from emmio.run import Emmio
 
             user_id = arguments.user if arguments.user else getpass.getuser()
-            await Emmio(
-                data_path,
-                interface,
-                data,
-                user_id,
-            ).run()
+            await Emmio(data_path, interface, data, user_id).run()
 
 
 def main() -> None:

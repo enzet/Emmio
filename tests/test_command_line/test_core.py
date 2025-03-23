@@ -124,9 +124,7 @@ def initialize(
     if dictionaries_configuration is None:
         dictionaries_configuration = {}
     with open(
-        temp_directory / "dictionaries" / "config.json",
-        "w",
-        encoding="utf-8",
+        temp_directory / "dictionaries" / "config.json", "w", encoding="utf-8"
     ) as output_file:
         json.dump(dictionaries_configuration, output_file)
 
@@ -144,18 +142,14 @@ def initialize(
     if lists_configuration is None:
         lists_configuration = {}
     with open(
-        temp_directory / "lists" / "config.json",
-        "w",
-        encoding="utf-8",
+        temp_directory / "lists" / "config.json", "w", encoding="utf-8"
     ) as output_file:
         json.dump(lists_configuration, output_file)
 
     if lists is not None:
         for file_name, content in lists.items():
             with open(
-                temp_directory / "lists" / file_name,
-                "w",
-                encoding="utf-8",
+                temp_directory / "lists" / file_name, "w", encoding="utf-8"
             ) as output_file:
                 output_file.write(content)
 
@@ -164,18 +158,14 @@ def initialize(
     if sentences_configuration is None:
         sentences_configuration = {}
     with open(
-        temp_directory / "sentences" / "config.json",
-        "w",
-        encoding="utf-8",
+        temp_directory / "sentences" / "config.json", "w", encoding="utf-8"
     ) as output_file:
         json.dump(sentences_configuration, output_file)
 
     if sentences is not None:
         for file_name, content in sentences.items():
             with open(
-                temp_directory / "sentences" / file_name,
-                "w",
-                encoding="utf-8",
+                temp_directory / "sentences" / file_name, "w", encoding="utf-8"
             ) as output_file:
                 output_file.write(content)
 
@@ -213,8 +203,6 @@ def initialize(
     if learnings is not None:
         for file_name, learning_structure in learnings.items():
             with open(
-                temp_user_directory / "learn" / file_name,
-                "w",
-                encoding="utf-8",
+                temp_user_directory / "learn" / file_name, "w", encoding="utf-8"
             ) as output_file:
                 json.dump(learning_structure, output_file)

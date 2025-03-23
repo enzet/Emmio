@@ -13,10 +13,7 @@ def test_dictionary() -> None:
         "test_dictionary",
         Path("test/dictionary/test_dictionary.txt"),
         "Test Dictionary",
-        {
-            "livre": "book",
-            "chat": "cat",
-        },
+        {"livre": "book", "chat": "cat"},
         Language.from_code("fr"),
         Language.from_code("en"),
     )

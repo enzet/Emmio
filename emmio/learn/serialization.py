@@ -18,12 +18,7 @@ from emmio.util import MalformedFile
 
 ANSWERS: list[str] = ["y", "n", "s"]
 
-INTERVALS: list[float] = [
-    5.0,
-    12.0,
-    30.0 * 24.0,
-    90.0 * 24.0,
-]
+INTERVALS: list[float] = [5.0, 12.0, 30.0 * 24.0, 90.0 * 24.0]
 """Learning intervals in minutes.
 
 Other intervals are 2.5 times previous interval.

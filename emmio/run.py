@@ -176,11 +176,7 @@ class Emmio:
             help="interval of X axis",
         )
         plot_lexicon_parser.add_argument(
-            "--margin",
-            "-m",
-            default=None,
-            type=float,
-            help="minimum Y value",
+            "--margin", "-m", default=None, type=float, help="minimum Y value"
         )
         plot_lexicon_parser.add_argument(
             "--svg", "-s", action=argparse.BooleanOptionalAction
@@ -508,8 +504,7 @@ class Emmio:
                 now - timedelta(days=7), now
             )
             need: int = max(
-                0,
-                lexicon.get_precision_per_week() - last_week_precision,
+                0, lexicon.get_precision_per_week() - last_week_precision
             )
             change: float = (
                 abs(rate) - abs(rate_year_before)
@@ -542,10 +537,7 @@ class Emmio:
             rows.append(row)
 
         self.interface.print(
-            Table(
-                ["Language", "Need", "Rate", "Year change"],
-                rows,
-            )
+            Table(["Language", "Need", "Rate", "Year change"], rows)
         )
 
     async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
@@ -740,9 +732,7 @@ class Emmio:
             )
         else:
             lexicon_visualizer.graph_with_matplot(
-                lexicons,
-                legend=arguments.legend,
-                margin=arguments.margin,
+                lexicons, legend=arguments.legend, margin=arguments.margin
             )
 
     def plot_actions(self, arguments: argparse.Namespace) -> None:
@@ -835,10 +825,7 @@ class Emmio:
                 schedule = [0] * points
                 delta = timedelta(days=1)
                 start = datetime(
-                    year=now.year,
-                    month=now.month,
-                    day=now.day,
-                    hour=now.hour,
+                    year=now.year, month=now.month, day=now.day, hour=now.hour
                 )
                 from_seconds = 60 * 60
             case "month":

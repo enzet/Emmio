@@ -153,8 +153,7 @@ class AnswerType(Enum):
 
 
 def compute_lexicon_rate(
-    data: list[tuple[datetime, int]],
-    precision: int = 100,
+    data: list[tuple[datetime, int]], precision: int = 100
 ) -> tuple[list[tuple[datetime, datetime]], list[float]]:
     """Given lexicon records, compute rate values with given precision.
 
@@ -386,10 +385,7 @@ class Lexicon(UserArtifact):
         # Fill data.
 
         for record in log.records:
-            if record.response in [
-                LexiconResponse.KNOW,
-                LexiconResponse.DONT,
-            ]:
+            if record.response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
                 dates.append(record.time)
                 responses.append(
                     1 if record.response == LexiconResponse.KNOW else 0
@@ -600,9 +596,7 @@ class Lexicon(UserArtifact):
         return result
 
     def get_question(
-        self,
-        word: str,
-        sentences: SentencesCollection | None,
+        self, word: str, sentences: SentencesCollection | None
     ) -> list[Element]:
         """Get question text for picked word to ask user."""
 
@@ -842,11 +836,7 @@ class Lexicon(UserArtifact):
                 checked_in_session.add(picked_word)
 
             if self.do_skip(
-                picked_word,
-                interface,
-                other_lexicons,
-                skip_known,
-                skip_unknown,
+                picked_word, interface, other_lexicons, skip_known, skip_unknown
             ):
                 continue
 

@@ -68,10 +68,7 @@ class Listener:
         )
 
         self.teacher: Teacher = Teacher(
-            self.interface,
-            self.data,
-            self.user_data,
-            self.learning,
+            self.interface, self.data, self.user_data, self.learning
         )
 
         self.list_: FrequencyList | None = self.data.get_frequency_list(

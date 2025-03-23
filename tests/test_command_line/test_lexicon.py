@@ -29,10 +29,8 @@ def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
                 "selection": "frequency",
                 "frequency_list": {"id": "nb"},
                 "precision_per_week": 5,
-                "dictionaries": [
-                    {"id": "nb_en"},
-                ],
-            },
+                "dictionaries": [{"id": "nb_en"}],
+            }
         },
         lexicons={
             "nb.json": {
@@ -41,9 +39,9 @@ def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
                         "word": "hei",
                         "response": "know",
                         "time": "2000-01-01T00:00:00",
-                    },
-                ],
-            },
+                    }
+                ]
+            }
         },
     )
     check_main(

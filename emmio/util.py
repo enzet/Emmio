@@ -166,10 +166,7 @@ def remove_parenthesis(text: str) -> str:
 
 
 def flatten(
-    array: list[list[list[str]]],
-    limit_1: int,
-    limit_2: int,
-    limit_3: int,
+    array: list[list[list[str]]], limit_1: int, limit_2: int, limit_3: int
 ) -> str:
     """Flatten the array using defined limits."""
 

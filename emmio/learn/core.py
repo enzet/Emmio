@@ -126,12 +126,7 @@ class LearningProcess(BaseModel):
             "time",
             "request_time",
         ]
-        session_order: list[str] = [
-            "type",
-            "start",
-            "end",
-            "actions",
-        ]
+        session_order: list[str] = ["type", "start", "end", "actions"]
         data: dict = super().model_dump(mode="json", exclude_none=True)
         records: list[dict[str, Any]] = [
             OrderedDict(

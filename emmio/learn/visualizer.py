@@ -117,8 +117,7 @@ class LearningVisualizer:
                 else []
             )
             knowledges[record.question_id] = Knowledge(
-                record.question_id,
-                last_answers + [record],
+                record.question_id, last_answers + [record]
             )
             data[compute_data_id()] += (
                 1 / (2 ** knowledges[record.question_id].get_depth())
