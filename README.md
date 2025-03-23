@@ -125,6 +125,11 @@ Sentences are example parts of texts in one language, translated into another
 language. Artifacts are controlled by configuration file
 `sentences/config.json`.
 
+Emmio supports:
+  - sentences and translations stored in simple text files (odd lines are
+    sentences, even lines are translations),
+  - sentences from [Tatoeba](https://tatoeba.org) project.
+
 ## Frequency and Word Lists
 
 Frequency list is a relation between unique words and the number of their
