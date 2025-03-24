@@ -19,3 +19,6 @@ class DictionaryConfig(BaseModel):
 
     to_language: LanguageConfig
     """Language of definitions and translations."""
+
+    is_machine: bool = False
+    """Whether translations or definitions are machine-generated."""

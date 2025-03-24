@@ -320,3 +320,7 @@ class EnglishWiktionaryKaikki(Dictionary):
     @override
     def check_to_language(self, language: Language) -> bool:
         return language == ENGLISH
+
+    @override
+    def check_is_machine(self) -> bool:
+        return False

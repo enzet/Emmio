@@ -24,7 +24,7 @@ from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
 from emmio.language import Language
 from emmio.text_util import sanitize
-from emmio.ui import Block, Colorized, Element, Formatted, Text
+from emmio.ui import Block, Colorized, Element, Formatted, InlineElement, Text
 from emmio.util import flatten
 
 __author__ = "Sergey Vartanov"
@@ -429,14 +429,10 @@ class DictionaryItem:
         if show_word:
             result.append(Block(Formatted(self.word, "bold"), (0, 0, 0, 2)))
             if self.etymology:
-                result.append(
-                    Block(
-                        Colorized(
-                            Formatted(self.etymology, "italic"), "#888888"
-                        ),
-                        (0, 0, 0, 2),
-                    )
+                etymology_text: InlineElement = Colorized(
+                    Formatted(self.etymology, "italic"), "#888888"
                 )
+                result.append(Block(etymology_text, (0, 0, 0, 2)))
 
         for form in self.get_forms():
             for language in languages:
@@ -461,11 +457,7 @@ class DictionaryItem:
 
         Also check if it is not just a form of some another word.
         """
-        for form in self.get_forms():
-            if not form.is_not_common(language):
-                return False
-
-        return True
+        return all(form.is_not_common(language) for form in self.get_forms())
 
     def get_one_word_definitions(self, language: Language) -> list[str]:
         """Get definitions and translations that contain exactly one word.
@@ -642,6 +634,11 @@ class Dictionary(ABC):
         """Check if the dictionary contains definitions in that language."""
         raise NotImplementedError()
 
+    @abstractmethod
+    def check_is_machine(self) -> bool:
+        """Check if the definitions or translations are machine-generated."""
+        raise NotImplementedError()
+
 
 class SimpleDictionary(Dictionary):
     """Simple dictionary with word-definition pairs."""
@@ -654,6 +651,7 @@ class SimpleDictionary(Dictionary):
         data: dict[str, str],
         from_language: Language,
         to_language: Language,
+        is_machine: bool = False,
     ) -> None:
         """Initialize simple dictionary.
 
@@ -663,6 +661,7 @@ class SimpleDictionary(Dictionary):
         :param data: dictionary data
         :param from_language: language of the dictionary
         :param to_language: language of the dictionary
+        :param is_machine: whether the dictionary is machine-generated
         """
         super().__init__(id_)
         self.path: Path = path
@@ -670,6 +669,7 @@ class SimpleDictionary(Dictionary):
         self.data: dict[str, str] = data
         self.from_language: Language = from_language
         self.to_language: Language = to_language
+        self.is_machine: bool = is_machine
 
     def add_simple(self, word: str, definition: str) -> None:
         """Add a simple word-definition pair.
@@ -738,6 +738,10 @@ class SimpleDictionary(Dictionary):
     @override
     def check_to_language(self, language: Language) -> bool:
         return language == self.to_language
+
+    @override
+    def check_is_machine(self) -> bool:
+        return self.is_machine
 
 
 @dataclass

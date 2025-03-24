@@ -44,6 +44,7 @@ class GoogleTranslate(Dictionary):
 
         self.from_language: Language = from_language
         self.to_language: Language = to_language
+        self.is_machine: bool = True
 
         self.translator: Translator = Translator()
 
@@ -103,3 +104,7 @@ class GoogleTranslate(Dictionary):
     @override
     def check_to_language(self, language: Language) -> bool:
         return language == self.to_language
+
+    @override
+    def check_is_machine(self) -> bool:
+        return True
