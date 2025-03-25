@@ -8,11 +8,20 @@ import json
 import shutil
 from pathlib import Path
 from textwrap import dedent
+from typing import Union
 from unittest.mock import patch
 
 from pytest import CaptureFixture
 
 from emmio.__main__ import main
+
+ConfigValuesType = Union[
+    str,
+    list[str],
+    list[dict[str, str]],
+    dict[str, dict[str, list[dict[str, str]]]],
+]
+LearningConfigType = dict[str, ConfigValuesType]
 
 DEFAULT_DATA_DIRECTORY: Path = Path("__test_existing_data")
 DEFAULT_USER_ID: str = "alice"

@@ -9,6 +9,7 @@ from tests.test_command_line.test_core import (
     DICTIONARY_NB_EN,
     HEADER,
     LIST_NB,
+    LearningConfigType,
     check_main,
     initialize,
 )
@@ -23,7 +24,7 @@ LIST_NB_CONTENT: str = dedent(
     hva 1
     """
 )
-LEARNING_NB: dict = {
+LEARNING_NB: LearningConfigType = {
     "name": "Norwegian Bokmål",
     "learning_language": "nb",
     "base_languages": ["en"],
