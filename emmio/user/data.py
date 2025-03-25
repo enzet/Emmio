@@ -64,7 +64,7 @@ class UserData:
     _lexicon_data: LexiconData | None
     """Data about user's lexicon checking processes."""
 
-    listenings: ListenData
+    _listen_data: ListenData | None
     """Data about user's listening processes."""
 
     @classmethod
@@ -109,6 +109,16 @@ class UserData:
     def get_all_learnings(self) -> Iterator[Learning]:
         """Get all learning processes."""
         return self.get_learn_data().get_learnings()
+
+    def get_listen_data(self) -> ListenData:
+        """Lazy-loads listening data."""
+
+        if not self._listen_data:
+            logging.info("Loading `%s` listening data...", self.user_id)
+            self._listen_data = ListenData.from_config(
+                self.path / LISTEN_DIRECTORY_NAME, self.config["listen"]
+            )
+        return self._listen_data
 
     def get_active_learnings(self) -> Iterator[Learning]:
         """Get only active learning processes."""
@@ -183,7 +193,7 @@ class UserData:
 
     def get_listening(self, listening_id: str) -> Listening:
         """Get listening process by identifier."""
-        return self.listenings.get_listening(listening_id)
+        return self.get_listen_data().get_listening(listening_id)
 
     def get_records(self) -> list[Record]:
         """Get all user records from all processes."""
@@ -291,7 +301,10 @@ class UserData:
                 lexicon_config[lexicon_id] = lexicon.config.model_dump()
 
             listen_config: dict[str, ListenConfigType] = {}
-            for listen_id, listening in self.listenings.listenings.items():
+            for (
+                listen_id,
+                listening,
+            ) in self.get_listen_data().listenings.items():
                 listen_config[listen_id] = listening.config.model_dump()
 
             config: UserConfigType = {
