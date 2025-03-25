@@ -7,6 +7,19 @@ from pydantic import BaseModel
 from emmio.language import LanguageConfig
 
 
+class ListUsageConfig(BaseModel):
+    """Configuration of lists."""
+
+    id: str
+    """Identifier of the list."""
+
+    language: LanguageConfig | None = None
+    """Language of the list."""
+
+    year: int | None = None
+    """Year of the list."""
+
+
 class FrequencyListFileFormat(Enum):
     """File format of the frequency list."""
 

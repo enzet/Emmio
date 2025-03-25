@@ -18,17 +18,21 @@ from pathlib import Path
 from typing import Self
 
 from emmio import ui
+from emmio.audio.config import AudioUsageConfig
 from emmio.audio.core import AudioCollection, AudioProvider
 from emmio.audio.data import AudioData
+from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import Dictionary, DictionaryCollection
 from emmio.dictionary.data import DictionaryData
 from emmio.language import Language
 from emmio.learn.core import Learning
 from emmio.lexicon.core import Lexicon
+from emmio.lists.config import ListUsageConfig
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
-from emmio.sentence.core import Sentences, SentencesCollection
+from emmio.sentence.config import SentencesUsageConfig
+from emmio.sentence.core import SentencesCollection
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
 from emmio.text.data import TextData
@@ -119,34 +123,34 @@ class Data:
             )
         return self._lists_data
 
-    def get_list(self, usage_config: dict) -> List | None:
+    def get_list(self, usage_config: ListUsageConfig) -> List | None:
         """Get a list by usage configuration."""
         return self.get_lists_data().get_list(usage_config)
 
-    def get_frequency_list(self, usage_config: dict) -> FrequencyList | None:
+    def get_frequency_list(
+        self, usage_config: ListUsageConfig
+    ) -> FrequencyList | None:
         """Get a frequency list by usage configuration."""
         return self.get_lists_data().get_frequency_list(usage_config)
 
-    def get_dictionary(self, usage_config: dict) -> Dictionary | None:
+    def get_dictionary(
+        self, usage_config: DictionaryUsageConfig
+    ) -> Dictionary | None:
         """Get a dictionary by usage configuration."""
         return self.dictionaries.get_dictionary(usage_config)
 
     def get_dictionaries(
-        self, usage_configs: list[dict]
+        self, usage_configs: list[DictionaryUsageConfig]
     ) -> DictionaryCollection:
         """Get a collection of dictionaries by usage configurations."""
         return self.dictionaries.get_dictionaries(usage_configs)
-
-    def get_sentences(self, usage_config: dict) -> Sentences:
-        """Get sentences by usage configuration."""
-        return self.sentences.get_sentences(usage_config)
 
     def get_text(self, text_id: str) -> Texts:
         """Get a text by its identifier."""
         return self.texts.get_text(text_id)
 
     def get_sentences_collection(
-        self, usage_configs: list[dict]
+        self, usage_configs: list[SentencesUsageConfig]
     ) -> SentencesCollection:
         """Get a collection of sentences by usage configurations."""
         return self.sentences.get_sentences_collection(usage_configs)
@@ -161,12 +165,14 @@ class Data:
             )
         return self._audio_data
 
-    def get_audio_provider(self, usage_config: dict) -> AudioProvider:
+    def get_audio_provider(
+        self, usage_config: AudioUsageConfig
+    ) -> AudioProvider:
         """Get an audio provider by usage configuration."""
         return self.get_audio_data().get_audio_provider(usage_config)
 
     def get_audio_collection(
-        self, usage_configs: list[dict]
+        self, usage_configs: list[AudioUsageConfig]
     ) -> AudioCollection:
         """Get an audio collection by usage configurations."""
         return self.get_audio_data().get_audio_collection(usage_configs)
@@ -174,7 +180,7 @@ class Data:
     def get_words(self, id_: str) -> list[str] | None:
         """Get words from a list by its identifier."""
 
-        if not (list_ := self.get_list({"id": id_})):
+        if not (list_ := self.get_list(ListUsageConfig(id=id_))):
             return None
         return list_.get_words()
 

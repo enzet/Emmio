@@ -11,16 +11,20 @@ import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from emmio.core import Record, Session
 from emmio.language import Language
+from emmio.learn.config import LearningConfigType
 from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
+from emmio.lexicon.config import LexiconConfigType
 from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
+from emmio.listen.config import ListenConfigType
 from emmio.listen.core import Listening
 from emmio.listen.data import ListenData
+from emmio.user.config import UserConfigType
 
 LEARN_DIRECTORY_NAME: str = "learn"
 LEXICON_DIRECTORY_NAME: str = "lexicon"
@@ -31,7 +35,7 @@ LISTEN_DIRECTORY_NAME: str = "listen"
 class UserData:
     """Manager for user-related data."""
 
-    config: dict
+    config: dict[str, Any]
     """User data configuration."""
 
     path: Path
@@ -64,18 +68,22 @@ class UserData:
     """Data about user's listening processes."""
 
     @classmethod
-    def from_config(cls, user_id: str, path: Path, config: dict) -> Self:
+    def from_config(
+        cls, user_id: str, path: Path, config: UserConfigType
+    ) -> Self:
         """Initialize user data from configuration."""
+
+        name: str = config["name"]  # type: ignore
+        listen_config: ListenConfigType = config["listen"]  # type: ignore
+
         return cls(
             config,
             path,
             user_id,
-            config["name"],
+            name,
             None,
             None,
-            ListenData.from_config(
-                path / LISTEN_DIRECTORY_NAME, config["listen"]
-            ),
+            ListenData.from_config(path / LISTEN_DIRECTORY_NAME, listen_config),
         )
 
     def get_learn_data(self) -> LearnData:
@@ -177,9 +185,9 @@ class UserData:
         """Get listening process by identifier."""
         return self.listenings.get_listening(listening_id)
 
-    def get_records(self) -> list:
+    def get_records(self) -> list[Record]:
         """Get all user records from all processes."""
-        records: list = []
+        records: list[Record] = []
         for learning in self.get_active_learnings():
             records += learning.get_records()
         for lexicon in self.get_lexicon_data().get_lexicons():
@@ -246,7 +254,7 @@ class UserData:
         ]:
             (path / directory).mkdir()
 
-        config: dict = {
+        config: UserConfigType = {
             "id": user_id,
             "name": user_name,
             "learn": {},
@@ -270,23 +278,29 @@ class UserData:
 
     def write_config(self) -> None:
         """Write configuration to the JSON file."""
+
         with (self.path / "config.json").open(
             "w+", encoding="utf-8"
         ) as output_file:
-            config: dict = {
+            learn_config: dict[str, LearningConfigType] = {}
+            for learn_id, learning in self.get_learn_data().learnings.items():
+                learn_config[learn_id] = learning.config.model_dump()
+
+            lexicon_config: dict[str, LexiconConfigType] = {}
+            for lexicon_id, lexicon in self.get_lexicon_data().lexicons.items():
+                lexicon_config[lexicon_id] = lexicon.config.model_dump()
+
+            listen_config: dict[str, ListenConfigType] = {}
+            for listen_id, listening in self.listenings.listenings.items():
+                listen_config[listen_id] = listening.config.model_dump()
+
+            config: UserConfigType = {
                 "id": self.user_id,
                 "name": self.user_name,
-                "learn": {},
-                "lexicon": {},
-                "listen": {},
+                "learn": learn_config,
+                "lexicon": lexicon_config,
+                "listen": listen_config,
             }
-            for learn_id, learning in self.get_learn_data().learnings.items():
-                config["learn"][learn_id] = learning.config.model_dump()
-            for lexicon_id, lexicon in self.get_lexicon_data().lexicons.items():
-                config["lexicon"][lexicon_id] = lexicon.config.model_dump()
-            for listen_id, listening in self.listenings.listenings.items():
-                config["listen"][listen_id] = listening.config.model_dump()
-
             json.dump(config, output_file, ensure_ascii=False, indent=4)
 
     def get_frequency_lexicons(

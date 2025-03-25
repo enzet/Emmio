@@ -8,33 +8,34 @@ import json
 import shutil
 from pathlib import Path
 from textwrap import dedent
-from typing import Union
 from unittest.mock import patch
 
 from pytest import CaptureFixture
 
 from emmio.__main__ import main
+from emmio.learn.config import LearningConfigType
+from emmio.lexicon.config import LexiconConfigType
+from emmio.user.config import UserConfigType
 
-ConfigValuesType = Union[
-    str,
-    list[str],
-    list[dict[str, str]],
-    dict[str, dict[str, list[dict[str, str]]]],
-]
-LearningConfigType = dict[str, ConfigValuesType]
+DictionaryConfigType = dict[str, str | bool]
+ListConfigType = dict[str, str | bool]
+SentencesConfigType = dict[str, str]
+
+LearningContentType = dict[str, list[dict[str, str]]]
+LexiconContentType = dict[str, list[dict[str, str]]]
 
 DEFAULT_DATA_DIRECTORY: Path = Path("__test_existing_data")
 DEFAULT_USER_ID: str = "alice"
 DEFAULT_USER_NAME: str = "Alice"
 
-DICTIONARY_NB_EN: dict = {
+DICTIONARY_NB_EN: DictionaryConfigType = {
     "type": "file",
     "file_name": "nb_en.json",
     "name": "Norwegian Bokmål-English Dictionary",
     "from_language": "nb",
     "to_language": "en",
 }
-LIST_NB: dict = {
+LIST_NB: ListConfigType = {
     "language": "nb",
     "file_format": "list",
     "path": "nb.txt",
@@ -107,16 +108,18 @@ def initialize(
     temp_directory: Path = DEFAULT_DATA_DIRECTORY,
     temp_user_id: str = DEFAULT_USER_ID,
     temp_user_name: str = DEFAULT_USER_NAME,
-    dictionaries_configuration: dict | None = None,
+    # Artifacts.
+    dictionaries_configuration: dict[str, DictionaryConfigType] | None = None,
     dictionaries: dict[str, str] | None = None,
-    lists_configuration: dict | None = None,
+    lists_configuration: dict[str, ListConfigType] | None = None,
     lists: dict[str, str] | None = None,
-    sentences_configuration: dict | None = None,
+    sentences_configuration: dict[str, SentencesConfigType] | None = None,
     sentences: dict[str, str] | None = None,
-    lexicons_configuration: dict | None = None,
-    lexicons: dict[str, dict] | None = None,
-    learning_configuration: dict | None = None,
-    learnings: dict[str, dict] | None = None,
+    # User data.
+    lexicons_configuration: dict[str, LexiconConfigType] | None = None,
+    lexicons: dict[str, LexiconContentType] | None = None,
+    learning_configuration: dict[str, LearningConfigType] | None = None,
+    learnings: dict[str, LearningContentType] | None = None,
 ) -> None:
     """Initialize Emmio configuration directory."""
 
@@ -178,7 +181,7 @@ def initialize(
             ) as output_file:
                 output_file.write(content)
 
-    user_configuration: dict = {
+    user_configuration: UserConfigType = {
         "name": temp_user_name,
         "learn": {},
         "lexicon": {},

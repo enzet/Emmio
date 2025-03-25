@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from emmio.listen.config import ListenConfig
 from emmio.listen.core import Listening
@@ -19,7 +19,7 @@ class ListenData:
     """Mapping from listening identifiers to listening processes."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict) -> Self:
+    def from_config(cls, path: Path, config: dict[str, Any]) -> Self:
         """Initialize listen data from the configuration.
 
         :param path: path to the directory with listen data

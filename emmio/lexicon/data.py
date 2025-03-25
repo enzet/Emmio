@@ -5,7 +5,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from pydantic import ValidationError
 
@@ -25,7 +25,7 @@ class LexiconData:
     """Mapping from lexicon identifier to lexicon."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict) -> Self:
+    def from_config(cls, path: Path, config: dict[str, Any]) -> Self:
         """Create a new lexicon data instance from a configuration.
 
         :param path: path to the directory with lexicons

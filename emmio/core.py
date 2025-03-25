@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel
 
@@ -54,7 +54,7 @@ class ArtifactData(ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def read_config(path: Path) -> dict:
+    def read_config(path: Path) -> dict[str, Any]:
         """Read the configuration file.
 
         :param path: path to the configuration file
@@ -69,5 +69,5 @@ class ArtifactData(ABC):
             raise FileExistsError()
 
         with (path / "config.json").open(encoding="utf-8") as config_file:
-            result: dict = json.load(config_file)
+            result: dict[str, Any] = json.load(config_file)
             return result

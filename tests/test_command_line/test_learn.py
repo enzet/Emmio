@@ -10,6 +10,7 @@ from tests.test_command_line.test_core import (
     HEADER,
     LIST_NB,
     LearningConfigType,
+    LearningContentType,
     check_main,
     initialize,
 )
@@ -32,7 +33,7 @@ LEARNING_NB: LearningConfigType = {
     "dictionaries": [{"id": "nb_en"}],
     "scheme": {"new_question": {"pick_from": [{"id": "nb"}]}},
 }
-LEARNING_NB_CONTENT: dict = {
+LEARNING_NB_CONTENT: LearningContentType = {
     "records": [
         {"question_id": "hei", "response": "y", "time": "2000-01-01T00:00:00"}
     ]

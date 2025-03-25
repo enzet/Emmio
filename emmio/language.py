@@ -40,7 +40,7 @@ class Language:
         symbols: str,
         self_name: str | None = None,
         parent: Language | None = None,
-        checking: Callable | None = None,
+        checking: Callable[[str], bool] | None = None,
         sentence_end: str | None = None,
     ) -> None:
         self.code: str = code
@@ -51,7 +51,7 @@ class Language:
         self.sentence_end: str | None = sentence_end
         self.iso639_language = ISO639Language(code)
 
-        self.has_symbol: Callable
+        self.has_symbol: Callable[[str], bool]
         if checking:
             self.has_symbol = checking
         else:

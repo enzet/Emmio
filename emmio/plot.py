@@ -225,9 +225,9 @@ class Graph:
     def fill_between(
         self,
         svg: Drawing,
-        xs: list,
-        ys_1: list,
-        ys_2: list,
+        xs: list[datetime],
+        ys_1: list[float],
+        ys_2: list[float],
         color: Color | None = None,
         label: str | None = None,
         opacity: float | None = None,

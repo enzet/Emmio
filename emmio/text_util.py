@@ -13,15 +13,15 @@ __email__ = "me@enzet.ru"
 class Text:
     """Text processing utility."""
 
-    def __init__(self, input_file: IO, language: Language):
+    def __init__(self, input_file: IO[str], language: Language):
         """
         :param input_file: file to process
         :param language: text language
         """
-        self.input_file: IO = input_file
+        self.input_file: IO[str] = input_file
         self.language: Language = language
 
-    def get_frequency_list(self) -> dict:
+    def get_frequency_list(self) -> dict[str, int]:
         """Construct frequency list of the text."""
         logging.info("Construct frequency list...")
 

@@ -59,7 +59,7 @@ class Visualizer:
         self,
         records: list[tuple[LearningRecord, Learning]],
         lexicons: list[Lexicon],
-        point: Callable,
+        point: Callable[[datetime], datetime],
         width: float,
         by_language: bool = False,
     ) -> None:

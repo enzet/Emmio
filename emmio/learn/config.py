@@ -1,44 +1,37 @@
 """Learning configuration."""
 
-from enum import Enum
-
 from pydantic import BaseModel
 
+from emmio.audio.config import AudioUsageConfig
+from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.language import LanguageConfig
+from emmio.lexicon.config import LexiconUsageConfig
+from emmio.lists.config import ListUsageConfig
+from emmio.sentence.config import SentencesUsageConfig
 
-
-# TODO: This should be deleted and replaced with more carefully created learning
-#       scheme configuration.
-class LearnScheme(Enum):
-    """Learning scheme."""
-
-    SENTENCES = "sentences"
-    """
-    In this learning scheme the teacher process provides a clues for the word
-    being studied:
-      - a definition of the word from a defining dictionary in the learning
-        language and/or a translation of the word in one of the base languages,
-      - a sentence in the learning language with the word being hided,
-      - translations of the sentence in one of the base languages.
-    """
-
-    FULL_SENTENCES = "full_sentences"
+LearningConfigValuesType = (
+    str
+    | list[str]
+    | list[dict[str, str]]
+    | dict[str, dict[str, list[dict[str, str]]]]
+)
+LearningConfigType = dict[str, LearningConfigValuesType]
 
 
 class NewQuestionScheme(BaseModel):
     """How to pick new question."""
 
-    pick_from: list[dict]
+    pick_from: list[ListUsageConfig]
     """Which question lists use to pick new question."""
 
-    check_lexicons: list[dict] | None = None
+    check_lexicons: list[LexiconUsageConfig] | None = None
     """Which lexicon to check to skip already known questions."""
 
-    ask_lexicon: dict | None = None
+    ask_lexicon: LexiconUsageConfig | None = None
     """Which lexicon to ask to pick new question."""
 
-    ignore_not_common: list[dict] | None = None
-    """Which words to ignore."""
+    ignore_not_common: list[DictionaryUsageConfig] | None = None
+    """Dictionaries for checking if the word is common."""
 
 
 class Scheme(BaseModel):
@@ -57,10 +50,10 @@ class Scheme(BaseModel):
     postpone_time: float | None = None
     """How long to postpone question, relative to the last request time."""
 
-    actions: list[dict] = []
+    actions: list[dict[str, str]] = []
     """Actions to perform after question is shown."""
 
-    learning_lexicon: dict | None = None
+    learning_lexicon: LexiconUsageConfig | None = None
     """Which lexicon should be used to store answers during learning."""
 
 
@@ -85,13 +78,13 @@ class LearnConfig(BaseModel):
     scheme: Scheme | None
     """Learning scheme."""
 
-    sentences: list[dict] | None = None
+    sentences: list[SentencesUsageConfig] | None = None
     """Sentences usage configurations."""
 
-    dictionaries: list[dict]
+    dictionaries: list[DictionaryUsageConfig]
     """Dictionary usage configurations."""
 
-    audio: list[dict] = []
+    audio: list[AudioUsageConfig] = []
     """Configurations for audio pronunciations."""
 
     check_lexicon: bool = False

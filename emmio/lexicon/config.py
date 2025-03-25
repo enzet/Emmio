@@ -4,7 +4,22 @@ from enum import Enum
 
 from pydantic.main import BaseModel
 
+from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.language import LanguageConfig
+from emmio.lists.config import ListUsageConfig
+from emmio.sentence.config import SentencesUsageConfig
+
+LexiconConfigValuesType = (
+    str | int | dict[str, str] | list[dict[str, str]] | None
+)
+LexiconConfigType = dict[str, LexiconConfigValuesType]
+
+
+class LexiconUsageConfig(BaseModel):
+    """Configuration of the lexicon."""
+
+    id: str
+    """Identifier of the lexicon."""
 
 
 class LexiconSelection(Enum):
@@ -38,13 +53,13 @@ class LexiconConfig(BaseModel):
     selection: LexiconSelection
     """How words was picked."""
 
-    frequency_list: dict | None = None
+    frequency_list: ListUsageConfig | None = None
     """Frequency list used to check lexicon."""
 
-    dictionaries: list[dict] = []
+    dictionaries: list[DictionaryUsageConfig] = []
     """Dictionary usage configurations."""
 
-    sentences: list[dict] = []
+    sentences: list[SentencesUsageConfig] = []
     """Sentences configurations."""
 
     precision_per_week: int = 0

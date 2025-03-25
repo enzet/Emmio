@@ -42,12 +42,14 @@ PART_OF_SPEECH_MAP: dict[str, str] = {
 }
 
 
-LINK_PATTERN: re.Pattern = re.compile(
+LINK_PATTERN: re.Pattern[str] = re.compile(
     r"^(?P<preffix>\(.*\) )?(?P<link_type>.*) of "
     r"(?P<link>[^:;,. ]*)[:;,.]?"
     r'(?P<suffix1>[:;,] .*)?(?P<suffix2> \(.*\))?(?P<suffix3> ".*")?$'
 )
-DESCRIPTOR_PATTERN: re.Pattern = re.compile(r"\((?P<descriptor>[^()]*)\) .*")
+DESCRIPTOR_PATTERN: re.Pattern[str] = re.compile(
+    r"\((?P<descriptor>[^()]*)\) .*"
+)
 
 
 def get_file_name(word: str) -> str:

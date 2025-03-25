@@ -5,6 +5,16 @@ from pydantic.main import BaseModel
 from emmio.language import LanguageConfig
 
 
+class AudioUsageConfig(BaseModel):
+    """Configuration for a collection of audio files."""
+
+    id: str
+    """Identifier of the audio files."""
+
+    language: LanguageConfig
+    """Language of the files."""
+
+
 class AudioConfig(BaseModel):
     """Configuration for a collection of audio files."""
 

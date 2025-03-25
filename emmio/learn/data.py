@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
@@ -29,7 +29,7 @@ class LearnData:
     """Mapping from learning identifiers to learning processes."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict) -> Self:
+    def from_config(cls, path: Path, config: dict[str, Any]) -> Self:
         """Initialize learn data from the configuration."""
         learnings: dict[str, Learning] = {
             learn_id: Learning.from_config(

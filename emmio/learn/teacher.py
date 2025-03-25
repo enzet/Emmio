@@ -67,18 +67,18 @@ class Teacher:
         self.check_lexicons: list[Lexicon] | None = None
         if self.scheme.new_question.check_lexicons:
             self.check_lexicons = [
-                user_data.get_lexicon_by_id(x["id"])
+                user_data.get_lexicon_by_id(x.id)
                 for x in self.scheme.new_question.check_lexicons
             ]
         self.ask_lexicon: Lexicon | None = None
         if self.scheme.new_question.ask_lexicon:
             self.ask_lexicon = user_data.get_lexicon_by_id(
-                self.scheme.new_question.ask_lexicon["id"]
+                self.scheme.new_question.ask_lexicon.id
             )
         self.learning_lexicon: Lexicon | None = None
         if self.scheme.learning_lexicon:
             self.learning_lexicon = user_data.get_lexicon_by_id(
-                self.scheme.learning_lexicon["id"]
+                self.scheme.learning_lexicon.id
             )
 
         # Load question lists.
@@ -87,9 +87,7 @@ class Teacher:
         for list_config in self.scheme.new_question.pick_from:
             list_: List | None = data.get_list(list_config)
             if list_ is None:
-                raise ValueError(
-                    f'No list with id `{list_config["id"]}` found.'
-                )
+                raise ValueError(f"No list with id `{list_config.id}` found.")
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 

@@ -7,6 +7,7 @@ import pytest
 
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
+from emmio.lists.config import ListUsageConfig
 from emmio.ui import TerminalInterface
 
 
@@ -22,7 +23,7 @@ def fixture_lexicon() -> Lexicon:
         LexiconConfig(
             file_name="en.json",
             language="en",
-            frequency_list={"id": "en"},
+            frequency_list=ListUsageConfig(id="en"),
             selection=LexiconSelection.ARBITRARY,
         ),
     )

@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
-from emmio.audio.config import AudioConfig
+from emmio.audio.config import AudioConfig, AudioUsageConfig
 from emmio.audio.core import (
     AudioCollection,
     AudioProvider,
@@ -32,7 +32,7 @@ class AudioData(ArtifactData):
         :param path: path to the configuration file
         :return: audio data
         """
-        config: dict = ArtifactData.read_config(path)
+        config: dict[str, Any] = ArtifactData.read_config(path)
 
         audio_providers: dict[str, AudioProvider] = {}
         for id_, data in config.items():
@@ -41,23 +41,25 @@ class AudioData(ArtifactData):
             )
         return cls(path, audio_providers)
 
-    def get_audio_provider(self, usage_config: dict) -> AudioProvider:
+    def get_audio_provider(
+        self, usage_config: AudioUsageConfig
+    ) -> AudioProvider:
         """Get an audio provider from a usage configuration.
 
         :param usage_config: usage configuration
         :return: audio provider
         """
-        match id_ := usage_config["id"]:
+        match id_ := usage_config.id:
             case "wikimedia_commons":
                 return WikimediaCommonsAudioProvider(
-                    Language.from_code(usage_config["language"]),
+                    Language.from_code(usage_config.language),
                     self.path / "cache",
                 )
             case _:
                 return self.audio_providers[id_]
 
     def get_audio_collection(
-        self, usage_configs: list[dict]
+        self, usage_configs: list[AudioUsageConfig]
     ) -> AudioCollection:
         """Get an audio collection from a list of usage configurations.
 

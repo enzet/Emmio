@@ -5,6 +5,16 @@ from pydantic import BaseModel
 from emmio.language import LanguageConfig
 
 
+class SentencesUsageConfig(BaseModel):
+    """Configuration of sentences."""
+
+    id: str
+    """Identifier of the sentences."""
+
+    languages: tuple[LanguageConfig, LanguageConfig] | None = None
+    """Languages of the sentences."""
+
+
 class SentenceConfig(BaseModel):
     """Configuration of sentences."""
 

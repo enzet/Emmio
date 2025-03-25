@@ -69,7 +69,7 @@ class DirectoryAudioProvider(AudioProvider):
     def __post_init__(self) -> None:
         """Initialize the audio provider."""
 
-        self.path_pattern: re.Pattern = re.compile(
+        self.path_pattern: re.Pattern[str] = re.compile(
             rf"(?P<word>[^()]*)\s*(\([^()]*\))?\s*\d?\.{self.file_extension}"
         )
         self.cache: dict[str, list[Path]] = defaultdict(list)

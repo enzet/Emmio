@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from emmio.core import ArtifactData
-from emmio.dictionary.config import DictionaryConfig
+from emmio.dictionary.config import DictionaryConfig, DictionaryUsageConfig
 from emmio.dictionary.core import (
     Dictionary,
     DictionaryCollection,
@@ -32,7 +32,7 @@ class DictionaryData(ArtifactData):
 
         :param path: path to the directory with dictionaries
         """
-        config: dict = ArtifactData.read_config(path)
+        config: dict[str, Any] = ArtifactData.read_config(path)
 
         dictionaries: dict[str, Dictionary] = {}
         for id_, data in config.items():
@@ -42,23 +42,38 @@ class DictionaryData(ArtifactData):
         return cls(path, dictionaries)
 
     def get_dictionary(
-        self, dictionary_usage_config: dict
+        self, dictionary_usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:
         """Get dictionary by dictionary usage configuration."""
-        match id_ := dictionary_usage_config["id"]:
+
+        match id_ := dictionary_usage_config.id:
             case "kaikki":
+                if dictionary_usage_config.from_language is None:
+                    raise ValueError(
+                        "Language is required for Kaikki dictionary."
+                    )
+                if dictionary_usage_config.name is None:
+                    raise ValueError("Name is required for Kaikki dictionary.")
                 return EnglishWiktionaryKaikki(
                     self.path,
                     self.path / "cache",
-                    Language.from_code(dictionary_usage_config["language"]),
-                    dictionary_usage_config["name"],
+                    Language.from_code(dictionary_usage_config.from_language),
+                    dictionary_usage_config.name,
                 )
             case "google_translate":
+                if dictionary_usage_config.from_language is None:
+                    raise ValueError(
+                        "Language is required for Google Translate dictionary."
+                    )
+                if dictionary_usage_config.to_language is None:
+                    raise ValueError(
+                        "Language is required for Google Translate dictionary."
+                    )
                 return GoogleTranslate(
                     self.path,
                     self.path / "cache",
-                    Language.from_code(dictionary_usage_config["from"]),
-                    Language.from_code(dictionary_usage_config["to"]),
+                    Language.from_code(dictionary_usage_config.from_language),
+                    Language.from_code(dictionary_usage_config.to_language),
                 )
             case _:
                 if id_ in self.dictionaries:
@@ -67,7 +82,7 @@ class DictionaryData(ArtifactData):
         return None
 
     def get_dictionaries(
-        self, dictionary_usage_configs: list[dict]
+        self, dictionary_usage_configs: list[DictionaryUsageConfig]
     ) -> DictionaryCollection:
         """Get dictionaries by dictionary usage configurations.
 
