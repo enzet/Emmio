@@ -54,7 +54,7 @@ class SentencesData(ArtifactData):
             case "tatoeba":
                 if usage_config.languages is None:
                     raise ValueError(
-                        "Languages are required for Tatoeba sentences."
+                        "`languages` are required for Tatoeba sentences."
                     )
                 language_1, language_2 = usage_config.languages
                 return TatoebaSentences(

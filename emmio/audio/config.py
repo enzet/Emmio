@@ -11,7 +11,7 @@ class AudioUsageConfig(BaseModel):
     id: str
     """Identifier of the audio files."""
 
-    language: LanguageConfig
+    language: LanguageConfig | None = None
     """Language of the files."""
 
 

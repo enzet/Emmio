@@ -58,13 +58,13 @@ class UserData:
     Unlike user id, it may contain any Unicode symbols.  E.g. `Chloé`.
     """
 
-    _learn_data: LearnData | None
+    _learn_data: LearnData | None = None
     """Data about user's learning processes."""
 
-    _lexicon_data: LexiconData | None
+    _lexicon_data: LexiconData | None = None
     """Data about user's lexicon checking processes."""
 
-    _listen_data: ListenData | None
+    _listen_data: ListenData | None = None
     """Data about user's listening processes."""
 
     @classmethod
@@ -74,17 +74,8 @@ class UserData:
         """Initialize user data from configuration."""
 
         name: str = config["name"]  # type: ignore
-        listen_config: ListenConfigType = config["listen"]  # type: ignore
 
-        return cls(
-            config,
-            path,
-            user_id,
-            name,
-            None,
-            None,
-            ListenData.from_config(path / LISTEN_DIRECTORY_NAME, listen_config),
-        )
+        return cls(config, path, user_id, name)
 
     def get_learn_data(self) -> LearnData:
         """Lazy-loads learning data."""

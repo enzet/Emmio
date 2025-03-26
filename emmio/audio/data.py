@@ -51,12 +51,18 @@ class AudioData(ArtifactData):
         """
         match id_ := usage_config.id:
             case "wikimedia_commons":
+                if usage_config.language is None:
+                    raise ValueError(
+                        "`language` is required for Wikimedia Commons audio."
+                    )
                 return WikimediaCommonsAudioProvider(
                     Language.from_code(usage_config.language),
                     self.path / "cache",
                 )
             case _:
-                return self.audio_providers[id_]
+                if id_ in self.audio_providers:
+                    return self.audio_providers[id_]
+                raise ValueError(f"Unknown audio provider: `{id_}`.")
 
     def get_audio_collection(
         self, usage_configs: list[AudioUsageConfig]

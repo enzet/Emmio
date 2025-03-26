@@ -50,7 +50,7 @@ class DictionaryData(ArtifactData):
             case "kaikki":
                 if dictionary_usage_config.from_language is None:
                     raise ValueError(
-                        "Language is required for Kaikki dictionary."
+                        "`from_language` is required for Kaikki dictionary."
                     )
                 if dictionary_usage_config.name is None:
                     raise ValueError("Name is required for Kaikki dictionary.")
@@ -63,11 +63,13 @@ class DictionaryData(ArtifactData):
             case "google_translate":
                 if dictionary_usage_config.from_language is None:
                     raise ValueError(
-                        "Language is required for Google Translate dictionary."
+                        "`from_language` is required for Google Translate "
+                        "dictionary."
                     )
                 if dictionary_usage_config.to_language is None:
                     raise ValueError(
-                        "Language is required for Google Translate dictionary."
+                        "`to_language` is required for Google Translate "
+                        "dictionary."
                     )
                 return GoogleTranslate(
                     self.path,
@@ -78,6 +80,7 @@ class DictionaryData(ArtifactData):
             case _:
                 if id_ in self.dictionaries:
                     return self.dictionaries[id_]
+                raise ValueError(f"Unknown dictionary: `{id_}`.")
 
         return None
 
