@@ -98,6 +98,8 @@ class Emmio:
             )
 
         self.user_data: UserData = data.users_data[user_id]
+        self.user_data.verify()
+
         self.user_id: str = user_id
 
     async def run(self) -> None:

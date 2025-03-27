@@ -15,13 +15,13 @@ from typing import Any, Self
 
 from emmio.core import Record, Session
 from emmio.language import Language
-from emmio.learn.config import LearningConfigType
+from emmio.learn.config import LearnConfig, LearningConfigType
 from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
-from emmio.lexicon.config import LexiconConfigType
+from emmio.lexicon.config import LexiconConfig, LexiconConfigType
 from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
-from emmio.listen.config import ListenConfigType
+from emmio.listen.config import ListenConfig, ListenConfigType
 from emmio.listen.core import Listening
 from emmio.listen.data import ListenData
 from emmio.user.config import UserConfigType
@@ -76,6 +76,21 @@ class UserData:
         name: str = config["name"]  # type: ignore
 
         return cls(config, path, user_id, name)
+
+    def verify(self) -> None:
+        """Verify user data configuration.
+
+        Check whether the user configuration JSON file is valid. If not,
+        raise an exception.
+        """
+        for _, lexicon_config in self.config["lexicon"].items():
+            LexiconConfig(**lexicon_config)
+
+        for _, learning_config in self.config["learn"].items():
+            LearnConfig(**learning_config)
+
+        for _, listening_config in self.config["listen"].items():
+            ListenConfig(**listening_config)
 
     def get_learn_data(self) -> LearnData:
         """Lazy-loads learning data."""
