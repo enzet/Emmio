@@ -170,7 +170,7 @@ class EnglishWiktionaryKaikki(Dictionary):
                 item = json.loads(line)
                 word: str = item["word"]
                 if len(word) >= 1:
-                    if not all(self.from_language.has_symbol(c) for c in word):
+                    if not self.from_language.is_word(word):
                         continue
                     (self.cache_directory / word[0].lower()).mkdir(
                         parents=True, exist_ok=True

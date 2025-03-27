@@ -135,6 +135,14 @@ class Language:
         """Get all symbols allowed in the language."""
         return self.symbols
 
+    def is_word(self, word: str) -> bool:
+        """Check if the word is valid in the language."""
+        if not self.has_symbols():
+            raise ValueError(
+                f"Language `{self.get_code()}` does not have symbols."
+            )
+        return all(self.has_symbol(c) for c in word)
+
     def decode_text(self, text: str) -> str:
         """Decode possible digraphs."""
         if self == UKRAINIAN:

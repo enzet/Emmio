@@ -37,6 +37,8 @@ def split_sentence(
           - ("world", word),
           - ("!", symbol),
     """
+    # TODO: Move this functionality to the language class.
+
     words: list[tuple[str, SentenceElement]] = []
     current: str = ""
 
