@@ -8,7 +8,6 @@ BOOLEAN_NONE: bytes = b"\x02"
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 ENDIAN: Literal["little", "big"] = "little"
 EPOCH: datetime = datetime(1970, 1, 1)
-SAME: int = 255
 
 
 class Encoder:
