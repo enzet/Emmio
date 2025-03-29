@@ -50,7 +50,7 @@ class Scheme(BaseModel):
     postpone_time: float | None = None
     """How long to postpone question, relative to the last request time."""
 
-    actions: list[dict[str, str]] = []
+    actions: list[dict[str, str | list[dict[str, str]]]] = []
     """Actions to perform after question is shown."""
 
     learning_lexicon: LexiconUsageConfig | None = None
