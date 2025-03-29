@@ -205,7 +205,7 @@ class Sentences(ABC):
                     sentence_translation,
                 )
             )
-        result.sort(key=lambda x: -x[0])
+        result.sort(key=lambda record: -record[0])
         return result
 
 
@@ -335,6 +335,6 @@ class SentencesCollection:
             result += sentences.filter_by_word_and_rate(
                 word, is_known, ids_to_skip, max_length
             )
-        result.sort(key=lambda x: -x[0])
+        result.sort(key=lambda record: -record[0])
 
         return result

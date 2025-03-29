@@ -55,7 +55,7 @@ class Language:
         if checking:
             self.has_symbol = checking
         else:
-            self.has_symbol = lambda x: x in self.symbols
+            self.has_symbol = lambda symbol: symbol in self.symbols
 
     @classmethod
     def from_code(cls, code: str) -> Language:
@@ -225,7 +225,8 @@ ARMENIAN: Language = Language(
     "hy",
     Color("#E8AD3B"),  # Orange color of the Armenian flag.
     ARMENIAN_LETTERS,
-    checking=lambda x: "\u0561" <= x <= "\u0587" or "\u0531" <= x <= "\u0556",
+    checking=lambda symbol: "\u0561" <= symbol <= "\u0587"
+    or "\u0531" <= symbol <= "\u0556",
     self_name="հայերեն",
 )
 CHINESE: Language = Language(

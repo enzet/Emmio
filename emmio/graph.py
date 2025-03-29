@@ -197,7 +197,7 @@ class Visualizer:
             for record in learning.process.records:
                 records.append((learning.learning_language.get_code(), record))
 
-        records = sorted(records, key=lambda x: x[1].time)
+        records = sorted(records, key=lambda record: record[1].time)
 
         x_list: list[datetime] = [x.time for _, x in records]
         min_x: datetime = min(x_list)

@@ -368,7 +368,10 @@ class Emmio:
                 )
                 return
             await self.run_lexicon(
-                sorted(lexicons, key=lambda x: -x.get_last_rate_number())
+                sorted(
+                    lexicons,
+                    key=lambda lexicon: -lexicon.get_last_rate_number(),
+                )
             )
 
         # Command `stat`.
@@ -430,7 +433,7 @@ class Emmio:
                 records: list[tuple[LearningRecord, Learning]] = []
                 for learning in self.user_data.get_active_learnings():
                     records += [(x, learning) for x in learning.process.records]
-                records = sorted(records, key=lambda x: x[0].time)
+                records = sorted(records, key=lambda record: record[0].time)
                 LearningVisualizer(
                     records,
                     interactive=arguments.interactive,
@@ -495,7 +498,7 @@ class Emmio:
                 )
 
         for lexicon in sorted(
-            lexicons, key=lambda x: -x.get_last_rate_number()
+            lexicons, key=lambda lexicon: -lexicon.get_last_rate_number()
         ):
             now: datetime = datetime.now()
             rate: float | None = lexicon.get_last_rate()
@@ -593,7 +596,9 @@ class Emmio:
         learning: Learning
 
         while True:
-            learnings = sorted(learnings, key=lambda x: x.compare_by_old())
+            learnings = sorted(
+                learnings, key=lambda learning: learning.compare_by_old()
+            )
             learning = learnings[0]
             if learning.count_questions_to_repeat() > 0:
                 teacher = Teacher(
@@ -616,7 +621,9 @@ class Emmio:
                 if reply == "No" or not do_continue:
                     return
             else:
-                learnings = sorted(learnings, key=lambda x: x.compare_by_new())
+                learnings = sorted(
+                    learnings, key=lambda learning: learning.compare_by_new()
+                )
                 learning = learnings[0]
                 if learning.count_questions_to_add() > 0:
                     teacher = Teacher(
@@ -743,7 +750,7 @@ class Emmio:
         records: list[tuple[LearningRecord, Learning]] = []
         for learning in self.user_data.get_active_learnings():
             records += [(x, learning) for x in learning.process.records]
-        records = sorted(records, key=lambda x: x[0].time)
+        records = sorted(records, key=lambda record: record[0].time)
 
         days: float
 
@@ -761,13 +768,7 @@ class Emmio:
             Visualizer().cumulative_actions_moving(records, days=days)
         else:
 
-            def locator(point: datetime) -> datetime:
-                return datetime(
-                    day=point.day, month=point.month, year=point.year
-                )
-
-            days = 1
-
+            locator, days = util.day_start, 1
             if arguments.interval == "week":
                 locator, days = util.week_start, 7
             elif arguments.interval == "month":

@@ -295,7 +295,7 @@ class Form:
         to_hide: list[str] | None = None
 
         if not show_word and words_to_hide:
-            to_hide = sorted(list(words_to_hide), key=lambda x: -len(x))
+            to_hide = sorted(list(words_to_hide), key=lambda word: -len(word))
 
         description: list[str] = []
         if self.part_of_speech:

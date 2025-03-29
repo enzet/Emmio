@@ -209,7 +209,7 @@ class Data:
 
         learnings: list[Learning] = sorted(
             self.get_active_learnings(user_id),
-            key=lambda x: -x.count_questions_to_repeat(),
+            key=lambda learning: -learning.count_questions_to_repeat(),
         )
         rows: list[list[InlineElement | str]] = [
             [

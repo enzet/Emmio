@@ -68,7 +68,7 @@ class FrequencyList(List):
         if self.data:
             self._occurrences: int = sum(self.data.values())
             self._sorted_keys: list[str] = sorted(
-                self.data.keys(), key=lambda x: -self.data[x]
+                self.data.keys(), key=lambda word: -self.data[word]
             )
 
         assert self._occurrences == sum(self.data.values()), (
@@ -88,7 +88,7 @@ class FrequencyList(List):
         self.data[word] += occurrences
         self._occurrences += occurrences
         self._sorted_keys = sorted(
-            self.data.keys(), key=lambda x: -self.data[x]
+            self.data.keys(), key=lambda word: -self.data[word]
         )
 
     def ignore_proper_nouns(self) -> None:
@@ -100,7 +100,7 @@ class FrequencyList(List):
                     self.data[word.lower()] += self.data[word]
                 del self.data[word]
         self._sorted_keys = sorted(
-            self.data.keys(), key=lambda x: -self.data[x]
+            self.data.keys(), key=lambda word: -self.data[word]
         )
 
     def has(self, word: str) -> bool:

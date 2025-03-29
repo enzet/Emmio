@@ -208,7 +208,7 @@ class UserData:
             records += learning.get_records()
         for lexicon in self.get_lexicon_data().get_lexicons():
             records += lexicon.get_records()
-        records = sorted(records, key=lambda x: x.time)
+        records = sorted(records, key=lambda record: record.time)
         return records
 
     def get_sessions(self) -> list[Session]:
@@ -219,7 +219,7 @@ class UserData:
             sessions += learning.get_sessions()
         for lexicon in self.get_lexicon_data().get_lexicons():
             sessions += lexicon.get_sessions()
-        sessions = sorted(sessions, key=lambda x: x.start)
+        sessions = sorted(sessions, key=lambda session: session.start)
         return sessions
 
     def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
@@ -327,11 +327,12 @@ class UserData:
     ) -> dict[Language, list[Lexicon]]:
         """Get frequency lexicons for the specified languages."""
 
+        lexicon_data: LexiconData = self.get_lexicon_data()
+
         if not languages:
-            return self.get_lexicon_data().get_frequency_lexicons()
+            return lexicon_data.get_frequency_lexicons()
+
         return {
-            language: self.get_lexicon_data().get_frequency_lexicons_by_language(
-                language
-            )
+            language: lexicon_data.get_frequency_lexicons_by_language(language)
             for language in languages
         }

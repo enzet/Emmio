@@ -34,9 +34,9 @@ class SentenceDatabase(Database):
             )
 
             # Tatoeba uses ISO 639-3 codes, but for some languages it uses
-            # individual codes, instead of inclusive ones. E.g. `nob` (individual
-            # code for Norwegian Bokmål) instead of `nor` (inclusive code for
-            # Norwegian).
+            # individual codes, instead of inclusive ones. E.g. `nob`
+            # (individual code for Norwegian Bokmål) instead of `nor` (inclusive
+            # code for Norwegian).
             if not zip_path.is_file():
                 download(
                     f"https://downloads.tatoeba.org/exports/per_language/"

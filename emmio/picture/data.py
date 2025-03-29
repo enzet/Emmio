@@ -68,7 +68,7 @@ def fill_data(
     for word, structure in words.items():
         result.append(structure)
 
-    result = list(sorted(result, key=lambda x: x["index"]))
+    result = list(sorted(result, key=lambda structure: structure["index"]))
 
     with (Path("web") / f"{lexicon.language.get_code()}.js").open(
         "w", encoding="utf-8"

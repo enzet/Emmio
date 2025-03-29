@@ -587,7 +587,8 @@ class Lexicon(UserArtifact):
         result: list[str] = []
 
         for word in sorted(
-            self.words.keys(), key=lambda x: -frequency_list.get_occurrences(x)
+            self.words.keys(),
+            key=lambda word: -frequency_list.get_occurrences(word),
         ):
             word_knowledge: WordKnowledge = self.words[word]
             if word_knowledge.knowing == LexiconResponse.DONT:
@@ -896,7 +897,9 @@ class Lexicon(UserArtifact):
             if lexicon.has(picked_word):
                 lexicon_records += lexicon.get_records(picked_word)
 
-        lexicon_records = sorted(lexicon_records, key=lambda x: x.time)
+        lexicon_records = sorted(
+            lexicon_records, key=lambda record: record.time
+        )
 
         skip_markers: list[bool] = [
             x.to_skip for x in lexicon_records if x.to_skip is not None
