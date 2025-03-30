@@ -12,7 +12,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.language import Language
-from emmio.learn.config import Scheme
+from emmio.learn.config import ActionType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
 from emmio.lists.core import List
@@ -457,9 +457,9 @@ class Teacher:
 
         if self.scheme and self.scheme.actions:
             for action in self.scheme.actions:
-                if action["type"] == "show_question_id":
+                if action.type == ActionType.SHOW_QUESTION_ID:
                     self.interface.print(word)
-                elif action["type"] == "check_translation":
+                elif action.type == ActionType.CHECK_TRANSLATION:
                     pass
                     # TODO: implement.
             return "continue"  # FIXME

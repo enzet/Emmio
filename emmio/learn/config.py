@@ -1,5 +1,7 @@
 """Learning configuration."""
 
+from enum import Enum
+
 from pydantic import BaseModel
 
 from emmio.audio.config import AudioUsageConfig
@@ -34,6 +36,23 @@ class NewQuestionScheme(BaseModel):
     """Dictionaries for checking if the word is common."""
 
 
+class ActionType(str, Enum):
+    """Type of the action."""
+
+    SHOW_QUESTION_ID = "show_question_id"
+    """Just show question ID."""
+
+    CHECK_TRANSLATION = "check_translation"
+    """Check translation."""
+
+
+class Action(BaseModel):
+    """Action to perform after question is shown."""
+
+    type: ActionType
+    """Type of the action."""
+
+
 class Scheme(BaseModel):
     """Learning scheme.
 
@@ -50,7 +69,7 @@ class Scheme(BaseModel):
     postpone_time: float | None = None
     """How long to postpone question, relative to the last request time."""
 
-    actions: list[dict[str, str | list[dict[str, str]]]] = []
+    actions: list[Action] = []
     """Actions to perform after question is shown."""
 
     learning_lexicon: LexiconUsageConfig | None = None
