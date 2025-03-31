@@ -715,6 +715,7 @@ class Emmio:
             self.user_data.get_frequency_lexicons(languages)
         )
         lexicon_visualizer: LexiconVisualizer = LexiconVisualizer(
+            self.interface,
             plot_main=arguments.show_main,
             plot_averages=arguments.show_averages,
             plot_precise_values=arguments.show_precise_values,

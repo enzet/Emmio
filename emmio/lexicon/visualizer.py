@@ -17,6 +17,7 @@ from emmio.language import Language
 from emmio.lexicon.core import Lexicon, compute_lexicon_rate
 from emmio.paths import get_default_output_directory
 from emmio.plot import Graph
+from emmio.ui import Interface
 from emmio.util import plus_week, week_start, year_end, year_start
 
 DEFAULT_LEXICON_GRAPH_PATH: Path = (
@@ -46,6 +47,9 @@ class LexiconRangeData:
 @dataclass
 class LexiconVisualizer:
     """Visualizer for lexicons."""
+
+    interface: Interface
+    """User interface for showing messages."""
 
     plot_main: bool = True
     """Plot main line."""
@@ -193,7 +197,10 @@ class LexiconVisualizer:
         if self.interactive:
             plt.show()
         else:
-            plt.savefig("out/graph.svg")
+            plt.savefig(DEFAULT_LEXICON_GRAPH_PATH.as_posix())
+            self.interface.print(
+                f"Graph saved to `{DEFAULT_LEXICON_GRAPH_PATH.absolute()}`."
+            )
 
     def graph_with_svg(
         self,
@@ -289,6 +296,9 @@ class LexiconVisualizer:
                     )
         graph.draw_grid(svg)
         graph.write(svg)
+        self.interface.print(
+            f"Graph saved to `{DEFAULT_LEXICON_GRAPH_PATH.absolute()}`."
+        )
 
     def get_lexicon_range_data(
         self,
