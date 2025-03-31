@@ -22,6 +22,7 @@ from emmio.lexicon.core import Lexicon
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
+from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.ui import (
     Block,
     Colorized,
@@ -79,6 +80,8 @@ class Emmio:
         self, path: Path, interface: Interface, data: Data, user_id: str
     ) -> None:
         self.path: Path = path
+        self.output_path: Path = path / DEFAULT_OUTPUT_DIRECTORY
+        self.output_path.mkdir(parents=True, exist_ok=True)
         self.interface: Interface = interface
         self.data: Data = data
 
@@ -187,7 +190,16 @@ class Emmio:
             "--languages",
             "-l",
             type=str,
-            help="list of language codes separated with `;`",
+            help="list of language codes",
+            nargs="+",
+        )
+        plot_lexicon_parser.add_argument(
+            "--exclude",
+            "-e",
+            type=str,
+            help="list of lexicon identifiers to exclude",
+            nargs="+",
+            default=[],
         )
         plot_lexicon_parser.add_argument(
             "--precision",
@@ -206,10 +218,11 @@ class Emmio:
             "--color",
             "-c",
             type=str,
+            nargs="+",
             help=(
                 "color of the line, it may specify a single color (e.g. `red` "
                 "or `#FF0000`) or a gradient by specifying gradient anchor "
-                "colors separated with `;` (e.g. `red;blue;green`)"
+                "colors (e.g. `red yellow green`)"
             ),
         )
         plot_lexicon_parser.add_argument(
@@ -692,7 +705,7 @@ class Emmio:
         """Plot lexicon."""
 
         languages: list[Language] | None = (
-            [Language.from_code(x) for x in arguments.languages.split(";")]
+            [Language.from_code(x) for x in arguments.languages]
             if arguments.languages
             else None
         )
@@ -711,11 +724,19 @@ class Emmio:
         else:
             raise ValueError(f"Unknown interval: `{arguments.interval}`.")
 
-        lexicons: dict[Language, list[Lexicon]] = (
-            self.user_data.get_frequency_lexicons(languages)
-        )
+        lexicons: dict[Language, list[Lexicon]] = {
+            language: [
+                lexicon
+                for lexicon in lexicons
+                if lexicon.id_ not in arguments.exclude
+            ]
+            for language, lexicons in self.user_data.get_frequency_lexicons(
+                languages
+            ).items()
+        }
         lexicon_visualizer: LexiconVisualizer = LexiconVisualizer(
             self.interface,
+            self.output_path,
             plot_main=arguments.show_main,
             plot_averages=arguments.show_averages,
             plot_precise_values=arguments.show_precise_values,
@@ -727,10 +748,7 @@ class Emmio:
         )
         colors: list[Color] | None = None
         if arguments.color:
-            if ";" in arguments.color:
-                colors = [Color(x) for x in arguments.color.split(";")]
-            else:
-                colors = [Color(arguments.color)]
+            colors = [Color(color) for color in arguments.color]
 
         if arguments.svg:
             lexicon_visualizer.graph_with_svg(
