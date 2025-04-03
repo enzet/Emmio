@@ -23,7 +23,7 @@ from emmio.dictionary.core import (
     Form,
     Link,
 )
-from emmio.language import ENGLISH, Language
+from emmio.language import KnownLanguages, Language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -278,7 +278,7 @@ class EnglishWiktionaryKaikki(Dictionary):
                 word=word,
                 part_of_speech=part_of_speech,
                 transcriptions=transcriptions,
-                definitions={ENGLISH: definitions},
+                definitions={KnownLanguages.ENGLISH: definitions},
                 links=links,
             )
         )
@@ -321,7 +321,7 @@ class EnglishWiktionaryKaikki(Dictionary):
 
     @override
     def check_to_language(self, language: Language) -> bool:
-        return language == ENGLISH
+        return language == KnownLanguages.ENGLISH
 
     @override
     def check_is_machine(self) -> bool:

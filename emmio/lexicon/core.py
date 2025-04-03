@@ -17,7 +17,7 @@ from emmio.dictionary.core import (
     DictionaryCollection,
     DictionaryItem,
 )
-from emmio.language import ENGLISH, RUSSIAN, Language
+from emmio.language import KnownLanguages, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import SentencesCollection
@@ -638,7 +638,10 @@ class Lexicon(UserArtifact):
         """
 
         # FIXME: get definitions languages from user settings.
-        definitions_languages: list[Language] = [ENGLISH, RUSSIAN]
+        definitions_languages: list[Language] = [
+            KnownLanguages.ENGLISH,
+            KnownLanguages.RUSSIAN,
+        ]
 
         for element in self.get_question(word, sentences):
             interface.print(element)

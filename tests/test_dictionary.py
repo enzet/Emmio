@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from emmio.dictionary.core import SimpleDictionary
-from emmio.language import Language
+from emmio.language import KnownLanguages
 
 
 def test_dictionary() -> None:
@@ -14,6 +14,6 @@ def test_dictionary() -> None:
         Path("test/dictionary/test_dictionary.txt"),
         "Test Dictionary",
         {"livre": "book", "chat": "cat"},
-        Language.from_code("fr"),
-        Language.from_code("en"),
+        KnownLanguages.FRENCH,
+        KnownLanguages.ENGLISH,
     )
