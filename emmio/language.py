@@ -155,7 +155,14 @@ class Language:
         E.g. for Latin, the normal form of "lītera" is "litera".
         """
         if self == KnownLanguages.ARMENIAN:
-            word = word.replace("՞", "")
+            return word.lower().replace("՞", "").replace("՛", "")
+        if self == KnownLanguages.LATIN:
+            word = word.lower().replace("æ", "ae")
+            for symbol, replacement in LATIN_CODE.items():
+                word = word.replace(symbol, replacement)
+            return word
+        if self == KnownLanguages.RUSSIAN:
+            return word.lower().replace("́", "").replace("ё", "е")
         return word.lower()
 
     def decode_text(self, text: str) -> str:

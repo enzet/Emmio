@@ -65,4 +65,19 @@ def check_normalize(language: Language, pairs: list[tuple[str, str]]) -> None:
 def test_armenian_normalize() -> None:
     """Test normalizing Armenian words."""
 
-    check_normalize(KnownLanguages.ARMENIAN, [("Խոսե՞լ", "խոսել")])
+    check_normalize(
+        KnownLanguages.ARMENIAN, [("Խոսե՞լ", "խոսել"), ("Խաղա՛", "խաղա")]
+    )
+
+
+def test_latin_normalize() -> None:
+    """Test normalizing Latin words."""
+
+    check_normalize(
+        KnownLanguages.LATIN, [("formulæ", "formulae"), ("lītera", "litera")]
+    )
+
+
+def test_russian_normalize() -> None:
+    """Test normalizing Russian words."""
+    check_normalize(KnownLanguages.RUSSIAN, [("ко́шка", "кошка")])
