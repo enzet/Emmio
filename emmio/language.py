@@ -154,6 +154,8 @@ class Language:
 
         E.g. for Latin, the normal form of "lītera" is "litera".
         """
+        if self == KnownLanguages.ARMENIAN:
+            word = word.replace("՞", "")
         return word.lower()
 
     def decode_text(self, text: str) -> str:
@@ -252,7 +254,8 @@ class KnownLanguages:
         Color("#E8AD3B"),  # Orange color of the Armenian flag.
         ARMENIAN_LETTERS,
         checking=lambda symbol: "\u0561" <= symbol <= "\u0587"
-        or "\u0531" <= symbol <= "\u0556",
+        or "\u0531" <= symbol <= "\u0556"
+        or symbol in ["՞", "՛"],
         self_name="հայերեն",
     )
     CHINESE: Language = Language(
