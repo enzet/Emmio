@@ -149,6 +149,13 @@ class Language:
             )
         return all(self.has_symbol(c) for c in word)
 
+    def normalize(self, word: str) -> str:
+        """Get the most common form of the word.
+
+        E.g. for Latin, the normal form of "lītera" is "litera".
+        """
+        return word.lower()
+
     def decode_text(self, text: str) -> str:
         """Decode possible digraphs."""
         if self == KnownLanguages.UKRAINIAN:

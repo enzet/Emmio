@@ -15,7 +15,13 @@ from typing import override
 from tqdm import tqdm
 
 from emmio.language import Language
-from emmio.sentence.core import Sentence, Sentences, SentenceTranslations
+from emmio.sentence.core import (
+    Sentence,
+    SentenceElement,
+    Sentences,
+    SentenceTranslations,
+    split_sentence,
+)
 from emmio.sentence.database import SentenceDatabase
 from emmio.util import download
 
@@ -175,28 +181,29 @@ class TatoebaSentences(Sentences):
             self.links[int(key)] = set(value)
 
     def fill_cache(self, file_name: Path) -> None:
-        """Construct dictionary from words to sentences."""
+        """Construct dictionary from words to sentences.
+
+        Split all sentences into words and construct a dictionary from words to
+        sentences containing these words.
+        """
         logging.info("Fill word cache...")
+
         for id_ in tqdm(self.links.keys()):
             id_ = int(id_)
-            word: str = ""
-            sentence_words: set[str] = set()
             sentence: str = self.database.get_sentence(
                 self.language_2, id_
             ).text
-            for symbol in sentence.lower():
-                if self.language_2.has_symbol(symbol):
-                    word += symbol
-                else:
-                    if word:
-                        sentence_words.add(word)
-                    word = ""
-            if word:
-                sentence_words.add(word)
-            for word in sentence_words:
-                if word not in self.cache:
-                    self.cache[word] = []
-                self.cache[word].append(id_)
+
+            parts: list[tuple[str, SentenceElement]] = split_sentence(
+                sentence, self.language_2
+            )
+            for part, type_ in parts:
+                if type_ == SentenceElement.WORD:
+                    normalized = self.language_2.normalize(part)
+                    if normalized not in self.cache:
+                        self.cache[normalized] = []
+                    self.cache[normalized].append(id_)
+
         with file_name.open("w+", encoding="utf-8") as output_file:
             logging.info("Writing word cache...")
             json.dump(self.cache, output_file)
