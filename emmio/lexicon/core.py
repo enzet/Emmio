@@ -2,6 +2,7 @@
 
 import json
 import math
+import random
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
@@ -615,7 +616,7 @@ class Lexicon(UserArtifact):
         if sentences is not None and (
             sentence_translations := sentences.filter_by_word(word, set(), 120)
         ):
-            sentence: Sentence = sentence_translations[0].sentence
+            sentence: Sentence = random.choice(sentence_translations).sentence
             splitted: list[tuple[str, SentenceElement]] = sentence.get_words(
                 self.language
             )
