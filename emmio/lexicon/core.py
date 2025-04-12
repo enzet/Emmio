@@ -20,8 +20,8 @@ from emmio.dictionary.core import (
 from emmio.language import KnownLanguages, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lists.frequency_list import FrequencyList
-from emmio.sentence.core import SentencesCollection
-from emmio.ui import Block, Colorized, Element, Interface, Text
+from emmio.sentence.core import Sentence, SentenceElement, SentencesCollection
+from emmio.ui import Block, Colorized, Element, Formatted, Interface, Text
 from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
@@ -611,16 +611,28 @@ class Lexicon(UserArtifact):
                     )
                 )
             )
-        if sentences is not None:
-            if sentence_translations := sentences.filter_by_word(
-                word, set(), 120
-            ):
-                example: Text = (
-                    Text()
-                    .add(Colorized("Usage example: ", "#AAAAAA"))
-                    .add(sentence_translations[0].sentence.text)
-                )
-                result.append(example)
+
+        if sentences is not None and (
+            sentence_translations := sentences.filter_by_word(word, set(), 120)
+        ):
+            sentence: Sentence = sentence_translations[0].sentence
+            splitted: list[tuple[str, SentenceElement]] = sentence.get_words(
+                self.language
+            )
+            text: Text = Text()
+            for part, type_ in splitted:
+                if (
+                    type_ == SentenceElement.WORD
+                    and self.language.normalize(part) == word
+                ):
+                    text.add(Formatted(part, "bold"))
+                else:
+                    text.add(part)
+            example: Text = (
+                Text().add(Colorized("Usage example: ", "#AAAAAA")).add(text)
+            )
+            result.append(example)
+
         return result
 
     async def ask(
