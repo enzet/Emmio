@@ -1,7 +1,5 @@
 """Test language functionality."""
 
-import pytest
-
 from emmio.language import KnownLanguages
 
 
@@ -32,6 +30,7 @@ def test_greek() -> None:
     """Check that Greek words are detected correctly."""
 
     assert KnownLanguages.MODERN_GREEK.is_word("μπόστον")
+    assert KnownLanguages.MODERN_GREEK.is_word("ὀξεῖα")
 
 
 def test_latin() -> None:
@@ -49,10 +48,11 @@ def test_russian() -> None:
     """Check that Russian words are detected correctly."""
 
     assert KnownLanguages.RUSSIAN.is_word("пыль")
+    assert KnownLanguages.RUSSIAN.is_word("сто́ящий")
+
     assert not KnownLanguages.RUSSIAN.is_word("чоловік")
 
 
-@pytest.mark.skip(reason="Fix accent marks detection.")
 def test_ukrainian() -> None:
     """Check that Ukrainian words are detected correctly."""
 

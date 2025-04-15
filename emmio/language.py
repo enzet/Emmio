@@ -227,6 +227,12 @@ UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬ�
 EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
 
 SKIPPERS: str = "'’"
+STRESS_MARK: str = "́"
+"""Stress mark in Russian, Ukrainian, and some other languages.
+
+It is not an alphabet letter, but it may be used in text to mark the stressed
+syllable.
+"""
 
 LATIN_LIGATURES: dict[str, str] = {
     "ﬁ": "fi",
@@ -375,7 +381,7 @@ class KnownLanguages:
     RUSSIAN: Language = Language(
         "ru",
         Color("#1335A1"),  # Blue color of the Russia flag.
-        RU_UPPER + RU_UPPER.lower(),
+        RU_UPPER + RU_UPPER.lower() + STRESS_MARK,
         self_name="русский",
     )
     SPANISH: Language = Language(
@@ -393,7 +399,7 @@ class KnownLanguages:
     UKRAINIAN: Language = Language(
         "uk",
         Color("#F9D849"),  # Yellow color of the Ukrainian flag.
-        UK_UPPER.lower() + UK_UPPER + SKIPPERS,
+        UK_UPPER.lower() + UK_UPPER + SKIPPERS + STRESS_MARK,
         self_name="українська",
     )
 
