@@ -21,6 +21,17 @@ def test_esperanto() -> None:
     assert not KnownLanguages.ESPERANTO.is_word("sweat")
 
 
+def test_latin() -> None:
+    """Check that Latin words are detected correctly."""
+
+    assert KnownLanguages.LATIN.is_word("caelo")
+    assert KnownLanguages.LATIN.is_word("caelō")
+    assert KnownLanguages.LATIN.is_word("jus")
+    assert KnownLanguages.LATIN.is_word("stylus")
+
+    assert not KnownLanguages.LATIN.is_word("we")
+
+
 def test_russian() -> None:
     """Check that Russian words are detected correctly."""
 

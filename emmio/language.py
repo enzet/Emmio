@@ -335,7 +335,8 @@ class KnownLanguages:
     LATIN: Language = Language(
         "la",
         Color("#FDF351"),  # Yellow color of the Vatican flag.
-        LATIN_LETTERS + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
+        "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvXxYyZz"  # Without "W".
+        + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
         self_name="latīna",
     )
     MODERN_GREEK: Language = Language(
