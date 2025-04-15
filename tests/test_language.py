@@ -15,10 +15,23 @@ def test_english() -> None:
     assert not KnownLanguages.ENGLISH.is_word("æsthetic")
 
 
+def test_armenian() -> None:
+    """Check that Armenian words are detected correctly."""
+
+    assert KnownLanguages.ARMENIAN.is_word("հաճելի")
+    assert KnownLanguages.ARMENIAN.is_word("Հաճելի")
+
+
 def test_esperanto() -> None:
     """Check that Esperanto words are detected correctly."""
 
     assert not KnownLanguages.ESPERANTO.is_word("sweat")
+
+
+def test_greek() -> None:
+    """Check that Greek words are detected correctly."""
+
+    assert KnownLanguages.MODERN_GREEK.is_word("μπόστον")
 
 
 def test_latin() -> None:

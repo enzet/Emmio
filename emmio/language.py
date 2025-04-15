@@ -342,7 +342,9 @@ class KnownLanguages:
     MODERN_GREEK: Language = Language(
         "el",
         Color("#2A5DA9"),  # Blue color of the Greece flag.
-        "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω",
+        "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω"
+        + letter_range("\u1F00", "\u1FFF")
+        + "ΆάΈέΉήΊίΌόΎύΏώ",
         self_name="ελληνικά",
     )
     NORWEGIAN: Language = Language(
