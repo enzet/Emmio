@@ -311,7 +311,7 @@ class KnownLanguages:
     HEBREW: Language = Language(
         "he",
         Color("#1334B2"),  # Blue color of the Israel flag.
-        letter_range("\u0590", "\u05F4"),
+        letter_range("\u0590", "\u05F4") + "-",
         self_name="עִברִית",
     )
     ICELANDIC: Language = Language(

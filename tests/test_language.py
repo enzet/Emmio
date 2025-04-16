@@ -44,6 +44,13 @@ def test_latin() -> None:
     assert not KnownLanguages.LATIN.is_word("we")
 
 
+def test_hebrew() -> None:
+    """Check that Hebrew words are detected correctly."""
+
+    assert KnownLanguages.HEBREW.is_word("דרלה")  # Proper noun "Darla".
+    assert KnownLanguages.HEBREW.is_word("על-ידי")
+
+
 def test_russian() -> None:
     """Check that Russian words are detected correctly."""
 
