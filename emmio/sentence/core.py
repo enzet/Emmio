@@ -111,7 +111,7 @@ class Sentence:
 
 
 @dataclass
-class SentenceTranslations:
+class SentenceAndTranslations:
     """Some part of a text written in a single language and its translations.
 
     Some translations may be transitive.
@@ -120,19 +120,19 @@ class SentenceTranslations:
     sentence: Sentence
     """Sentence."""
 
-    translations: list[Sentence]
-    """Translations of the sentence."""
+    language: Language
+    """Language of the sentence."""
 
-    def rate(
-        self, language: Language, is_known: Callable[[str, Language], bool]
-    ) -> float:
+    translations: dict[Language, list[Sentence]]
+    """Translations of the sentence to other languages."""
+
+    def rate(self, is_known: Callable[[str, Language], bool]) -> float:
         """Rate the sentence based on the knowledge of the words.
 
-        :param language: language of the sentence
         :param is_known: function to check if a word is known
         :return: rating
         """
-        return self.sentence.rate(language, is_known)
+        return self.sentence.rate(self.language, is_known)
 
 
 class Sentences(ABC):
@@ -147,78 +147,48 @@ class Sentences(ABC):
     is trivial.
     """
 
-    @abstractmethod
-    def filter_by_word(
-        self,
-        word: str,
-        ids_to_skip: set[int],
-        max_length: int,
-        max_number: int | None = 1000,
-    ) -> list[SentenceTranslations]:
-        """Get list of sentences with translations that contain requested word.
 
-        It is assumed that list order doesn't change from request to request,
-        but the order is specified by implementation.
+@dataclass
+class SimpleOneLanguageSentences(Sentences):
+    """Collection of sentences in one language."""
 
-        :param word: word to be presented in the resulting sentences
-        :param ids_to_skip: identifiers of sentences to not include
-        :param max_length: maximum length of the sentence to include
-        :param max_number: maximum size of the resulting list
+    id_: str
+    """Unique sentence string identifier."""
+
+    sentences: list[Sentence]
+    """List of sentences."""
+
+    language: Language
+    """Language."""
+
+    @classmethod
+    def from_config(cls, path: Path, id_: str, config: SentenceConfig) -> Self:
+        """Initialize sentences from a directory.
+
+        :param path: path to the directory with sentences
+        :param id_: unique sentences identifier
+        :param config: configuration of the sentences
         """
-        raise NotImplementedError()
+        if len(config.languages) != 1:
+            raise ValueError("`languages` should contain exactly one language.")
 
-    @abstractmethod
-    def filter_by_word_and_rate(
-        self,
-        word: str,
-        is_known: Callable[[str, Language], bool],
-        ids_to_skip: set[int],
-        max_length: int,
-        max_number: int | None = 1000,
-    ) -> list[tuple[float, SentenceTranslations]]:
-        """Get list of sentences with translations that contain requested word.
+        with (path / config.file_name).open(encoding="utf-8") as input_file:
+            sentences: list[Sentence] = [
+                Sentence(index, line.strip())
+                for index, line in enumerate(input_file)
+            ]
 
-        :param word: word to be presented in the resulting sentences
-        :param is_known: function to check if a word is known
-        :param ids_to_skip: identifiers of sentences to not include
-        :param max_length: maximum length of the sentence to include
-        :param max_number: maximum size of the resulting list
-        """
-        raise NotImplementedError()
-
-    @staticmethod
-    def rate(
-        is_known: Callable[[str, Language], bool],
-        sentence_translations: list[SentenceTranslations],
-        language: Language,
-    ) -> list[tuple[float, SentenceTranslations]]:
-        """Rate sentences based on the knowledge of the words.
-
-        :param is_known: function to check if a word is known
-        :param sentence_translations: list of sentences with translations
-        :param language: language of the sentences
-        :return: list of tuples of rating and sentence translations
-        """
-        result: list[tuple[float, SentenceTranslations]] = []
-        for sentence_translation in sentence_translations:
-            result.append(
-                (
-                    sentence_translation.rate(language, is_known),
-                    sentence_translation,
-                )
-            )
-        result.sort(key=lambda record: -record[0])
-        return result
+        return cls(id_, sentences, Language.from_code(config.languages[0]))
 
 
 @dataclass
-class SimpleSentences(Sentences):
+class SimpleTwoLanguagesSentences(Sentences):
     """Collection of sentences in two languages with translation relations."""
 
     id_: str
     """Unique sentence string identifier."""
 
-    sentences: list[SentenceTranslations]
+    sentences: list[SentenceAndTranslations]
     """List of sentences."""
 
     language_1: Language
@@ -235,7 +205,15 @@ class SimpleSentences(Sentences):
         :param id_: unique sentences identifier
         :param config: configuration of the sentences
         """
-        sentences: list[SentenceTranslations] = []
+        if not config.languages or len(config.languages) != 2:
+            raise ValueError(
+                "`languages` should contain exactly two languages."
+            )
+
+        language_1: Language = Language.from_code(config.languages[0])
+        language_2: Language = Language.from_code(config.languages[1])
+
+        sentences: list[SentenceAndTranslations] = []
 
         with (path / config.file_name).open(encoding="utf-8") as input_file:
             index: int = 0
@@ -248,19 +226,15 @@ class SimpleSentences(Sentences):
                     raise ValueError(f'Translation for "{text}" is missing.')
 
                 sentences.append(
-                    SentenceTranslations(
+                    SentenceAndTranslations(
                         Sentence(index, text),
-                        [Sentence(index + 1, translation)],
+                        language_1,
+                        {language_2: [Sentence(index + 1, translation)]},
                     )
                 )
                 index += 2
 
-        return cls(
-            id_,
-            sentences,
-            Language.from_code(config.language_1),
-            Language.from_code(config.language_2),
-        )
+        return cls(id_, sentences, language_1, language_2)
 
     @override
     def filter_by_word(
@@ -269,7 +243,7 @@ class SimpleSentences(Sentences):
         ids_to_skip: set[int],
         max_length: int,
         max_number: int | None = 1000,
-    ) -> list[SentenceTranslations]:
+    ) -> list[SentenceAndTranslations]:
         return [
             sentence
             for sentence in self.sentences
@@ -286,11 +260,10 @@ class SimpleSentences(Sentences):
         ids_to_skip: set[int],
         max_length: int,
         max_number: int | None = 1000,
-    ) -> list[tuple[float, SentenceTranslations]]:
+    ) -> list[tuple[float, SentenceAndTranslations]]:
         return self.rate(
             is_known,
             self.filter_by_word(word, ids_to_skip, max_length, max_number),
-            self.language_1,
         )
 
 
@@ -303,14 +276,14 @@ class SentencesCollection:
 
     def filter_by_word(
         self, word: str, ids_to_skip: set[int], max_length: int
-    ) -> list[SentenceTranslations]:
+    ) -> list[SentenceAndTranslations]:
         """Get list of sentences with translations that contain requested word.
 
         :param word: word to be presented in the resulting sentences
         :param ids_to_skip: identifiers of sentences to exclude
         :param max_length: maximum length of the sentence to include
         """
-        result: list[SentenceTranslations] = []
+        result: list[SentenceAndTranslations] = []
 
         for sentences in self.collection:
             result += sentences.filter_by_word(word, ids_to_skip, max_length)
@@ -323,7 +296,7 @@ class SentencesCollection:
         is_known: Callable[[str, Language], bool],
         ids_to_skip: set[int],
         max_length: int,
-    ) -> list[tuple[float, SentenceTranslations]]:
+    ) -> list[tuple[float, SentenceAndTranslations]]:
         """Get list of sentences with requested word and their ratings.
 
         :param word: word to be presented in the resulting sentences
@@ -331,7 +304,7 @@ class SentencesCollection:
         :param ids_to_skip: identifiers of sentences to exclude
         :param max_length: maximum length of the sentence to include
         """
-        result: list[tuple[float, SentenceTranslations]] = []
+        result: list[tuple[float, SentenceAndTranslations]] = []
 
         for sentences in self.collection:
             result += sentences.filter_by_word_and_rate(

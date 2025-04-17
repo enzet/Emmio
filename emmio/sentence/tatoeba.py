@@ -1,16 +1,15 @@
 """Tatoeba sentences.
 
+Tatoeba is a project that provides a database of sentences in many languages.
+
 See https://tatoeba.org/
 """
 
 import bz2
 import json
 import logging
-import os
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import override
 
 from tqdm import tqdm
 
@@ -19,29 +18,23 @@ from emmio.sentence.core import (
     Sentence,
     SentenceElement,
     Sentences,
-    SentenceTranslations,
+    SentenceAndTranslations,
     split_sentence,
 )
-from emmio.sentence.database import SentenceDatabase
+from emmio.sentence.database import TatoebaDatabase
 from emmio.util import download
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 
-@dataclass
 class TatoebaSentences(Sentences):
     """Collection of sentences in two languages from Tatoeba project.
 
     See https://tatoeba.org/
     """
 
-    path: Path
-    language_1: Language
-    language_2: Language
-    database: SentenceDatabase
-
-    links: dict[int, set[int]] = field(default_factory=dict)
+    links: dict[int, set[int]]
     """Mapping between sentences.
 
     Mapping from sentence identifiers in language 2 to sets of sentence
@@ -53,82 +46,77 @@ class TatoebaSentences(Sentences):
     `<path>/cache/links_<language 1 code>_<language 2 code>.json`.
     """
 
-    cache: dict[str, list[int]] = field(default_factory=dict)
-    """Mapping from words to sentences.
+    cache_path: Path
+    """Path to the cache directory."""
 
-    Mapping from words to lists of identifiers of sentences that contain these
-    words. E.g. `book -> [1, 2]`, where `1` is `I have a book` and `2` is
-    `You have a book`.
-
-    Cache for words are in `<path>/cache/cache_<language 2 code>.json`.
-    """
-
-    def __post_init__(self) -> None:
+    def __init__(self, path: Path, database: TatoebaDatabase) -> None:
         """Fill links and cache."""
 
-        links_cache_path: Path = (
-            self.path / "cache" / f"links_{self.language_1.get_part3()}_"
-            f"{self.language_2.get_part3()}.json"
-        )
-        if links_cache_path.is_file():
-            self.read_link_sets(links_cache_path)
-        else:
-            self.read_links(self.path / "cache")
-            logging.info("Caching links...")
-            with links_cache_path.open("w+", encoding="utf-8") as output_file:
-                content: dict[int, list[int]] = {}
-                for key, value in self.links.items():
-                    assert isinstance(key, int)
-                    content[key] = list(value)
-                json.dump(content, output_file)
+        self.path: Path = path
+        """Path to the directory with the sentences."""
+
+        self.database: TatoebaDatabase = database
+        """Database of sentences."""
+
+        self.cache_path: Path = self.path / "cache"
+
+        self.word_cache: dict[Language, dict[str, list[int]]] = {}
+        """Word cache for each language.
+    
+        Mapping from words to lists of identifiers of sentences that contain
+        these words. E.g. `book -> [1, 2]`, where `1` is `I have a book` and `2`
+        is `You have a book`.
+
+        Cache for words are in `<path>/cache/words_<language 2 code>.json`.
+        """
+
+        # FIXME: implement.
+        self.ids_to_skip: set[int] = set()
+
+    def read_word_cache(self, language: Language) -> dict[str, list[int]]:
+        """Read word cache from a JSON file."""
+
+        if language in self.word_cache:
+            return self.word_cache[language]
 
         word_cache_path: Path = (
-            self.path / "cache" / f"cache_{self.language_2.get_part3()}.json"
+            self.cache_path / f"words_{language.get_part3()}.json"
         )
-        # FIXME: remove cache file.
-
-        if os.path.isfile(word_cache_path):
-            logging.info("Reading word cache...")
+        if word_cache_path.is_file():
+            logging.info(
+                "Reading word to Tatoeba sentence cache for `%s`...",
+                language.get_name(),
+            )
             with word_cache_path.open(encoding="utf-8") as input_file:
-                self.cache = json.load(input_file)
+                self.word_cache[language] = json.load(input_file)
+                return self.word_cache[language]
         else:
-            self.fill_cache(word_cache_path)
+            word_to_sentence_id: dict[str, list[int]] = self.create_word_cache(
+                word_cache_path, language
+            )
+            self.word_cache[language] = word_to_sentence_id
+            return word_to_sentence_id
 
-    def read_links(self, cache_path: Path) -> None:
+    def read_links__(self, cache_path: Path, language_1: Language, language_2: Language) -> None:
         """Read links from a cache file.
 
         :param cache_path: path to the cache directory
         """
-        file_path: Path = cache_path / "links.csv"
-
-        if not file_path.exists():
-            zip_path: Path = cache_path / "links.tar.bz2"
-            # FIXME: remove zip file.
-            if not zip_path.exists():
-                download(
-                    "https://downloads.tatoeba.org/exports/links.tar.bz2",
-                    zip_path,
-                )
-            if zip_path.exists():
-                with bz2.open(zip_path) as zip_file:
-                    with file_path.open("wb+") as cache_file:
-                        logging.info("Unzipping links file...")
-                        cache_file.write(zip_file.read())
-
         logging.info(
             "Reading links from `links.csv` between `%s` and `%s`...",
-            self.language_1.get_name(),
-            self.language_2.get_name(),
+            language_1.get_name(),
+            language_2.get_name(),
         )
-        with file_path.open(encoding="utf-8") as input_1:
-            lines = input_1.readlines()
+        with links_csv_path.open(encoding="utf-8") as input_csv:
+            lines = input_csv.readlines()
 
+        # Links only between sentences in `language_1` and `language_2`.
         links: dict[int, set[int]] = {}
 
         logging.info(
             "Caching links between `%s` and `%s` Tatoeba sentences...",
-            self.language_1.get_name(),
-            self.language_2.get_name(),
+            language_1.get_name(),
+            language_2.get_name(),
         )
         for line in tqdm(lines):
             try:
@@ -152,14 +140,12 @@ class TatoebaSentences(Sentences):
                 links[id_1] = set_
 
         sentences_1: dict[int, Sentence] = self.database.get_sentences(
-            self.language_1, cache_path
+            language_1, cache_path
         )
         sentences_2: dict[int, Sentence] = self.database.get_sentences(
-            self.language_2, cache_path
+            language_2, cache_path
         )
-
         for id_1 in sentences_2:
-            assert isinstance(id_1, int)
             self.links[id_1] = set()
             if id_1 in links:
                 for id_2 in links[id_1]:
@@ -168,89 +154,177 @@ class TatoebaSentences(Sentences):
             if not self.links[id_1]:
                 self.links.pop(id_1)
 
-    def read_link_sets(self, file_name: Path) -> None:
+    def read_links(self, file_name: Path) -> dict[int, set[int]]:
         """Read link cache from a JSON file."""
 
         logging.info("Reading link cache...")
         with file_name.open(encoding="utf-8") as input_file:
-            links: dict[str, list[int]] = json.load(input_file)
+            data: dict[str, list[int]] = json.load(input_file)
 
         # JSON file may contain only string keys, so we need to convert them to
         # integers.
-        for key, value in links.items():
-            self.links[int(key)] = set(value)
+        links: dict[int, set[int]] = {}
+        for key, value in data.items():
+            links[int(key)] = set(value)
+        return links
 
-    def fill_cache(self, file_name: Path) -> None:
+    def get_cached_links(self, language: Language) -> dict[int, set[int]]:
+        """Get cached links for a language."""
+
+        # If links for the language are in memory, return them.
+        if language in self.links:
+            return self.links[language]
+
+        links: dict[int, set[int]] = {}
+
+        # If links for the language are in cache, read them.
+        cache_file_path: Path = self.cache_path / f"links_{language.get_part3()}.bin"
+        if cache_file_path.is_file():
+            with cache_file_path.open("rb") as input_file:
+                from_: int = int.from_bytes(input_file.read(4), "big")
+                to_: int = int.from_bytes(input_file.read(4), "big")
+                if from_ not in links:
+                    links[from_] = set()
+                links[from_].add(to_)
+            self.links[language] = links
+            return links
+
+        links_csv_path: Path = self.cache_path / "links.csv"
+
+        # If links file doesn't exist in cache, download and unzip it.
+        if not links_csv_path.exists():
+
+            # Download zipped links file if it doesn't exist in cache.
+            links_zip_path: Path = self.cache_path / "links.tar.bz2"
+            if not links_zip_path.exists():
+                download(
+                    "https://downloads.tatoeba.org/exports/links.tar.bz2",
+                    links_zip_path,
+                )
+
+            # Unzip links file to `links.csv`.
+            if links_zip_path.exists():
+                with bz2.open(links_zip_path) as zip_file:
+                    with links_csv_path.open("wb+") as cache_file:
+                        logging.info("Unzipping links file...")
+                        cache_file.write(zip_file.read())
+            else:
+                raise Exception("Failed to download links file.")
+
+            # Remove zipped links file.
+            links_zip_path.unlink()
+
+        with links_csv_path.open(encoding="utf-8") as input_csv:
+            lines = input_csv.readlines()
+
+        links: dict[int, set[int]] = {}
+        for line in lines:
+            from_, to_ = map(int, line[:-1].split("\t"))
+            if from_ in self.get_
+
+        return links
+
+    def create_word_cache(self, file_name: Path, language: Language) -> dict[str, list[int]]:
         """Construct dictionary from words to sentences.
 
         Split all sentences into words and construct a dictionary from words to
         sentences containing these words.
         """
-        logging.info("Fill word cache...")
+        logging.info(
+            "Create word to Tatoeba sentence cache for `%s`...",
+            language.get_name(),
+        )
+        word_to_sentence_id: dict[str, list[int]] = {}
 
-        for id_ in tqdm(self.links.keys()):
-            id_ = int(id_)
-            sentence: str = self.database.get_sentence(
-                self.language_2, id_
-            ).text
+        for id_ in tqdm(self.get_cached_links(language).keys()):
+            sentence: str = self.get_sentence(language, id_).text
 
             parts: list[tuple[str, SentenceElement]] = split_sentence(
-                sentence, self.language_2
+                sentence, language
             )
             for part, type_ in parts:
                 if type_ == SentenceElement.WORD:
-                    normalized = self.language_2.normalize(part)
-                    if normalized not in self.cache:
-                        self.cache[normalized] = []
-                    self.cache[normalized].append(id_)
+                    normalized = language.normalize(part)
+                    if normalized not in word_to_sentence_id:
+                        word_to_sentence_id[normalized] = []
+                    word_to_sentence_id[normalized].append(id_)
 
         with file_name.open("w+", encoding="utf-8") as output_file:
             logging.info("Writing word cache...")
-            json.dump(self.cache, output_file)
+            json.dump(word_to_sentence_id, output_file)
 
-    @override
-    def filter_by_word(
+        return word_to_sentence_id
+
+    def get_sentence(self, language: Language, id_: int) -> Sentence:
+        """Get a sentence by its identifier."""
+
+        return self.database.get_sentence(language, id_)
+
+    def get_by_word(
         self,
         word: str,
-        ids_to_skip: set[int],
+        language: Language,
+        translation_languages: list[Language],
         max_length: int,
         max_number: int | None = 1000,
-    ) -> list[SentenceTranslations]:
+    ) -> list[SentenceAndTranslations]:
+        """Get sentences containing a word.
 
-        result: list[SentenceTranslations] = []
+        :param word: word to be presented in the resulting sentences
+        :param language: language of the sentences
+        :param translation_languages: languages of translations
+        :param max_length: maximum length of the sentence to include
+        :param max_number: maximum size of the resulting list
+        """
+        result: list[SentenceAndTranslations] = []
 
-        if word not in self.cache:
-            logging.debug("Word is not in cache.")
+        word_to_sentence_id: dict[str, list[int]] = self.read_word_cache(language)
+        if word not in word_to_sentence_id:
+            logging.debug("Tatoeba has no sentences with the word.")
             return result
 
-        ids_to_check: list[int] = (
-            self.cache[word]
+        cached_links: dict[int, list[int]] = self.get_cached_links(language)
+
+        # Identifiers of sentences in main language.
+        sentence_ids: list[int] = (
+            word_to_sentence_id[word]
             if max_number is None
-            else self.cache[word][:max_number]
+            else word_to_sentence_id[word][:max_number]
         )
-        for id_ in ids_to_check:
-            if id_ in ids_to_skip:
+
+        for id_ in sentence_ids:
+            if id_ in self.ids_to_skip:
                 continue
-            sentence: Sentence = self.database.get_sentence(
-                self.language_2, id_
-            )
+
+            sentence: Sentence = self.get_sentence(language, id_)
             if len(sentence.text) > max_length:
                 continue
-            index = sentence.text.lower().find(word)
-            assert index >= 0
-            if id_ in self.links:
-                result.append(
-                    SentenceTranslations(
-                        sentence,
-                        [
-                            self.database.get_sentence(self.language_1, x)
-                            for x in self.links[id_]
-                        ],
-                    )
-                )
+
+            # If there are no translation languages or the sentence has no
+            # translations, return just sentences.
+            if not translation_languages or id_ not in cached_links:
+                result.append(SentenceAndTranslations(sentence, language, {}))
+                continue
+
+            translations: dict[Language, list[Sentence]] = {
+                translation_language: []
+                for translation_language in translation_languages
+            }
+
+            translation_ids: list[int] = cached_links[id_]
+
+            for translation_language in translation_languages:
+                for translation_id in translation_ids:
+                    if translation_id in self.get_cached_links(translation_language).keys():
+                        translations[translation_language].append(
+                            self.get_sentence(translation_language, translation_id)
+                        )
+
+            result.append(
+                SentenceAndTranslations(sentence, language, translations)
+            )
         return result
 
-    @override
     def filter_by_word_and_rate(
         self,
         word: str,
@@ -258,7 +332,7 @@ class TatoebaSentences(Sentences):
         ids_to_skip: set[int],
         max_length: int,
         max_number: int | None = 1000,
-    ) -> list[tuple[float, SentenceTranslations]]:
+    ) -> list[tuple[float, SentenceAndTranslations]]:
 
         return Sentences.rate(
             is_known,

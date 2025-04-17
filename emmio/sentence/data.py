@@ -6,8 +6,14 @@ from typing import Any, Self
 
 from emmio.core import ArtifactData
 from emmio.language import Language
-from emmio.sentence.config import SentenceConfig, SentencesUsageConfig
-from emmio.sentence.core import Sentences, SentencesCollection, SimpleSentences
+from emmio.sentence.config import SentenceConfig, SentenceType, SentencesUsageConfig
+from emmio.sentence.core import (
+    Sentences,
+    SentencesCollection,
+    SentenceAndTranslations,
+    SimpleOneLanguageSentences,
+    SimpleTwoLanguagesSentences,
+)
 from emmio.sentence.database import SentenceDatabase
 from emmio.sentence.tatoeba import TatoebaSentences
 
@@ -25,60 +31,76 @@ class SentencesData(ArtifactData):
     sentences: dict[str, Sentences]
     """Mapping from unique sentence string identifier to sentence."""
 
+    tatoeba_sentences: TatoebaSentences | None = None
+    """Tatoeba sentences."""
+
     @classmethod
     def from_config(cls, path: Path) -> Self:
-        """Initialize sentences from a directory.
+        """Initialize sentences from a configuration.
 
-        :param path: path to the directory with sentences
+        :param path: path to the directory with sentence data, usually
+            `.emmio/sentences`
         """
-        config: dict[str, Any] = ArtifactData.read_config(path)
+        configs: dict[str, Any] = ArtifactData.read_config(path)
 
-        sentences: dict[str, Sentences] = {}
-        for id_, data in config.items():
-            sentences[id_] = SimpleSentences.from_config(
-                path, id_, SentenceConfig(**data)
-            )
+        for id_, data in configs.items():
+            config: SentenceConfig = SentenceConfig(**data)
+
+            if config.type == SentenceType.SIMPLE_ONE_LANGUAGE:
+                sentences[id_] = SimpleOneLanguageSentences.from_config(
+                    path, id_, SentenceConfig(**data)
+                )
+            elif config.type == SentenceType.SIMPLE_TWO_LANGUAGES:
+                sentences: dict[str, Sentences] = {}
+                for id_, data in config.items():
+                    sentences[id_] = SimpleTwoLanguagesSentences.from_config(
+                        path, id_, SentenceConfig(**data)
+                    )
+            else:
+                raise ValueError(f"Unknown sentence type: `{config.type}`.")
 
         database_path: Path = path / "sentences.db"
         database: SentenceDatabase = SentenceDatabase(database_path)
 
         return cls(path, database, sentences)
 
-    def get_sentences(self, usage_config: SentencesUsageConfig) -> Sentences:
-        """Get sentences by its identifier.
+    def get_by_word(
+        self, word: str, usage_configs: list[SentencesUsageConfig]
+    ) -> list[SentenceAndTranslations]:
+        """Get sentences by a word.
 
-        :param usage_config: configuration for sentences
-        :return: sentences
-        """
-        match id_ := usage_config.id:
-            case "tatoeba":
-                if usage_config.languages is None:
-                    raise ValueError(
-                        "`languages` are required for Tatoeba sentences."
-                    )
-                language_1, language_2 = usage_config.languages
-                return TatoebaSentences(
-                    self.path,
-                    Language.from_code(language_1),
-                    Language.from_code(language_2),
-                    self.database,
-                )
-            case _:
-                if id_ in self.sentences:
-                    return self.sentences[id_]
-                raise ValueError(f"Unknown sentence type: `{id_}`.")
-
-    def get_sentences_collection(
-        self, usage_configs: list[SentencesUsageConfig]
-    ) -> SentencesCollection:
-        """Get sentences collection.
-
+        :param word: word to search for
         :param usage_configs: list of configurations for sentences
-        :return: sentences collection
+        :return: list of sentences with the word
         """
-        collection: list[Sentences] = []
+        sentences: list[SentenceAndTranslations] = []
 
         for usage_config in usage_configs:
-            collection.append(self.get_sentences(usage_config))
+            if usage_config.id == "__tatoeba":
+                if self.tatoeba_sentences is None:
+                    self.tatoeba_sentences = TatoebaSentences(
+                        self.path,
+                        self.database,
+                    )
+                sentences.extend(
+                    self.tatoeba_sentences.get_by_word(
+                        word,
+                        usage_config.language,
+                        usage_config.translation_languages,
+                    )
+                )
+            else:
+                if usage_config.id not in self.sentences:
+                    sentences.extend(
+                        self.sentences[usage_config.id].get_by_word(
+                            word,
+                            usage_config.language,
+                            usage_config.translation_languages,
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        f"Unknown sentence identifier: `{usage_config.id}`."
+                    )
 
-        return SentencesCollection(collection)
+        return sentences

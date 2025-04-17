@@ -1,4 +1,4 @@
-"""Database with sentences."""
+"""Database with sentences from Tatoeba."""
 
 import bz2
 import logging
@@ -10,16 +10,69 @@ from emmio.sentence.core import Sentence
 from emmio.util import download
 
 
-class SentenceDatabase(Database):
+class TatoebaDatabase(Database):
     """Database for sentences.
 
-    Database schema is as follows:
+    Database schema is as follows.
 
     Tables <language>_sentences:
-        ID: INTEGER, SENTENCE: TEXT
+        ID: INTEGER, LANGUAGE: TEXT, SENTENCE: TEXT
+    
+    Table links:
+        ID_1: INTEGER, ID_2: INTEGER
     """
 
-    def create_table(self, language: Language, cache_path: Path) -> None:
+    def __init__(self, database_file_path: Path, cache_path: Path) -> None:
+        """Initialize the database.
+
+        :param database_file_path: path to the database file
+        :param cache_path: path to the cache directory
+        """
+        super().__init__(database_file_path)
+        self.cache_path: Path = cache_path
+
+    def load_links(self) -> None:
+        """Load links from cache."""
+        links_csv_path: Path = self.cache_path / "links.csv"
+
+        # If links file doesn't exist in cache, download and unzip it.
+        if not links_csv_path.exists():
+
+            # Download zipped links file if it doesn't exist in cache.
+            links_zip_path: Path = self.cache_path / "links.tar.bz2"
+            if not links_zip_path.exists():
+                download(
+                    "https://downloads.tatoeba.org/exports/links.tar.bz2",
+                    links_zip_path,
+                )
+
+            # Unzip links file to `links.csv`.
+            if links_zip_path.exists():
+                with bz2.open(links_zip_path) as zip_file:
+                    with links_csv_path.open("wb+") as cache_file:
+                        logging.info("Unzipping links file...")
+                        cache_file.write(zip_file.read())
+            else:
+                raise Exception("Failed to download links file.")
+
+            # Remove zipped links file.
+            links_zip_path.unlink()
+
+        self.cursor.execute(
+            "CREATE TABLE links (id_1 integer, id_2 integer)"
+        )
+
+        with links_csv_path.open(encoding="utf-8") as input_csv:
+            lines = input_csv.readlines()
+
+        for line in lines:
+            id_1, id_2 = map(int, line[:-1].split("\t"))
+            self.cursor.execute(
+                "INSERT INTO links VALUES (?, ?)", (id_1, id_2)
+            )
+        self.connection.commit()
+
+    def load_language(self, language: Language, cache_path: Path) -> None:
         """Create table for sentences written in the specified language.
 
         :param language: language of the sentences
@@ -65,7 +118,8 @@ class SentenceDatabase(Database):
                         cache_file.write(zip_file.read())
 
         self.cursor.execute(
-            f"CREATE TABLE {table_id} (id integer primary key, sentence text)"
+            f"CREATE VIRTUAL TABLE {table_id} "
+            "USING fts5(id integer primary key, language text, sentence text)"
         )
         logging.info("Reading table `%s`...", table_id)
         with file_path.open(encoding="utf-8") as input_file:
@@ -89,25 +143,28 @@ class SentenceDatabase(Database):
         return Sentence(id_, text)
 
     def get_sentences(
-        self, language: Language, cache_path: Path
+        self, language: Language
     ) -> dict[int, Sentence]:
         """Get all sentences written in the specified language.
 
         :param language: language of the sentences
-        :param cache_path: path to the cache directory
         :return: a mapping from sentence identifiers to sentences
         """
         table_id: str = f"{language.get_code()}_sentences"
 
-        # Check if table exists.
+        # If table doesn't exist, load it.
         if not self.has_table(table_id):
-            logging.error("Table `%s` does not exist.", table_id)
-            return {}
+            self.load_language(language, self.cache_path)
 
         result: dict[int, Sentence] = {}
-        if not self.has_table(table_id):
-            self.create_table(language, cache_path)
         for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
             id_, text = row
             result[id_] = Sentence(id_, text)
         return result
+
+    def get_sentence_by_word(self, word: str, language: Language) -> Sentence:
+        """Get sentence by word.
+
+        :param word: word to search for
+        :param language: language of the sentence
+        """
