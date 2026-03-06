@@ -1,6 +1,11 @@
-"""Configuration of sentences."""
+"""Configuration of sentences.
+
+Here we configure only simple files with sentences. Tatoeba sentences don't need
+an artifact configuration.
+"""
 
 from enum import Enum
+
 from pydantic import BaseModel
 
 from emmio.language import LanguageConfig
@@ -17,7 +22,7 @@ class SentenceType(Enum):
 
 
 class SentencesUsageConfig(BaseModel):
-    """Configuration of sentences."""
+    """Configuration of sentences usage."""
 
     id: str
     """Identifier of the sentences."""
@@ -30,7 +35,7 @@ class SentencesUsageConfig(BaseModel):
 
 
 class SentenceConfig(BaseModel):
-    """Configuration of sentences."""
+    """Configuration of sentence artifact."""
 
     file_name: str
     """Name of the file with sentences."""

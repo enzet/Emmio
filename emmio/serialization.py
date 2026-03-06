@@ -88,7 +88,7 @@ class Decoder:
     def decode_int(self, size: int) -> int:
         """Decode integer value."""
         if (value := self.code.read(size)) == b"":
-            raise EOFError()
+            raise EOFError
         return int.from_bytes(value, ENDIAN)
 
     def decode_string(self) -> str:

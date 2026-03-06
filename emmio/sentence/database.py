@@ -17,7 +17,7 @@ class TatoebaDatabase(Database):
 
     Tables <language>_sentences:
         ID: INTEGER, LANGUAGE: TEXT, SENTENCE: TEXT
-    
+
     Table links:
         ID_1: INTEGER, ID_2: INTEGER
     """
@@ -37,7 +37,6 @@ class TatoebaDatabase(Database):
 
         # If links file doesn't exist in cache, download and unzip it.
         if not links_csv_path.exists():
-
             # Download zipped links file if it doesn't exist in cache.
             links_zip_path: Path = self.cache_path / "links.tar.bz2"
             if not links_zip_path.exists():
@@ -58,18 +57,14 @@ class TatoebaDatabase(Database):
             # Remove zipped links file.
             links_zip_path.unlink()
 
-        self.cursor.execute(
-            "CREATE TABLE links (id_1 integer, id_2 integer)"
-        )
+        self.cursor.execute("CREATE TABLE links (id_1 integer, id_2 integer)")
 
         with links_csv_path.open(encoding="utf-8") as input_csv:
             lines = input_csv.readlines()
 
         for line in lines:
             id_1, id_2 = map(int, line[:-1].split("\t"))
-            self.cursor.execute(
-                "INSERT INTO links VALUES (?, ?)", (id_1, id_2)
-            )
+            self.cursor.execute("INSERT INTO links VALUES (?, ?)", (id_1, id_2))
         self.connection.commit()
 
     def load_language(self, language: Language, cache_path: Path) -> None:
@@ -142,9 +137,7 @@ class TatoebaDatabase(Database):
         ).fetchone()
         return Sentence(id_, text)
 
-    def get_sentences(
-        self, language: Language
-    ) -> dict[int, Sentence]:
+    def get_sentences(self, language: Language) -> dict[int, Sentence]:
         """Get all sentences written in the specified language.
 
         :param language: language of the sentences

@@ -35,7 +35,7 @@ class AudioProvider(ABC):
         :param word: word or phrase to get audio for
         :return: list of paths or an empty list
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def play(self, word: str, repeat: int = 1) -> bool:
@@ -45,12 +45,12 @@ class AudioProvider(ABC):
         :param repeat: number of times to play the audio
         :return: true iff an audio was played
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def has(self, word: str) -> bool:
         """Check whether the audio provider has audio for the word."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 @dataclass
@@ -129,8 +129,8 @@ class DirectoryAudioProvider(AudioProvider):
                 # pylint: disable=broad-exception-caught
                 # We want to catch and ignore all exceptions.
                 except Exception as e:
-                    logging.error("Unable to play `%s`.", paths[0])
-                    logging.error(e)
+                    logging.exception("Unable to play `%s`.", paths[0])
+                    logging.exception(e)
             return True
 
         logging.debug("Audio was not found in `%s`.", self.directory)
@@ -171,7 +171,6 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     @override
     def get_paths(self, word: str) -> list[Path]:
-
         if path := self.get_path(word):
             return [path]
         return []
@@ -232,7 +231,6 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
     @override
     def play(self, word: str, repeat: int = 1) -> bool:
-
         if self.player is None:
             logging.warning("MPV is not installed, cannot play audio.")
             return False
@@ -245,8 +243,8 @@ class WikimediaCommonsAudioProvider(AudioProvider):
                 # pylint: disable=broad-exception-caught
                 # We want to catch and ignore all exceptions.
                 except Exception as e:
-                    logging.error("Unable to play `%s`.", path)
-                    logging.error(e)
+                    logging.exception("Unable to play `%s`.", path)
+                    logging.exception(e)
             return True
 
         return False

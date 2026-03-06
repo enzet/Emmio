@@ -1,7 +1,8 @@
 """Teacher."""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -57,11 +58,14 @@ class Teacher:
         """Learning scheme: how to learn."""
 
         if not self.scheme:
-            raise ValueError("No scheme found.")
+            message = "No scheme found."
+            raise ValueError(message)
         if not self.scheme.new_question:
-            raise ValueError("No new question scheme found.")
+            message = "No new question scheme found."
+            raise ValueError(message)
         if not self.scheme.new_question.pick_from:
-            raise ValueError("No question lists found.")
+            message = "No question lists found."
+            raise ValueError(message)
 
         # Load lexicons.
         self.check_lexicons: list[Lexicon] | None = None
@@ -87,7 +91,8 @@ class Teacher:
         for list_config in self.scheme.new_question.pick_from:
             list_: List | None = data.get_list(list_config)
             if list_ is None:
-                raise ValueError(f"No list with id `{list_config.id}` found.")
+                message = f"No list with id `{list_config.id}` found."
+                raise ValueError(message)
             for index, word in enumerate(list_.get_words()):
                 self.question_ids.append((word, list_, index))
 
@@ -102,7 +107,7 @@ class Teacher:
 
         self.stop_after_answer: bool = stop_after_answer
 
-        # TODO: remove.
+        # TODO(enzet): remove.
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
@@ -292,7 +297,7 @@ class Teacher:
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
-            type="learn_new", start=datetime.now()
+            type="learn_new", start=datetime.now(tz=UTC)
         )
         while True:
             if (
@@ -314,7 +319,7 @@ class Teacher:
                 break
 
         if actions:
-            session.end_session(datetime.now(), actions)
+            session.end_session(datetime.now(tz=UTC), actions)
             self.learning.process.sessions.append(session)
             self.learning.write()
             self.interface.print(f"{actions} actions made")
@@ -332,7 +337,7 @@ class Teacher:
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
-            type="repeat_and_learn_new", start=datetime.now()
+            type="repeat_and_learn_new", start=datetime.now(tz=UTC)
         )
         code: str
 
@@ -371,7 +376,7 @@ class Teacher:
                 break
 
         if actions:
-            session.end_session(datetime.now(), actions)
+            session.end_session(datetime.now(tz=UTC), actions)
             self.learning.process.sessions.append(session)
             self.learning.write()
             self.interface.print(f"{actions} actions made")
@@ -390,6 +395,7 @@ class Teacher:
         word: str,
         rated_sentences: list[tuple[float, SentenceTranslations]],
         index: int,
+        *,
         show_index: bool = False,
         max_translations: int = 3,
     ) -> None:

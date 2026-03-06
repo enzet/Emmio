@@ -13,17 +13,17 @@ class List(ABC):
     @abstractmethod
     def get_name(self) -> str | None:
         """Get list name."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def get_info(self) -> str:
         """Get information about the list."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def get_words(self) -> list[str]:
         """Get ordered list of words."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 @dataclass

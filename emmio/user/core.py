@@ -21,7 +21,7 @@ class UserArtifact(ABC):
     @abstractmethod
     def dump_json(self) -> str:
         """Serialize user artifact data to a JSON string."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def write(self) -> None:
         """Serialize user artifact data to a JSON file."""

@@ -104,9 +104,9 @@ class Visualizer:
             for lexicon_record in lexicon.log.records:
                 if (
                     lexicon_record.answer_type == AnswerType.USER_ANSWER
-                    or lexicon_record.answer_type == AnswerType.UNKNOWN
+                    or (lexicon_record.answer_type == AnswerType.UNKNOWN
                     and (lexicon_record.time - last_record.time).total_seconds()
-                    > 0
+                    > 0)
                 ):
                     if not by_language:
                         if lexicon.is_frequency():
@@ -119,7 +119,7 @@ class Visualizer:
         for i in data:
             keys |= data[i].keys()
 
-        xs: list[datetime] = list(sorted(keys))
+        xs: list[datetime] = sorted(keys)
         categories: list[str | int]
 
         if by_language:
@@ -243,9 +243,7 @@ class Visualizer:
                         break
             xs.append(point)
 
-            values_c: dict[float, float] = {
-                precision: 0.0 for precision in values_map
-            }
+            values_c: dict[float, float] = dict.fromkeys(values_map, 0.0)
             values_l: dict[str, float] = {
                 x.learning_language.get_code(): 0.0 for x in learnings
             }
@@ -371,7 +369,7 @@ class Visualizer:
                 record = learning.knowledge[word]
                 time = learning.get_next_time(record)
                 data[time] = random.random()  # time.hour * 60 + time.minute
-        x: list[datetime] = list(sorted(data.keys()))
+        x: list[datetime] = sorted(data.keys())
         y: list[float] = list(map(lambda z: data[z], x))
         plt.plot(
             [mdates.date2num(z) for z in x],
@@ -432,7 +430,7 @@ class Visualizer:
         :param steps: number of histogram steps per second
         :param max_: maximum number of seconds to show
         """
-        x: list[float] = [time / steps for time in range(0, max_ * steps + 1)]
+        x: list[float] = [time / steps for time in range(max_ * steps + 1)]
         y_y: list[float] = [0.0] * (max_ * steps + 1)
         y_n: list[float] = [0.0] * (max_ * steps + 1)
 

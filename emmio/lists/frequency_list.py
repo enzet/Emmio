@@ -195,7 +195,7 @@ class FrequencyList(List):
 
     def get_info(self) -> str:
         """Get information about the list."""
-        return f"  Length: {len(self)}\n" f"  Language: {self.config.language}"
+        return f"  Length: {len(self)}\n  Language: {self.config.language}"
 
     @classmethod
     def from_file(

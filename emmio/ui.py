@@ -155,17 +155,17 @@ class Interface(ABC):
     @abstractmethod
     def print(self, text: Element | str) -> None:
         """Simply print text message."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def input(self, prompt: str) -> str:
         """Return user input."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def get_char(self) -> str:
         """Return user input character."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def get_word(
@@ -177,7 +177,7 @@ class Interface(ABC):
         :param alternative_forms: set of alternative forms of the right word
         :param language: language of the word
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def choice(
@@ -190,12 +190,12 @@ class Interface(ABC):
         :param options: list of tuples of (option text, option short key)
         :param prompt: prompt to print before options
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def button(self, text: str) -> None:
         """Print button."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class TerminalInterface(Interface):
@@ -259,7 +259,6 @@ class TerminalInterface(Interface):
     def choice(
         self, options: list[tuple[str, str]], prompt: str | None = None
     ) -> str:
-
         if prompt is not None:
             self.print(prompt)
 
@@ -282,7 +281,6 @@ class TerminalInterface(Interface):
     def get_word(
         self, right_word: str, alternative_forms: set[str], language: Language
     ) -> str:
-
         if self.use_input:
             return input()
 

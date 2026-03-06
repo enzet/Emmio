@@ -61,7 +61,6 @@ class GoogleTranslate(Dictionary):
     async def get_item(
         self, word: str, cache_only: bool = False
     ) -> DictionaryItem | None:
-
         # Return already loaded item.
         if word in self.items:
             return self.items[word]

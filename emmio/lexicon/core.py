@@ -822,7 +822,6 @@ class Lexicon(UserArtifact):
         most_frequent_index: int = 0
 
         while True:
-
             # If all words are checked, exit. This case may happen only if the
             # frequency list is too small.
             if len(checked_in_session) >= len(frequency_list):
@@ -931,10 +930,10 @@ class Lexicon(UserArtifact):
         if last_record is not None:
             if (
                 skip_marker
-                or skip_known
-                and last_record.response == LexiconResponse.KNOW
-                or skip_unknown
-                and last_record.response == LexiconResponse.DONT
+                or (skip_known
+                and last_record.response == LexiconResponse.KNOW)
+                or (skip_unknown
+                and last_record.response == LexiconResponse.DONT)
             ):
                 self.register(
                     picked_word,

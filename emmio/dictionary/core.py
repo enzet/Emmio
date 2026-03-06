@@ -559,7 +559,7 @@ class Dictionary(ABC):
             network
         :return: word definition or `None` if definition is not cached
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     async def get_items(self) -> dict[str, DictionaryItem]:
         """Get all dictionary items."""
@@ -587,7 +587,7 @@ class Dictionary(ABC):
             ignore_words = set()
         ignore_words.add(word)
 
-        items_marked: list[tuple["Dictionary", DictionaryItem]] = []
+        items_marked: list[tuple[Dictionary, DictionaryItem]] = []
 
         item: DictionaryItem | None = await self.get_item(word)
         if not item:
@@ -602,18 +602,18 @@ class Dictionary(ABC):
             for x in item.get_links()
             if x.link_value not in ignore_words
         )
-        tasks: list[asyncio.Task[list[tuple["Dictionary", DictionaryItem]]]] = (
-            []
-        )
+        tasks: list[
+            asyncio.Task[list[tuple[Dictionary, DictionaryItem]]]
+        ] = []
         for link_value in link_to_follow:
             coroutine: Coroutine[
-                Any, Any, list[tuple["Dictionary", DictionaryItem]]
+                Any, Any, list[tuple[Dictionary, DictionaryItem]]
             ] = self.get_items_marked(link_value, ignore_words, follow_links)
             tasks.append(asyncio.create_task(coroutine))
 
-        results: list[list[tuple["Dictionary", DictionaryItem]]] = (
-            await asyncio.gather(*tasks)
-        )
+        results: list[
+            list[tuple[Dictionary, DictionaryItem]]
+        ] = await asyncio.gather(*tasks)
         for result in results:
             items_marked += result
 
@@ -622,22 +622,22 @@ class Dictionary(ABC):
     @abstractmethod
     def get_name(self) -> str:
         """Get the name of the dictionary."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def check_from_language(self, language: Language) -> bool:
         """Check if the dictionary contains words in that language."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def check_to_language(self, language: Language) -> bool:
         """Check if the dictionary contains definitions in that language."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def check_is_machine(self) -> bool:
         """Check if the definitions or translations are machine-generated."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class SimpleDictionary(Dictionary):
@@ -784,9 +784,9 @@ class DictionaryCollection:
             )
             tasks.append(asyncio.create_task(coroutine))
 
-        result: list[list[tuple[Dictionary, DictionaryItem]]] = (
-            await asyncio.gather(*tasks)
-        )
+        result: list[
+            list[tuple[Dictionary, DictionaryItem]]
+        ] = await asyncio.gather(*tasks)
 
         for main_items_marked in result:
             if not main_items_marked:
@@ -853,9 +853,9 @@ class DictionaryCollection:
         """
         result: list[Element] = []
 
-        items: list[tuple[Dictionary, DictionaryItem]] = (
-            await self.get_items_marked(word, language)
-        )
+        items: list[
+            tuple[Dictionary, DictionaryItem]
+        ] = await self.get_items_marked(word, language)
         dictionary_name: str = ""
 
         for dictionary, item in items:

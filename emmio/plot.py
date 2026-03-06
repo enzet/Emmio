@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 from colour import Color
@@ -162,7 +161,6 @@ class Graph:
         last_text_y: float = 0.0
 
         for xs, ys, color, title in data:
-
             color_specification: str = color.hex
 
             if recolor:
@@ -339,7 +337,7 @@ class Graph:
 
     @staticmethod
     def text(
-        svg: Union[Drawing, Group],
+        svg: Drawing | Group,
         point: tuple[float, float],
         text: str,
         color: str,

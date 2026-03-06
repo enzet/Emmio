@@ -39,7 +39,7 @@ def split_sentence(
           - ("world", word),
           - ("!", symbol),
     """
-    # TODO: Move this functionality to the language class.
+    # TODO(enzet): Move this functionality to the language class.
 
     words: list[tuple[str, SentenceElement]] = []
     current: str = ""
@@ -136,7 +136,7 @@ class SentenceAndTranslations:
 
 
 class Sentences(ABC):
-    """Sentences."""
+    """Sentences as an artifact."""
 
     excluded_sentences_file_path: Path
     """Mapping from words to number identifiers of sentences that cannot be used

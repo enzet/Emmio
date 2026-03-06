@@ -40,10 +40,7 @@ class WordList(List):
 
     @override
     def get_info(self) -> str:
-        return (
-            f"  Length: {len(self.data)}\n"
-            f"  Language: {self.config.language}"
-        )
+        return f"  Length: {len(self.data)}\n  Language: {self.config.language}"
 
     @override
     def get_words(self) -> list[str]:

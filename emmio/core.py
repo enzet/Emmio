@@ -22,7 +22,7 @@ class Record(BaseModel, ABC):
     @abstractmethod
     def get_symbol(self) -> str:
         """Get short symbol for the record."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Session(BaseModel):
@@ -51,7 +51,7 @@ class ArtifactData(ABC):
             does not contain a `config.json` file, an empty dictionary will be
             returned
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def read_config(path: Path) -> dict[str, Any]:
@@ -66,7 +66,7 @@ class ArtifactData(ABC):
                 return {}
 
             logging.fatal("`%s` doesn't exist.", path.parent)
-            raise FileExistsError()
+            raise FileExistsError
 
         with (path / "config.json").open(encoding="utf-8") as config_file:
             result: dict[str, Any] = json.load(config_file)

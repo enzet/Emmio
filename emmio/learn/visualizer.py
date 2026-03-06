@@ -13,7 +13,7 @@ from matplotlib import transforms as mtransforms
 from emmio.learn.core import Knowledge, Learning, LearningRecord
 
 DEPTH_COLORS_BLACK_AND_WHITE: list[str] = ["#000000"] + [
-    "#" + f"{hex(int(256 - 256 / 1.5 ** x))[2:]:2}".replace(" ", "0") * 3
+    "#" + f"{hex(int(256 - 256 / 1.5**x))[2:]:2}".replace(" ", "0") * 3
     for x in range(20)
 ]
 DEPTH_COLORS: list[str] = [
@@ -206,7 +206,7 @@ class LearningVisualizer:
                         plt.text(
                             x[-1],
                             y[string_id][-1],
-                            f"{2 ** depth} days",
+                            f"{2**depth} days",
                             transform=trans_offset,
                         )
                         break

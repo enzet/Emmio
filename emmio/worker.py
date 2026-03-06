@@ -11,14 +11,14 @@ class Worker(ABC):
     @abstractmethod
     def is_ready(self) -> bool:
         """Check if worker has the next message to send."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def get_next_question(self) -> Text | None:
         """Return next message."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def process_answer(self, message: str) -> str:
         """Process user response."""
-        raise NotImplementedError()
+        raise NotImplementedError

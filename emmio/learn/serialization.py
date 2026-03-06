@@ -121,9 +121,7 @@ class LearningYAMLDecoder:
 
 
 class LearningEncoder(Encoder):
-    """
-    Encoder for learning process log structure.
-    """
+    """Encoder for learning process log structure."""
 
     MAGIC: bytes = b"EMMLEA"
     VERSION_MAJOR: int = 0

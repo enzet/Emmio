@@ -331,7 +331,7 @@ class Emmio:
             try:
                 arguments = parser.parse_args(command.split(" "))
             except argparse.ArgumentError as e:
-                logging.error("Error parsing command: %s.", e)
+                logging.exception("Error parsing command: %s.", e)
                 return
             except SystemExit:
                 return
@@ -389,19 +389,18 @@ class Emmio:
 
         # Command `stat`.
         if arguments.command == "stat":
-
             # Command `stat actions`.
             if arguments.process == "actions":
                 stat_actions: dict[Language, int] = defaultdict(int)
                 stat_time: dict[Language, timedelta] = defaultdict(timedelta)
 
                 for learning in self.data.get_learnings(self.user_id):
-                    stat_actions[
-                        learning.learning_language
-                    ] += learning.count_actions()
-                    stat_time[
-                        learning.learning_language
-                    ] += learning.compute_average_action_time()
+                    stat_actions[learning.learning_language] += (
+                        learning.count_actions()
+                    )
+                    stat_time[learning.learning_language] += (
+                        learning.compute_average_action_time()
+                    )
 
                 self.interface.print(
                     Table(
@@ -436,7 +435,6 @@ class Emmio:
                 await self.stat_lexicon()
 
         if arguments.command == "plot":
-
             # Command `plot lexicon`.
             if arguments.process == "lexicon":
                 self.plot_lexicon(arguments, interactive)
@@ -786,7 +784,6 @@ class Emmio:
 
             Visualizer().cumulative_actions_moving(records, days=days)
         else:
-
             locator, days = util.day_start, 1
             if arguments.interval == "week":
                 locator, days = util.week_start, 7
