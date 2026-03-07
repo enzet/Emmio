@@ -31,8 +31,6 @@ from emmio.lists.config import ListUsageConfig
 from emmio.lists.core import List
 from emmio.lists.data import ListsData
 from emmio.lists.frequency_list import FrequencyList
-from emmio.sentence.config import SentencesUsageConfig
-from emmio.sentence.core import SentencesCollection
 from emmio.sentence.data import SentencesData
 from emmio.text.core import Texts
 from emmio.text.data import TextData
@@ -53,6 +51,8 @@ TEXTS_DIRECTORY_NAME: str = "texts"
 USERS_DIRECTORY_NAME: str = "users"
 CONFIGURATION_FILE_NAME: str = "config.json"
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 @dataclass
 class Data:
@@ -70,7 +70,7 @@ class Data:
     _lists_data: ListsData | None
     """Manager for frequency and word lists."""
 
-    sentences: SentencesData
+    _sentences_data: SentencesData | None
     """Manager for sentences with translations."""
 
     dictionaries: DictionaryData
@@ -91,9 +91,6 @@ class Data:
 
         :param path: path to the directory with Emmio data
         """
-        sentences: SentencesData = SentencesData.from_config(
-            path / SENTENCES_DIRECTORY_NAME
-        )
         dictionaries: DictionaryData = DictionaryData.from_config(
             path / DICTIONARIES_DIRECTORY_NAME
         )
@@ -112,12 +109,12 @@ class Data:
                 user_data[user_path.name] = UserData.from_config(
                     user_path.name, user_path, json.load(user_config_file)
                 )
-        return cls(path, None, sentences, dictionaries, None, texts, user_data)
+        return cls(path, None, None, dictionaries, None, texts, user_data)
 
     def get_lists_data(self) -> ListsData:
         """Get frequency and word lists data."""
         if not self._lists_data:
-            logging.info("Loading list data...")
+            logger.info("Loading list data...")
             self._lists_data = ListsData.from_config(
                 self.path / LISTS_DIRECTORY_NAME
             )
@@ -149,17 +146,19 @@ class Data:
         """Get a text by its identifier."""
         return self.texts.get_text(text_id)
 
-    def get_sentences_collection(
-        self, usage_configs: list[SentencesUsageConfig]
-    ) -> SentencesCollection:
+    def get_sentences_data(self) -> SentencesData:
         """Get a collection of sentences by usage configurations."""
-        return self.sentences.get_sentences_collection(usage_configs)
+        if not self._sentences_data:
+            self._sentences_data = SentencesData.from_config(
+                self.path / SENTENCES_DIRECTORY_NAME
+            )
+        return self._sentences_data
 
     def get_audio_data(self) -> AudioData:
         """Get audio data."""
 
         if not self._audio_data:
-            logging.info("Loading audio data...")
+            logger.info("Loading audio data...")
             self._audio_data = AudioData.from_config(
                 self.path / AUDIO_DIRECTORY_NAME
             )

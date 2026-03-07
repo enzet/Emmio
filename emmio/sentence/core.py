@@ -1,11 +1,11 @@
 """Core functionality for sentences."""
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Self, override
+from typing import Self
 
 from emmio.language import Language
 from emmio.sentence.config import SentenceConfig
@@ -170,7 +170,8 @@ class SimpleOneLanguageSentences(Sentences):
         :param config: configuration of the sentences
         """
         if len(config.languages) != 1:
-            raise ValueError("`languages` should contain exactly one language.")
+            message = "`languages` should contain exactly one language."
+            raise ValueError(message)
 
         with (path / config.file_name).open(encoding="utf-8") as input_file:
             sentences: list[Sentence] = [
@@ -197,6 +198,8 @@ class SimpleTwoLanguagesSentences(Sentences):
     language_2: Language
     """Second language."""
 
+    NUMBER_OF_LANGUAGES: int = 2
+
     @classmethod
     def from_config(cls, path: Path, id_: str, config: SentenceConfig) -> Self:
         """Initialize sentences from a directory.
@@ -205,10 +208,13 @@ class SimpleTwoLanguagesSentences(Sentences):
         :param id_: unique sentences identifier
         :param config: configuration of the sentences
         """
-        if not config.languages or len(config.languages) != 2:
-            raise ValueError(
-                "`languages` should contain exactly two languages."
-            )
+        if (
+            not config.languages
+            or len(config.languages)
+            != SimpleTwoLanguagesSentences.NUMBER_OF_LANGUAGES
+        ):
+            message = "`languages` should contain exactly two languages."
+            raise ValueError(message)
 
         language_1: Language = Language.from_code(config.languages[0])
         language_2: Language = Language.from_code(config.languages[1])
@@ -223,7 +229,8 @@ class SimpleTwoLanguagesSentences(Sentences):
                     break
                 translation: str = input_file.readline().strip()
                 if not translation:
-                    raise ValueError(f'Translation for "{text}" is missing.')
+                    message = f'Translation for "{text}" is missing.'
+                    raise ValueError(message)
 
                 sentences.append(
                     SentenceAndTranslations(
@@ -236,14 +243,14 @@ class SimpleTwoLanguagesSentences(Sentences):
 
         return cls(id_, sentences, language_1, language_2)
 
-    @override
-    def filter_by_word(
+    def get(
         self,
         word: str,
-        ids_to_skip: set[int],
-        max_length: int,
+        ids_to_skip: set[int] | None = None,
+        max_length: int | None = None,
         max_number: int | None = 1000,
     ) -> list[SentenceAndTranslations]:
+        """Get sentences."""
         return [
             sentence
             for sentence in self.sentences
@@ -252,8 +259,7 @@ class SimpleTwoLanguagesSentences(Sentences):
             and len(sentence.sentence.text) <= max_length
         ][:max_number]
 
-    @override
-    def filter_by_word_and_rate(
+    def get_and_rate(
         self,
         word: str,
         is_known: Callable[[str, Language], bool],
@@ -261,6 +267,7 @@ class SimpleTwoLanguagesSentences(Sentences):
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceAndTranslations]]:
+        """Get sentences with ratings."""
         return self.rate(
             is_known,
             self.filter_by_word(word, ids_to_skip, max_length, max_number),
@@ -274,7 +281,7 @@ class SentencesCollection:
     collection: list[Sentences]
     """List of sentences."""
 
-    def filter_by_word(
+    def get(
         self, word: str, ids_to_skip: set[int], max_length: int
     ) -> list[SentenceAndTranslations]:
         """Get list of sentences with translations that contain requested word.
@@ -286,11 +293,11 @@ class SentencesCollection:
         result: list[SentenceAndTranslations] = []
 
         for sentences in self.collection:
-            result += sentences.filter_by_word(word, ids_to_skip, max_length)
+            result += sentences.get(word, ids_to_skip, max_length)
 
         return result
 
-    def filter_by_word_and_rate(
+    def get_and_rate(
         self,
         word: str,
         is_known: Callable[[str, Language], bool],
@@ -307,7 +314,7 @@ class SentencesCollection:
         result: list[tuple[float, SentenceAndTranslations]] = []
 
         for sentences in self.collection:
-            result += sentences.filter_by_word_and_rate(
+            result += sentences.get_rate(
                 word, is_known, ids_to_skip, max_length
             )
         result.sort(key=lambda record: -record[0])

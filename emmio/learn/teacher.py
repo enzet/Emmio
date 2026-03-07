@@ -4,7 +4,6 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import (
     Dictionary,
@@ -16,14 +15,17 @@ from emmio.language import Language
 from emmio.learn.config import ActionType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
-from emmio.lists.core import List
 from emmio.sentence.core import (
+    SentenceAndTranslations,
     SentenceElement,
     SentencesCollection,
-    SentenceTranslations,
 )
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
+
+if TYPE_CHECKING:
+    from emmio.audio.core import AudioCollection
+    from emmio.lists.core import List
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -40,6 +42,7 @@ class Teacher:
         data: Data,
         user_data: UserData,
         learning: Learning,
+        *,
         stop_after_answer: bool = False,
     ) -> None:
         self.interface: Interface = interface
@@ -220,10 +223,10 @@ class Teacher:
         :param question_id: question identifier
         """
         # Request word definition in the dictionary.
-        items: list[DictionaryItem] = (
-            await self.dictionaries_to_check.get_items(
-                question_id, self.learning.learning_language
-            )
+        items: list[
+            DictionaryItem
+        ] = await self.dictionaries_to_check.get_items(
+            question_id, self.learning.learning_language
         )
 
         # Skip word if current dictionaries has no definitions for it.
@@ -232,10 +235,10 @@ class Teacher:
             return False
 
         # Skip word if it is known that it is solely a form of other words.
-        items_no_links: list[DictionaryItem] = (
-            await self.dictionaries_to_check.get_items(
-                question_id, self.learning.learning_language, follow_links=False
-            )
+        items_no_links: list[
+            DictionaryItem
+        ] = await self.dictionaries_to_check.get_items(
+            question_id, self.learning.learning_language, follow_links=False
         )
         not_common: bool = False
         for item in items_no_links:
@@ -393,7 +396,7 @@ class Teacher:
     def print_sentence(
         self,
         word: str,
-        rated_sentences: list[tuple[float, SentenceTranslations]],
+        rated_sentences: list[tuple[float, SentenceAndTranslations]],
         index: int,
         *,
         show_index: bool = False,

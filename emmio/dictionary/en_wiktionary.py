@@ -105,7 +105,8 @@ class EnglishWiktionaryKaikki(Dictionary):
         from_language: Language,
         from_language_name: str,
     ) -> None:
-        """
+        """Initialize dictionary.
+
         :param cache_directory: directory used to store cache files
         :param from_language: source language specification
         :param from_language_name: name of language on `kaikki.org` website
@@ -141,7 +142,7 @@ class EnglishWiktionaryKaikki(Dictionary):
             url: str = (
                 f"https://kaikki.org/dictionary/{self.from_language_name}/"
                 f"words/kaikki.org-dictionary-"
-                f'{self.from_language_name.replace(" ", "")}-words.jsonl'
+                f"{self.from_language_name.replace(' ', '')}-words.jsonl"
             )
             response: requests.Response = requests.get(
                 url, stream=True, timeout=5
@@ -149,7 +150,7 @@ class EnglishWiktionaryKaikki(Dictionary):
             try:
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
-                logging.error(
+                logging.exception(
                     "Failed to download `%s` Kaikki from `%s`.",
                     self.from_language_name,
                     url,
@@ -225,7 +226,6 @@ class EnglishWiktionaryKaikki(Dictionary):
         links: list[Link] = []
 
         for sense in item["senses"]:
-
             tags: list[str]
 
             if "form_of" in sense:

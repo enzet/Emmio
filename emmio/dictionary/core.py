@@ -15,10 +15,11 @@ import json
 import logging
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Coroutine, Self, override
+from typing import Any, Self, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig

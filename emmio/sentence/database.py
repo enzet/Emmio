@@ -9,6 +9,8 @@ from emmio.language import Language
 from emmio.sentence.core import Sentence
 from emmio.util import download
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 class TatoebaDatabase(Database):
     """Database for sentences.
@@ -16,7 +18,7 @@ class TatoebaDatabase(Database):
     Database schema is as follows.
 
     Tables <language>_sentences:
-        ID: INTEGER, LANGUAGE: TEXT, SENTENCE: TEXT
+        ID: INTEGER, SENTENCE: TEXT
 
     Table links:
         ID_1: INTEGER, ID_2: INTEGER
@@ -47,12 +49,15 @@ class TatoebaDatabase(Database):
 
             # Unzip links file to `links.csv`.
             if links_zip_path.exists():
-                with bz2.open(links_zip_path) as zip_file:
-                    with links_csv_path.open("wb+") as cache_file:
-                        logging.info("Unzipping links file...")
-                        cache_file.write(zip_file.read())
+                with (
+                    bz2.open(links_zip_path) as zip_file,
+                    links_csv_path.open("wb+") as cache_file,
+                ):
+                    logger.info("Unzipping links file...")
+                    cache_file.write(zip_file.read())
             else:
-                raise Exception("Failed to download links file.")
+                message = "Failed to download links file."
+                raise ValueError(message)
 
             # Remove zipped links file.
             links_zip_path.unlink()
@@ -94,34 +99,36 @@ class TatoebaDatabase(Database):
                 )
 
                 # Check if file has appropriate size.
-                if zip_path.stat().st_size < 1000:
-                    logging.error(
+                if zip_path.stat().st_size < 1000:  # noqa: PLR2004
+                    logger.error(
                         "File `%s` seems to be empty. Removing it.", zip_path
                     )
                     # Remove zip file.
                     zip_path.unlink()
                     return
 
-                with bz2.open(zip_path) as zip_file:
-                    with file_path.open("wb+") as cache_file:
-                        logging.info(
-                            "Unzipping sentences for `%s` from `%s` to `%s`.",
-                            language.get_name(),
-                            zip_path,
-                            file_path,
-                        )
-                        cache_file.write(zip_file.read())
+                with (
+                    bz2.open(zip_path) as zip_file,
+                    file_path.open("wb+") as cache_file,
+                ):
+                    logger.info(
+                        "Unzipping sentences for `%s` from `%s` to `%s`.",
+                        language.get_name(),
+                        zip_path,
+                        file_path,
+                    )
+                    cache_file.write(zip_file.read())
 
         self.cursor.execute(
-            f"CREATE VIRTUAL TABLE {table_id} "
-            "USING fts5(id integer primary key, language text, sentence text)"
+            f"CREATE VIRTUAL TABLE {table_id} USING fts5(id, sentence)"
         )
-        logging.info("Reading table `%s`...", table_id)
+        logger.info("Reading table `%s`...", table_id)
         with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
                 self.cursor.execute(
-                    f"INSERT INTO {table_id} VALUES (?,?)", (id_, sentence)
+                    f"INSERT INTO {table_id} VALUES (?,?)",  # noqa: S608
+                    (int(id_), sentence),
                 )
         self.connection.commit()
 
@@ -132,8 +139,14 @@ class TatoebaDatabase(Database):
         :param sentence_id: sentence unique integer identifier
         """
         table_id: str = f"{language.get_code()}_sentences"
+
+        # If table doesn't exist, load it.
+        if not self.has_table(table_id):
+            self.load_language(language, self.cache_path)
+
         id_, text = self.cursor.execute(
-            f"SELECT * FROM {table_id} WHERE id=?", (sentence_id,)
+            f"SELECT * FROM {table_id} WHERE id=?",  # noqa: S608
+            (sentence_id,),
         ).fetchone()
         return Sentence(id_, text)
 
@@ -150,14 +163,14 @@ class TatoebaDatabase(Database):
             self.load_language(language, self.cache_path)
 
         result: dict[int, Sentence] = {}
-        for row in self.cursor.execute(f"SELECT * FROM {table_id}"):
+        for row in self.cursor.execute(f"SELECT * FROM {table_id}"):  # noqa: S608
             id_, text = row
-            result[id_] = Sentence(id_, text)
+            result[int(id_)] = Sentence(int(id_), text)
         return result
 
-    def get_sentence_by_word(self, word: str, language: Language) -> Sentence:
-        """Get sentence by word.
+    # def get_sentence_by_word(self, word: str, language: Language) -> Sentence:
+    #     """Get sentence by word.
 
-        :param word: word to search for
-        :param language: language of the sentence
-        """
+    #     :param word: word to search for
+    #     :param language: language of the sentence
+    #     """

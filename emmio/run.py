@@ -4,10 +4,9 @@ import argparse
 import logging
 import sys
 from collections import defaultdict
-from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from colour import Color
 
@@ -17,11 +16,10 @@ from emmio.graph import Visualizer
 from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
-from emmio.learn.visualizer import LearningVisualizer  # type: ignore
-from emmio.lexicon.core import Lexicon
+from emmio.learn.visualizer import LearningVisualizer
+from emmio.lexicon.core import Lexicon, LexiconChecker
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
-from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.ui import (
     Block,
@@ -36,6 +34,13 @@ from emmio.ui import (
     progress,
 )
 from emmio.user.data import UserData
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from emmio.lists.frequency_list import FrequencyList
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 LEXICON_HELP: str = """
 <y> or <Enter>  I know at least one meaning of the word
@@ -53,7 +58,7 @@ LEXICON_HELP: str = """
 class ArgumentParser(argparse.ArgumentParser):
     """Argument parser with redefined `help`."""
 
-    def help(self, _: Any) -> None:
+    def help(self, _: Any) -> None:  # noqa: ANN401
         """Print help to stdout and don't exit."""
         self.print_help(sys.stdout)
 
@@ -127,7 +132,7 @@ class Emmio:
             await self.process_command(command)
 
     async def process_command(
-        self, command: str, interactive: bool = True
+        self, command: str, *, interactive: bool = True
     ) -> None:
         """Process the user command."""
 
@@ -330,8 +335,8 @@ class Emmio:
         if command:
             try:
                 arguments = parser.parse_args(command.split(" "))
-            except argparse.ArgumentError as e:
-                logging.exception("Error parsing command: %s.", e)
+            except argparse.ArgumentError:
+                logger.exception("Error parsing command.")
                 return
             except SystemExit:
                 return
@@ -417,6 +422,7 @@ class Emmio:
                                     stat_actions.keys(),
                                     stat_actions.values(),
                                     stat_time.values(),
+                                    strict=False,
                                 ),
                                 key=lambda x: -x[1],
                             )
@@ -437,7 +443,7 @@ class Emmio:
         if arguments.command == "plot":
             # Command `plot lexicon`.
             if arguments.process == "lexicon":
-                self.plot_lexicon(arguments, interactive)
+                self.plot_lexicon(arguments, interactive=interactive)
 
             # Command `plot learn`.
             elif arguments.process == "learn":
@@ -504,14 +510,12 @@ class Emmio:
             if len(lexicons_to_check) == 1:
                 lexicons.append(lexicons_to_check[0])
             else:
-                logging.fatal(
-                    "More than one lexicon to check for %s.", language
-                )
+                logger.fatal("More than one lexicon to check for %s.", language)
 
         for lexicon in sorted(
             lexicons, key=lambda lexicon: -lexicon.get_last_rate_number()
         ):
-            now: datetime = datetime.now()
+            now: datetime = datetime.now(UTC)
             rate: float | None = lexicon.get_last_rate()
             rate_year_before: float | None = lexicon.get_last_rate(
                 before=now - timedelta(days=365.25)
@@ -529,9 +533,9 @@ class Emmio:
             )
             change_text: InlineElement
             match change:
-                case float() as change if change >= 0.1:
+                case float() as change if change >= 0.1:  # noqa: PLR2004
                     change_text = Colorized(f"▲ +{change:.1f}", color="green")
-                case float() as change if change <= -0.1:
+                case float() as change if change <= -0.1:  # noqa: PLR2004
                     change_text = Colorized(f"▼ {change:.1f}", color="red")
                 case _:
                     change_text = Text("")
@@ -561,7 +565,7 @@ class Emmio:
 
         for lexicon in lexicons:
             language: Language = lexicon.language
-            now: datetime = datetime.now()
+            now: datetime = datetime.now(UTC)
             need: int = 5 - lexicon.count_unknowns(now - timedelta(days=7), now)
             need = max(need, 101 - lexicon.count_unknowns())
             if need <= 0:
@@ -575,7 +579,7 @@ class Emmio:
                     lexicon.config.frequency_list
                 )
             if frequency_list is None:
-                logging.error(
+                logger.error(
                     "Frequency list with config `%s` cannot be loaded.",
                     lexicon.config.frequency_list,
                 )
@@ -584,16 +588,18 @@ class Emmio:
             other_lexicons: list[Lexicon] = (
                 self.user_data.get_lexicons_by_language(language)
             )
-            await lexicon.check(
+            checker: LexiconChecker = LexiconChecker(
                 self.interface,
+                lexicon,
+                self.data.get_dictionaries(lexicon.config.dictionaries),
+                self.data.get_sentences_data(),
+                lexicon.config.sentences,
+            )
+            await checker.check(
                 other_lexicons,
                 frequency_list,
                 None,
-                self.data.get_dictionaries(lexicon.config.dictionaries),
-                self.data.get_sentences_collection(lexicon.config.sentences),
                 "frequency",
-                False,
-                False,
                 need,
             )
             break
@@ -660,7 +666,7 @@ class Emmio:
                 else:
                     break
 
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
         total_nearest: datetime = now
 
         for learning in self.user_data.get_learn_data().learnings.values():
@@ -698,7 +704,7 @@ class Emmio:
         await listener.listen(start_from, repeat)
 
     def plot_lexicon(
-        self, arguments: argparse.Namespace, interactive: bool
+        self, arguments: argparse.Namespace, *, interactive: bool
     ) -> None:
         """Plot lexicon."""
 
@@ -720,7 +726,8 @@ class Emmio:
             first_point = util.month_start
             next_point = util.plus_month
         else:
-            raise ValueError(f"Unknown interval: `{arguments.interval}`.")
+            message = f"Unknown interval: `{arguments.interval}`."
+            raise ValueError(message)
 
         lexicons: dict[Language, list[Lexicon]] = {
             language: [
@@ -829,7 +836,7 @@ class Emmio:
     async def schedule(self) -> None:
         """Print schedule of questions to repeat."""
 
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
 
         interval: str = "month"
         points: int
@@ -844,14 +851,20 @@ class Emmio:
                 schedule = [0] * points
                 delta = timedelta(days=1)
                 start = datetime(
-                    year=now.year, month=now.month, day=now.day, hour=now.hour
+                    year=now.year,
+                    month=now.month,
+                    day=now.day,
+                    hour=now.hour,
+                    tzinfo=UTC,
                 )
                 from_seconds = 60 * 60
             case "month":
                 points = 30
                 schedule = [0] * points
                 delta = timedelta(days=30)
-                start = datetime(year=now.year, month=now.month, day=now.day)
+                start = datetime(
+                    year=now.year, month=now.month, day=now.day, tzinfo=UTC
+                )
                 from_seconds = 60 * 60 * 24
             case _:
                 return

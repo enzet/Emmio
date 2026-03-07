@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import urllib3
@@ -11,6 +11,8 @@ from urllib3 import BaseHTTPResponse, PoolManager, Timeout
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 HIDE_SYMBOL: str = "░"
 
@@ -29,7 +31,9 @@ def write_atomic(path: Path, data: str) -> None:
 
 def day_start(point: datetime) -> datetime:
     """Get the start point of the day."""
-    return datetime(year=point.year, month=point.month, day=point.day)
+    return datetime(
+        year=point.year, month=point.month, day=point.day, tzinfo=UTC
+    )
 
 
 def day_end(point: datetime) -> datetime:
@@ -39,24 +43,24 @@ def day_end(point: datetime) -> datetime:
 
 def year_start(point: datetime) -> datetime:
     """Get the start point of the year."""
-    return datetime(year=point.year, month=1, day=1)
+    return datetime(year=point.year, month=1, day=1, tzinfo=UTC)
 
 
 def year_end(point: datetime) -> datetime:
     """Get the end point of the year."""
-    return datetime(year=point.year + 1, month=1, day=1)
+    return datetime(year=point.year + 1, month=1, day=1, tzinfo=UTC)
 
 
 def plus_year(point: datetime) -> datetime:
     """Get the point one year after the specified point."""
     new_year: int = point.year + 1
-    day: datetime = datetime(year=new_year, month=1, day=1)
+    day: datetime = datetime(year=new_year, month=1, day=1, tzinfo=UTC)
     return datetime.combine(day, point.time())
 
 
 def month_start(point: datetime) -> datetime:
     """Get the start point of the month."""
-    return datetime(year=point.year, month=point.month, day=1)
+    return datetime(year=point.year, month=point.month, day=1, tzinfo=UTC)
 
 
 def plus_month(point: datetime) -> datetime:
@@ -66,7 +70,7 @@ def plus_month(point: datetime) -> datetime:
     if new_month > 12:
         new_month = 1
         new_year = point.year + 1
-    day: datetime = datetime(year=new_year, month=new_month, day=1)
+    day: datetime = datetime(year=new_year, month=new_month, day=1, tzinfo=UTC)
     return datetime.combine(day, point.time())
 
 
@@ -102,35 +106,52 @@ def format_delta(delta: timedelta) -> str:
 
 
 def download(
-    address: str, cache_path: Path, buffer_size: int = 0x80000
+    address: str,
+    cache_path: Path,
+    buffer_size: int = 0x80000,
+    max_retries: int = 3,
 ) -> bytearray | None:
     """Download the file from the address and save it to the cache path."""
 
-    logging.info("Downloading `%s`...", address)
+    logger.info("Downloading `%s`...", address)
 
-    timeout: Timeout = Timeout(connect=1.0, read=2.0)
+    timeout: Timeout = Timeout(connect=10.0, read=60.0)
     pool_manager: PoolManager = PoolManager(timeout=timeout)
-    try:
-        result: BaseHTTPResponse = pool_manager.request(
-            "GET", address, preload_content=False
-        )
-    except urllib3.exceptions.MaxRetryError:
-        return None
-    pool_manager.clear()
-    data: bytearray = bytearray()
-    while True:
+
+    for attempt in range(max_retries):
         try:
-            buffer: bytes = result.read(buffer_size)
-            if not buffer:
-                break
-            data.extend(buffer)
-        except urllib3.exceptions.ReadTimeoutError:
+            result: BaseHTTPResponse = pool_manager.request(
+                "GET", address, preload_content=False
+            )
+        except urllib3.exceptions.MaxRetryError:
             return None
 
-    with cache_path.open("wb+") as temp_file:
-        temp_file.write(data)
+        data: bytearray = bytearray()
+        try:
+            while True:
+                buffer: bytes = result.read(buffer_size)
+                if not buffer:
+                    break
+                data.extend(buffer)
+        except urllib3.exceptions.ReadTimeoutError:
+            if attempt < max_retries - 1:
+                logger.warning(
+                    "Read timeout for `%s`, retrying (%d/%d)...",
+                    address,
+                    attempt + 1,
+                    max_retries,
+                )
+                continue
+            return None
+        finally:
+            result.release_conn()
 
-    return data
+        pool_manager.clear()
+        with cache_path.open("wb+") as temp_file:
+            temp_file.write(data)
+        return data
+
+    return None
 
 
 @dataclass

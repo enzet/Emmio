@@ -14,7 +14,8 @@ class Text:
     """Text processing utility."""
 
     def __init__(self, input_file: IO[str], language: Language):
-        """
+        """Initialize text.
+
         :param input_file: file to process
         :param language: text language
         """

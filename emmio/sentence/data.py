@@ -6,15 +6,18 @@ from typing import Any, Self
 
 from emmio.core import ArtifactData
 from emmio.language import Language
-from emmio.sentence.config import SentenceConfig, SentenceType, SentencesUsageConfig
+from emmio.sentence.config import (
+    SentenceConfig,
+    SentencesUsageConfig,
+    SentenceType,
+)
 from emmio.sentence.core import (
-    Sentences,
-    SentencesCollection,
     SentenceAndTranslations,
+    Sentences,
     SimpleOneLanguageSentences,
     SimpleTwoLanguagesSentences,
 )
-from emmio.sentence.database import SentenceDatabase
+from emmio.sentence.database import TatoebaDatabase
 from emmio.sentence.tatoeba import TatoebaSentences
 
 
@@ -25,7 +28,7 @@ class SentencesData(ArtifactData):
     path: Path
     """The directory managed by this class."""
 
-    database: SentenceDatabase
+    database: TatoebaDatabase
     """The database with sentences."""
 
     sentences: dict[str, Sentences]
@@ -42,6 +45,7 @@ class SentencesData(ArtifactData):
             `.emmio/sentences`
         """
         configs: dict[str, Any] = ArtifactData.read_config(path)
+        sentences: dict[str, Sentences] = {}
 
         for id_, data in configs.items():
             config: SentenceConfig = SentenceConfig(**data)
@@ -51,20 +55,20 @@ class SentencesData(ArtifactData):
                     path, id_, SentenceConfig(**data)
                 )
             elif config.type == SentenceType.SIMPLE_TWO_LANGUAGES:
-                sentences: dict[str, Sentences] = {}
-                for id_, data in config.items():
-                    sentences[id_] = SimpleTwoLanguagesSentences.from_config(
-                        path, id_, SentenceConfig(**data)
-                    )
+                sentences[id_] = SimpleTwoLanguagesSentences.from_config(
+                    path, id_, SentenceConfig(**data)
+                )
             else:
-                raise ValueError(f"Unknown sentence type: `{config.type}`.")
+                message = f"Unknown sentence type: `{config.type}`."
+                raise ValueError(message)
 
         database_path: Path = path / "sentences.db"
-        database: SentenceDatabase = SentenceDatabase(database_path)
+        cache_path: Path = path / "cache"
+        database: TatoebaDatabase = TatoebaDatabase(database_path, cache_path)
 
         return cls(path, database, sentences)
 
-    def get_by_word(
+    def get(
         self, word: str, usage_configs: list[SentencesUsageConfig]
     ) -> list[SentenceAndTranslations]:
         """Get sentences by a word.
@@ -76,31 +80,29 @@ class SentencesData(ArtifactData):
         sentences: list[SentenceAndTranslations] = []
 
         for usage_config in usage_configs:
-            if usage_config.id == "__tatoeba":
+            if usage_config.id == "tatoeba":
                 if self.tatoeba_sentences is None:
                     self.tatoeba_sentences = TatoebaSentences(
-                        self.path,
-                        self.database,
+                        self.path, self.database
                     )
                 sentences.extend(
-                    self.tatoeba_sentences.get_by_word(
+                    self.tatoeba_sentences.get(
                         word,
-                        usage_config.language,
-                        usage_config.translation_languages,
+                        Language.from_code(usage_config.language),
+                        [
+                            Language.from_code(language)
+                            for language in usage_config.translation_languages
+                        ]
+                        if usage_config.translation_languages
+                        else [],
                     )
                 )
+            elif usage_config.id in self.sentences:
+                value: Sentences = self.sentences[usage_config.id]
+                if isinstance(value, SimpleTwoLanguagesSentences):
+                    sentences.extend(value.get(word))
             else:
-                if usage_config.id not in self.sentences:
-                    sentences.extend(
-                        self.sentences[usage_config.id].get_by_word(
-                            word,
-                            usage_config.language,
-                            usage_config.translation_languages,
-                        )
-                    )
-                else:
-                    raise ValueError(
-                        f"Unknown sentence identifier: `{usage_config.id}`."
-                    )
+                message = f"Unknown sentence identifier: `{usage_config.id}`."
+                raise ValueError(message)
 
         return sentences

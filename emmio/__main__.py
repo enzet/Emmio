@@ -2,6 +2,7 @@
 
 import asyncio
 import getpass
+import logging
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -16,6 +17,8 @@ __email__ = "me@enzet.ru"
 
 async def asynchronous_main() -> None:
     """Emmio entry point."""
+
+    logging.basicConfig(level=logging.INFO)
 
     parser: ArgumentParser = ArgumentParser("Emmio")
     parser.add_argument("--data", help="path to data directory")
@@ -57,7 +60,7 @@ async def asynchronous_main() -> None:
 
     match arguments.command:
         case "execute":
-            from emmio.run import Emmio
+            from emmio.run import Emmio  # noqa: PLC0415
 
             user_id = arguments.user if arguments.user else getpass.getuser()
             await Emmio(data_path, interface, data, user_id).process_command(
@@ -65,7 +68,7 @@ async def asynchronous_main() -> None:
             )
 
         case _:
-            from emmio.run import Emmio
+            from emmio.run import Emmio  # noqa: PLC0415
 
             user_id = arguments.user if arguments.user else getpass.getuser()
             await Emmio(data_path, interface, data, user_id).run()

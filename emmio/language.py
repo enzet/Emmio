@@ -7,7 +7,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from colour import Color
 from iso639 import Lang as ISO639Language
@@ -94,7 +93,7 @@ class Language:
             return self.self_name
         return self.get_name()
 
-    def get_parent(self) -> Optional["Language"]:
+    def get_parent(self) -> Language | None:
         """Get parent language.
 
         E.g. Norwegian (`no`) is the parent language of Norwegian Bokmål (`nb`).
@@ -210,9 +209,9 @@ KANJI: str = (
     + letter_range("一", "鿋")
     + letter_range("豈", "頻")
 )
-ARABIC_LETTERS: str = letter_range("\u0620", "\u06FF")  # FIXME: check.
-KOREAN_LETTERS: str = letter_range("\u1100", "\u11FF") + letter_range(
-    "\uAC00", "\uD7A3"
+ARABIC_LETTERS: str = letter_range("\u0620", "\u06ff")  # FIXME: check.
+KOREAN_LETTERS: str = letter_range("\u1100", "\u11ff") + letter_range(
+    "\uac00", "\ud7a3"
 )
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
@@ -311,7 +310,7 @@ class KnownLanguages:
     HEBREW: Language = Language(
         "he",
         Color("#1334B2"),  # Blue color of the Israel flag.
-        letter_range("\u0590", "\u05F4") + "-",
+        letter_range("\u0590", "\u05f4") + "-",
         self_name="עִברִית",
     )
     ICELANDIC: Language = Language(
@@ -342,14 +341,14 @@ class KnownLanguages:
         "la",
         Color("#FDF351"),  # Yellow color of the Vatican flag.
         "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvXxYyZz"  # Without "W".
-        + "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
+        "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
         self_name="latīna",
     )
     MODERN_GREEK: Language = Language(
         "el",
         Color("#2A5DA9"),  # Blue color of the Greece flag.
         "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω"
-        + letter_range("\u1F00", "\u1FFF")
+        + letter_range("\u1f00", "\u1fff")
         + "ΆάΈέΉήΊίΌόΎύΏώ",
         self_name="ελληνικά",
     )
