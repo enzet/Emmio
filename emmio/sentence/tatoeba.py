@@ -194,11 +194,16 @@ class TatoebaSentences(Sentences):
         )
         if cache_file_path.is_file():
             with cache_file_path.open("rb") as input_file:
-                from_: int = int.from_bytes(input_file.read(4), "big")
-                to_: int = int.from_bytes(input_file.read(4), "big")
-                if from_ not in links:
-                    links[from_] = set()
-                links[from_].add(to_)
+                while True:
+                    from_: int = int.from_bytes(input_file.read(4), "big")
+                    if not from_:
+                        break
+                    to_: int = int.from_bytes(input_file.read(4), "big")
+                    if not to_:
+                        break
+                    if from_ not in links:
+                        links[from_] = set()
+                    links[from_].add(to_)
             self.links[language] = links
             return links
 
