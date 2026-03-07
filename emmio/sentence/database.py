@@ -120,19 +120,21 @@ class TatoebaDatabase(Database):
                     cache_file.write(zip_file.read())
 
         self.cursor.execute(
-            f"CREATE VIRTUAL TABLE {table_id} USING fts5(id, sentence)"
+            f"CREATE VIRTUAL TABLE {table_id} USING fts5(sentence)"
         )
         logger.info("Reading table `%s`...", table_id)
         with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
                 self.cursor.execute(
-                    f"INSERT INTO {table_id} VALUES (?,?)",  # noqa: S608
+                    f"INSERT INTO {table_id}(rowid, sentence) VALUES (?,?)",  # noqa: S608
                     (int(id_), sentence),
                 )
         self.connection.commit()
 
-    def get_sentence(self, language: Language, sentence_id: int) -> Sentence:
+    def get_sentence(
+        self, language: Language, sentence_id: int
+    ) -> Sentence | None:
         """Get sentence by identifier.
 
         :param language: language of the sentence
@@ -144,11 +146,15 @@ class TatoebaDatabase(Database):
         if not self.has_table(table_id):
             self.load_language(language, self.cache_path)
 
-        id_, text = self.cursor.execute(
-            f"SELECT * FROM {table_id} WHERE id=?",  # noqa: S608
+        result = self.cursor.execute(
+            f"SELECT rowid, sentence FROM {table_id} WHERE rowid=?",  # noqa: S608
             (sentence_id,),
         ).fetchone()
-        return Sentence(id_, text)
+        if result:
+            id_, text = result
+            return Sentence(id_, text)
+        logger.warning("No sentence with id %d in %s.", sentence_id, table_id)
+        return None
 
     def get_sentences(self, language: Language) -> dict[int, Sentence]:
         """Get all sentences written in the specified language.
@@ -163,9 +169,10 @@ class TatoebaDatabase(Database):
             self.load_language(language, self.cache_path)
 
         result: dict[int, Sentence] = {}
-        for row in self.cursor.execute(f"SELECT * FROM {table_id}"):  # noqa: S608
-            id_, text = row
-            result[int(id_)] = Sentence(int(id_), text)
+        for id_, text in self.cursor.execute(
+            f"SELECT rowid, sentence FROM {table_id}"  # noqa: S608
+        ):
+            result[id_] = Sentence(id_, text)
         return result
 
     # def get_sentence_by_word(self, word: str, language: Language) -> Sentence:
