@@ -12,7 +12,7 @@ python_files="emmio/ tests/"
 tools=("Black" "isort" "Mypy" "Pylint" "Pytest")
 
 commands=(
-    "black --check ${python_files}"
+    "ruff format --check ${python_files}"
     "isort --check-only ${python_files}"
     "mypy ${python_files}"
     "pylint ${python_files}"

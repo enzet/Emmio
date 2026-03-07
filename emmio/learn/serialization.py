@@ -103,8 +103,9 @@ class LearningYAMLDecoder:
 
     @staticmethod
     def compute_next_interval(answer: str, interval: float) -> float:
-        """
-        Compute next learning interval based on the current interval and answer.
+        """Compute next learning interval.
+
+        Use information about the current interval and answer.
 
         :param answer: "y" for known and "n" for unknown
         :param interval: current learning interval in minutes
@@ -128,10 +129,10 @@ class LearningEncoder(Encoder):
     VERSION_MINOR: int = 1
 
     def encode(self, structure: list[dict[str, Any]]) -> None:
-        """
-        Encode learning log structure into the binary format (all integers are
-        encoded with big endian). For the input structure description, see
-        Decoder.decode_learning method.
+        """Encode learning log structure into the binary format.
+
+        All integers are encoded with big endian. For the input structure
+        description, see Decoder.decode_learning method.
 
         - First date in seconds since epoch (1 January 1970), 8-byte floating
           point.

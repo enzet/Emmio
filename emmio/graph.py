@@ -102,11 +102,10 @@ class Visualizer:
                 continue
             last_record: LexiconLogRecord = lexicon.log.records[0]
             for lexicon_record in lexicon.log.records:
-                if (
-                    lexicon_record.answer_type == AnswerType.USER_ANSWER
-                    or (lexicon_record.answer_type == AnswerType.UNKNOWN
+                if lexicon_record.answer_type == AnswerType.USER_ANSWER or (
+                    lexicon_record.answer_type == AnswerType.UNKNOWN
                     and (lexicon_record.time - last_record.time).total_seconds()
-                    > 0)
+                    > 0
                 ):
                     if not by_language:
                         if lexicon.is_frequency():

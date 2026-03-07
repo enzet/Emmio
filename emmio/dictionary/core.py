@@ -603,9 +603,7 @@ class Dictionary(ABC):
             for x in item.get_links()
             if x.link_value not in ignore_words
         )
-        tasks: list[
-            asyncio.Task[list[tuple[Dictionary, DictionaryItem]]]
-        ] = []
+        tasks: list[asyncio.Task[list[tuple[Dictionary, DictionaryItem]]]] = []
         for link_value in link_to_follow:
             coroutine: Coroutine[
                 Any, Any, list[tuple[Dictionary, DictionaryItem]]

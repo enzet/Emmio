@@ -287,7 +287,10 @@ class TatoebaSentences(Sentences):
     def get_sentence(self, language: Language, id_: int) -> Sentence:
         """Get a sentence by its identifier."""
 
-        return self.database.get_sentence(language, id_)
+        result = self.database.get_sentence(language, id_)
+        if not result:
+            raise ValueError
+        return result
 
     def get(
         self,

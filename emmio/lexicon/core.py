@@ -382,7 +382,7 @@ class Lexicon(UserArtifact):
         with file_path.open(encoding="utf-8") as input_file:
             data = json.load(input_file)
 
-        # TODO(enzet): remove.
+        # TODO(enzet): remove when all user data is updated.
         for record in data["records"]:
             if (
                 "time" in record
