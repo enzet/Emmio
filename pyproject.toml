@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib~=3.10.0",
     "mpv~=1.0.7",
     "numpy~=2.2.3",
+    "scipy~=1.15.0",
     "pyTelegramBotAPI~=4.26.0",
     "pydantic~=2.10.6",
     "python-mpv~=1.0.7",

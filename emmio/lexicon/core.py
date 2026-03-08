@@ -1,6 +1,7 @@
 """Core functionality for lexicon."""
 
 import json
+import logging
 import math
 import random
 from collections import OrderedDict
@@ -10,7 +11,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Self, override
 
+import numpy as np
 from pydantic import BaseModel
+from scipy.optimize import minimize
+from scipy.special import expit
 
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
@@ -29,6 +33,8 @@ from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
@@ -251,6 +257,43 @@ class LexiconLogRecord(Record):
         return self.response.get_symbol()
 
 
+def _fit_logistic(
+    ranks: list[int], labels: list[int]
+) -> tuple[float, float, float]:
+    """Fit 3-parameter logistic model π_i = c · σ(a · log(rank) + b).
+
+    :param ranks: frequency ranks (1-indexed, 1 = most frequent)
+    :param labels: 1 if unknown, 0 if known
+    :return: fitted parameters (a, b, c)
+    """
+    x: np.ndarray = np.log(np.array(ranks, dtype=float))
+    y: np.ndarray = np.array(labels, dtype=float)
+
+    def neg_log_likelihood(params: np.ndarray) -> float:
+        # t → a = exp(t) > 0: monotonicity (rarer words more likely unknown).
+        t, b = params
+        a: float = float(np.exp(t))
+        pi: np.ndarray = np.clip(expit(a * x + b), 1e-10, 1.0 - 1e-10)
+        return float(-np.sum(y * np.log(pi) + (1.0 - y) * np.log(1.0 - pi)))
+
+    result = minimize(
+        neg_log_likelihood,
+        x0=np.array([0.0, -5.0]),  # t=0 → a=1
+        method="Nelder-Mead",
+        options={"xatol": 1e-4, "fatol": 1e-4},
+    )
+    t, b = result.x
+    return float(np.exp(t)), float(b), 1.0
+
+
+def _predict(a: float, b: float, c: float, rank: int) -> float:
+    """Predict probability of being unknown at the given frequency rank."""
+    try:
+        return c / (1.0 + math.exp(-(a * math.log(rank) + b)))
+    except OverflowError:
+        return 0.0
+
+
 def rate(ratio: float) -> float | None:
     """Compute Emmio lexicon rating.
 
@@ -377,7 +420,7 @@ class Lexicon(UserArtifact):
 
         if not file_path.exists():
             with file_path.open("w+", encoding="utf-8") as output:
-                output.write("{}")
+                output.write('{"records": [], "sessions": []}')
 
         with file_path.open(encoding="utf-8") as input_file:
             data = json.load(input_file)
@@ -900,6 +943,267 @@ class LexiconChecker:
 
             if self.do_skip(picked_word, other_lexicons):
                 continue
+
+            _, response, _ = await self.ask(picked_word)
+            actions += 1
+            if response == LexiconResponse.DONT:
+                wrong_answers += 1
+
+            for element in self.lexicon.get_statistics():
+                self.interface.print(element)
+
+            if not response:
+                exit_code = "quit"
+                break
+
+            if stop_at and actions >= stop_at:
+                exit_code = "limit"
+                break
+
+            if stop_at_wrong and wrong_answers >= stop_at_wrong:
+                exit_code = "limit"
+                break
+
+        session.end_session(datetime.now(UTC))
+        self.lexicon.log.sessions.append(session)
+        self.lexicon.write()
+
+        return exit_code
+
+    def estimate_r(
+        self, frequency_list: FrequencyList, a, b, c
+    ) -> float | None:
+        """Estimate r using the logistic model.
+
+        Computes θ̂ = Σ_{i∈S} p_i X_i  +  Σ_{i∈U} p_i · π̂_i and returns
+        r̂ = -log₂(θ̂). Returns None if there is not enough data to fit the
+        model.
+
+        :param frequency_list: frequency list providing p_i values
+        :return: estimated r, or None if the model cannot be fitted
+        """
+        total: int = frequency_list.get_all_occurrences()
+        words: list[str] = frequency_list.get_words()
+
+        tested_ranks: list[int] = []
+        tested_labels: list[int] = []
+        theta_s: float = 0.0
+
+        for rank, word in enumerate(words, start=1):
+            if not self.lexicon.has(word):
+                continue
+            p_i: float = frequency_list.get_occurrences(word) / total
+            response: LexiconResponse = self.lexicon.get(word)
+            if response == LexiconResponse.KNOW:
+                tested_ranks.append(rank)
+                tested_labels.append(0)
+            elif response == LexiconResponse.DONT:
+                tested_ranks.append(rank)
+                tested_labels.append(1)
+                theta_s += p_i
+
+        n_unknown: int = sum(tested_labels)
+        if len(tested_ranks) < 10 or n_unknown < 5:
+            return None
+
+        theta_u: float = sum(
+            frequency_list.get_occurrences(word)
+            / total
+            * _predict(a, b, c, rank)
+            for rank, word in enumerate(words, start=1)
+            if not self.lexicon.has(word)
+        )
+
+        theta: float = theta_s + theta_u
+        if theta <= 0.0:
+            return None
+        return -math.log2(theta)
+
+    def estimate_r_with_sd(
+        self,
+        frequency_list: FrequencyList,
+        n_bootstrap: int = 200,
+    ) -> tuple[float, float] | None:
+        """Estimate r and its standard deviation via bootstrap resampling.
+
+        The uncertainty in r̂ comes entirely from uncertainty in the logistic
+        model parameters (a, b, c), which determine θ̂_u (the contribution of
+        untested words). The contribution θ_s from tested words is an exact
+        observation, not a model estimate, so it is held fixed across bootstrap
+        iterations.
+
+        :param frequency_list: frequency list providing p_i values
+        :param n_bootstrap: number of bootstrap resamples
+        :return: (r_hat, sd_r_hat), or None if not enough data
+        """
+        total: int = frequency_list.get_all_occurrences()
+        words: list[str] = frequency_list.get_words()
+
+        tested_ranks: list[int] = []
+        tested_labels: list[int] = []
+        theta_s: float = 0.0
+
+        for rank, word in enumerate(words, start=1):
+            if not self.lexicon.has(word):
+                continue
+            p_i: float = frequency_list.get_occurrences(word) / total
+            response: LexiconResponse = self.lexicon.get(word)
+            if response == LexiconResponse.KNOW:
+                tested_ranks.append(rank)
+                tested_labels.append(0)
+            elif response == LexiconResponse.DONT:
+                tested_ranks.append(rank)
+                tested_labels.append(1)
+                theta_s += p_i
+
+        n_unknown: int = sum(tested_labels)
+        if len(tested_ranks) < 10 or n_unknown < 5:
+            return None
+
+        untested: list[tuple[int, float]] = [
+            (rank, frequency_list.get_occurrences(word) / total)
+            for rank, word in enumerate(words, start=1)
+            if not self.lexicon.has(word)
+        ]
+
+        def theta_u_from_params(a: float, b: float, c: float) -> float:
+            return sum(p_i * _predict(a, b, c, rank) for rank, p_i in untested)
+
+        # Point estimate.
+        a, b, c = _fit_logistic(tested_ranks, tested_labels)
+        theta: float = theta_s + theta_u_from_params(a, b, c)
+        if theta <= 0.0:
+            return None
+        r_hat: float = -math.log2(theta)
+
+        # Bootstrap: resample (rank, label) pairs to estimate SD of r_hat.
+        ranks_arr: np.ndarray = np.array(tested_ranks)
+        labels_arr: np.ndarray = np.array(tested_labels)
+        n: int = len(tested_ranks)
+        rng = np.random.default_rng()
+        r_boots: list[float] = []
+
+        for _ in range(n_bootstrap):
+            idx = rng.integers(0, n, size=n)
+            boot_ranks: list[int] = ranks_arr[idx].tolist()
+            boot_labels: list[int] = labels_arr[idx].tolist()
+            if not any(l == 0 for l in boot_labels) or not any(
+                l == 1 for l in boot_labels
+            ):
+                continue
+            try:
+                a_b, b_b, c_b = _fit_logistic(boot_ranks, boot_labels)
+            except Exception:
+                continue
+            theta_boot: float = theta_s + theta_u_from_params(a_b, b_b, c_b)
+            if theta_boot > 0.0:
+                r_boots.append(-math.log2(theta_boot))
+
+        if len(r_boots) < 10:
+            return None
+
+        return r_hat, float(np.std(r_boots, ddof=1))
+
+    async def check_logistic(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
+        stop_at: int | None,
+        stop_at_wrong: int | None,
+    ) -> str:
+        """Check vocabulary using logistic model with adaptive sampling.
+
+        Implements Method 2: fit a 3-parameter logistic model to the tested
+        set S, then select words that maximise variance reduction of θ̂.
+        Falls back to frequency-weighted random sampling until enough data
+        exists to fit the model.
+
+        :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: frequency list to use for word selection
+        :param stop_at: stop after this many user interactions
+        :param stop_at_wrong: stop after this many unknown words found
+        :return: exit code
+        """
+        session: LexiconLogSession = LexiconLogSession(start=datetime.now(UTC))
+        actions: int = 0
+        wrong_answers: int = 0
+        exit_code: str = "quit"
+
+        total: int = frequency_list.get_all_occurrences()
+        words: list[str] = frequency_list.get_words()
+
+        while True:
+            # Build S: collect (rank, X_i) for all tested known/unknown words.
+            tested_ranks: list[int] = []
+            tested_labels: list[int] = []
+            for rank, word in enumerate(words, start=1):
+                if not self.lexicon.has(word):
+                    continue
+                response: LexiconResponse | None = self.lexicon.get(word)
+                if response == LexiconResponse.KNOW:
+                    tested_ranks.append(rank)
+                    tested_labels.append(0)
+                elif response == LexiconResponse.DONT:
+                    tested_ranks.append(rank)
+                    tested_labels.append(1)
+
+            # Fit model when S has enough data with both classes present.
+            params: tuple[float, float, float] | None = None
+            n_unknown: int = sum(tested_labels)
+            if len(tested_ranks) >= 10 and n_unknown >= 5:
+                params = _fit_logistic(tested_ranks, tested_labels)
+
+            estimate: str = "r"  # "r", "sd", or "none".
+
+            # Select next word to test.
+            picked_word: str | None = None
+            picked_rank: int | None = None
+
+            if params is not None:
+                a, b, c = params
+                logger.info(
+                    "model: a=%.3f b=%.3f | "
+                    "π(1)=%.3f π(100)=%.3f π(1000)=%.3f π(10000)=%.3f",
+                    a,
+                    b,
+                    _predict(a, b, c, 1),
+                    _predict(a, b, c, 100),
+                    _predict(a, b, c, 1000),
+                    _predict(a, b, c, 10000),
+                )
+                if estimate == "r" and (
+                    r := self.estimate_r(frequency_list, a, b, c)
+                ):
+                    logger.info("r = %.2f", r)
+                elif estimate == "sd" and (
+                    r_and_sd := self.estimate_r_with_sd(frequency_list)
+                ):
+                    r_hat, sd = r_and_sd
+                    logger.info("r = %.2f ± %.2f", r_hat, sd)
+                best_score: float = -1.0
+                for rank, word in enumerate(words, start=1):
+                    if self.lexicon.has(word):
+                        continue
+                    p_i: float = frequency_list.get_occurrences(word) / total
+                    pi_i: float = _predict(a, b, c, rank)
+                    score: float = p_i**2 * pi_i * (1.0 - pi_i)
+                    if score > best_score:
+                        best_score = score
+                        picked_word = word
+                        picked_rank = rank
+            else:
+                # Not enough data yet: fall back to frequency-weighted random.
+                logger.info("Fall back to frequency-weighted random.")
+                picked_word, _ = frequency_list.get_random_word_by_frequency()
+
+            if picked_word is None:
+                break
+
+            if self.do_skip(picked_word, other_lexicons):
+                continue
+
+            if picked_rank:
+                logger.info("Rank (i*): %d.", picked_rank)
 
             _, response, _ = await self.ask(picked_word)
             actions += 1

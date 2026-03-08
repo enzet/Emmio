@@ -17,6 +17,7 @@ from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
+from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import Lexicon, LexiconChecker
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
@@ -148,7 +149,7 @@ class Emmio:
         learn_parser.add_argument("topic", nargs="?")
 
         lexicon_parser = subparsers.add_parser("lexicon", help="check lexicon")
-        lexicon_parser.add_argument("language", nargs="?")
+        lexicon_parser.add_argument("id", nargs="?")
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
         stat_parser.add_argument(
@@ -375,14 +376,11 @@ class Emmio:
                 x
                 for x in self.user_data.get_lexicons()
                 if x.get_precision_per_week()
-                and (
-                    not arguments.language
-                    or x.language.get_code() in arguments.language
-                )
+                and (not arguments.id or x.id_ == arguments.id)
             ]
             if not lexicons:
                 self.interface.print(
-                    f"No lexicons found for `{arguments.language}`."
+                    f"No `{arguments.language}` lexicon found."
                 )
                 return
             await self.run_lexicon(
@@ -595,13 +593,21 @@ class Emmio:
                 self.data.get_sentences_data(),
                 lexicon.config.sentences,
             )
-            await checker.check(
-                other_lexicons,
-                frequency_list,
-                None,
-                "frequency",
-                need,
-            )
+            if lexicon.config.selection == LexiconSelection.FREQUENCY:
+                await checker.check(
+                    other_lexicons,
+                    frequency_list,
+                    None,
+                    "frequency",
+                    need,
+                )
+            elif lexicon.config.selection == LexiconSelection.LOGISTIC:
+                await checker.check_logistic(
+                    other_lexicons,
+                    frequency_list,
+                    None,
+                    None,
+                )
             break
 
     async def learn(self, learnings: list[Learning]) -> None:

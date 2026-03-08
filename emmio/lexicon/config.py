@@ -37,6 +37,9 @@ class LexiconSelection(Enum):
     FREQUENCY = "frequency"
     """Words were picked from the specified frequency list."""
 
+    LOGISTIC = "logistic"
+    """Select next word based on logistic method."""
+
     UNKNOWN = "unknown"
     """Selection is unknown."""
 
