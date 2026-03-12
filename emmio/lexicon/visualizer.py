@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import matplotlib
+import matplotlib as mpl
 from colour import Color
 from matplotlib import dates as mdates
 from matplotlib import pyplot as plt
@@ -20,6 +20,7 @@ from emmio.ui import Interface
 from emmio.util import plus_week, week_start, year_end, year_start
 
 DEFAULT_LEXICON_GRAPH: str = "lexicon.svg"
+DEFAULT_LEXICON_TIKZ: str = "lexicon.tex"
 
 
 @dataclass
@@ -91,7 +92,7 @@ class LexiconVisualizer:
         :param margin: do not show languages that never had rate over the margin
         """
         font: dict[str, float] = {"size": 8.0}
-        matplotlib.rc("font", **font)
+        mpl.rc("font", **font)
 
         fig, ax = plt.subplots()
         locator: mdates.YearLocator = mdates.YearLocator()
@@ -301,6 +302,87 @@ class LexiconVisualizer:
             "Graph saved to "
             f"`{(self.output_path / DEFAULT_LEXICON_GRAPH).absolute()}`."
         )
+
+    def graph_with_tikz(
+        self,
+        lexicons: dict[Language, list[Lexicon]],
+        margin: float | None = None,
+    ) -> None:
+        r"""Plot lexicon rate change through time into a pgfplots TikZ file.
+
+        Generates a standalone ``tikzpicture`` environment that can be
+        ``\input``-ted directly into a LaTeX document. Each language is
+        rendered as a coloured line and added to the legend.
+
+        :param lexicons: mapping of languages to lexicons
+        :param margin: do not show languages that never had rate over the margin
+        """
+        x_min, x_max, lexicon_data = self.construct_lexicon_data(
+            lexicons, margin
+        )
+        if not x_min or not x_max:
+            return
+
+        color_defs: list[str] = []
+        plots: list[str] = []
+
+        for data_range in lexicon_data:
+            ys = [
+                sum(y_range) / len(y_range) for y_range in data_range.y_ranges
+            ]
+            color = data_range.language.get_color()
+            lang_id = data_range.language.code  # safe 2-letter identifier
+            name = data_range.language.get_name()
+
+            r = round(color.red * 255)
+            g = round(color.green * 255)
+            b = round(color.blue * 255)
+            color_defs.append(
+                f"\\definecolor{{lang{lang_id}}}{{RGB}}{{{r},{g},{b}}}"
+            )
+
+            coords = " ".join(
+                f"({x.strftime('%Y-%m-%d')},{y:.4f})"
+                for x, y in zip(data_range.xs, ys, strict=True)
+            )
+            plots.append(
+                f"\\addplot[color=lang{lang_id},thick,line width=0.8pt]"
+                f" coordinates {{{coords}}};\n"
+                f"\\addlegendentry{{{name}}}"
+            )
+
+        year_ticks = ",".join(
+            f"{y}-01-01" for y in range(x_min.year, x_max.year + 1)
+        )
+        tex = "\n".join(
+            [
+                *color_defs,
+                r"\begin{tikzpicture}",
+                r"\begin{axis}[",
+                r"    date coordinates in=x,",
+                r"    xticklabel={\year},",
+                f"    xtick={{{year_ticks}}},",
+                r"    ymin=0, ymax=1,",
+                r"    ytick={0,0.2,0.4,0.6,0.8,1.0},",
+                r"    yticklabel={\pgfmathprintnumber{\tick}},",
+                r"    width=\linewidth,",
+                r"    height=6cm,",
+                r"    axis lines=left,",
+                r"    xlabel={Year},",
+                r"    ylabel={Vocabulary level},",
+                r"    legend style={at={(1.02,1)},anchor=north west,draw=none},",
+                r"    legend cell align=left,",
+                r"    clip=false,",
+                r"]",
+                *plots,
+                r"\end{axis}",
+                r"\end{tikzpicture}",
+            ]
+        )
+
+        output_file = self.output_path / DEFAULT_LEXICON_TIKZ
+        output_file.write_text(tex, encoding="utf-8")
+        self.interface.print(f"TikZ graph saved to `{output_file.absolute()}`.")
 
     def get_lexicon_range_data(
         self,

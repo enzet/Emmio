@@ -190,7 +190,7 @@ class Emmio:
             "--margin", "-m", default=None, type=float, help="minimum Y value"
         )
         plot_lexicon_parser.add_argument(
-            "--svg", "-s", action=argparse.BooleanOptionalAction
+            "--type", choices=["svg", "matplot", "tikz"]
         )
         plot_lexicon_parser.add_argument(
             "--languages",
@@ -387,7 +387,8 @@ class Emmio:
                 sorted(
                     lexicons,
                     key=lambda lexicon: -lexicon.get_last_rate_number(),
-                )
+                ),
+                arguments.type,
             )
 
         # Command `stat`.
@@ -558,7 +559,9 @@ class Emmio:
             Table(["Language", "Need", "Rate", "Year change"], rows)
         )
 
-    async def run_lexicon(self, lexicons: list[Lexicon]) -> None:
+    async def run_lexicon(
+        self, lexicons: list[Lexicon], lexicon_type: str
+    ) -> None:
         """Check user vocabulary."""
 
         for lexicon in lexicons:
@@ -593,21 +596,13 @@ class Emmio:
                 self.data.get_sentences_data(),
                 lexicon.config.sentences,
             )
-            if lexicon.config.selection == LexiconSelection.FREQUENCY:
-                await checker.check(
-                    other_lexicons,
-                    frequency_list,
-                    None,
-                    "frequency",
-                    need,
-                )
-            elif lexicon.config.selection == LexiconSelection.LOGISTIC:
-                await checker.check_logistic(
-                    other_lexicons,
-                    frequency_list,
-                    None,
-                    None,
-                )
+            await checker.check_frequency(
+                other_lexicons,
+                frequency_list,
+                None,
+                lexicon_type,
+                need,
+            )
             break
 
     async def learn(self, learnings: list[Learning]) -> None:
@@ -761,18 +756,23 @@ class Emmio:
         if arguments.color:
             colors = [Color(color) for color in arguments.color]
 
-        if arguments.svg:
-            lexicon_visualizer.graph_with_svg(
-                lexicons,
-                arguments.margin,
-                colors,
-                Color(arguments.background_color),
-                Color(arguments.grid_color),
-            )
-        else:
-            lexicon_visualizer.graph_with_matplot(
-                lexicons, legend=arguments.legend, margin=arguments.margin
-            )
+        match arguments.type:
+            case "tikz":
+                lexicon_visualizer.graph_with_tikz(
+                    lexicons, margin=arguments.margin
+                )
+            case "matplot":
+                lexicon_visualizer.graph_with_matplot(
+                    lexicons, legend=arguments.legend, margin=arguments.margin
+                )
+            case _:
+                lexicon_visualizer.graph_with_svg(
+                    lexicons,
+                    arguments.margin,
+                    colors,
+                    Color(arguments.background_color),
+                    Color(arguments.grid_color),
+                )
 
     def plot_actions(self, arguments: argparse.Namespace) -> None:
         """Plot actions."""
