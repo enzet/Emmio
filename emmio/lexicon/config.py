@@ -40,6 +40,10 @@ class LexiconSelection(Enum):
     LOGISTIC = "logistic"
     """Select next word based on logistic method."""
 
+    THRESHOLD = "threshold"
+
+    STRATIFIED = "stratified"
+
     UNKNOWN = "unknown"
     """Selection is unknown."""
 
@@ -59,10 +63,10 @@ class LexiconConfig(BaseModel):
     frequency_list: ListUsageConfig | None = None
     """Frequency list used to check lexicon."""
 
-    dictionaries: list[DictionaryUsageConfig] = []
+    dictionaries: list[DictionaryUsageConfig] | None = None
     """Dictionary usage configurations."""
 
-    sentences: list[SentencesUsageConfig] = []
+    sentences: list[SentencesUsageConfig] | None = None
     """Sentences configurations."""
 
     precision_per_week: int = 0

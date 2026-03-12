@@ -540,7 +540,9 @@ class Lexicon(UserArtifact):
         # If user had no interaction with the word, print the reason it was
         # registered.
         if not answer_type.is_user_answer():
-            interface.print(Colorized(f"[{answer_type}] {word}", "#AAAAAA"))
+            interface.print(
+                Colorized(f"[{answer_type}] {response} {word}", "#AAAAAA")
+            )
 
     def has(self, word: str) -> bool:
         """Check whether there is a response in at least one log."""
@@ -883,6 +885,36 @@ class LexiconChecker:
         self,
         other_lexicons: list["Lexicon"],
         frequency_list: FrequencyList,
+        stop_at_wrong: int | None,
+    ):
+        """Check lexicon."""
+        if self.lexicon.config.selection == LexiconSelection.FREQUENCY:
+            await self.check_frequency(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                log_type="frequency",
+                stop_at_wrong=stop_at_wrong,
+            )
+        elif self.lexicon.config.selection == LexiconSelection.LOGISTIC:
+            await self.check_logistic(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                stop_at_wrong=stop_at_wrong,
+            )
+        elif self.lexicon.config.selection == LexiconSelection.STRATIFIED:
+            await self.check_stratified(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                stop_at_wrong=stop_at_wrong,
+            )
+
+    async def check_frequency(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
         stop_at: int | None,
         log_type: str,
         stop_at_wrong: int | None,
@@ -1133,7 +1165,8 @@ class LexiconChecker:
         words: list[str] = frequency_list.get_words()
 
         while True:
-            # Build S: collect (rank, X_i) for all tested known/unknown words.
+            # Build S: collect tested (rank, label) pairs, label=1 if unknown.
+            unknown_ranks: list[int] = []
             tested_ranks: list[int] = []
             tested_labels: list[int] = []
             for rank, word in enumerate(words, start=1):
@@ -1146,44 +1179,39 @@ class LexiconChecker:
                 elif response == LexiconResponse.DONT:
                     tested_ranks.append(rank)
                     tested_labels.append(1)
+                    unknown_ranks.append(rank)
 
-            # Fit model when S has enough data with both classes present.
+            # Fit logistic model when there is enough data.
             params: tuple[float, float, float] | None = None
-            n_unknown: int = sum(tested_labels)
-            if len(tested_ranks) >= 10 and n_unknown >= 5:
+            if len(unknown_ranks) >= 5 and len(tested_ranks) >= 10:
                 params = _fit_logistic(tested_ranks, tested_labels)
+                a, b, c = params
+                logger.info(
+                    "model: a=%.3f b=%.3f i*=%.0f | "
+                    "π(1k)=%.3f π(10k)=%.3f π(100k)=%.3f",
+                    a,
+                    b,
+                    math.exp(-b / a),
+                    _predict(a, b, c, 1_000),
+                    _predict(a, b, c, 10_000),
+                    _predict(a, b, c, 100_000),
+                )
+                if r_val := self.estimate_r(frequency_list, a, b, c):
+                    logger.info("r = %.2f", r_val)
 
-            estimate: str = "r"  # "r", "sd", or "none".
-
-            # Select next word to test.
+            # Select next word.
+            untested: list[tuple[int, str]] = [
+                (rank, word)
+                for rank, word in enumerate(words, start=1)
+                if not self.lexicon.has(word)
+            ]
             picked_word: str | None = None
             picked_rank: int | None = None
 
             if params is not None:
-                a, b, c = params
-                logger.info(
-                    "model: a=%.3f b=%.3f | "
-                    "π(1)=%.3f π(100)=%.3f π(1000)=%.3f π(10000)=%.3f",
-                    a,
-                    b,
-                    _predict(a, b, c, 1),
-                    _predict(a, b, c, 100),
-                    _predict(a, b, c, 1000),
-                    _predict(a, b, c, 10000),
-                )
-                if estimate == "r" and (
-                    r := self.estimate_r(frequency_list, a, b, c)
-                ):
-                    logger.info("r = %.2f", r)
-                elif estimate == "sd" and (
-                    r_and_sd := self.estimate_r_with_sd(frequency_list)
-                ):
-                    r_hat, sd = r_and_sd
-                    logger.info("r = %.2f ± %.2f", r_hat, sd)
+                # Exploit: pick the untested word with highest score.
                 best_score: float = -1.0
-                for rank, word in enumerate(words, start=1):
-                    if self.lexicon.has(word):
-                        continue
+                for rank, word in untested:
                     p_i: float = frequency_list.get_occurrences(word) / total
                     pi_i: float = _predict(a, b, c, rank)
                     score: float = p_i**2 * pi_i * (1.0 - pi_i)
@@ -1192,18 +1220,21 @@ class LexiconChecker:
                         picked_word = word
                         picked_rank = rank
             else:
-                # Not enough data yet: fall back to frequency-weighted random.
-                logger.info("Fall back to frequency-weighted random.")
-                picked_word, _ = frequency_list.get_random_word_by_frequency()
+                # Explore: log-uniform random rank until model is ready.
+                if untested:
+                    max_rank: int = untested[-1][0]
+                    target: int = max(1, int(max_rank ** random.random()))
+                    picked_rank, picked_word = min(
+                        untested, key=lambda rw: abs(rw[0] - target)
+                    )
 
             if picked_word is None:
                 break
 
+            logger.info("picked rank: %d", picked_rank)
+
             if self.do_skip(picked_word, other_lexicons):
                 continue
-
-            if picked_rank:
-                logger.info("Rank (i*): %d.", picked_rank)
 
             _, response, _ = await self.ask(picked_word)
             actions += 1
@@ -1214,6 +1245,142 @@ class LexiconChecker:
                 self.interface.print(element)
 
             if not response:
+                exit_code = "quit"
+                break
+
+            if stop_at and actions >= stop_at:
+                exit_code = "limit"
+                break
+
+            if stop_at_wrong and wrong_answers >= stop_at_wrong:
+                exit_code = "limit"
+                break
+
+        session.end_session(datetime.now(UTC))
+        self.lexicon.log.sessions.append(session)
+        self.lexicon.write()
+
+        return exit_code
+
+    async def check_stratified(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
+        stop_at: int | None,
+        stop_at_wrong: int | None,
+        n_strata: int = 10,
+    ) -> str:
+        """Check vocabulary using stratified frequency-weighted random sampling.
+
+        Implements SFWR: divides the frequency list into K log-uniform strata
+        B_k = {i : N^((k-1)/K) <= rank < N^(k/K)} and samples adaptively,
+        always querying the stratum with the highest current variance
+        contribution P_k^2 * theta_k * (1 - theta_k).
+
+        Within each stratum theta_k is estimated as the frequency-weighted
+        proportion of unknown words among tested words; strata with no tested
+        words use a 0.5 prior.  The combined estimator is the
+        Horvitz-Thompson estimate theta = sum_k P_k * theta_k.
+
+        :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: frequency list used for word selection
+        :param stop_at: stop after this many user interactions
+        :param stop_at_wrong: stop after this many unknown words found
+        :param n_strata: number of log-uniform strata K
+        :return: exit code
+        """
+        session: LexiconLogSession = LexiconLogSession(start=datetime.now(UTC))
+        actions: int = 0
+        wrong_answers: int = 0
+        exit_code: str = "quit"
+
+        total: int = frequency_list.get_all_occurrences()
+        words: list[str] = frequency_list.get_words()
+        n: int = len(words)
+
+        if n == 0:
+            return exit_code
+
+        def stratum_of(rank: int) -> int:
+            """Map a 1-based rank to a stratum index in [0, n_strata)."""
+            k = int(n_strata * math.log(rank) / math.log(n))
+            return min(max(k, 0), n_strata - 1)
+
+        while True:
+            stratum_p_total: list[float] = [0.0] * n_strata
+            stratum_p_unknown: list[float] = [0.0] * n_strata
+            stratum_p_tested: list[float] = [0.0] * n_strata
+            untested_by_stratum: list[list[tuple[int, str]]] = [
+                [] for _ in range(n_strata)
+            ]
+
+            for rank, word in enumerate(words, start=1):
+                k: int = stratum_of(rank)
+                p_i: float = frequency_list.get_occurrences(word) / total
+                stratum_p_total[k] += p_i
+                if self.lexicon.has(word):
+                    known: LexiconResponse | None = self.lexicon.get(word)
+                    if known in (LexiconResponse.KNOW, LexiconResponse.DONT):
+                        stratum_p_tested[k] += p_i
+                        if known == LexiconResponse.DONT:
+                            stratum_p_unknown[k] += p_i
+                else:
+                    untested_by_stratum[k].append((rank, word))
+
+            # Estimate theta_k for each stratum.
+            theta_k: list[float] = [
+                stratum_p_unknown[k] / stratum_p_tested[k]
+                if stratum_p_tested[k] > 0.0
+                else 0.5
+                for k in range(n_strata)
+            ]
+
+            # Compute combined estimator and log it.
+            theta: float = sum(
+                stratum_p_total[k] * theta_k[k] for k in range(n_strata)
+            )
+            if theta > 0.0:
+                logger.info(
+                    "r = %.2f | theta_k: %s",
+                    -math.log2(theta),
+                    " ".join(f"{theta_k[k]:.2f}" for k in range(n_strata)),
+                )
+
+            # Pick stratum with max variance contribution among those with
+            # untested words.
+            best_k: int | None = None
+            best_score: float = -1.0
+            for k in range(n_strata):
+                if not untested_by_stratum[k]:
+                    continue
+                score: float = (
+                    stratum_p_total[k] ** 2 * theta_k[k] * (1.0 - theta_k[k])
+                )
+                if score > best_score:
+                    best_score = score
+                    best_k = k
+
+            if best_k is None:
+                break  # All words tested.
+
+            # Within the stratum, pick the highest-frequency untested word.
+            picked_rank, picked_word = min(
+                untested_by_stratum[best_k], key=lambda rw: rw[0]
+            )
+            logger.info("stratum %d, picked rank %d", best_k, picked_rank)
+
+            if self.do_skip(picked_word, other_lexicons):
+                continue
+
+            _, answer, _ = await self.ask(picked_word)
+            actions += 1
+            if answer == LexiconResponse.DONT:
+                wrong_answers += 1
+
+            for element in self.lexicon.get_statistics():
+                self.interface.print(element)
+
+            if not answer:
                 exit_code = "quit"
                 break
 

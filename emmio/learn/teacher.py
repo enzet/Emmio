@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import (
     Dictionary,
@@ -15,6 +16,7 @@ from emmio.language import Language
 from emmio.learn.config import ActionType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
+from emmio.lists.core import List
 from emmio.sentence.core import (
     SentenceAndTranslations,
     SentenceElement,
@@ -23,9 +25,7 @@ from emmio.sentence.core import (
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
 
-if TYPE_CHECKING:
-    from emmio.audio.core import AudioCollection
-    from emmio.lists.core import List
+logger: logging.Logger = logging.getLogger(__name__)
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -114,13 +114,6 @@ class Teacher:
         self.dictionaries: DictionaryCollection = data.get_dictionaries(
             self.learning.config.dictionaries
         )
-        self.sentences: SentencesCollection
-        if self.learning.config.sentences:
-            self.sentences = data.get_sentences_collection(
-                self.learning.config.sentences
-            )
-        else:
-            self.sentences = SentencesCollection([])
         self.audio: AudioCollection = data.get_audio_collection(
             self.learning.config.audio
         )
@@ -132,7 +125,7 @@ class Teacher:
         for question_id, list_, index in self.question_ids[
             self.question_index :
         ]:
-            logging.info("%dth word from `%s`.", index, list_.get_name())
+            logger.info("%dth word from `%s`.", index, list_.get_name())
             self.question_index += 1
 
             good_question_id: bool = await self.check_question_id(question_id)
@@ -151,9 +144,9 @@ class Teacher:
         """
         if self.learning.has(question_id):
             if self.learning.is_initially_known(question_id):
-                logging.info("Was initially known")
+                logger.info("Was initially known")
             else:
-                logging.info("Already learning")
+                logger.info("Already learning")
             return False
 
         if self.check_lexicons:
@@ -162,12 +155,13 @@ class Teacher:
                     check_lexicon.has(question_id)
                     and check_lexicon.get(question_id) != LexiconResponse.DONT
                 ):
-                    logging.info("Known in lexicon")
+                    logger.info("Known in lexicon")
                     return False
 
-        if self.dictionaries_to_check.dictionaries:
-            if not self.check_common(question_id):
-                return False
+        if self.dictionaries_to_check.dictionaries and not self.check_common(
+            question_id
+        ):
+            return False
 
         return await self.check2(question_id)
 
@@ -176,7 +170,7 @@ class Teacher:
 
         :param question_id: question identifier
         """
-        # TODO: rename.
+        # TODO(enzet): rename.
         # Check user lexicon. Skip the word if it was mark as known by user
         # while checking lexicon. This should be done after checking
         # definitions in dictionary, because if user answer is "no", the
@@ -187,11 +181,11 @@ class Teacher:
                     continue
 
                 if check_lexicon.get(question_id) != LexiconResponse.DONT:
-                    logging.info("Known in lexicon")
+                    logger.info("Known in lexicon")
                     return False
 
-                logging.info("Lexicon response was DONT KNOW")
-                # FIXME: user response may be DONT KNOW, but the word is
+                logger.info("Lexicon response was DONT KNOW")
+                # TODO(enzet): user response may be DONT KNOW, but the word is
                 #     still may be just a form or not common, so we don't
                 #     want to learn it.
                 return True
@@ -208,13 +202,13 @@ class Teacher:
                 return False
 
             if response == LexiconResponse.DONT:
-                logging.info("Lexicon response was DONT KNOW")
+                logger.info("Lexicon response was DONT KNOW")
                 return True
 
-            logging.info("Lexicon response was KNOW")
+            logger.info("Lexicon response was KNOW")
             return False
 
-        logging.info("Nothing is known about the word")
+        logger.info("Nothing is known about the word")
         return True
 
     async def check_common(self, question_id: str) -> bool:
@@ -231,7 +225,7 @@ class Teacher:
 
         # Skip word if current dictionaries has no definitions for it.
         if not items:
-            logging.info("No definition")
+            logger.info("No definition")
             return False
 
         # Skip word if it is known that it is solely a form of other words.
@@ -247,7 +241,7 @@ class Teacher:
                     not_common = True
                     break
         if not_common:
-            logging.info("Not common")
+            logger.info("Not common")
             return False
 
         return True
@@ -500,9 +494,7 @@ class Teacher:
 
         index: int = 0
         rated_sentences: list[tuple[float, SentenceTranslations]] = (
-            self.sentences.filter_by_word_and_rate(
-                word, self.user_data.is_known, ids_to_skip, 120
-            )
+            self.data.get_sentences_data().get(word, self.user_data.get_confi)
         )
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
