@@ -1,11 +1,11 @@
 """Test `stat actions` command."""
 
-from pytest import CaptureFixture
+import pytest
 
 from tests.test_command_line.test_core import HEADER, check_main, initialize
 
 
-def test_stat_actions(capsys: CaptureFixture[str]) -> None:
+def test_stat_actions(capsys: pytest.CaptureFixture[str]) -> None:
     """Test simplest possible `stat actions` command."""
 
     initialize()

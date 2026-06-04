@@ -3,7 +3,7 @@
 import json
 from textwrap import dedent
 
-from pytest import CaptureFixture
+import pytest
 
 from tests.test_command_line.test_core import (
     DICTIONARY_NB_EN,
@@ -14,7 +14,7 @@ from tests.test_command_line.test_core import (
 )
 
 
-def test_existing_user_empty_data(capsys: CaptureFixture[str]) -> None:
+def test_existing_user_empty_data(capsys: pytest.CaptureFixture[str]) -> None:
     """Test that existing user is loaded with empty data."""
 
     initialize(

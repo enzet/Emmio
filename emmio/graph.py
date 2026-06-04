@@ -4,7 +4,7 @@ import logging
 import random
 from collections import defaultdict
 from collections.abc import Callable, Iterator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from matplotlib import dates as mdates
@@ -14,13 +14,14 @@ from tqdm import tqdm
 from emmio import util
 from emmio.language import Language
 from emmio.learn.core import Knowledge, Learning, LearningRecord, Response
-from emmio.learn.visualizer import DEPTH_COLORS  # type: ignore
+from emmio.learn.visualizer import DEPTH_COLORS
 from emmio.lexicon.core import AnswerType, Lexicon, LexiconLogRecord
+from emmio.util import day_start
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-from emmio.util import day_start
+logger: logging.Logger = logging.getLogger(__name__)
 
 HATCHES: list[str] = [x + x for x in ".oO/\\|-+x*"]
 
@@ -31,7 +32,7 @@ class Visualizer:
     interactive: bool
     """Whether to show the graph interactively."""
 
-    def __init__(self, interactive: bool = True):
+    def __init__(self, *, interactive: bool = True) -> None:
         self.interactive: bool = interactive
 
     def plot(self) -> None:
@@ -46,10 +47,8 @@ class Visualizer:
 
         x: list[datetime] = []
         y: list[int] = []
-        count_learning: int = 0
-        for record, _ in records:
-            # FIXME: check if the record is a learning record.
-            count_learning += 1
+        for count_learning, (record, _) in enumerate(records, start=1):
+            # TODO(enzet): check if the record is a learning record.
             x.append(record.time)
             y.append(count_learning)
         plt.plot(mdates.date2num(x), y, color="black", linewidth=1)
@@ -61,6 +60,7 @@ class Visualizer:
         lexicons: list[Lexicon],
         point: Callable[[datetime], datetime],
         width: float,
+        *,
         by_language: bool = False,
     ) -> None:
         """Show the graph of cumulative learning actions."""
@@ -85,7 +85,7 @@ class Visualizer:
                     point(learning_record.time)
                 ] += 1
             elif learning_record.interval:  # type: ignore
-                # FIXME: rewrite interval computing.
+                # TODO(enzet): rewrite interval computing.
                 days: float = (
                     learning_record.interval.total_seconds()  # type: ignore
                     / 60
@@ -107,11 +107,10 @@ class Visualizer:
                     and (lexicon_record.time - last_record.time).total_seconds()
                     > 0
                 ):
-                    if not by_language:
-                        if lexicon.is_frequency():
-                            data[0][point(lexicon_record.time)] += 1
-                        else:
-                            data[1][point(lexicon_record.time)] += 1
+                    if not by_language and lexicon.is_frequency():
+                        data[0][point(lexicon_record.time)] += 1
+                    elif not by_language:
+                        data[1][point(lexicon_record.time)] += 1
                 last_record = lexicon_record
 
         keys: set[datetime] = set()
@@ -121,10 +120,7 @@ class Visualizer:
         xs: list[datetime] = sorted(keys)
         categories: list[str | int]
 
-        if by_language:
-            categories = list(data.keys())
-        else:
-            categories = list(range(size))
+        categories = list(data.keys()) if by_language else list(range(size))
 
         for category in categories:
             for x in xs:
@@ -135,7 +131,6 @@ class Visualizer:
             if by_language:
                 language = Language.from_code(str(i))
                 color = util.get_color(str(i))
-                # color = language.get_color().hex
                 label = language.get_name()
             elif i == 0:  # log
                 color = "#E8F0F8"
@@ -147,11 +142,10 @@ class Visualizer:
                 color = DEPTH_COLORS[int(i) + 1 - 2]
                 label = f"Learning level {int(i) + 1 - 2}"
 
-            ys: list[float] = []
-            for x in xs:
-                ys.append(
-                    sum(data[categories[y]][x] for y in range(index, size))
-                )
+            ys: list[float] = [
+                sum(data[categories[y]][x] for y in range(index, size))
+                for x in xs
+            ]
 
             if np.any(ys):
                 plt.bar(
@@ -192,21 +186,23 @@ class Visualizer:
 
         records: list[tuple[str, LearningRecord]] = []
 
-        for learning in learnings:
-            for record in learning.process.records:
-                records.append((learning.learning_language.get_code(), record))
+        records.extend(
+            (learning.learning_language.get_code(), record)
+            for learning in learnings
+            for record in learning.process.records
+        )
 
         records = sorted(records, key=lambda record: record[1].time)
 
         x_list: list[datetime] = [x.time for _, x in records]
         min_x: datetime = min(x_list)
-        max_x: datetime = util.day_start(datetime.now())
+        max_x: datetime = util.day_start(datetime.now(UTC))
         days: int = int((max_x - min_x).total_seconds() / 3600 / 24)
 
         points: list[datetime] = [
             util.day_start(min_x) + timedelta(days=i) for i in range(days + 2)
-        ] + [datetime.now()]
-        logging.info("Construct %d days...", days + 2)
+        ] + [datetime.now(UTC)]
+        logger.info("Construct %d days...", days + 2)
 
         # Mapping: learning id -> last learning record.
         knowledge: dict[str, Knowledge] = {}
@@ -261,14 +257,16 @@ class Visualizer:
                     values_l[id_.split("///")[0]] += 0.0
             for coef, value_map in values_map.items():
                 value_map.append(values_c[coef])
-            for id_ in values_language:
-                values_language[id_].append(values_l[id_])
+            for id_, lang_vals in values_language.items():
+                lang_vals.append(values_l[id_])
             values_total.append(
                 len([x for x in knowledge.values() if x.is_learning()])
             )
 
         values_map_bad = {
-            pr: [v1 - v2 for v1, v2 in zip(value_map, values_total)]
+            pr: [
+                v1 - v2 for v1, v2 in zip(value_map, values_total, strict=False)
+            ]
             for pr, value_map in values_map.items()
         }
 
@@ -287,7 +285,9 @@ class Visualizer:
                 [-x * coef for x in values_total],
                 [
                     min(x, -y * 0.2)
-                    for x, y in zip(values_map_bad[0.2], values_total)
+                    for x, y in zip(
+                        values_map_bad[0.2], values_total, strict=False
+                    )
                 ],
                 hatch=hatch,
                 color="none",
@@ -310,7 +310,9 @@ class Visualizer:
             color = language.get_random_color()
             color = language.get_color().hex
             title = language.get_name()
-            new_total = [x + y for x, y in zip(language_data, total)]
+            new_total = [
+                x + y for x, y in zip(language_data, total, strict=False)
+            ]
             plt.fill_between(
                 [mdates.date2num(z) for z in xs],
                 total,
@@ -349,7 +351,7 @@ class Visualizer:
                     index += 1
                 data[record.time] = indices[id_]
         x: list[datetime] = sorted(data.keys())
-        y: list[int] = list(map(lambda z: data[z], x))
+        y: list[int] = [data[z] for z in x]
         plt.plot(
             [mdates.date2num(z) for z in x],
             y,
@@ -369,7 +371,7 @@ class Visualizer:
                 time = learning.get_next_time(record)
                 data[time] = random.random()  # time.hour * 60 + time.minute
         x: list[datetime] = sorted(data.keys())
-        y: list[float] = list(map(lambda z: data[z], x))
+        y: list[float] = [data[z] for z in x]
         plt.plot(
             [mdates.date2num(z) for z in x],
             y,
@@ -383,9 +385,9 @@ class Visualizer:
         """Show the graph of mistakes."""
 
         for learning in learnings:
-            records: list[tuple[str, LearningRecord]] = []
-            for record in learning.process.records:
-                records.append((learning.id_, record))
+            records: list[tuple[str, LearningRecord]] = [
+                (learning.id_, record) for record in learning.process.records
+            ]
 
             size: int = 10
             xs = range(size)

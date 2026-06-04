@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from colour import Color
 from iso639 import Lang as ISO639Language
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -73,7 +76,7 @@ class Language:
             if code == language.get_code():
                 return language
 
-        raise LanguageNotFound(code)
+        raise LanguageNotFoundError(code)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Language):
@@ -143,9 +146,8 @@ class Language:
     def is_word(self, word: str) -> bool:
         """Check if the word is valid in the language."""
         if not self.has_symbols():
-            raise ValueError(
-                f"Language `{self.get_code()}` does not have symbols."
-            )
+            msg = f"Language `{self.get_code()}` does not have symbols."
+            raise ValueError(msg)
         return all(self.has_symbol(c) for c in word)
 
     def normalize(self, word: str) -> str:
@@ -209,7 +211,7 @@ KANJI: str = (
     + letter_range("一", "鿋")
     + letter_range("豈", "頻")
 )
-ARABIC_LETTERS: str = letter_range("\u0620", "\u06ff")  # FIXME: check.
+ARABIC_LETTERS: str = letter_range("\u0620", "\u06ff")  # TODO(enzet): check.
 KOREAN_LETTERS: str = letter_range("\u1100", "\u11ff") + letter_range(
     "\uac00", "\ud7a3"
 )
@@ -419,7 +421,7 @@ def decode_latin(text: str) -> str:
 
 
 @dataclass
-class LanguageNotFound(ValueError):
+class LanguageNotFoundError(ValueError):
     """Language with the given code was not found."""
 
     code: str

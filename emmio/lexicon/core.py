@@ -344,11 +344,11 @@ class LexiconLog(BaseModel):
     sessions: list[LexiconLogSession] = []
     """Sessions in which lexicon was checked."""
 
-    def model_dump_json(self, *args: Any, **kwargs: Any) -> str:  # noqa: ANN401
+    def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
         """Serialize to JSON string.
 
-        TODO: This field order is such for historical reasons. We should change
-            it in the future.
+        TODO(enzet): this field order is such for historical reasons. We should
+        change it in the future.
         """
         order: list[str] = [
             "word",
@@ -680,9 +680,7 @@ class Lexicon(UserArtifact):
                 word, sentences_usage_configs
             )
         ):
-            sentence: Sentence = random.choice(  # noqa: S311
-                sentence_translations
-            ).sentence
+            sentence: Sentence = random.choice(sentence_translations).sentence
             splitted: list[tuple[str, SentenceElement]] = sentence.get_words(
                 self.language
             )
@@ -714,7 +712,7 @@ class Lexicon(UserArtifact):
         )
 
         result: list[Element] = []
-        if precision < 100:  # noqa: PLR2004
+        if precision < 100:
             result.append(Text(f"Precision: {precision:.2f}"))
             result.append(Text(f"Rate so far is: {rate_string}"))
         else:
@@ -1130,8 +1128,8 @@ class LexiconChecker:
             idx = rng.integers(0, n, size=n)
             boot_ranks: list[int] = cast("list[int]", ranks_arr[idx].tolist())
             boot_labels: list[int] = cast("list[int]", labels_arr[idx].tolist())
-            if not any(l == 0 for l in boot_labels) or not any(
-                l == 1 for l in boot_labels
+            if not any(label == 0 for label in boot_labels) or not any(
+                label == 1 for label in boot_labels
             ):
                 continue
             try:
@@ -1236,7 +1234,7 @@ class LexiconChecker:
             # Explore: log-uniform random rank until model is ready.
             elif untested:
                 max_rank: int = untested[-1][0]
-                target: int = max(1, int(max_rank ** random.random()))  # noqa: S311
+                target: int = max(1, int(max_rank ** random.random()))
                 picked_rank, picked_word = min(
                     untested, key=lambda rw: abs(rw[0] - target)
                 )
@@ -1480,7 +1478,7 @@ class LexiconChecker:
 
             for record in reversed(self.lexicon.log.records):
                 delta = datetime.now(UTC) - record.time
-                if delta.days > 30:  # noqa: PLR2004
+                if delta.days > 30:
                     break
                 if (
                     picked_word == record.word

@@ -14,6 +14,8 @@ from emmio.language import Language
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.core import List
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 class WordOccurrences:
     """Unique word and number of its occurrences in some text."""
@@ -62,7 +64,8 @@ class FrequencyList(List):
             return cls.from_file(path, config, file_path)
         if config.url:
             return cls.from_url(path, config, config.url)
-        raise ValueError(f"Unable to load frequency list {config}.")
+        msg = f"Unable to load frequency list {config}."
+        raise ValueError(msg)
 
     def __post_init__(self) -> None:
         if self.data:
@@ -172,11 +175,12 @@ class FrequencyList(List):
             if index >= number:
                 return word, self.data[word]
 
-        raise OverflowError(
+        msg = (
             "Unable to get word from a frequency list. Total occurrences "
             f"number is {self._occurrences}. Number is {number}. Last index "
             "is {index}."
         )
+        raise OverflowError(msg)
 
     def get_index(self, word: str) -> int:
         """Get index of the word in the frequency list.
@@ -211,7 +215,8 @@ class FrequencyList(List):
             case FrequencyListFileFormat.CSV:
                 return cls.from_csv_file(path, config, file_path)
             case _:
-                raise ValueError(f"unknown file format `{config.file_format}`")
+                msg = f"unknown file format `{config.file_format}`"
+                raise ValueError(msg)
 
     @classmethod
     def from_csv_file(
@@ -219,7 +224,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from CSV file."""
 
-        logging.debug("Loading frequency list from CSV file `%s`.", file_path)
+        logger.debug("Loading frequency list from CSV file `%s`.", file_path)
 
         data: dict[str, int] = {}
         occurrences: int = 0
@@ -250,7 +255,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from JSON file."""
 
-        logging.debug("Loading frequency list from JSON file `%s`.", file_path)
+        logger.debug("Loading frequency list from JSON file `%s`.", file_path)
         with file_path.open(encoding="utf-8") as input_file:
             structure: list[tuple[str, int]] = json.load(input_file)
 
@@ -262,7 +267,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from list file."""
 
-        logging.debug("Loading frequency list from list file `%s`.", file_path)
+        logger.debug("Loading frequency list from list file `%s`.", file_path)
         data: dict[str, int] = {}
 
         with file_path.open(encoding="utf-8") as input_file:
@@ -283,7 +288,7 @@ class FrequencyList(List):
     ) -> Self:
         """Load frequency list from URL."""
 
-        logging.info("Loading frequency list from url `%s`...", url)
+        logger.info("Loading frequency list from url `%s`...", url)
 
         pool_manager: urllib3.PoolManager = urllib3.PoolManager()
         response: urllib3.BaseHTTPResponse = pool_manager.request(

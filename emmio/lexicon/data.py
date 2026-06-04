@@ -57,11 +57,11 @@ class LexiconData:
         :param languages: languages to get lexicons for
         """
         if languages:
-            result = []
-            for lexicon in self.lexicons.values():
-                if lexicon.language in languages:
-                    result.append(lexicon)
-            return result
+            return [
+                lexicon
+                for lexicon in self.lexicons.values()
+                if lexicon.language in languages
+            ]
 
         return list(self.lexicons.values())
 

@@ -2,8 +2,8 @@
 
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
-from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import (
     Dictionary,
@@ -20,13 +20,16 @@ from emmio.lexicon.core import (
     LexiconChecker,
     LexiconResponse,
 )
-from emmio.lists.core import List
 from emmio.sentence.core import (
     SentenceAndTranslations,
     SentenceElement,
 )
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
+
+if TYPE_CHECKING:
+    from emmio.audio.core import AudioCollection
+    from emmio.lists.core import List
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -265,7 +268,7 @@ class Teacher:
         actions: int = 0
         to_continue: bool
         session: LearningSession = LearningSession(
-            type="repeat", start=datetime.now()
+            type="repeat", start=datetime.now(UTC)
         )
         while True:
             if word := self.learning.get_next_question():
@@ -286,7 +289,7 @@ class Teacher:
                 break
 
         if actions:
-            session.end_session(datetime.now(), actions)
+            session.end_session(datetime.now(UTC), actions)
             self.learning.process.sessions.append(session)
             self.learning.write()
             self.interface.print(
@@ -473,8 +476,8 @@ class Teacher:
                     self.interface.print(word)
                 elif action.type == ActionType.CHECK_TRANSLATION:
                     pass
-                    # TODO: implement.
-            return "continue"  # FIXME
+                    # TODO(enzet): implement.
+            return "continue"
 
         items: list[DictionaryItem] = await self.dictionaries.get_items(
             word, self.learning.learning_language
@@ -490,13 +493,13 @@ class Teacher:
             for item in items:
                 translation = item.to_text(
                     self.learning.base_languages,
-                    False,
+                    show_word=False,
                     words_to_hide=words_to_hide,
                     only_common=False,
                 )
                 for element in translation:
                     self.interface.print(element)
-            alternative_forms = set(x.link_value for x in items[0].get_links())
+            alternative_forms = {x.link_value for x in items[0].get_links()}
         else:
             self.interface.print("No translations.")
             self.interface.print("")
@@ -510,7 +513,7 @@ class Teacher:
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
 
-        request_time: datetime = datetime.now()
+        request_time: datetime = datetime.now(UTC)
         answer: str
 
         while True:
@@ -573,7 +576,7 @@ class Teacher:
 
             if answer.startswith("/know "):
                 _, command_word = answer.split(" ")
-                # TODO: sanitize user input.
+                # TODO(enzet): sanitize user input.
                 if self.learning_lexicon:
                     self.learning_lexicon.register(
                         command_word,
@@ -589,7 +592,7 @@ class Teacher:
 
             if answer.startswith("/not_a_word "):
                 _, command_word = answer.split(" ")
-                # TODO: sanitize user input.
+                # TODO(enzet): sanitize user input.
                 if self.learning_lexicon:
                     self.learning_lexicon.register(
                         command_word,

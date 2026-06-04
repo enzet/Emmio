@@ -9,11 +9,13 @@ from emmio.language import Language
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 class Text:
     """Text processing utility."""
 
-    def __init__(self, input_file: IO[str], language: Language):
+    def __init__(self, input_file: IO[str], language: Language) -> None:
         """Initialize text.
 
         :param input_file: file to process
@@ -24,7 +26,7 @@ class Text:
 
     def get_frequency_list(self) -> dict[str, int]:
         """Construct frequency list of the text."""
-        logging.info("Construct frequency list...")
+        logger.info("Construct frequency list...")
 
         result: dict[str, int] = defaultdict(int)
 
@@ -53,10 +55,9 @@ def sanitize(text: str, words_to_hide: list[str], sanitizer: str) -> str:
         sanitized: str = sanitizer * len(word)
 
         start: int
-        if "́" in text:
-            if word in text.replace("́", ""):
-                start = text.replace("́", "").find(word)
-                text = text[:start] + sanitized + text[start + len(word) + 1 :]
+        if "́" in text and word in text.replace("́", ""):
+            start = text.replace("́", "").find(word)
+            text = text[:start] + sanitized + text[start + len(word) + 1 :]
 
         text = text.replace(word, sanitized)
 

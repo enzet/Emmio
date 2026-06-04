@@ -3,7 +3,6 @@
 See https://translate.google.com/
 """
 
-import os
 from pathlib import Path
 from typing import override
 
@@ -40,7 +39,7 @@ class GoogleTranslate(Dictionary):
             / to_language.get_code()
         )
         if not self.cache_directory.exists():
-            os.makedirs(self.cache_directory)
+            self.cache_directory.mkdir(parents=True)
 
         self.from_language: Language = from_language
         self.to_language: Language = to_language

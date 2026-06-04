@@ -7,6 +7,8 @@ from pathlib import Path
 
 from emmio import util
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 @dataclass
 class UserArtifact(ABC):
@@ -27,7 +29,8 @@ class UserArtifact(ABC):
         """Serialize user artifact data to a JSON file."""
 
         if self.file_path.name.endswith(".json"):
-            logging.debug("Saving learning process to `%s`...", self.file_path)
+            logger.debug("Saving learning process to `%s`...", self.file_path)
             util.write_atomic(self.file_path, self.dump_json())
         else:
-            raise ValueError(f"Unknown file format: `{self.file_path.name}`.")
+            msg = f"Unknown file format: `{self.file_path.name}`."
+            raise ValueError(msg)

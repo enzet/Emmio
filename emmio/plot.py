@@ -4,14 +4,19 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from colour import Color
 from svgwrite import Drawing
 from svgwrite.container import Group
-from svgwrite.gradients import LinearGradient
 from svgwrite.shapes import Line
 from svgwrite.text import Text
+
+if TYPE_CHECKING:
+    from svgwrite.gradients import LinearGradient
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 GRADIENT: list[Color] = [
     Color("#00D45E"),
@@ -90,23 +95,25 @@ class Graph:
         max_x: datetime,
         min_y: float,
         max_y: float,
-        canvas: Canvas = Canvas(),
+        canvas: Canvas | None = None,
         colors: list[Color] | None = None,
-        background_color: Color = Color("white"),
-        grid_color: Color = Color("#AAAAAA"),
+        background_color: Color | None = None,
+        grid_color: Color | None = None,
     ) -> None:
         self.min_x: datetime = min_x
         self.max_x: datetime = max_x
         self.min_y: float = min_y
         self.max_y: float = max_y
-        self.canvas: Canvas = canvas
+        self.canvas: Canvas = canvas if canvas else Canvas()
         self.min_x_second: float = 0.0
         self.max_x_second = (
             (max_x - min_x).total_seconds() if max_x and min_x else 0
         )
         self.colors: list[Color] | None = colors
-        self.background_color: Color = background_color
-        self.grid_color: Color = grid_color
+        self.background_color: Color = (
+            background_color if background_color else Color("white")
+        )
+        self.grid_color: Color = grid_color if grid_color else Color("#AAAAAA")
 
         self.last_text_y: float = 0.0
 
@@ -284,7 +291,7 @@ class Graph:
         with Path(svg.filename).open("w+", encoding="utf-8") as output_file:
             svg.write(output_file)
 
-        logging.info("Graph was saved to `%s`.", Path(svg.filename).absolute())
+        logger.info("Graph was saved to `%s`.", Path(svg.filename).absolute())
 
     def draw_grid(self, svg: Drawing) -> None:
         """Draw grid."""
@@ -343,7 +350,7 @@ class Graph:
         color: str,
         anchor: str = "start",
     ) -> None:
-        """Draw text"""
+        """Draw text."""
         text_element: Text = Text(
             text,
             point,

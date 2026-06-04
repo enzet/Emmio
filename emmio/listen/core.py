@@ -3,7 +3,7 @@
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Self, override
 
@@ -89,7 +89,7 @@ class Listening(UserArtifact):
         """Register new record of listening."""
 
         record: ListeningRecord = ListeningRecord(
-            word=word, translations=translations, time=datetime.now()
+            word=word, translations=translations, time=datetime.now(UTC)
         )
         self.process.register(record)
         self._words_cache[word] += 1

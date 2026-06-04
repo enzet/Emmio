@@ -58,7 +58,7 @@ LEXICON_HELP: str = """
 class ArgumentParser(argparse.ArgumentParser):
     """Argument parser with redefined `help`."""
 
-    def help(self, _: Any) -> None:  # noqa: ANN401
+    def help(self, _: Any) -> None:
         """Print help to stdout and don't exit."""
         self.print_help(sys.stdout)
 
@@ -536,9 +536,9 @@ class Emmio:
             )
             change_text: InlineElement
             match change:
-                case float() as change if change >= 0.1:  # noqa: PLR2004
+                case float() as change if change >= 0.1:
                     change_text = Colorized(f"▲ +{change:.1f}", color="green")
-                case float() as change if change <= -0.1:  # noqa: PLR2004
+                case float() as change if change <= -0.1:
                     change_text = Colorized(f"▼ {change:.1f}", color="red")
                 case _:
                     change_text = Text("")

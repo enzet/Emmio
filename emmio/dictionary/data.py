@@ -49,11 +49,11 @@ class DictionaryData(ArtifactData):
         match id_ := dictionary_usage_config.id:
             case "kaikki":
                 if dictionary_usage_config.from_language is None:
-                    raise ValueError(
-                        "`from_language` is required for Kaikki dictionary."
-                    )
+                    msg = "`from_language` is required for Kaikki dictionary."
+                    raise ValueError(msg)
                 if dictionary_usage_config.name is None:
-                    raise ValueError("Name is required for Kaikki dictionary.")
+                    msg = "Name is required for Kaikki dictionary."
+                    raise ValueError(msg)
                 return EnglishWiktionaryKaikki(
                     self.path,
                     self.path / "cache",
@@ -62,15 +62,17 @@ class DictionaryData(ArtifactData):
                 )
             case "google_translate":
                 if dictionary_usage_config.from_language is None:
-                    raise ValueError(
+                    msg = (
                         "`from_language` is required for Google Translate "
                         "dictionary."
                     )
+                    raise ValueError(msg)
                 if dictionary_usage_config.to_language is None:
-                    raise ValueError(
+                    msg = (
                         "`to_language` is required for Google Translate "
                         "dictionary."
                     )
+                    raise ValueError(msg)
                 return GoogleTranslate(
                     self.path,
                     self.path / "cache",
@@ -80,7 +82,8 @@ class DictionaryData(ArtifactData):
             case _:
                 if id_ in self.dictionaries:
                     return self.dictionaries[id_]
-                raise ValueError(f"Unknown dictionary: `{id_}`.")
+                msg = f"Unknown dictionary: `{id_}`."
+                raise ValueError(msg)
 
         return None
 

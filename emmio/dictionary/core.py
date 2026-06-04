@@ -15,11 +15,10 @@ import json
 import logging
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
@@ -28,8 +27,13 @@ from emmio.text_util import sanitize
 from emmio.ui import Block, Colorized, Element, Formatted, InlineElement, Text
 from emmio.util import flatten
 
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 DESCRIPTORS_OF_WORDS_TO_IGNORE: set[str] = set(
@@ -265,17 +269,14 @@ class Form:
             return True
 
         # If there are no definitions, but there are links to other forms, we
-        # decide that this is just a form of a word.
-        if self.links:
-            return True
-
-        # If there are no definitions and no links, we cannot decide if the word
-        # is not common.
-        return False
+        # decide that this is just a form of a word. If there are no definitions
+        # and no links, we cannot decide if the word is not common.
+        return bool(self.links)
 
     def to_text(
         self,
         language: Language,
+        *,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
         only_common: bool = True,
@@ -296,7 +297,7 @@ class Form:
         to_hide: list[str] | None = None
 
         if not show_word and words_to_hide:
-            to_hide = sorted(list(words_to_hide), key=lambda word: -len(word))
+            to_hide = sorted(words_to_hide, key=lambda word: -len(word))
 
         description: list[str] = []
         if self.part_of_speech:
@@ -321,7 +322,7 @@ class Form:
         if max_definitions:
             definitions = definitions[:max_definitions]
 
-        links: list[Link] = self.get_links(only_common)
+        links: list[Link] = self.get_links(only_common=only_common)
 
         if not definitions and not links:
             return None
@@ -332,8 +333,10 @@ class Form:
             )
 
         if definitions:
-            for definition_text in definitions:
-                result.append(Block(definition_text, (0, 0, 0, 4)))
+            result.extend(
+                Block(definition_text, (0, 0, 0, 4))
+                for definition_text in definitions
+            )
 
         for link in links:
             if show_word:
@@ -349,7 +352,7 @@ class Form:
 
         return result
 
-    def get_links(self, only_common: bool = True) -> list[Link]:
+    def get_links(self, *, only_common: bool = True) -> list[Link]:
         """Get links to other words.
 
         :param only_common: return only common links
@@ -409,6 +412,7 @@ class DictionaryItem:
     def to_text(
         self,
         languages: list[Language],
+        *,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
         only_common: bool = True,
@@ -439,10 +443,10 @@ class DictionaryItem:
             for language in languages:
                 form_text: list[Element] | None = form.to_text(
                     language,
-                    show_word,
-                    words_to_hide,
-                    only_common,
-                    max_definitions_per_form,
+                    show_word=show_word,
+                    words_to_hide=words_to_hide,
+                    only_common=only_common,
+                    max_definitions=max_definitions_per_form,
                 )
                 if form_text:
                     result.extend(form_text)
@@ -500,18 +504,16 @@ class DictionaryItem:
                 continue
             definitions: list[list[str]] = []
 
-            for link in form.get_links():
-                definitions.append(["→ " + link.link_value])
-            for definition in form.definitions[language]:
-                definitions.append(
-                    [
-                        definition_value.value
-                        for definition_value in definition.values
-                    ]
-                )
+            definitions.extend(
+                ["→ " + link.link_value] for link in form.get_links()
+            )
+            definitions.extend(
+                [v.value for v in definition.values]
+                for definition in form.definitions[language]
+            )
             texts.append(definitions)
             if not transcription and form.transcriptions:
-                transcription = list(form.transcriptions)[0]
+                transcription = next(iter(form.transcriptions))
 
         for limit_1, limit_2, limit_3 in (2, 2, 2), (2, 2, 1), (2, 1, 1):
             if len(text := flatten(texts, limit_1, limit_2, limit_3)) < limit:
@@ -551,7 +553,7 @@ class Dictionary(ABC):
 
     @abstractmethod
     async def get_item(
-        self, word: str, cache_only: bool = False
+        self, word: str, *, cache_only: bool = False
     ) -> DictionaryItem | None:
         """Get word definition.
 
@@ -570,6 +572,7 @@ class Dictionary(ABC):
         self,
         word: str,
         ignore_words: set[str] | None = None,
+        *,
         follow_links: bool = True,
     ) -> list[tuple["Dictionary", DictionaryItem]]:
         """Get dictionary items connected to the word.
@@ -598,16 +601,18 @@ class Dictionary(ABC):
         if not follow_links:
             return items_marked
 
-        link_to_follow: set[str] = set(
+        link_to_follow: set[str] = {
             x.link_value
             for x in item.get_links()
             if x.link_value not in ignore_words
-        )
+        }
         tasks: list[asyncio.Task[list[tuple[Dictionary, DictionaryItem]]]] = []
         for link_value in link_to_follow:
             coroutine: Coroutine[
                 Any, Any, list[tuple[Dictionary, DictionaryItem]]
-            ] = self.get_items_marked(link_value, ignore_words, follow_links)
+            ] = self.get_items_marked(
+                link_value, ignore_words, follow_links=follow_links
+            )
             tasks.append(asyncio.create_task(coroutine))
 
         results: list[
@@ -650,6 +655,7 @@ class SimpleDictionary(Dictionary):
         data: dict[str, str],
         from_language: Language,
         to_language: Language,
+        *,
         is_machine: bool = False,
     ) -> None:
         """Initialize simple dictionary.
@@ -716,7 +722,7 @@ class SimpleDictionary(Dictionary):
     def write(self) -> None:
         """Write the dictionary to the file."""
 
-        logging.info("Dictionary `%s` dumped to `%s`.", self.id_, self.path)
+        logger.info("Dictionary `%s` dumped to `%s`.", self.id_, self.path)
         with self.path.open("w", encoding="utf-8") as output_file:
             json.dump(
                 self.data,
@@ -760,7 +766,7 @@ class DictionaryCollection:
         self.dictionaries.append(dictionary)
 
     async def get_items_marked(
-        self, word: str, language: Language, follow_links: bool = True
+        self, word: str, language: Language, *, follow_links: bool = True
     ) -> list[tuple[Dictionary, DictionaryItem]]:
         """Get dictionary items from all dictionaries.
 
@@ -798,13 +804,14 @@ class DictionaryCollection:
                 item: DictionaryItem = main_item_marked[1]
                 links: set[str] = set()
                 for form in item.get_forms():
-                    links |= set(x.link_value for x in form.links)
+                    links |= {x.link_value for x in form.links}
                 for link in links:
                     if link_item := await dictionary.get_item(link):
                         items_marked.append((dictionary, link_item))
-                    if variant := language.get_variant(link):
-                        if link_item := await dictionary.get_item(variant):
-                            items_marked.append((dictionary, link_item))
+                    if (variant := language.get_variant(link)) and (
+                        link_item := await dictionary.get_item(variant)
+                    ):
+                        items_marked.append((dictionary, link_item))
 
         # If the word may be written in different way, try to find this variant.
         if variant := language.get_variant(word):
@@ -813,7 +820,7 @@ class DictionaryCollection:
         return items_marked
 
     async def get_items(
-        self, word: str, language: Language, follow_links: bool = True
+        self, word: str, language: Language, *, follow_links: bool = True
     ) -> list[DictionaryItem]:
         """Get dictionary records.
 
@@ -824,7 +831,9 @@ class DictionaryCollection:
         """
         return [
             x[1]
-            for x in await self.get_items_marked(word, language, follow_links)
+            for x in await self.get_items_marked(
+                word, language, follow_links=follow_links
+            )
         ]
 
     def get_dictionary(self, dictionary_id: str) -> Dictionary | None:

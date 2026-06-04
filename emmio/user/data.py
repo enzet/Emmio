@@ -26,6 +26,8 @@ from emmio.listen.core import Listening
 from emmio.listen.data import ListenData
 from emmio.user.config import UserConfigType
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 LEARN_DIRECTORY_NAME: str = "learn"
 LEXICON_DIRECTORY_NAME: str = "lexicon"
 LISTEN_DIRECTORY_NAME: str = "listen"
@@ -83,20 +85,20 @@ class UserData:
         Check whether the user configuration JSON file is valid. If not,
         raise an exception.
         """
-        for _, lexicon_config in self.config["lexicon"].items():
+        for lexicon_config in self.config["lexicon"].values():
             LexiconConfig(**lexicon_config)
 
-        for _, learning_config in self.config["learn"].items():
+        for learning_config in self.config["learn"].values():
             LearnConfig(**learning_config)
 
-        for _, listening_config in self.config["listen"].items():
+        for listening_config in self.config["listen"].values():
             ListenConfig(**listening_config)
 
     def get_learn_data(self) -> LearnData:
         """Lazy-loads learning data."""
 
         if not self._learn_data:
-            logging.info("Loading `%s` learning data...", self.user_id)
+            logger.info("Loading `%s` learning data...", self.user_id)
             self._learn_data = LearnData.from_config(
                 self.path / LEARN_DIRECTORY_NAME, self.config["learn"]
             )
@@ -106,7 +108,7 @@ class UserData:
         """Lazy-loads lexicon data."""
 
         if not self._lexicon_data:
-            logging.info("Loading `%s` lexicon data...", self.user_id)
+            logger.info("Loading `%s` lexicon data...", self.user_id)
             self._lexicon_data = LexiconData.from_config(
                 self.path / LEXICON_DIRECTORY_NAME, self.config["lexicon"]
             )
@@ -120,7 +122,7 @@ class UserData:
         """Lazy-loads listening data."""
 
         if not self._listen_data:
-            logging.info("Loading `%s` listening data...", self.user_id)
+            logger.info("Loading `%s` listening data...", self.user_id)
             self._listen_data = ListenData.from_config(
                 self.path / LISTEN_DIRECTORY_NAME, self.config["listen"]
             )
@@ -183,17 +185,19 @@ class UserData:
     ) -> tuple[list[Response], list[LexiconResponse]]:
         """Get word status in user lexicons."""
 
-        learning_responses: list[Response] = []
-        for learning in self.get_learn_data().get_learnings_by_language(
-            language
-        ):
-            if knowledge := learning.get_knowledge(word):
-                learning_responses.append(knowledge.get_last_response())
+        learning_responses: list[Response] = [
+            knowledge.get_last_response()
+            for learning in self.get_learn_data().get_learnings_by_language(
+                language
+            )
+            if (knowledge := learning.get_knowledge(word))
+        ]
 
-        lexicon_responses: list[LexiconResponse] = []
-        for lexicon in self.get_lexicons_by_language(language):
-            if lexicon.has(word):
-                lexicon_responses.append(lexicon.get(word))
+        lexicon_responses: list[LexiconResponse] = [
+            lexicon.get(word)
+            for lexicon in self.get_lexicons_by_language(language)
+            if lexicon.has(word)
+        ]
 
         return learning_responses, lexicon_responses
 
@@ -208,8 +212,7 @@ class UserData:
             records += learning.get_records()
         for lexicon in self.get_lexicon_data().get_lexicons():
             records += lexicon.get_records()
-        records = sorted(records, key=lambda record: record.time)
-        return records
+        return sorted(records, key=lambda record: record.time)
 
     def get_sessions(self) -> list[Session]:
         """Get all sessions: learnings and lexicon checking."""
@@ -219,8 +222,7 @@ class UserData:
             sessions += learning.get_sessions()
         for lexicon in self.get_lexicon_data().get_lexicons():
             sessions += lexicon.get_sessions()
-        sessions = sorted(sessions, key=lambda session: session.start)
-        return sessions
+        return sorted(sessions, key=lambda session: session.start)
 
     def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
         """Get all sessions and records."""

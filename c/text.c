@@ -46,8 +46,9 @@ int comparator(const void *x, const void *y) {
 void process(struct BinaryTree* binary_tree, wchar_t* word, int index,
         int code) {
 
+    // TODO(enzet): check L'\x0561'.
     if (index > 0 && index % BITS_PER_CHARACTER == 0) {
-        word[index / BITS_PER_CHARACTER - 1] = code + L'a';  // FIXME: L'\x0561';
+        word[index / BITS_PER_CHARACTER - 1] = code + L'a';
         word[index / BITS_PER_CHARACTER] = L'\0';
         code = 0;
     }

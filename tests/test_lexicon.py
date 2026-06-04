@@ -1,6 +1,7 @@
 """Tests for lexicon."""
 
-from datetime import datetime
+import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -11,24 +12,28 @@ from emmio.lists.config import ListUsageConfig
 from emmio.ui import TerminalInterface
 
 
+def dt(year: int, month: int, day: int) -> datetime:
+    """Create a UTC-aware datetime for tests."""
+    return datetime(year, month, day, tzinfo=UTC)
+
+
 @pytest.fixture(name="lexicon")
 def fixture_lexicon() -> Lexicon:
     """Test lexicon checking process."""
 
-    temp_directory: Path = Path("/tmp") / "emmio_test_temp_directory"
-    temp_directory.mkdir(exist_ok=True)
-    lexicon_instance: Lexicon = Lexicon.from_config(
-        temp_directory,
-        "en",
-        LexiconConfig(
-            file_name="en.json",
-            language="en",
-            frequency_list=ListUsageConfig(id="en"),
-            selection=LexiconSelection.ARBITRARY,
-        ),
-    )
-    lexicon_instance.log = LexiconLog()
-    return lexicon_instance
+    with tempfile.TemporaryDirectory() as temp_directory:
+        lexicon_instance: Lexicon = Lexicon.from_config(
+            Path(temp_directory),
+            "en",
+            LexiconConfig(
+                file_name="en.json",
+                language="en",
+                frequency_list=ListUsageConfig(id="en"),
+                selection=LexiconSelection.ARBITRARY,
+            ),
+        )
+        lexicon_instance.log = LexiconLog()
+        return lexicon_instance
 
 
 def test_register(lexicon: Lexicon) -> None:
@@ -39,8 +44,8 @@ def test_register(lexicon: Lexicon) -> None:
         interface=TerminalInterface(use_input=False),
         response=LexiconResponse.KNOW,
         to_skip=False,
-        time=datetime(2000, 1, 1),
-        request_time=datetime(2000, 1, 1),
+        time=dt(2000, 1, 1),
+        request_time=dt(2000, 1, 1),
     )
     assert len(lexicon.responses) == 1
     assert lexicon.has("apple")
@@ -56,8 +61,8 @@ def register(lexicon: Lexicon, args: list[int]) -> None:
             interface=TerminalInterface(use_input=False),
             response=LexiconResponse.KNOW if arg == 1 else LexiconResponse.DONT,
             to_skip=False,
-            time=datetime(2000, 1, index + 1),
-            request_time=datetime(2000, 1, index + 1),
+            time=dt(2000, 1, index + 1),
+            request_time=dt(2000, 1, index + 1),
         )
 
 
@@ -72,13 +77,13 @@ def test_rate_zero_minimal(lexicon: Lexicon) -> None:
     register(lexicon, [0, 0])
     assert lexicon.construct_precise(precision=1) == (
         [
-            (datetime(2000, 1, 1), datetime(2000, 1, 1)),
-            (datetime(2000, 1, 2), datetime(2000, 1, 2)),
+            (dt(2000, 1, 1), dt(2000, 1, 1)),
+            (dt(2000, 1, 2), dt(2000, 1, 2)),
         ],
         [0.0, 0.0],
     )
     assert lexicon.construct_precise(precision=2) == (
-        [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
+        [(dt(2000, 1, 1), dt(2000, 1, 2))],
         [0.0],
     )
 
@@ -89,8 +94,8 @@ def test_rate_zero_additional(lexicon: Lexicon) -> None:
     register(lexicon, [0, 0, 0])
     assert lexicon.construct_precise(precision=2) == (
         [
-            (datetime(2000, 1, 1), datetime(2000, 1, 2)),
-            (datetime(2000, 1, 2), datetime(2000, 1, 3)),
+            (dt(2000, 1, 1), dt(2000, 1, 2)),
+            (dt(2000, 1, 2), dt(2000, 1, 3)),
         ],
         [0.0, 0.0],
     )
@@ -101,7 +106,7 @@ def test_half_minimal(lexicon: Lexicon) -> None:
 
     register(lexicon, [1, 0])
     assert lexicon.construct_precise(precision=1) == (
-        [(datetime(2000, 1, 1), datetime(2000, 1, 2))],
+        [(dt(2000, 1, 1), dt(2000, 1, 2))],
         [1.0],
     )
 
@@ -113,16 +118,16 @@ def test_half_additional(lexicon: Lexicon) -> None:
 
     assert lexicon.construct_precise(precision=2) == (
         [
-            (datetime(2000, 1, 1), datetime(2000, 1, 4)),
-            (datetime(2000, 1, 3), datetime(2000, 1, 6)),
+            (dt(2000, 1, 1), dt(2000, 1, 4)),
+            (dt(2000, 1, 3), dt(2000, 1, 6)),
         ],
         [1.0, 1.0],
     )
     assert lexicon.construct_precise(precision=1) == (
         [
-            (datetime(2000, 1, 1), datetime(2000, 1, 2)),
-            (datetime(2000, 1, 3), datetime(2000, 1, 4)),
-            (datetime(2000, 1, 5), datetime(2000, 1, 6)),
+            (dt(2000, 1, 1), dt(2000, 1, 2)),
+            (dt(2000, 1, 3), dt(2000, 1, 4)),
+            (dt(2000, 1, 5), dt(2000, 1, 6)),
         ],
         [1.0, 1.0, 1.0],
     )
@@ -133,6 +138,6 @@ def test_quarter_minimal(lexicon: Lexicon) -> None:
 
     register(lexicon, [1, 1, 1, 0])
     assert lexicon.construct_precise(precision=1) == (
-        [(datetime(2000, 1, 1), datetime(2000, 1, 4))],
+        [(dt(2000, 1, 1), dt(2000, 1, 4))],
         [2.0],
     )

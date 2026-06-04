@@ -8,6 +8,8 @@ from typing import Self, override
 from emmio.lists.config import WordListConfig
 from emmio.lists.core import List
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 @dataclass
 class WordList(List):
@@ -27,7 +29,7 @@ class WordList(List):
         """Load a word list from a config."""
 
         file_path: Path = path / config.path
-        logging.debug("Loading word list from list file `%s`.", file_path)
+        logger.debug("Loading word list from list file `%s`.", file_path)
 
         with file_path.open(encoding="utf-8") as input_file:
             data = [x[:-1] for x in input_file.readlines()]

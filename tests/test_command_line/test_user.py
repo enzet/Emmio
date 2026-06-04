@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from pytest import CaptureFixture
+import pytest
 
 from tests.test_command_line.test_core import HEADER, check_main
 
 
-def test_new_user_empty_data(capsys: CaptureFixture[str]) -> None:
+def test_new_user_empty_data(capsys: pytest.CaptureFixture[str]) -> None:
     """Test that a new user is created with empty data."""
 
     check_main(

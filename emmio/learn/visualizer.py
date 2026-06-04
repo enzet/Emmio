@@ -13,8 +13,7 @@ from matplotlib import transforms as mtransforms
 from emmio.learn.core import Knowledge, Learning, LearningRecord
 
 DEPTH_COLORS_BLACK_AND_WHITE: list[str] = ["#000000"] + [
-    "#" + f"{hex(int(256 - 256 / 1.5**x))[2:]:2}".replace(" ", "0") * 3
-    for x in range(20)
+    "#" + f"{int(256 - 256 / 1.5**x):02x}" * 3 for x in range(20)
 ]
 DEPTH_COLORS: list[str] = [
     "#CCCCCC",
@@ -93,7 +92,7 @@ class LearningVisualizer:
 
         # Compute data for the plot.
 
-        for record, learning in self.records:
+        for record, learning in self.records:  # noqa: B007
             if record.question_id in knowledges:
                 data[compute_data_id()] -= (
                     1 / (2 ** knowledges[record.question_id].get_depth())
@@ -117,7 +116,7 @@ class LearningVisualizer:
                 else []
             )
             knowledges[record.question_id] = Knowledge(
-                record.question_id, last_answers + [record]
+                record.question_id, [*last_answers, record]
             )
             data[compute_data_id()] += (
                 1 / (2 ** knowledges[record.question_id].get_depth())
@@ -128,7 +127,7 @@ class LearningVisualizer:
             count += 1
 
             s: float = 0.0
-            for i in reversed(sorted(data.keys())):
+            for i in sorted(data.keys(), reverse=True):
                 s += data[i]
                 if i not in y:
                     y[i] = []
@@ -153,14 +152,10 @@ class LearningVisualizer:
 
             color: str
             if self.by_language:
-                color = "#" + str(hex(abs(hash(id_))))[2:8]
+                color = f"#{abs(hash(id_)):x}"[0:7]
             elif self.color_mode == "return_colors":
                 number: int = max(0, 255 - returns * 0 - depth * 10)
-                color = (
-                    f"#{hex(number)[2:]:>02}"
-                    f"{hex(number)[2:]:>02}"
-                    f"{hex(number)[2:]:>02}"
-                )
+                color = f"#{number:02x}{number:02x}{number:02x}"
             else:  # Depth colors.
                 color = DEPTH_COLORS[depth + 1]
 

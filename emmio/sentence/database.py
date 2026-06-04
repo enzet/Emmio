@@ -99,7 +99,7 @@ class TatoebaDatabase(Database):
                 )
 
                 # Check if file has appropriate size.
-                if zip_path.stat().st_size < 1000:  # noqa: PLR2004
+                if zip_path.stat().st_size < 1000:
                     logger.error(
                         "File `%s` seems to be empty. Removing it.", zip_path
                     )

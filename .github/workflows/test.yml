@@ -15,8 +15,8 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: "3.12"
-    # TODO: Uncomment this section when we want to test audio playback using
-    # GitHub Actions. For now it seems too resource-intensive. We should
+    # TODO(enzet): Uncomment this section when we want to test audio playback
+    # using GitHub Actions. For now it seems too resource-intensive. We should
     # probably create another test configuration that will not run on every
     # commit.
     # name: Install system dependencies

@@ -68,7 +68,6 @@ warn_return_any = true  # Warn if return type is inferred as `Any`.
 py-version = "3.12"
 disable = [
     "E0401",  # Import error (Pylint usually fails to track imports correctly).
-    "W0511",  # `TODO`/`FIXME` comments warning.
     "C0302",  # Too many lines in module.
     "C0415",  # Import outside toplevel.
     "R0902",  # Too many instance attributes.
@@ -85,6 +84,7 @@ disable = [
 [tool.ruff]
 lint.select = ["ALL"]
 lint.ignore = [
+    "ANN401",  # `Any` in *args/**kwargs is sometimes necessary.
     "C901",    # Too complex functions are allowed.
     "COM812",  # Trailing comma not in Black style.
     "D105",    # Missing docstring in magic method is allowed.
@@ -93,13 +93,19 @@ lint.ignore = [
     "D203",    # Blank line is not required before class docstring.
     "D213",    # New line after """ is not needed.
     "FIX002",  # Todo markers are allowed.
+    "INP001",  # Implicit namespace packages are acceptable.
+    "PGH003",  # Bare type: ignore is used where specific codes are unclear.
     "PLR0911", # Too many return statements are allowed.
     "PLR0912", # Too many branches are allowed.
     "PLR0913", # Too many arguments are allowed.
     "PLR0915", # Too many statements are allowed.
+    "PLR2004", # Magic values are sometimes more readable than named constants.
     "RUF001",  # Ambiguous symbols are allowed.
     "RUF002",  # Ambiguous symbols are allowed.
     "S101",    # Asserts are allowed in tests.
+    "S311",    # Standard random is appropriate for non-cryptographic use.
+    "S324",    # MD5 is used for non-security file caching.
+    "S506",    # YAML FullLoader is intentional.
     "TD003",   # Issues for todos are not required.
 ]
 line-length = 80

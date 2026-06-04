@@ -6,10 +6,10 @@ import random
 import sys
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self, override
+from typing import Any, ClassVar, Self, override
 
 import yaml
 from pydantic.main import BaseModel
@@ -21,6 +21,8 @@ from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 MULTIPLIER: float = 2.0
@@ -110,14 +112,14 @@ class LearningProcess(BaseModel):
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 
-    sessions: list[LearningSession] = []
+    sessions: ClassVar[list[LearningSession]] = []
     """Recorded leaning sessions."""
 
     def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
         """Serialize to JSON string.
 
-        TODO: This field order is such for historical reasons. We should change
-            it in the future.
+        TODO(enzet): This field order is such for historical reasons. We should
+        change it in the future.
         """
         record_order: list[str] = [
             "question_id",
@@ -144,8 +146,8 @@ class LearningProcess(BaseModel):
         ]
         return json.dumps(
             {"records": records, "sessions": sessions},
-            ensure_ascii=False,
             *args,
+            ensure_ascii=False,
             **kwargs,
         )
 
@@ -298,7 +300,7 @@ class Learning(UserArtifact):
         if not file_path.is_file():
             process = LearningProcess(records=[])
         elif file_path.name.endswith(".json"):
-            logging.info("Reading `%s`...", file_path)
+            logger.info("Reading `%s`...", file_path)
             with file_path.open(encoding="utf-8") as log_file:
                 try:
                     process = LearningProcess(**(json.load(log_file)))
@@ -306,10 +308,11 @@ class Learning(UserArtifact):
                     logging.fatal("Cannot process file `%s`.", file_path)
                     sys.exit(1)
         elif file_path.name.endswith(".yml"):
-            logging.info("Reading `%s`...", file_path)
+            logger.info("Reading `%s`...", file_path)
             process = load_old_format(file_path)
         else:
-            raise ValueError(f"Unknown file format: `{file_path.name}`.")
+            msg = f"Unknown file format: `{file_path.name}`."
+            raise ValueError(msg)
 
         knowledge: dict[str, Knowledge] = {}
         for record in process.records:
@@ -343,7 +346,7 @@ class Learning(UserArtifact):
             to the user
         """
         if time is None:
-            time = datetime.now()
+            time = datetime.now(UTC)
 
         record: LearningRecord = LearningRecord(
             question_id=question_id,
@@ -397,7 +400,7 @@ class Learning(UserArtifact):
     def __get_next_questions(self) -> list[Knowledge]:
         """Get list of questions that should be asked next."""
 
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
         return [
             x
             for x in self.knowledge.values()
@@ -443,9 +446,9 @@ class Learning(UserArtifact):
     def count_questions_added_today(self) -> int:
         """Count questions added today and in learning process."""
 
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
         today_start: datetime = datetime(
-            year=now.year, month=now.month, day=now.day
+            year=now.year, month=now.month, day=now.day, tzinfo=UTC
         )
         return len(
             [
@@ -462,7 +465,7 @@ class Learning(UserArtifact):
         Return the number of learning items that are being learning and ready
         to repeat at the current moment.
         """
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
         return sum(
             x.is_learning() and self.get_next_time(x) < now
             for x in self.knowledge.values()
@@ -507,7 +510,7 @@ class Learning(UserArtifact):
         For these questions it is safe to show them to the user in any context
         and not spoil the checking results.
         """
-        now: datetime = datetime.now()
+        now: datetime = datetime.now(UTC)
         return [
             x.question_id
             for x in self.knowledge.values()
@@ -585,13 +588,13 @@ class Learning(UserArtifact):
 
 def time_format(minutes: int) -> datetime:
     """Convert time in old format into datetime objects."""
-    return datetime(1970, 1, 1) + timedelta(seconds=minutes * 60)
+    return datetime(1970, 1, 1, tzinfo=UTC) + timedelta(seconds=minutes * 60)
 
 
 def load_old_format(path: Path) -> LearningProcess:
     """Load learning process from the old experimental format.
 
-    TODO: remove this someday.
+    TODO(enzet): remove this someday.
     """
     with path.open(encoding="utf-8") as input_file:
         process: dict[str, dict[str, Any]] = yaml.load(
@@ -622,7 +625,9 @@ def load_old_format(path: Path) -> LearningProcess:
                 + timedelta(seconds=(x - array[-1]) * 24 * 60 * 60)
                 for x in array
             ]
-            for delta, answer, interval in zip(times, answers, intervals):
+            for delta, answer, _ in zip(
+                times, answers, intervals, strict=False
+            ):
                 record: LearningRecord = LearningRecord(
                     question_id=str(question_id),
                     response=(

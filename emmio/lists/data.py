@@ -51,10 +51,11 @@ class ListsData(ArtifactData):
                         path, WordListConfig(**list_config)
                     )
                 case _:
-                    raise ValueError(
+                    msg = (
                         "Unknown list configuration type "
                         f"`{list_config['type']}`."
                     )
+                    raise ValueError(msg)
 
         return cls(path, frequency_lists, word_lists)
 
@@ -66,13 +67,11 @@ class ListsData(ArtifactData):
         match id_ := list_usage_config.id:
             case "frequency_words":
                 if list_usage_config.language is None:
-                    raise ValueError(
-                        "Language is required for FrequencyWords list."
-                    )
+                    msg = "Language is required for FrequencyWords list."
+                    raise ValueError(msg)
                 if list_usage_config.year is None:
-                    raise ValueError(
-                        "Year is required for FrequencyWords list."
-                    )
+                    msg = "Year is required for FrequencyWords list."
+                    raise ValueError(msg)
                 frequency_list: FrequencyWordsList = (
                     FrequencyWordsList.from_short_config(
                         self.path,

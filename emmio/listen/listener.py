@@ -1,26 +1,33 @@
 """Listening functionality."""
 
+import asyncio
 import logging
 from pathlib import Path
-from time import sleep
+from typing import TYPE_CHECKING
 
 try:
     import mpv
 except (OSError, ImportError):
-    logging.warning("MPV is not installed, audio playback will be disabled.")
     mpv = None
 
-from emmio.audio.core import AudioCollection
 from emmio.data import Data
-from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
-from emmio.learn.core import Learning
 from emmio.learn.teacher import Teacher
-from emmio.listen.config import ListenConfig
 from emmio.listen.core import PAUSE_AFTER_PLAY, Listening
-from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import Interface
 from emmio.user.data import UserData
+
+if TYPE_CHECKING:
+    from emmio.audio.core import AudioCollection
+    from emmio.dictionary.core import DictionaryCollection
+    from emmio.learn.core import Learning
+    from emmio.listen.config import ListenConfig
+    from emmio.lists.frequency_list import FrequencyList
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+if mpv is None:
+    logger.warning("MPV is not installed, audio playback will be disabled.")
 
 
 class Listener:
@@ -88,20 +95,20 @@ class Listener:
         :param learning_paths: paths to the learning audio files
         """
         if self.player is None:
-            logging.warning("MPV is not installed, cannot play audio.")
+            logger.warning("MPV is not installed, cannot play audio.")
             return
 
         for translation in audio_translations:
             base_paths = self.base_audio_collection.get_paths(translation)
             self.player.play(str(base_paths[-1]))
-            sleep(PAUSE_AFTER_PLAY)
-        sleep(3)
+            await asyncio.sleep(PAUSE_AFTER_PLAY)
+        await asyncio.sleep(3)
         if len(learning_paths) == 1:
             learning_paths *= 2
         for path in learning_paths[:4]:
             self.player.play(str(path))
-            sleep(PAUSE_AFTER_PLAY)
-        sleep(2)
+            await asyncio.sleep(PAUSE_AFTER_PLAY)
+        await asyncio.sleep(2)
         self.listening.register(question_id, audio_translations)
 
     async def listen(self, start_from: int = 0, repeat: int = 1) -> None:
@@ -121,7 +128,7 @@ class Listener:
 
             if self.learning.has(question_id):
                 if question_id not in self.safe_question_ids:
-                    logging.info("Not safe time")
+                    logger.info("Not safe time")
                     continue
                 if not self.teacher.check2(question_id):
                     continue
@@ -143,14 +150,14 @@ class Listener:
                     self.base_language
                 )
         if not translations:
-            logging.info("No one-word translations")
+            logger.info("No one-word translations")
             return
 
-        audio_translations: list[str] = []
-
-        for translation in translations:
-            if self.base_audio_collection.has(translation):
-                audio_translations.append(translation)
+        audio_translations: list[str] = [
+            translation
+            for translation in translations
+            if self.base_audio_collection.has(translation)
+        ]
 
         if audio_translations and self.learning_audio_collection.has(
             question_id

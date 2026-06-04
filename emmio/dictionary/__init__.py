@@ -1,4 +1,4 @@
-"""This module is for dictionaries.
+"""Dictionaries: mappings from word forms to definitions or translations.
 
 Dictionary is a mapping from the word form to its definitions or translations to
 other languages. Dictionaries may be represented by files or be used through

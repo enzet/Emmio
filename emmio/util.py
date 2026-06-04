@@ -155,14 +155,14 @@ def download(
 
 
 @dataclass
-class MalformedFile(Exception):
+class MalformedFileError(Exception):
     """File is malformed."""
 
     path: Path
 
 
 @dataclass
-class MalformedData(Exception):
+class MalformedDataError(Exception):
     """Data is malformed."""
 
     message: str

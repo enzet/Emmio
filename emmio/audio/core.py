@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-import os.path
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -14,12 +13,16 @@ from typing import Self, override
 try:
     import mpv
 except (OSError, ImportError):
-    logging.warning("MPV is not installed, audio playback will be disabled.")
     mpv = None
 
 from emmio.audio.config import AudioConfig
 from emmio.language import Language
 from emmio.util import download
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+if mpv is None:
+    logger.warning("MPV is not installed, audio playback will be disabled.")
 
 MIN_AUDIO_FILE_SIZE: int = 500
 """File smaller than this number of bytes should be treated as empty."""
@@ -87,7 +90,7 @@ class DirectoryAudioProvider(AudioProvider):
             if matcher := re.match(self.path_pattern, path.name):
                 self.cache[matcher.group("word")].append(path)
             else:
-                logging.warning("Unknown file `%s`.", path)
+                logger.warning("Unknown file `%s`.", path)
 
     @classmethod
     def from_config(cls, path: Path, config: AudioConfig) -> Self:
@@ -118,22 +121,21 @@ class DirectoryAudioProvider(AudioProvider):
         :return: true iff an audio was played
         """
         if self.player is None:
-            logging.warning("MPV is not installed, cannot play audio.")
+            logger.warning("MPV is not installed, cannot play audio.")
             return False
 
         if paths := self.get_paths(word):
             for _ in range(repeat):
-                logging.info("Playing `%s`...", paths[0])
+                logger.info("Playing `%s`...", paths[0])
                 try:
                     self.player.play(str(paths[0]))
                 # pylint: disable=broad-exception-caught
                 # We want to catch and ignore all exceptions.
-                except Exception as e:
-                    logging.exception("Unable to play `%s`.", paths[0])
-                    logging.exception(e)
+                except Exception:
+                    logger.exception("Unable to play `%s`.", paths[0])
             return True
 
-        logging.debug("Audio was not found in `%s`.", self.directory)
+        logger.debug("Audio was not found in `%s`.", self.directory)
         return False
 
     @override
@@ -191,7 +193,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
         download(url, cache_path)
         if not cache_path.exists():
             return False
-        return os.path.getsize(cache_path) > MIN_AUDIO_FILE_SIZE
+        return cache_path.stat().st_size > MIN_AUDIO_FILE_SIZE
 
     def get_path(self, word: str) -> Path | None:
         """Return path of the audio file or `None` if file does not exist.
@@ -223,7 +225,7 @@ class WikimediaCommonsAudioProvider(AudioProvider):
 
         if (
             cache_path.exists()
-            and os.path.getsize(cache_path) > MIN_AUDIO_FILE_SIZE
+            and cache_path.stat().st_size > MIN_AUDIO_FILE_SIZE
         ):
             return cache_path
 
@@ -232,19 +234,18 @@ class WikimediaCommonsAudioProvider(AudioProvider):
     @override
     def play(self, word: str, repeat: int = 1) -> bool:
         if self.player is None:
-            logging.warning("MPV is not installed, cannot play audio.")
+            logger.warning("MPV is not installed, cannot play audio.")
             return False
 
         if path := self.get_path(word):
             for _ in range(repeat):
-                logging.info("Playing `%s`...", path)
+                logger.info("Playing `%s`...", path)
                 try:
                     self.player.play(str(path))
                 # pylint: disable=broad-exception-caught
                 # We want to catch and ignore all exceptions.
-                except Exception as e:
-                    logging.exception("Unable to play `%s`.", path)
-                    logging.exception(e)
+                except Exception:
+                    logger.exception("Unable to play `%s`.", path)
             return True
 
         return False
@@ -284,10 +285,7 @@ class AudioCollection:
         :param repeat: number of times to play each pronunciation
         :return: true iff at least one pronunciation was played
         """
-        for audio in self.audio_providers:
-            if audio.play(word, repeat):
-                return True
-        return False
+        return any(audio.play(word, repeat) for audio in self.audio_providers)
 
     def has(self, word: str) -> bool:
         """Check whether the audio collection has audio for the word.

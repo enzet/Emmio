@@ -5,7 +5,6 @@ See https://en.wiktionary.org.
 
 import json
 import logging
-import os
 import re
 import sys
 from pathlib import Path
@@ -27,6 +26,8 @@ from emmio.language import KnownLanguages, Language
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
@@ -66,7 +67,7 @@ def get_file_name(word: str) -> str:
 def check_link_type(link_type: str) -> bool:
     """Check if the link type is valid.
 
-    TODO: recheck this function and probably remove.
+    TODO(enzet): recheck this function and probably remove.
 
     :param link_type: link type
     :return: true iff the link type is valid
@@ -113,7 +114,7 @@ class EnglishWiktionaryKaikki(Dictionary):
         """
 
         if not from_language.has_symbols():
-            logging.error(
+            logger.error(
                 "Language `%s` does not have symbols.", from_language.get_name()
             )
             sys.exit(1)
@@ -131,14 +132,14 @@ class EnglishWiktionaryKaikki(Dictionary):
         if self.cache_directory.exists():
             return
 
-        os.makedirs(self.cache_directory)
+        self.cache_directory.mkdir(parents=True)
         file_path: Path = (
             self.path
             / f"kaikki.org-dictionary-{self.from_language_name}-words.jsonl"
         )
         if not file_path.exists():
-            logging.info("File `%s` does not exist.", file_path)
-            logging.info("Downloading `%s` Kaikki...", self.from_language_name)
+            logger.info("File `%s` does not exist.", file_path)
+            logger.info("Downloading `%s` Kaikki...", self.from_language_name)
             url: str = (
                 f"https://kaikki.org/dictionary/{self.from_language_name}/"
                 f"words/kaikki.org-dictionary-"
@@ -150,20 +151,20 @@ class EnglishWiktionaryKaikki(Dictionary):
             try:
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
-                logging.exception(
+                logger.exception(
                     "Failed to download `%s` Kaikki from `%s`.",
                     self.from_language_name,
                     url,
                 )
                 # Remove created directory.
-                os.rmdir(self.cache_directory)
+                self.cache_directory.rmdir()
                 sys.exit(1)
             with file_path.open("wb") as output_file:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         output_file.write(chunk)
 
-        logging.info(
+        logger.info(
             "Creating cache for `%s` Kaikki...", self.from_language.get_name()
         )
         with file_path.open(encoding="utf-8") as input_file:
@@ -218,8 +219,8 @@ class EnglishWiktionaryKaikki(Dictionary):
             else set()
         )
 
-        # FIXME: etymology is replaced. We should parse only one dictionary item
-        #     for an item.
+        # TODO(enzet): etymology is replaced. We should parse only one
+        # dictionary item for an item.
         dictionary_item.set_etymology(item.get("etymology_text"))
 
         definitions: list[Definition] = []
@@ -230,27 +231,27 @@ class EnglishWiktionaryKaikki(Dictionary):
 
             if "form_of" in sense:
                 tags = sense["tags"]
-                for form in sense["form_of"]:
-                    links.append(
-                        Link(
-                            ", ".join(x for x in tags if x != "form-of"),
-                            form["word"],
-                        )
+                links.extend(
+                    Link(
+                        ", ".join(x for x in tags if x != "form-of"),
+                        form["word"],
                     )
+                    for form in sense["form_of"]
+                )
                 continue
 
             if "alt_of" in sense:
                 tags = sense["tags"]
-                for form in sense["alt_of"]:
-                    links.append(
-                        Link(
-                            ", ".join(x for x in tags if x != "alt-of"),
-                            form["word"],
-                        )
+                links.extend(
+                    Link(
+                        ", ".join(x for x in tags if x != "alt-of"),
+                        form["word"],
                     )
+                    for form in sense["alt_of"]
+                )
                 continue
 
-            # FIXME: dirty hacks:
+            # TODO(enzet): dirty hacks.
             if "categories" in sense:
                 for category in sense["categories"]:
                     if (
@@ -261,10 +262,12 @@ class EnglishWiktionaryKaikki(Dictionary):
 
             definition_values: list[DefinitionValue] = []
             if "glosses" in sense:
-                for gloss in sense["glosses"]:
-                    definition_values.append(DefinitionValue.from_text(gloss))
+                definition_values.extend(
+                    DefinitionValue.from_text(gloss)
+                    for gloss in sense["glosses"]
+                )
 
-            descriptors: list[str] = sense["tags"] if "tags" in sense else []
+            descriptors: list[str] = sense.get("tags", [])
 
             definitions.append(
                 Definition(definition_values, descriptors=descriptors)

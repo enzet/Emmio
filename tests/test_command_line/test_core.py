@@ -8,14 +8,17 @@ import json
 import shutil
 from pathlib import Path
 from textwrap import dedent
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from pytest import CaptureFixture
+import pytest
 
 from emmio.__main__ import main
 from emmio.learn.config import LearningConfigType
 from emmio.lexicon.config import LexiconConfigType
-from emmio.user.config import UserConfigType
+
+if TYPE_CHECKING:
+    from emmio.user.config import UserConfigType
 
 DictionaryConfigType = dict[str, str | bool]
 ListConfigType = dict[str, str | bool]
@@ -45,7 +48,7 @@ LIST_NB: ListConfigType = {
 
 
 def check_main(
-    capsys: CaptureFixture[str],
+    capsys: pytest.CaptureFixture[str],
     temp_directory: Path = DEFAULT_DATA_DIRECTORY,
     temp_user_id: str = DEFAULT_USER_ID,
     user_commands: list[str] | None = None,
@@ -135,17 +138,15 @@ def initialize(
 
     if dictionaries_configuration is None:
         dictionaries_configuration = {}
-    with open(
-        temp_directory / "dictionaries" / "config.json", "w", encoding="utf-8"
+    with (temp_directory / "dictionaries" / "config.json").open(
+        "w", encoding="utf-8"
     ) as output_file:
         json.dump(dictionaries_configuration, output_file)
 
     if dictionaries is not None:
         for file_name, content in dictionaries.items():
-            with open(
-                temp_directory / "dictionaries" / file_name,
-                "w",
-                encoding="utf-8",
+            with (temp_directory / "dictionaries" / file_name).open(
+                "w", encoding="utf-8"
             ) as output_file:
                 output_file.write(content)
 
@@ -153,15 +154,15 @@ def initialize(
 
     if lists_configuration is None:
         lists_configuration = {}
-    with open(
-        temp_directory / "lists" / "config.json", "w", encoding="utf-8"
+    with (temp_directory / "lists" / "config.json").open(
+        "w", encoding="utf-8"
     ) as output_file:
         json.dump(lists_configuration, output_file)
 
     if lists is not None:
         for file_name, content in lists.items():
-            with open(
-                temp_directory / "lists" / file_name, "w", encoding="utf-8"
+            with (temp_directory / "lists" / file_name).open(
+                "w", encoding="utf-8"
             ) as output_file:
                 output_file.write(content)
 
@@ -169,15 +170,15 @@ def initialize(
 
     if sentences_configuration is None:
         sentences_configuration = {}
-    with open(
-        temp_directory / "sentences" / "config.json", "w", encoding="utf-8"
+    with (temp_directory / "sentences" / "config.json").open(
+        "w", encoding="utf-8"
     ) as output_file:
         json.dump(sentences_configuration, output_file)
 
     if sentences is not None:
         for file_name, content in sentences.items():
-            with open(
-                temp_directory / "sentences" / file_name, "w", encoding="utf-8"
+            with (temp_directory / "sentences" / file_name).open(
+                "w", encoding="utf-8"
             ) as output_file:
                 output_file.write(content)
 
@@ -193,15 +194,13 @@ def initialize(
 
     if lexicons_configuration is not None:
         user_configuration["lexicon"] = lexicons_configuration
-    with open(temp_user_config, "w", encoding="utf-8") as output_file:
+    with temp_user_config.open("w", encoding="utf-8") as output_file:
         json.dump(user_configuration, output_file)
 
     if lexicons is not None:
         for file_name, lexicon_structure in lexicons.items():
-            with open(
-                temp_user_directory / "lexicon" / file_name,
-                "w",
-                encoding="utf-8",
+            with (temp_user_directory / "lexicon" / file_name).open(
+                "w", encoding="utf-8"
             ) as output_file:
                 json.dump(lexicon_structure, output_file)
 
@@ -209,12 +208,12 @@ def initialize(
 
     if learning_configuration is not None:
         user_configuration["learn"] = learning_configuration
-    with open(temp_user_config, "w", encoding="utf-8") as output_file:
+    with temp_user_config.open("w", encoding="utf-8") as output_file:
         json.dump(user_configuration, output_file)
 
     if learnings is not None:
         for file_name, learning_structure in learnings.items():
-            with open(
-                temp_user_directory / "learn" / file_name, "w", encoding="utf-8"
+            with (temp_user_directory / "learn" / file_name).open(
+                "w", encoding="utf-8"
             ) as output_file:
                 json.dump(learning_structure, output_file)

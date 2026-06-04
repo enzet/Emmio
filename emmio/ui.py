@@ -67,7 +67,7 @@ class BlockElement(Element):
 class Text(InlineElement):
     """Text element."""
 
-    def __init__(self, text: str | InlineElement | None = None):
+    def __init__(self, text: str | InlineElement | None = None) -> None:
         self.elements: list[InlineElement | str] = (
             [] if text is None else [text]
         )
@@ -149,7 +149,7 @@ class Table(BlockElement):
 class Interface(ABC):
     """User input/output interface."""
 
-    def __init__(self, use_input: bool) -> None:
+    def __init__(self, *, use_input: bool) -> None:
         self.use_input: bool = use_input
 
     @abstractmethod
@@ -202,7 +202,7 @@ class TerminalInterface(Interface):
     """Simple terminal interface with only necessary unicode characters."""
 
     def print(self, text: Element | str) -> None:
-        print(self.construct(text))
+        """Print text to the terminal (no-op in base implementation)."""
 
     def construct(self, element: Element | str) -> str:
         """Construct string from element."""
@@ -225,21 +225,19 @@ class TerminalInterface(Interface):
             return self.construct(element.text)
 
         if isinstance(element, Table):
-            columns: list[str] = []
-            rows: list[list[str]] = []
-            for column in element.columns:
-                columns.append(self.construct(column))
-            for row in element.rows:
-                rows.append([self.construct(cell) for cell in row])
+            columns: list[str] = [
+                self.construct(column) for column in element.columns
+            ]
+            rows: list[list[str]] = [
+                [self.construct(cell) for cell in row] for row in element.rows
+            ]
             return table(columns, rows)
 
-        raise ValueError(
-            f"Unsuppoted text type in terminal interface `{type(element)}`."
-        )
+        msg = f"Unsuppoted text type in terminal interface `{type(element)}`."
+        raise ValueError(msg)
 
     @override
     def button(self, text: str) -> None:
-        print(f"<{text}>")
         input()
 
     @override
@@ -346,11 +344,12 @@ def rich_escape(text: str) -> str:
 class RichInterface(TerminalInterface):
     """Terminal interface with complex Unicode characters and colors."""
 
-    def __init__(self, use_input: bool) -> None:
-        super().__init__(use_input)
+    def __init__(self, *, use_input: bool) -> None:
+        super().__init__(use_input=use_input)
         self.console: Console = Console(highlight=False)
 
     def print(self, text: Element | str) -> None:
+        """Print rich-formatted text to the console."""
         self.console.print(self.construct_rich(text))
 
     def construct_rich_inner(
@@ -397,9 +396,8 @@ class RichInterface(TerminalInterface):
             rich_element.stylize(element.color)
             return rich_element
 
-        raise ValueError(
-            f"Unsupported text type in rich interface: `{type(element)}`."
-        )
+        msg = f"Unsupported text type in rich interface: `{type(element)}`."
+        raise ValueError(msg)
 
     def construct_rich(self, element: Element | str) -> RichCompatible | str:
         """Construct block or inner rich element from text."""
@@ -436,6 +434,7 @@ class RichInterface(TerminalInterface):
         return Text().add(Formatted(key.upper(), "bold")).add(" ").add(text)
 
     def button(self, text: str) -> None:
+        """Print a button and wait for user input."""
         self.console.print(f"[b]<{text}>[/b]")
         self.get_char()
 
@@ -468,4 +467,5 @@ def get_interface(interface: str) -> Interface:
         case "rich":
             return RichInterface(use_input=True)
         case _:
-            raise ValueError(f"Unsupported interface: `{interface}`.")
+            msg = f"Unsupported interface: `{interface}`."
+            raise ValueError(msg)

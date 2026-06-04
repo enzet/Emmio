@@ -2,7 +2,7 @@
 """Data for the picture."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +39,8 @@ def fill_data(
         words[word] = {
             "word": word,
             "language": lexicon.language.get_code(),
-            "addTime": datetime.now(),
-            "nextQuestionTime": datetime.now(),
+            "addTime": datetime.now(UTC),
+            "nextQuestionTime": datetime.now(UTC),
             "vector": (
                 "N"
                 if lexicon.words[word].knowing == LexiconResponse.DONT
@@ -55,7 +55,7 @@ def fill_data(
     )
     min_time = min(min_add_time, min_next_question_time)
 
-    for word, structure in words.items():
+    for structure in words.values():
         structure["addTime"] = (
             structure["addTime"] - min_add_time
         ).total_seconds()
@@ -63,10 +63,7 @@ def fill_data(
             structure["nextQuestionTime"] - min_time
         ).total_seconds()
 
-    result: list = []
-
-    for word, structure in words.items():
-        result.append(structure)
+    result: list = list(words.values())
 
     result = sorted(result, key=lambda structure: structure["index"])
 

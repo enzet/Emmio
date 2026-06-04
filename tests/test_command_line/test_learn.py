@@ -3,7 +3,7 @@
 import json
 from textwrap import dedent
 
-from pytest import CaptureFixture
+import pytest
 
 from tests.test_command_line.test_core import (
     DICTIONARY_NB_EN,
@@ -40,7 +40,7 @@ LEARNING_NB_CONTENT: LearningContentType = {
 }
 
 
-def test_learn(capsys: CaptureFixture[str]) -> None:
+def test_learn(capsys: pytest.CaptureFixture[str]) -> None:
     """Test simplest `learn` command."""
 
     initialize(
@@ -85,7 +85,7 @@ def test_learn(capsys: CaptureFixture[str]) -> None:
     )
 
 
-def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
+def test_learn_with_sentences(capsys: pytest.CaptureFixture[str]) -> None:
     """Test `learn` command with sentences."""
 
     initialize(

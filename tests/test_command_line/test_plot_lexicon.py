@@ -1,11 +1,11 @@
 """Test `plot lexicon` command."""
 
-from pytest import CaptureFixture
+import pytest
 
 from tests.test_command_line.test_core import HEADER, check_main, initialize
 
 
-def test_plot_lexicon(capsys: CaptureFixture[str]) -> None:
+def test_plot_lexicon(capsys: pytest.CaptureFixture[str]) -> None:
     """Test `plot lexicon` command."""
 
     initialize()

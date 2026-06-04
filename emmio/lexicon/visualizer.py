@@ -162,7 +162,7 @@ class LexiconVisualizer:
                 responses += lexicon.responses
 
             date_ranges, rates = compute_lexicon_rate(
-                sorted(zip(dates, responses)), self.precision
+                sorted(zip(dates, responses, strict=False)), self.precision
             )
 
             if self.plot_precise_values:
@@ -241,10 +241,10 @@ class LexiconVisualizer:
 
         for data_range in lexicon_data:
             y_min = min(
-                y_min, min(min(y_range) for y_range in data_range.y_ranges)
+                y_min, *(min(y_range) for y_range in data_range.y_ranges)
             )
             y_max = max(
-                y_max, max(max(y_range) for y_range in data_range.y_ranges)
+                y_max, *(max(y_range) for y_range in data_range.y_ranges)
             )
 
         if y_min == math.inf:
@@ -370,7 +370,8 @@ class LexiconVisualizer:
                 r"    axis lines=left,",
                 r"    xlabel={Year},",
                 r"    ylabel={Vocabulary level},",
-                r"    legend style={at={(1.02,1)},anchor=north west,draw=none},",
+                r"    legend style="
+                r"{at={(1.02,1)},anchor=north west,draw=none},",
                 r"    legend cell align=left,",
                 r"    clip=false,",
                 r"]",
@@ -389,6 +390,7 @@ class LexiconVisualizer:
         language: Language,
         language_lexicons: list[Lexicon],
         margin: float | None,
+        *,
         skip_first_point: bool = True,
     ) -> LexiconRangeData | None:
         """Get data for plotting lexicon rate change through time.
@@ -406,7 +408,7 @@ class LexiconVisualizer:
             responses += lexicon.responses
 
         date_ranges, rates = compute_lexicon_rate(
-            sorted(zip(dates, responses)), self.precision
+            sorted(zip(dates, responses, strict=False)), self.precision
         )
         if not rates or (margin is not None and max(rates) < margin):
             return None
@@ -444,6 +446,7 @@ class LexiconVisualizer:
         self,
         lexicons: dict[Language, list[Lexicon]],
         margin: float | None,
+        *,
         skip_first_point: bool = False,
     ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
         """Construct data for plotting lexicon rate change through time.
@@ -456,7 +459,10 @@ class LexiconVisualizer:
 
         for language, language_lexicons in lexicons.items():
             data_range = self.get_lexicon_range_data(
-                language, language_lexicons, margin, skip_first_point
+                language,
+                language_lexicons,
+                margin,
+                skip_first_point=skip_first_point,
             )
             if data_range:
                 data.append(data_range)

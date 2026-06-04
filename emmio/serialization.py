@@ -1,13 +1,13 @@
 """Serialization of Emmio data."""
 
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 BOOLEAN_NONE: bytes = b"\x02"
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 ENDIAN: Literal["little", "big"] = "little"
-EPOCH: datetime = datetime(1970, 1, 1)
+EPOCH: datetime = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class Encoder:
@@ -28,8 +28,9 @@ class Encoder:
         self.encode_int(self.VERSION_MINOR, 1)
 
     def encode_string(self, text: str) -> None:
-        """Encode string value into 4-bytes integer of the length and UTF-8
-        value.
+        """Encode string value.
+
+        Uses 4-bytes integer of the length and UTF-8 value.
         """
         text_code: bytes = text.encode()
         self.code.write(
@@ -46,16 +47,16 @@ class Encoder:
         self.encode_int(integer_part, size)
         self.encode_int(int((value - integer_part) * 1_000_000), 2)
 
-    def encode_boolean(self, value: bool) -> None:
+    def encode_boolean(self, *, value: bool) -> None:
         """Encode Boolean value."""
         self.code.write(b"\x01" if value else b"\x00")
 
-    def encode_ternary(self, value: bool | None) -> None:
+    def encode_ternary(self, *, value: bool | None) -> None:
         """Encode optional Boolean value."""
         if value is None:
             self.code.write(b"\x02")
         else:
-            self.encode_boolean(value)
+            self.encode_boolean(value=value)
 
     def encode_enum(self, value: str, values: list[str]) -> None:
         """Encode value of an enum.

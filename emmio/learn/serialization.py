@@ -4,8 +4,9 @@ Versions are:
   - 0.1: old serialization in YAML files.
 """
 
+import contextlib
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,7 @@ import yaml
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.serialization import DATE_FORMAT, EPOCH, Decoder, Encoder
-from emmio.util import MalformedFile
+from emmio.util import MalformedFileError
 
 ANSWERS: list[str] = ["y", "n", "s"]
 
@@ -51,7 +52,7 @@ class LearningYAMLDecoder:
             id_,
         )
         if not structure:
-            raise MalformedFile(path)
+            raise MalformedFileError(path)
 
         for question_id, process in structure.items():
             if (
@@ -143,7 +144,7 @@ class LearningEncoder(Encoder):
 
         first_time: datetime = datetime.strptime(
             structure[0]["time"][:-7], DATE_FORMAT
-        )
+        ).replace(tzinfo=UTC)
         last_time: datetime = first_time
         self.encode_int(int((first_time - EPOCH).total_seconds()), 8)
         self.encode_int(int(structure[0]["time"][-6:]), 4)
@@ -151,7 +152,7 @@ class LearningEncoder(Encoder):
         for element in structure:
             time: datetime = datetime.strptime(
                 element["time"][:-7], DATE_FORMAT
-            )
+            ).replace(tzinfo=UTC)
             self.encode_int(int((time - last_time).total_seconds()), 4)
             self.encode_int(int(element["time"][-6:]), 4)
             self.encode_string(element["word"])
@@ -219,18 +220,15 @@ if __name__ == "__main__":
 
     for course_id, course_content in content.items():
         try:
-            print(course_id)
             learning_path: Path = (
                 Path(learning_directory) / f"{course_id.replace('/', '_')}.json"
             )
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 learning_path.unlink()
-            except FileNotFoundError:
-                pass
 
             current_learning: Learning = LearningYAMLDecoder().decode(
                 course_id, learning_path, course_content
             )
             current_learning.write()
-        except MalformedFile:
+        except MalformedFileError:
             continue
