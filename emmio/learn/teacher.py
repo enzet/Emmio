@@ -390,7 +390,7 @@ class Teacher:
     def print_sentence(
         self,
         word: str,
-        rated_sentences: list[tuple[float, SentenceAndTranslations]],
+        rated_sentences: list[SentenceAndTranslations],
         index: int,
         *,
         show_index: bool = False,
@@ -404,7 +404,7 @@ class Teacher:
         :param show_index: show current sentence index
         :param max_translations: maximum number of translations to show
         """
-        _, sentence_translations = rated_sentences[index]
+        sentence_translations = rated_sentences[index]
         text: str = sentence_translations.sentence.text
         if show_index:
             text += f" ({index + 1}/{len(rated_sentences)})"
@@ -434,9 +434,10 @@ class Teacher:
         self.interface.print(result)
 
         translations: list[str] = [
-            x.text
-            for x in sentence_translations.translations[:max_translations]
-        ]
+            sentence.text
+            for sentences in sentence_translations.translations.values()
+            for sentence in sentences
+        ][:max_translations]
         if all_known:
             self.interface.button("Reveal translations")
         self.interface.print("\n".join(translations))
@@ -493,8 +494,10 @@ class Teacher:
             self.interface.print("")
 
         index: int = 0
-        rated_sentences: list[tuple[float, SentenceTranslations]] = (
-            self.data.get_sentences_data().get(word, self.user_data.get_confi)
+        rated_sentences: list[SentenceAndTranslations] = (
+            self.data.get_sentences_data().get(
+                word, self.learning.config.sentences or []
+            )
         )
         if index < len(rated_sentences):
             self.print_sentence(word, rated_sentences, index)
@@ -507,7 +510,7 @@ class Teacher:
                 word, alternative_forms, self.learning.learning_language
             )
             sentence_id: int = (
-                rated_sentences[index][1].sentence.id_
+                rated_sentences[index].sentence.id_
                 if index < len(rated_sentences)
                 else 0
             )

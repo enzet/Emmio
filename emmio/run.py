@@ -150,6 +150,11 @@ class Emmio:
 
         lexicon_parser = subparsers.add_parser("lexicon", help="check lexicon")
         lexicon_parser.add_argument("id", nargs="?")
+        lexicon_parser.add_argument(
+            "--type",
+            default="frequency",
+            choices=["frequency", "random", "most frequent"],
+        )
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
         stat_parser.add_argument(

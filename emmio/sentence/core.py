@@ -255,8 +255,12 @@ class SimpleTwoLanguagesSentences(Sentences):
             sentence
             for sentence in self.sentences
             if word in sentence.sentence.text
-            and (ids_to_skip is None or sentence.sentence.id_ not in ids_to_skip)
-            and (max_length is None or len(sentence.sentence.text) <= max_length)
+            and (
+                ids_to_skip is None or sentence.sentence.id_ not in ids_to_skip
+            )
+            and (
+                max_length is None or len(sentence.sentence.text) <= max_length
+            )
         ][:max_number]
 
     def get_and_rate(
