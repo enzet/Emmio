@@ -17,7 +17,6 @@ from emmio.language import Language
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
-from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import Lexicon, LexiconChecker
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener

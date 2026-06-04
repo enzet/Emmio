@@ -198,7 +198,7 @@ class SimpleTwoLanguagesSentences(Sentences):
     language_2: Language
     """Second language."""
 
-    NUMBER_OF_LANGUAGES: int = 2
+    NUMBER_OF_LANGUAGES: int = 2  # pylint: disable=invalid-name
 
     @classmethod
     def from_config(cls, path: Path, id_: str, config: SentenceConfig) -> Self:
@@ -272,9 +272,11 @@ class SimpleTwoLanguagesSentences(Sentences):
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceAndTranslations]]:
         """Get sentences with ratings."""
-        return self.rate(
-            is_known,
-            self.filter_by_word(word, ids_to_skip, max_length, max_number),
+        sentences: list[SentenceAndTranslations] = self.get(
+            word, ids_to_skip, max_length, max_number
+        )
+        return sorted(
+            [(s.rate(is_known), s) for s in sentences], key=lambda r: -r[0]
         )
 
 
@@ -282,7 +284,7 @@ class SimpleTwoLanguagesSentences(Sentences):
 class SentencesCollection:
     """Collection of sentences."""
 
-    collection: list[Sentences]
+    collection: list[SimpleTwoLanguagesSentences]
     """List of sentences."""
 
     def get(
@@ -318,7 +320,7 @@ class SentencesCollection:
         result: list[tuple[float, SentenceAndTranslations]] = []
 
         for sentences in self.collection:
-            result += sentences.get_rate(
+            result += sentences.get_and_rate(
                 word, is_known, ids_to_skip, max_length
             )
         result.sort(key=lambda record: -record[0])

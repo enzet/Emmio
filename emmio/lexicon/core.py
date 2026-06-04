@@ -9,12 +9,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self, override
+from typing import Any, Self, cast, override
 
 import numpy as np
 from pydantic import BaseModel
 from scipy.optimize import minimize
-from scipy.special import expit
+from scipy.special import expit  # pylint: disable=no-name-in-module
 
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
@@ -1128,15 +1128,15 @@ class LexiconChecker:
 
         for _ in range(n_bootstrap):
             idx = rng.integers(0, n, size=n)
-            boot_ranks: list[int] = ranks_arr[idx].tolist()
-            boot_labels: list[int] = labels_arr[idx].tolist()
+            boot_ranks: list[int] = cast("list[int]", ranks_arr[idx].tolist())
+            boot_labels: list[int] = cast("list[int]", labels_arr[idx].tolist())
             if not any(l == 0 for l in boot_labels) or not any(
                 l == 1 for l in boot_labels
             ):
                 continue
             try:
                 a_b, b_b, c_b = _fit_logistic(boot_ranks, boot_labels)
-            except Exception:
+            except (ValueError, RuntimeError):
                 continue
             theta_boot: float = theta_s + theta_u_from_params(a_b, b_b, c_b)
             if theta_boot > 0.0:

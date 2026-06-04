@@ -1,4 +1,4 @@
-# type: ignore
+# mypy: ignore-errors
 """Learning visualizer."""
 
 from collections import defaultdict

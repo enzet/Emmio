@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data
@@ -15,12 +14,16 @@ from emmio.dictionary.core import (
 from emmio.language import Language
 from emmio.learn.config import ActionType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
-from emmio.lexicon.core import AnswerType, Lexicon, LexiconResponse
+from emmio.lexicon.core import (
+    AnswerType,
+    Lexicon,
+    LexiconChecker,
+    LexiconResponse,
+)
 from emmio.lists.core import List
 from emmio.sentence.core import (
     SentenceAndTranslations,
     SentenceElement,
-    SentencesCollection,
 )
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
@@ -195,9 +198,16 @@ class Teacher:
         if self.ask_lexicon and not self.ask_lexicon.has(question_id):
             self.ask_lexicon.write()
 
-            _, response, _ = await self.ask_lexicon.ask(
-                self.interface, question_id, self.dictionaries, self.sentences
+            checker: LexiconChecker = LexiconChecker(
+                self.interface,
+                self.ask_lexicon,
+                self.data.get_dictionaries(
+                    self.ask_lexicon.config.dictionaries or []
+                ),
+                self.data.get_sentences_data(),
+                self.ask_lexicon.config.sentences or [],
             )
+            _, response, _ = await checker.ask(question_id)
             if response is None:
                 return False
 
@@ -448,8 +458,6 @@ class Teacher:
         :param word: word to learn
         :param knowledge: knowledge of the word
         """
-        ids_to_skip: set[int] = set()
-
         if knowledge:
             self.interface.print(
                 "".join(x.get_symbol() for x in knowledge.get_responses())

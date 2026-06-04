@@ -19,7 +19,7 @@ from emmio.user.config import UserConfigType
 
 DictionaryConfigType = dict[str, str | bool]
 ListConfigType = dict[str, str | bool]
-SentencesConfigType = dict[str, str]
+SentencesConfigType = dict[str, str | list[str]]
 
 LearningContentType = dict[str, list[dict[str, str]]]
 LexiconContentType = dict[str, list[dict[str, str]]]

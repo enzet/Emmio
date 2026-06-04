@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """Tatoeba sentences.
 
 Tatoeba is a project that provides a database of sentences in many languages.
@@ -102,14 +103,13 @@ class TatoebaSentences(Sentences):
             self.word_cache[language] = word_to_sentence_id
             return word_to_sentence_id
 
-    """
-    def read_links__(
+    def read_links__old(
         self, cache_path: Path, language_1: Language, language_2: Language
     ) -> None:
-        ""Read links from a cache file.
+        """Read links from a cache file.
 
         :param cache_path: path to the cache directory
-        ""
+        """
         links_csv_path: Path = cache_path / "links.csv"
 
         logger.info(
@@ -155,15 +155,15 @@ class TatoebaSentences(Sentences):
         sentences_2: dict[int, Sentence] = self.database.get_sentences(
             language_2
         )
+        self_links: dict[int, set] = {}
         for id_1 in sentences_2:
-            self.links[id_1] = set()
+            self_links[id_1] = set()
             if id_1 in links:
                 for id_2 in links[id_1]:
                     if id_2 in sentences_1:
-                        self.links[id_1].add(id_2)
-            if not self.links[id_1]:
-                self.links.pop(id_1)
-    """
+                        self_links[id_1].add(id_2)
+            if not self_links[id_1]:
+                self_links.pop(id_1)
 
     def read_links(self, file_name: Path) -> dict[int, set[int]]:
         """Read link cache from a JSON file."""
@@ -236,7 +236,7 @@ class TatoebaSentences(Sentences):
             links_zip_path.unlink()
 
         sentences: dict[int, Sentence] = self.database.get_sentences(language)
-        links: dict[int, set[int]] = defaultdict(set)
+        links = defaultdict(set)
         with (
             cache_file_path.open("wb") as output_file,
             links_csv_path.open(encoding="utf-8") as input_csv,
@@ -370,8 +370,5 @@ class TatoebaSentences(Sentences):
         max_length: int,
         max_number: int | None = 1000,
     ) -> list[tuple[float, SentenceAndTranslations]]:
-        return Sentences.rate(
-            is_known,
-            self.get(word, ids_to_skip, max_length, max_number),
-            self.language_2,
-        )
+        """Not implemented: use `get()` with explicit language parameters."""
+        raise NotImplementedError
