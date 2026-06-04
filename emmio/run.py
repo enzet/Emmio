@@ -592,9 +592,9 @@ class Emmio:
             checker: LexiconChecker = LexiconChecker(
                 self.interface,
                 lexicon,
-                self.data.get_dictionaries(lexicon.config.dictionaries),
+                self.data.get_dictionaries(lexicon.config.dictionaries or []),
                 self.data.get_sentences_data(),
-                lexicon.config.sentences,
+                lexicon.config.sentences or [],
             )
             await checker.check_frequency(
                 other_lexicons,

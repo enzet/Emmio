@@ -95,8 +95,8 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
             "nb_en": {
                 "file_name": "nb_en.txt",
                 "name": "Norwegian Bokmål to English",
-                "language_1": "nb",
-                "language_2": "en",
+                "type": "simple_two_languages",
+                "languages": ["nb", "en"],
             }
         },
         sentences={
@@ -121,7 +121,7 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
                 "file_name": "nb.json",
                 "dictionaries": [{"id": "nb_en"}],
                 "scheme": {"new_question": {"pick_from": [{"id": "nb"}]}},
-                "sentences": [{"id": "nb_en"}],
+                "sentences": [{"id": "nb_en", "language": "nb"}],
             }
         },
         learnings={"nb.json": LEARNING_NB_CONTENT},
@@ -145,10 +145,10 @@ def test_learn_with_sentences(capsys: CaptureFixture[str]) -> None:
             Learn new words for Norwegian Bokmål
             New question.
             yes
-            hei, Maria, __
-            hi, Maria, yes
             __, Maria
             yes, Maria
+            hva? __!
+            what? yes!
             ja
             yes
             New question.

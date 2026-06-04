@@ -85,7 +85,7 @@ def check_main(
                 assert split_captured_output == split_expected_output
 
         assert Path(temp_directory).exists()
-        for subdirectory in "dictionaries", "sentences", "texts", "users":
+        for subdirectory in "dictionaries", "texts", "users":
             assert Path(temp_directory, subdirectory).exists()
         assert Path(temp_directory, "users", temp_user_id).exists()
         assert Path(

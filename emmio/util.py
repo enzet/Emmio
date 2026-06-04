@@ -55,7 +55,7 @@ def plus_year(point: datetime) -> datetime:
     """Get the point one year after the specified point."""
     new_year: int = point.year + 1
     day: datetime = datetime(year=new_year, month=1, day=1, tzinfo=UTC)
-    return datetime.combine(day, point.time())
+    return datetime.combine(day, point.time(), tzinfo=UTC)
 
 
 def month_start(point: datetime) -> datetime:
@@ -71,7 +71,7 @@ def plus_month(point: datetime) -> datetime:
         new_month = 1
         new_year = point.year + 1
     day: datetime = datetime(year=new_year, month=new_month, day=1, tzinfo=UTC)
-    return datetime.combine(day, point.time())
+    return datetime.combine(day, point.time(), tzinfo=UTC)
 
 
 def week_start(point: datetime) -> datetime:

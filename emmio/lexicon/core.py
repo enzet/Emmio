@@ -761,6 +761,11 @@ class Lexicon(UserArtifact):
         return self.config.selection == LexiconSelection.FREQUENCY
 
 
+MIN_SIZE_TESTED_RANKS = 10
+MIN_R_BOOTS = 10
+MIN_N_UNKNOWN = 5
+
+
 @dataclass
 class LexiconChecker:
     """Checker for the lexicon."""
@@ -886,7 +891,7 @@ class LexiconChecker:
         other_lexicons: list["Lexicon"],
         frequency_list: FrequencyList,
         stop_at_wrong: int | None,
-    ):
+    ) -> None:
         """Check lexicon."""
         if self.lexicon.config.selection == LexiconSelection.FREQUENCY:
             await self.check_frequency(
@@ -1003,7 +1008,7 @@ class LexiconChecker:
         return exit_code
 
     def estimate_r(
-        self, frequency_list: FrequencyList, a, b, c
+        self, frequency_list: FrequencyList, a: float, b: float, c: float
     ) -> float | None:
         """Estimate r using the logistic model.
 
@@ -1035,7 +1040,10 @@ class LexiconChecker:
                 theta_s += p_i
 
         n_unknown: int = sum(tested_labels)
-        if len(tested_ranks) < 10 or n_unknown < 5:
+        if (
+            len(tested_ranks) < MIN_SIZE_TESTED_RANKS
+            or n_unknown < MIN_N_UNKNOWN
+        ):
             return None
 
         theta_u: float = sum(
@@ -1089,7 +1097,10 @@ class LexiconChecker:
                 theta_s += p_i
 
         n_unknown: int = sum(tested_labels)
-        if len(tested_ranks) < 10 or n_unknown < 5:
+        if (
+            len(tested_ranks) < MIN_SIZE_TESTED_RANKS
+            or n_unknown < MIN_N_UNKNOWN
+        ):
             return None
 
         untested: list[tuple[int, float]] = [
@@ -1131,7 +1142,7 @@ class LexiconChecker:
             if theta_boot > 0.0:
                 r_boots.append(-math.log2(theta_boot))
 
-        if len(r_boots) < 10:
+        if len(r_boots) < MIN_R_BOOTS:
             return None
 
         return r_hat, float(np.std(r_boots, ddof=1))
@@ -1183,7 +1194,10 @@ class LexiconChecker:
 
             # Fit logistic model when there is enough data.
             params: tuple[float, float, float] | None = None
-            if len(unknown_ranks) >= 5 and len(tested_ranks) >= 10:
+            if (
+                len(unknown_ranks) >= MIN_N_UNKNOWN
+                and len(tested_ranks) >= MIN_SIZE_TESTED_RANKS
+            ):
                 params = _fit_logistic(tested_ranks, tested_labels)
                 a, b, c = params
                 logger.info(
@@ -1219,14 +1233,13 @@ class LexiconChecker:
                         best_score = score
                         picked_word = word
                         picked_rank = rank
-            else:
-                # Explore: log-uniform random rank until model is ready.
-                if untested:
-                    max_rank: int = untested[-1][0]
-                    target: int = max(1, int(max_rank ** random.random()))
-                    picked_rank, picked_word = min(
-                        untested, key=lambda rw: abs(rw[0] - target)
-                    )
+            # Explore: log-uniform random rank until model is ready.
+            elif untested:
+                max_rank: int = untested[-1][0]
+                target: int = max(1, int(max_rank ** random.random()))  # noqa: S311
+                picked_rank, picked_word = min(
+                    untested, key=lambda rw: abs(rw[0] - target)
+                )
 
             if picked_word is None:
                 break
