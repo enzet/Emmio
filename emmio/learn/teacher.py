@@ -2,8 +2,8 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
+from emmio.audio.core import AudioCollection
 from emmio.data import Data
 from emmio.dictionary.core import (
     Dictionary,
@@ -20,16 +20,13 @@ from emmio.lexicon.core import (
     LexiconChecker,
     LexiconResponse,
 )
+from emmio.lists.core import List
 from emmio.sentence.core import (
     SentenceAndTranslations,
     SentenceElement,
 )
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
-
-if TYPE_CHECKING:
-    from emmio.audio.core import AudioCollection
-    from emmio.lists.core import List
 
 logger: logging.Logger = logging.getLogger(__name__)
 

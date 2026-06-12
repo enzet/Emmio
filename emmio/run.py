@@ -4,9 +4,10 @@ import argparse
 import logging
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from colour import Color
 
@@ -20,7 +21,9 @@ from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import Lexicon, LexiconChecker
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
+from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
+from emmio.text.annotate import TextAnnotator
 from emmio.ui import (
     Block,
     Colorized,
@@ -34,11 +37,6 @@ from emmio.ui import (
     progress,
 )
 from emmio.user.data import UserData
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from emmio.lists.frequency_list import FrequencyList
 
 logger: logging.Logger = logging.getLogger(__name__)
 

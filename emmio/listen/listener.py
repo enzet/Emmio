@@ -3,31 +3,25 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 try:
     import mpv
 except (OSError, ImportError):
     mpv = None
 
+from emmio.audio.core import AudioCollection
 from emmio.data import Data
+from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
+from emmio.learn.core import Learning
 from emmio.learn.teacher import Teacher
+from emmio.listen.config import ListenConfig
 from emmio.listen.core import PAUSE_AFTER_PLAY, Listening
+from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import Interface
 from emmio.user.data import UserData
 
-if TYPE_CHECKING:
-    from emmio.audio.core import AudioCollection
-    from emmio.dictionary.core import DictionaryCollection
-    from emmio.learn.core import Learning
-    from emmio.listen.config import ListenConfig
-    from emmio.lists.frequency_list import FrequencyList
-
 logger: logging.Logger = logging.getLogger(__name__)
-
-if mpv is None:
-    logger.warning("MPV is not installed, audio playback will be disabled.")
 
 
 class Listener:

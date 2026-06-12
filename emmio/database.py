@@ -2,10 +2,7 @@
 
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from sqlite3.dbapi2 import Connection, Cursor
+from sqlite3.dbapi2 import Connection, Cursor
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

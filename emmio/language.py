@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from colour import Color
 from iso639 import Lang as ISO639Language
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

@@ -15,10 +15,11 @@ import json
 import logging
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, override
 
 from emmio.dictionary import CONFIG
 from emmio.dictionary.config import DictionaryConfig
@@ -26,9 +27,6 @@ from emmio.language import Language
 from emmio.text_util import sanitize
 from emmio.ui import Block, Colorized, Element, Formatted, InlineElement, Text
 from emmio.util import flatten
-
-if TYPE_CHECKING:
-    from collections.abc import Coroutine
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"

@@ -106,6 +106,8 @@ lint.ignore = [
     "S311",    # Standard random is appropriate for non-cryptographic use.
     "S324",    # MD5 is used for non-security file caching.
     "S506",    # YAML FullLoader is intentional.
+    "TC001",   # We use beartype.
+    "TC003",   # We use beartype.
     "TD003",   # Issues for todos are not required.
 ]
 line-length = 80

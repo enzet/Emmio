@@ -4,17 +4,14 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 from colour import Color
 from svgwrite import Drawing
 from svgwrite.container import Group
+from svgwrite.gradients import LinearGradient  # noqa: TC002
 from svgwrite.shapes import Line
 from svgwrite.text import Text
-
-if TYPE_CHECKING:
-    from svgwrite.gradients import LinearGradient
 
 logger: logging.Logger = logging.getLogger(__name__)
 

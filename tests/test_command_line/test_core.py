@@ -8,7 +8,6 @@ import json
 import shutil
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -16,9 +15,7 @@ import pytest
 from emmio.__main__ import main
 from emmio.learn.config import LearningConfigType
 from emmio.lexicon.config import LexiconConfigType
-
-if TYPE_CHECKING:
-    from emmio.user.config import UserConfigType
+from emmio.user.config import UserConfigType
 
 DictionaryConfigType = dict[str, str | bool]
 ListConfigType = dict[str, str | bool]
