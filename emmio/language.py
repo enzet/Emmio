@@ -243,6 +243,15 @@ LATIN_LIGATURES: dict[str, str] = {
 }
 
 
+def hy_checking(symbol: str) -> bool:
+    """Check for Armenian symbols."""
+    return (
+        "\u0561" <= symbol <= "\u0587"
+        or "\u0531" <= symbol <= "\u0556"
+        or symbol in ["՞", "՛"]
+    )
+
+
 class KnownLanguages:
     """Languages supported by the application."""
 
@@ -264,9 +273,7 @@ class KnownLanguages:
         "hy",
         Color("#E8AD3B"),  # Orange color of the Armenian flag.
         ARMENIAN_LETTERS,
-        checking=lambda symbol: "\u0561" <= symbol <= "\u0587"
-        or "\u0531" <= symbol <= "\u0556"
-        or symbol in ["՞", "՛"],
+        checking=hy_checking,
         self_name="հայերեն",
     )
     CHINESE: Language = Language(
@@ -341,7 +348,7 @@ class KnownLanguages:
         Color("#FDF351"),  # Yellow color of the Vatican flag.
         "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvXxYyZz"  # Without "W".
         "ÁÉÍÓÚÝĀĒĪŌŪȲáéíóúýāēīōūȳ",
-        self_name="latīna",
+        self_name="latina",
     )
     MODERN_GREEK: Language = Language(
         "el",

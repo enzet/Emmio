@@ -85,6 +85,8 @@ class GoogleTranslate(Dictionary):
             return None
         except httpx.ConnectTimeout:
             return None
+        except httpx.ReadTimeout:
+            return None
 
         with (self.cache_directory / word).open(
             "w", encoding="utf-8"
