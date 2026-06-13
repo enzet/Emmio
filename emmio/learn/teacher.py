@@ -21,10 +21,7 @@ from emmio.lexicon.core import (
     LexiconResponse,
 )
 from emmio.lists.core import List
-from emmio.sentence.core import (
-    SentenceAndTranslations,
-    SentenceElement,
-)
+from emmio.sentence.core import SentenceAndTranslations, SentenceElement
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
 

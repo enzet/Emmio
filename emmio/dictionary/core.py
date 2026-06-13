@@ -707,7 +707,7 @@ class SimpleDictionary(Dictionary):
 
     @override
     async def get_item(
-        self, word: str, cache_only: bool = False
+        self, word: str, *, cache_only: bool = False
     ) -> DictionaryItem | None:
         if word not in self.data:
             return None

@@ -288,7 +288,7 @@ class EnglishWiktionaryKaikki(Dictionary):
 
     @override
     async def get_item(
-        self, word: str, cache_only: bool = False
+        self, word: str, *, cache_only: bool = False
     ) -> DictionaryItem | None:
         # Return already loaded item.
         if word in self.items:

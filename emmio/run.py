@@ -334,6 +334,13 @@ class Emmio:
         analyze_parser = subparsers.add_parser("analyze")
         analyze_parser.add_argument("language")
 
+        text_parser = subparsers.add_parser("text")
+        text_parser.add_argument("action")
+        text_parser.add_argument("--input", type=Path)
+        text_parser.add_argument("--output", type=Path)
+        text_parser.add_argument("--from-language")
+        text_parser.add_argument("--to-language")
+
         arguments: argparse.Namespace
         if command:
             try:
@@ -373,7 +380,7 @@ class Emmio:
             await self.learn(learnings)
 
         # Command `lexicon`.
-        if arguments.command == "lexicon":
+        elif arguments.command == "lexicon":
             lexicons: list[Lexicon] = [
                 x
                 for x in self.user_data.get_lexicons()
@@ -394,7 +401,7 @@ class Emmio:
             )
 
         # Command `stat`.
-        if arguments.command == "stat":
+        elif arguments.command == "stat":
             # Command `stat actions`.
             if arguments.process == "actions":
                 stat_actions: dict[Language, int] = defaultdict(int)
@@ -441,7 +448,7 @@ class Emmio:
             elif arguments.process == "lexicon":
                 await self.stat_lexicon()
 
-        if arguments.command == "plot":
+        elif arguments.command == "plot":
             # Command `plot lexicon`.
             if arguments.process == "lexicon":
                 self.plot_lexicon(arguments, interactive=interactive)
@@ -483,18 +490,27 @@ class Emmio:
                 self.plot_actions(arguments)
 
         # Command `listen`.
-        if arguments.command == "listen":
+        elif arguments.command == "listen":
             await self.listen(
                 arguments.id, arguments.start_from, arguments.repeat
             )
 
         # Command `to learn`.
-        if command == "to learn":
+        elif command == "to learn":
             await self.to_learn()
 
         # Command `schedule`.
-        if command == "schedule":
+        elif command == "schedule":
             await self.schedule()
+
+        # Command `text annotate`.
+        elif arguments.command == "text" and arguments.action == "annotate":
+            await TextAnnotator(
+                self.data,
+                self.user_data,
+                Language.from_code(arguments.from_language),
+                Language.from_code(arguments.to_language),
+            ).annotate(arguments.input, arguments.output)
 
     async def stat_lexicon(self) -> None:
         """Print lexicon statistics."""
@@ -599,11 +615,7 @@ class Emmio:
                 lexicon.config.sentences or [],
             )
             await checker.check_frequency(
-                other_lexicons,
-                frequency_list,
-                None,
-                lexicon_type,
-                need,
+                other_lexicons, frequency_list, None, lexicon_type, need
             )
             break
 
