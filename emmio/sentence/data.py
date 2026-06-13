@@ -89,12 +89,14 @@ class SentencesData(ArtifactData):
                     self.tatoeba_sentences.get(
                         word,
                         Language.from_code(usage_config.language),
-                        [
-                            Language.from_code(language)
-                            for language in usage_config.translation_languages
-                        ]
-                        if usage_config.translation_languages
-                        else [],
+                        (
+                            [
+                                Language.from_code(language)
+                                for language in usage_config.translation_languages
+                            ]
+                            if usage_config.translation_languages
+                            else []
+                        ),
                     )
                 )
             elif usage_config.id in self.sentences:

@@ -76,10 +76,7 @@ def test_rate_zero_minimal(lexicon: Lexicon) -> None:
 
     register(lexicon, [0, 0])
     assert lexicon.construct_precise(precision=1) == (
-        [
-            (dt(2000, 1, 1), dt(2000, 1, 1)),
-            (dt(2000, 1, 2), dt(2000, 1, 2)),
-        ],
+        [(dt(2000, 1, 1), dt(2000, 1, 1)), (dt(2000, 1, 2), dt(2000, 1, 2))],
         [0.0, 0.0],
     )
     assert lexicon.construct_precise(precision=2) == (
@@ -93,10 +90,7 @@ def test_rate_zero_additional(lexicon: Lexicon) -> None:
 
     register(lexicon, [0, 0, 0])
     assert lexicon.construct_precise(precision=2) == (
-        [
-            (dt(2000, 1, 1), dt(2000, 1, 2)),
-            (dt(2000, 1, 2), dt(2000, 1, 3)),
-        ],
+        [(dt(2000, 1, 1), dt(2000, 1, 2)), (dt(2000, 1, 2), dt(2000, 1, 3))],
         [0.0, 0.0],
     )
 
@@ -117,10 +111,7 @@ def test_half_additional(lexicon: Lexicon) -> None:
     register(lexicon, [1, 0, 1, 0, 1, 0])
 
     assert lexicon.construct_precise(precision=2) == (
-        [
-            (dt(2000, 1, 1), dt(2000, 1, 4)),
-            (dt(2000, 1, 3), dt(2000, 1, 6)),
-        ],
+        [(dt(2000, 1, 1), dt(2000, 1, 4)), (dt(2000, 1, 3), dt(2000, 1, 6))],
         [1.0, 1.0],
     )
     assert lexicon.construct_precise(precision=1) == (
