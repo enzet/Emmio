@@ -467,6 +467,9 @@ class Lexicon(UserArtifact):
     finish: datetime | None
     """Finish date of the lexicon."""
 
+    user_id: str = ""
+    """Login of the user that owns this lexicon."""
+
     saved_records: int = 0
     """Number of records already stored in the database."""
 
@@ -474,15 +477,18 @@ class Lexicon(UserArtifact):
     """Number of sessions already stored in the database."""
 
     @classmethod
-    def from_config(cls, path: Path, id_: str, config: LexiconConfig) -> Self:
+    def from_config(
+        cls, path: Path, id_: str, config: LexiconConfig, user_id: str
+    ) -> Self:
         """Initialize lexicon.
 
         Records and sessions are loaded from the PostgreSQL database; the
         lexicon is created on first write if it is not there yet.
 
-        :param id_: unique lexicon identifier
         :param path: path to the directory with lexicon files
+        :param id_: unique lexicon identifier
         :param config: lexicon configuration
+        :param user_id: login of the user that owns this lexicon
         """
         language: Language = Language.from_code(config.language)
 
@@ -495,7 +501,7 @@ class Lexicon(UserArtifact):
         finish: datetime | None = None
 
         logger.debug("Loading lexicon `%s` from database...", id_)
-        record_rows, session_rows = postgres.load_lexicon(id_)
+        record_rows, session_rows = postgres.load_lexicon(user_id, id_)
 
         log: LexiconLog = LexiconLog(
             records=[
@@ -550,6 +556,7 @@ class Lexicon(UserArtifact):
             responses,
             start,
             finish,
+            user_id,
         )
         lexicon.saved_records = len(log.records)
         lexicon.saved_sessions = len(log.sessions)
@@ -585,7 +592,7 @@ class Lexicon(UserArtifact):
             for session in self.log.sessions[self.saved_sessions :]
         ]
         postgres.save_lexicon(
-            self.id_, self.language.get_code(), records, sessions
+            self.user_id, self.id_, self.language.get_code(), records, sessions
         )
         self.saved_records = len(self.log.records)
         self.saved_sessions = len(self.log.sessions)

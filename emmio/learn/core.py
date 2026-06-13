@@ -282,6 +282,9 @@ class Learning(UserArtifact):
     process: LearningProcess
     """Learning process."""
 
+    user_id: str = ""
+    """Login of the user that owns this learning process."""
+
     saved_records: int = 0
     """Number of records already stored in the database."""
 
@@ -289,11 +292,15 @@ class Learning(UserArtifact):
     """Number of sessions already stored in the database."""
 
     @classmethod
-    def from_config(cls, path: Path, config: LearnConfig, id_: str) -> Self:
+    def from_config(
+        cls, path: Path, config: LearnConfig, id_: str, user_id: str
+    ) -> Self:
         """Create a learning process from a configuration.
 
         Records and sessions are loaded from the PostgreSQL database; the
         course is created on first write if it is not there yet.
+
+        :param user_id: login of the user that owns this learning process
         """
         learning_language: Language = Language.from_code(
             config.learning_language
@@ -304,7 +311,7 @@ class Learning(UserArtifact):
         file_path: Path = path / config.file_name
 
         logger.info("Loading learning `%s` from database...", id_)
-        record_rows, session_rows = postgres.load_learning(id_)
+        record_rows, session_rows = postgres.load_learning(user_id, id_)
 
         process: LearningProcess = LearningProcess(
             records=[
@@ -343,6 +350,7 @@ class Learning(UserArtifact):
             learning_language,
             base_languages,
             process,
+            user_id,
         )
         learning.saved_records = len(process.records)
         learning.saved_sessions = len(process.sessions)
@@ -371,6 +379,7 @@ class Learning(UserArtifact):
             for session in self.process.sessions[self.saved_sessions :]
         ]
         postgres.save_learning(
+            self.user_id,
             self.id_,
             self.config.name,
             self.learning_language.get_code(),

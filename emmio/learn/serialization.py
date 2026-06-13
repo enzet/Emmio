@@ -35,7 +35,10 @@ class LearningYAMLDecoder:
 
     @staticmethod
     def decode(
-        id_: str, path: Path, structure: dict[str, dict[str, str | int]]
+        id_: str,
+        path: Path,
+        structure: dict[str, dict[str, str | int]],
+        user_id: str,
     ) -> Learning:
         """Decode learning process from structure."""
 
@@ -50,6 +53,7 @@ class LearningYAMLDecoder:
                 dictionaries=[],
             ),
             id_,
+            user_id,
         )
         if not structure:
             raise MalformedFileError(path)
@@ -208,10 +212,12 @@ class LearningBinaryDecoder(Decoder):
 if __name__ == "__main__":
     # Arguments:
     #   - path to learning process YAML file version 0.1,
-    #   - path to directory to store created JSON files.
+    #   - path to directory to store created JSON files,
+    #   - owning user login.
 
     file_name: str = sys.argv[1]
     learning_directory: str = sys.argv[2]
+    user: str = sys.argv[3]
 
     with Path(file_name).open(encoding="utf-8") as input_file:
         content: dict[str, dict[str, dict[str, str | int]]] = yaml.load(
@@ -227,7 +233,7 @@ if __name__ == "__main__":
                 learning_path.unlink()
 
             current_learning: Learning = LearningYAMLDecoder().decode(
-                course_id, learning_path, course_content
+                course_id, learning_path, course_content, user
             )
             current_learning.write()
         except MalformedFileError:

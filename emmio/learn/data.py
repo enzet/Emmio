@@ -29,11 +29,16 @@ class LearnData:
     """Mapping from learning identifiers to learning processes."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict[str, Any]) -> Self:
-        """Initialize learn data from the configuration."""
+    def from_config(
+        cls, path: Path, config: dict[str, Any], user_id: str
+    ) -> Self:
+        """Initialize learn data from the configuration.
+
+        :param user_id: login of the user that owns these learning processes
+        """
         learnings: dict[str, Learning] = {
             learn_id: Learning.from_config(
-                path, LearnConfig(**learn_config), learn_id
+                path, LearnConfig(**learn_config), learn_id, user_id
             )
             for learn_id, learn_config in config.items()
         }

@@ -64,7 +64,7 @@ def main() -> None:
 
     for course_id, config in user_config.get("learn", {}).items():
         learning: Learning = Learning.from_config(
-            learn_path, LearnConfig(**config), course_id
+            learn_path, LearnConfig(**config), course_id, arguments.user
         )
         # Export under the configured file name, but always as JSON, even if
         # the original file was in the old YAML format.
@@ -80,7 +80,7 @@ def main() -> None:
 
     for lexicon_id, config in user_config.get("lexicon", {}).items():
         lexicon: Lexicon = Lexicon.from_config(
-            lexicon_path, lexicon_id, LexiconConfig(**config)
+            lexicon_path, lexicon_id, LexiconConfig(**config), arguments.user
         )
         (lexicon_path / config["file_name"]).write_text(
             lexicon.dump_json() + "\n", encoding="utf-8"

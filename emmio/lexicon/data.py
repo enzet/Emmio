@@ -25,18 +25,21 @@ class LexiconData:
     """Mapping from lexicon identifier to lexicon."""
 
     @classmethod
-    def from_config(cls, path: Path, config: dict[str, Any]) -> Self:
+    def from_config(
+        cls, path: Path, config: dict[str, Any], user_id: str
+    ) -> Self:
         """Create a new lexicon data instance from a configuration.
 
         :param path: path to the directory with lexicons
         :param config: configuration
+        :param user_id: login of the user that owns these lexicons
         """
         lexicons: dict[str, Lexicon] = {}
 
         for lexicon_id, lexicon_config in config.items():
             try:
                 lexicons[lexicon_id] = Lexicon.from_config(
-                    path, lexicon_id, LexiconConfig(**lexicon_config)
+                    path, lexicon_id, LexiconConfig(**lexicon_config), user_id
                 )
             except ValidationError as e:
                 logging.fatal(

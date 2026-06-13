@@ -118,7 +118,10 @@ def _parse_time(value: str) -> datetime:
 
 
 def _store_learning(
-    course_id: str, config: LearningConfigType, content: LearningContentType
+    user_id: str,
+    course_id: str,
+    config: LearningConfigType,
+    content: LearningContentType,
 ) -> None:
     """Store learning content in the test database."""
 
@@ -154,6 +157,7 @@ def _store_learning(
         for session in content.get("sessions", [])
     ]
     postgres.save_learning(
+        user_id,
         course_id,
         cast("str", config["name"]),
         cast("str", config["learning_language"]),
@@ -163,7 +167,10 @@ def _store_learning(
 
 
 def _store_lexicon(
-    lexicon_id: str, config: LexiconConfigType, content: LexiconContentType
+    user_id: str,
+    lexicon_id: str,
+    config: LexiconConfigType,
+    content: LexiconContentType,
 ) -> None:
     """Store lexicon content in the test database."""
 
@@ -196,7 +203,7 @@ def _store_lexicon(
         for session in content.get("sessions", [])
     ]
     postgres.save_lexicon(
-        lexicon_id, cast("str", config["language"]), records, sessions
+        user_id, lexicon_id, cast("str", config["language"]), records, sessions
     )
 
 
@@ -283,6 +290,9 @@ def initialize(
         "listen": {},
     }
 
+    # The user must exist in the database before any data is stored for it.
+    postgres.ensure_user(temp_user_id, temp_user_name)
+
     # Configurate lexicons.
 
     if lexicons_configuration is not None:
@@ -295,7 +305,10 @@ def initialize(
             for lexicon_id, lexicon_config in lexicons_configuration.items():
                 if lexicon_config["file_name"] == file_name:
                     _store_lexicon(
-                        lexicon_id, lexicon_config, lexicon_structure
+                        temp_user_id,
+                        lexicon_id,
+                        lexicon_config,
+                        lexicon_structure,
                     )
 
     # Configurate learnings.
@@ -310,5 +323,8 @@ def initialize(
             for course_id, learning_config in learning_configuration.items():
                 if learning_config["file_name"] == file_name:
                     _store_learning(
-                        course_id, learning_config, learning_structure
+                        temp_user_id,
+                        course_id,
+                        learning_config,
+                        learning_structure,
                     )

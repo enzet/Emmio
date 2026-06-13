@@ -16,8 +16,9 @@ os.environ["EMMIO_DATABASE_URL"] = "postgresql:///emmio_test"
 from emmio import postgres  # pylint: disable=wrong-import-position
 
 CLEAN_STATEMENT: str = (
-    "TRUNCATE learn_records, learn_sessions, learn_courses, lexicon_records, "
-    "lexicon_words, lexicon_sessions, lexicons RESTART IDENTITY CASCADE"
+    "TRUNCATE users, learn_records, learn_sessions, learn_courses, "
+    "lexicon_records, lexicon_words, lexicon_sessions, lexicons "
+    "RESTART IDENTITY CASCADE"
 )
 
 

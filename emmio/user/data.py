@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
 
+from emmio import postgres
 from emmio.core import Record, Session
 from emmio.language import Language
 from emmio.learn.config import LearnConfig, LearningConfigType
@@ -99,8 +100,11 @@ class UserData:
 
         if not self._learn_data:
             logger.info("Loading `%s` learning data...", self.user_id)
+            postgres.ensure_user(self.user_id, self.user_name)
             self._learn_data = LearnData.from_config(
-                self.path / LEARN_DIRECTORY_NAME, self.config["learn"]
+                self.path / LEARN_DIRECTORY_NAME,
+                self.config["learn"],
+                self.user_id,
             )
         return self._learn_data
 
@@ -109,8 +113,11 @@ class UserData:
 
         if not self._lexicon_data:
             logger.info("Loading `%s` lexicon data...", self.user_id)
+            postgres.ensure_user(self.user_id, self.user_name)
             self._lexicon_data = LexiconData.from_config(
-                self.path / LEXICON_DIRECTORY_NAME, self.config["lexicon"]
+                self.path / LEXICON_DIRECTORY_NAME,
+                self.config["lexicon"],
+                self.user_id,
             )
         return self._lexicon_data
 

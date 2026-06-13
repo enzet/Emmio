@@ -31,6 +31,7 @@ def fixture_lexicon() -> Lexicon:
                 frequency_list=ListUsageConfig(id="en"),
                 selection=LexiconSelection.ARBITRARY,
             ),
+            "test",
         )
         lexicon_instance.log = LexiconLog()
         return lexicon_instance

@@ -49,8 +49,9 @@ ANSWER_TYPE_CODES: dict[str, str] = {
 }
 
 TRUNCATE_STATEMENT: LiteralString = (
-    "TRUNCATE learn_records, learn_sessions, learn_courses, lexicon_records, "
-    "lexicon_words, lexicon_sessions, lexicons RESTART IDENTITY CASCADE"
+    "TRUNCATE users, learn_records, learn_sessions, learn_courses, "
+    "lexicon_records, lexicon_words, lexicon_sessions, lexicons "
+    "RESTART IDENTITY CASCADE"
 )
 
 
@@ -94,11 +95,16 @@ def load_learn_records(path: Path) -> tuple[list[dict], list[dict]]:
 
 
 def migrate_learning(
-    cursor: psycopg.Cursor, course_id: str, config: dict, path: Path
+    cursor: psycopg.Cursor,
+    user_db_id: int,
+    course_id: str,
+    config: dict,
+    path: Path,
 ) -> tuple[int, int]:
     """Migrate one learning course.
 
     :param cursor: database cursor
+    :param user_db_id: internal identifier of the owning user
     :param course_id: course identifier (key in the user configuration)
     :param config: course configuration
     :param path: path to the user `learn` directory
@@ -113,9 +119,14 @@ def migrate_learning(
         logger.warning("File `%s` does not exist, skipping.", file_path)
 
     cursor.execute(
-        "INSERT INTO learn_courses (course_id, name, learning_language) "
-        "VALUES (%s, %s, %s) RETURNING id",
-        (course_id, config.get("name", course_id), config["learning_language"]),
+        "INSERT INTO learn_courses (user_id, course_id, name, "
+        "learning_language) VALUES (%s, %s, %s, %s) RETURNING id",
+        (
+            user_db_id,
+            course_id,
+            config.get("name", course_id),
+            config["learning_language"],
+        ),
     )
     row = cursor.fetchone()
     assert row is not None
@@ -166,11 +177,16 @@ def migrate_learning(
 
 
 def migrate_lexicon(
-    cursor: psycopg.Cursor, lexicon_id: str, config: dict, path: Path
+    cursor: psycopg.Cursor,
+    user_db_id: int,
+    lexicon_id: str,
+    config: dict,
+    path: Path,
 ) -> tuple[int, int]:
     """Migrate one lexicon.
 
     :param cursor: database cursor
+    :param user_db_id: internal identifier of the owning user
     :param lexicon_id: lexicon identifier (key in the user configuration)
     :param config: lexicon configuration
     :param path: path to the user `lexicon` directory
@@ -188,9 +204,9 @@ def migrate_lexicon(
         logger.warning("File `%s` does not exist, skipping.", file_path)
 
     cursor.execute(
-        "INSERT INTO lexicons (lexicon_id, language) VALUES (%s, %s) "
-        "RETURNING id",
-        (lexicon_id, config["language"]),
+        "INSERT INTO lexicons (user_id, lexicon_id, language) "
+        "VALUES (%s, %s, %s) RETURNING id",
+        (user_db_id, lexicon_id, config["language"]),
     )
     row = cursor.fetchone()
     assert row is not None
@@ -289,9 +305,20 @@ def main() -> None:
             # Make the migration idempotent: start from empty tables.
             cursor.execute(TRUNCATE_STATEMENT)
 
+            # Create the owning user and remember its internal identifier.
+            cursor.execute(
+                "INSERT INTO users (user_id, name) VALUES (%s, %s) "
+                "RETURNING id",
+                (arguments.user, user_config.get("name", arguments.user)),
+            )
+            user_row = cursor.fetchone()
+            assert user_row is not None
+            user_db_id: int = user_row[0]
+            logger.info("User `%s` created.", arguments.user)
+
             for course_id, config in user_config.get("learn", {}).items():
                 records, sessions = migrate_learning(
-                    cursor, course_id, config, user_path / "learn"
+                    cursor, user_db_id, course_id, config, user_path / "learn"
                 )
                 logger.info(
                     "Learning `%s`: %d records, %d sessions.",
@@ -302,7 +329,11 @@ def main() -> None:
 
             for lexicon_id, config in user_config.get("lexicon", {}).items():
                 records, sessions = migrate_lexicon(
-                    cursor, lexicon_id, config, user_path / "lexicon"
+                    cursor,
+                    user_db_id,
+                    lexicon_id,
+                    config,
+                    user_path / "lexicon",
                 )
                 logger.info(
                     "Lexicon `%s`: %d records, %d sessions.",

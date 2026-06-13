@@ -4,15 +4,33 @@
 -- (frequency lists, dictionaries, sentence corpora) stays in the user
 -- configuration file.
 
+-- Users.
+
+-- One row per user. `user_id` is the stable string login used by the CLI and
+-- the API (e.g. `enzet`); `id` is the internal integer key referenced by owned
+-- data. `email` and `hashed_password` are nullable: CLI-only and test users
+-- need neither.
+CREATE TABLE IF NOT EXISTS users (
+    id              SERIAL PRIMARY KEY,
+    user_id         TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
+    email           TEXT UNIQUE,
+    hashed_password TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Learning.
 
--- Stable identity for a learning course. Base languages are a display
--- preference and live in user settings, not here.
+-- Stable identity for a learning course, owned by a user. Base languages are a
+-- display preference and live in user settings, not here. `course_id` is unique
+-- per user, so different users may both have a `fr` course.
 CREATE TABLE IF NOT EXISTS learn_courses (
     id                SERIAL PRIMARY KEY,
-    course_id         TEXT NOT NULL UNIQUE,
+    user_id           INT NOT NULL REFERENCES users(id),
+    course_id         TEXT NOT NULL,
     name              TEXT NOT NULL,
-    learning_language TEXT NOT NULL
+    learning_language TEXT NOT NULL,
+    UNIQUE (user_id, course_id)
 );
 
 -- One row per user response. Self-describing: extra captures question
@@ -56,12 +74,14 @@ CREATE INDEX IF NOT EXISTS learn_sessions_course_start
 
 -- Lexicon.
 
--- Stable identity per lexicon. Several lexicons may exist per language
--- (e.g. `fr`, `fr_ex`, `fr_binary`).
+-- Stable identity per lexicon, owned by a user. Several lexicons may exist per
+-- language (e.g. `fr`, `fr_ex`, `fr_binary`). `lexicon_id` is unique per user.
 CREATE TABLE IF NOT EXISTS lexicons (
     id         SERIAL PRIMARY KEY,
-    lexicon_id TEXT NOT NULL UNIQUE,
-    language   TEXT NOT NULL
+    user_id    INT NOT NULL REFERENCES users(id),
+    lexicon_id TEXT NOT NULL,
+    language   TEXT NOT NULL,
+    UNIQUE (user_id, lexicon_id)
 );
 
 -- Each word stored once per lexicon. Also caches current word state
