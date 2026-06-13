@@ -6,15 +6,19 @@ asserts to work correctly in Pytest.
 
 import json
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import dedent
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 
+from emmio import postgres
 from emmio.__main__ import main
 from emmio.learn.config import LearningConfigType
 from emmio.lexicon.config import LexiconConfigType
+from emmio.lexicon.core import AnswerType, LexiconResponse
 from emmio.user.config import UserConfigType
 
 DictionaryConfigType = dict[str, str | bool]
@@ -102,6 +106,98 @@ HEADER: str = dedent(
     Print "help" to see commands or "exit" to quit.
     """
 ).strip()
+
+
+def _parse_time(value: str) -> datetime:
+    """Parse ISO timestamp, assuming UTC when the time zone is missing."""
+
+    time: datetime = datetime.fromisoformat(value)
+    if time.tzinfo is None:
+        time = time.replace(tzinfo=UTC)
+    return time
+
+
+def _store_learning(
+    course_id: str, config: LearningConfigType, content: LearningContentType
+) -> None:
+    """Store learning content in the test database."""
+
+    records: list[postgres.LearnRecordRow] = []
+    for record in content.get("records", []):
+        extra: dict[str, Any] | None = (
+            {"si": record["sentence_id"]} if record.get("sentence_id") else None
+        )
+        records.append(
+            (
+                cast("str", record["question_id"]),
+                cast("str", record["response"]),
+                _parse_time(cast("str", record["time"])),
+                (
+                    _parse_time(cast("str", record["request_time"]))
+                    if record.get("request_time")
+                    else None
+                ),
+                extra,
+            )
+        )
+    sessions: list[postgres.LearnSessionRow] = [
+        (
+            cast("str", session["type"]),
+            _parse_time(cast("str", session["start"])),
+            (
+                _parse_time(cast("str", session["end"]))
+                if session.get("end")
+                else None
+            ),
+            cast("int | None", session.get("actions")),
+        )
+        for session in content.get("sessions", [])
+    ]
+    postgres.save_learning(
+        course_id,
+        cast("str", config["name"]),
+        cast("str", config["learning_language"]),
+        records,
+        sessions,
+    )
+
+
+def _store_lexicon(
+    lexicon_id: str, config: LexiconConfigType, content: LexiconContentType
+) -> None:
+    """Store lexicon content in the test database."""
+
+    records: list[postgres.LexiconRecordRow] = []
+    for record in content.get("records", []):
+        extra: dict[str, Any] = {}
+        if (answer_type := record.get("answer_type")) and (
+            code := AnswerType(answer_type).to_code()
+        ):
+            extra["at"] = code
+        if record.get("to_skip") is not None:
+            extra["sk"] = record["to_skip"]
+        records.append(
+            (
+                cast("str", record["word"]),
+                LexiconResponse(record["response"]).to_code(),
+                _parse_time(cast("str", record["time"])),
+                extra or None,
+            )
+        )
+    sessions: list[postgres.LexiconSessionRow] = [
+        (
+            _parse_time(cast("str", session["start"])),
+            (
+                _parse_time(cast("str", session["end"]))
+                if session.get("end")
+                else None
+            ),
+        )
+        for session in content.get("sessions", [])
+    ]
+    postgres.save_lexicon(
+        lexicon_id, cast("str", config["language"]), records, sessions
+    )
 
 
 def initialize(
@@ -194,12 +290,13 @@ def initialize(
     with temp_user_config.open("w", encoding="utf-8") as output_file:
         json.dump(user_configuration, output_file)
 
-    if lexicons is not None:
+    if lexicons is not None and lexicons_configuration is not None:
         for file_name, lexicon_structure in lexicons.items():
-            with (temp_user_directory / "lexicon" / file_name).open(
-                "w", encoding="utf-8"
-            ) as output_file:
-                json.dump(lexicon_structure, output_file)
+            for lexicon_id, lexicon_config in lexicons_configuration.items():
+                if lexicon_config["file_name"] == file_name:
+                    _store_lexicon(
+                        lexicon_id, lexicon_config, lexicon_structure
+                    )
 
     # Configurate learnings.
 
@@ -208,9 +305,10 @@ def initialize(
     with temp_user_config.open("w", encoding="utf-8") as output_file:
         json.dump(user_configuration, output_file)
 
-    if learnings is not None:
+    if learnings is not None and learning_configuration is not None:
         for file_name, learning_structure in learnings.items():
-            with (temp_user_directory / "learn" / file_name).open(
-                "w", encoding="utf-8"
-            ) as output_file:
-                json.dump(learning_structure, output_file)
+            for course_id, learning_config in learning_configuration.items():
+                if learning_config["file_name"] == file_name:
+                    _store_learning(
+                        course_id, learning_config, learning_structure
+                    )

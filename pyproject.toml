@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib~=3.10.0",
     "mpv~=1.0.7",
     "numpy~=2.2.3",
+    "psycopg[binary]~=3.2",
     "scipy~=1.15.0",
     "pyTelegramBotAPI~=4.26.0",
     "pydantic~=2.10.6",
@@ -79,7 +80,13 @@ disable = [
     "R0914",  # Too many local variables.
     "R0915",  # Too many statements.
     "R0917",  # Too many positional arguments.
+    "R0801",  # Similar lines across files (noisy for load/save symmetry).
 ]
+
+[tool.pylint.typecheck]
+# Pylint cannot introspect psycopg's C-extension types and reports false
+# `no-member` errors for `Connection.cursor`, `Connection.commit`, etc.
+ignored-modules = ["psycopg"]
 
 [tool.ruff]
 lint.select = ["ALL"]

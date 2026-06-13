@@ -3,17 +3,17 @@
 import json
 import logging
 import random
-import sys
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, Self, override
+from typing import Any, Self, override
 
 import yaml
-from pydantic.main import BaseModel
+from pydantic import BaseModel
 
+from emmio import postgres
 from emmio.core import Record, Session
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
@@ -112,7 +112,7 @@ class LearningProcess(BaseModel):
     records: list[LearningRecord]
     """List of learning records ordered from the latest to the newest."""
 
-    sessions: ClassVar[list[LearningSession]] = []
+    sessions: list[LearningSession] = []
     """Recorded leaning sessions."""
 
     def model_dump_json(self, *args: Any, **kwargs: Any) -> str:
@@ -282,10 +282,19 @@ class Learning(UserArtifact):
     process: LearningProcess
     """Learning process."""
 
+    saved_records: int = 0
+    """Number of records already stored in the database."""
+
+    saved_sessions: int = 0
+    """Number of sessions already stored in the database."""
+
     @classmethod
     def from_config(cls, path: Path, config: LearnConfig, id_: str) -> Self:
-        """Create a learning process from a configuration."""
+        """Create a learning process from a configuration.
 
+        Records and sessions are loaded from the PostgreSQL database; the
+        course is created on first write if it is not there yet.
+        """
         learning_language: Language = Language.from_code(
             config.learning_language
         )
@@ -294,31 +303,39 @@ class Learning(UserArtifact):
         ]
         file_path: Path = path / config.file_name
 
-        process: LearningProcess
+        logger.info("Loading learning `%s` from database...", id_)
+        record_rows, session_rows = postgres.load_learning(id_)
 
-        # Create learning file if it doesn't exist.
-        if not file_path.is_file():
-            process = LearningProcess(records=[])
-        elif file_path.name.endswith(".json"):
-            logger.info("Reading `%s`...", file_path)
-            with file_path.open(encoding="utf-8") as log_file:
-                try:
-                    process = LearningProcess(**(json.load(log_file)))
-                except json.decoder.JSONDecodeError:
-                    logging.fatal("Cannot process file `%s`.", file_path)
-                    sys.exit(1)
-        elif file_path.name.endswith(".yml"):
-            logger.info("Reading `%s`...", file_path)
-            process = load_old_format(file_path)
-        else:
-            msg = f"Unknown file format: `{file_path.name}`."
-            raise ValueError(msg)
+        process: LearningProcess = LearningProcess(
+            records=[
+                LearningRecord(
+                    question_id=question_id,
+                    response=Response(response),
+                    sentence_id=(extra or {}).get("si"),
+                    time=response_time,
+                    request_time=request_time,
+                )
+                for (
+                    question_id,
+                    response,
+                    response_time,
+                    request_time,
+                    extra,
+                ) in record_rows
+            ],
+            sessions=[
+                LearningSession(
+                    type=type_, start=start, end=end, actions=actions
+                )
+                for (type_, start, end, actions) in session_rows
+            ],
+        )
 
         knowledge: dict[str, Knowledge] = {}
         for record in process.records:
             update_knowledge(knowledge, record)
 
-        return cls(
+        learning = cls(
             id_,
             file_path,
             config,
@@ -327,6 +344,41 @@ class Learning(UserArtifact):
             base_languages,
             process,
         )
+        learning.saved_records = len(process.records)
+        learning.saved_sessions = len(process.sessions)
+        return learning
+
+    @override
+    def write(self) -> None:
+        """Append new records and sessions to the database."""
+
+        records: list[postgres.LearnRecordRow] = []
+        for record in self.process.records[self.saved_records :]:
+            extra: dict | None = (
+                {"si": record.sentence_id} if record.sentence_id else None
+            )
+            records.append(
+                (
+                    record.question_id,
+                    record.response.value,
+                    record.time,
+                    record.request_time,
+                    extra,
+                )
+            )
+        sessions: list[postgres.LearnSessionRow] = [
+            (session.type, session.start, session.end, session.actions)
+            for session in self.process.sessions[self.saved_sessions :]
+        ]
+        postgres.save_learning(
+            self.id_,
+            self.config.name,
+            self.learning_language.get_code(),
+            records,
+            sessions,
+        )
+        self.saved_records = len(self.process.records)
+        self.saved_sessions = len(self.process.sessions)
 
     def register(
         self,

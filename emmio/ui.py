@@ -201,8 +201,10 @@ class Interface(ABC):
 class TerminalInterface(Interface):
     """Simple terminal interface with only necessary unicode characters."""
 
+    @override
     def print(self, text: Element | str) -> None:
-        """Print text to the terminal (no-op in base implementation)."""
+        """Print text to the terminal."""
+        sys.stdout.write(self.construct(text) + "\n")
 
     def construct(self, element: Element | str) -> str:
         """Construct string from element."""
@@ -238,6 +240,7 @@ class TerminalInterface(Interface):
 
     @override
     def button(self, text: str) -> None:
+        sys.stdout.write(f"<{text}>\n")
         input()
 
     @override

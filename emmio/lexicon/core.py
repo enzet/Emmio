@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from scipy.optimize import minimize
 from scipy.special import expit  # pylint: disable=no-name-in-module
 
+from emmio import postgres
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
     Dictionary,
@@ -74,6 +75,39 @@ class LexiconResponse(Enum):
     def from_string(cls, string: str) -> Self:
         """Get response from string identifier."""
         return cls[string.upper()]
+
+    def to_code(self) -> str:
+        """Get single-character code used to store the response in database.
+
+        This code is persisted, so it must stay stable even if display symbols
+        change. See `get_symbol` for the (currently identical) display symbol.
+        """
+        match self:
+            case self.KNOW:
+                return "K"
+            case self.DONT:
+                return "D"
+            case self.NOT_A_WORD:
+                return "N"
+            case self.DONT_BUT_PROPER_NOUN_TOO:
+                return "B"
+            case self.KNOW_OR_NOT_A_WORD:
+                return "?"
+            case self.UNKNOWN:
+                return "U"
+            case _:
+                message = f"No database code for response `{self}`."
+                raise ValueError(message)
+
+    @classmethod
+    def from_code(cls, code: str) -> Self:
+        """Get response from its database code."""
+        for response in cls:
+            if response.to_code() == code:
+                return response
+
+        message = f"Unknown response code `{code}`."
+        raise ValueError(message)
 
     def get_symbol(self) -> str:
         """Get short symbol for the response."""
@@ -161,6 +195,36 @@ class AnswerType(Enum):
     def is_user_answer(self) -> bool:
         """Check if the answer is a user answer."""
         return self == self.USER_ANSWER
+
+    def to_code(self) -> str | None:
+        """Get database code for the answer type.
+
+        Returns `None` for answer types that are not stored explicitly: a user
+        answer is the default and leaves the code absent in the database.
+        """
+        match self:
+            case self.ASSUME__NOT_A_WORD__ALPHABET:
+                return "aa"
+            case self.ASSUME__NOT_A_WORD__DICTIONARY:
+                return "ad"
+            case self.PROPAGATE__SKIP:
+                return "ps"
+            case self.PROPAGATE__NOT_A_WORD:
+                return "pn"
+            case self.PROPAGATE__TIME:
+                return "pt"
+            case _:
+                return None
+
+    @classmethod
+    def from_code(cls, code: str) -> "AnswerType":
+        """Get answer type from its database code."""
+        for answer_type in cls:
+            if answer_type.to_code() == code:
+                return answer_type
+
+        message = f"Unknown answer type code `{code}`."
+        raise ValueError(message)
 
 
 def compute_lexicon_rate(
@@ -358,6 +422,11 @@ class LexiconLog(BaseModel):
             "time",
         ]
         data: dict = super().model_dump(mode="json", exclude_none=True)
+        # `user_answer` is the default answer type: skip it, as it was absent
+        # in records created before the field was introduced.
+        for record in data["records"]:
+            if record.get("answer_type") == AnswerType.USER_ANSWER.value:
+                del record["answer_type"]
         records: list[dict[str, Any]] = [
             OrderedDict((key, record[key]) for key in order if key in record)
             for record in data["records"]
@@ -398,9 +467,18 @@ class Lexicon(UserArtifact):
     finish: datetime | None
     """Finish date of the lexicon."""
 
+    saved_records: int = 0
+    """Number of records already stored in the database."""
+
+    saved_sessions: int = 0
+    """Number of sessions already stored in the database."""
+
     @classmethod
     def from_config(cls, path: Path, id_: str, config: LexiconConfig) -> Self:
         """Initialize lexicon.
+
+        Records and sessions are loaded from the PostgreSQL database; the
+        lexicon is created on first write if it is not there yet.
 
         :param id_: unique lexicon identifier
         :param path: path to the directory with lexicon files
@@ -416,25 +494,34 @@ class Lexicon(UserArtifact):
         start: datetime | None = None
         finish: datetime | None = None
 
-        # Read data from file.
+        logger.debug("Loading lexicon `%s` from database...", id_)
+        record_rows, session_rows = postgres.load_lexicon(id_)
 
-        if not file_path.exists():
-            with file_path.open("w+", encoding="utf-8") as output:
-                output.write('{"records": [], "sessions": []}')
-
-        with file_path.open(encoding="utf-8") as input_file:
-            data = json.load(input_file)
-
-        # TODO(enzet): remove when all user data is updated.
-        for record in data["records"]:
-            if (
-                "time" in record
-                and "+" not in record["time"]
-                and "Z" not in record["time"]
-            ):
-                record["time"] += "+00:00"
-
-        log: LexiconLog = LexiconLog(**data)
+        log: LexiconLog = LexiconLog(
+            records=[
+                LexiconLogRecord(
+                    word=word,
+                    response=LexiconResponse.from_code(response),
+                    answer_type=(
+                        AnswerType.from_code((extra or {})["at"])
+                        if "at" in (extra or {})
+                        else AnswerType.USER_ANSWER
+                    ),
+                    to_skip=(extra or {}).get("sk"),
+                    time=response_time,
+                    request_time=(
+                        datetime.fromisoformat((extra or {})["rt"])
+                        if "rt" in (extra or {})
+                        else None
+                    ),
+                )
+                for (word, response, response_time, extra) in record_rows
+            ],
+            sessions=[
+                LexiconLogSession(start=session_start, end=session_end)
+                for (session_start, session_end) in session_rows
+            ],
+        )
 
         for record in log.records:
             words[record.word] = WordKnowledge(record.response, record.to_skip)
@@ -452,7 +539,7 @@ class Lexicon(UserArtifact):
                     start = record.time
                 finish = record.time
 
-        return cls(
+        lexicon = cls(
             id_,
             file_path,
             log,
@@ -464,10 +551,44 @@ class Lexicon(UserArtifact):
             start,
             finish,
         )
+        lexicon.saved_records = len(log.records)
+        lexicon.saved_sessions = len(log.sessions)
+        return lexicon
 
     def dump_json(self) -> str:
         """Serialize lexicon to a JSON string."""
         return self.log.model_dump_json(indent=4)
+
+    @override
+    def write(self) -> None:
+        """Append new records and sessions to the database."""
+
+        records: list[postgres.LexiconRecordRow] = []
+        for record in self.log.records[self.saved_records :]:
+            extra: dict = {}
+            if record.answer_type and (code := record.answer_type.to_code()):
+                extra["at"] = code
+            if record.to_skip is not None:
+                extra["sk"] = record.to_skip
+            if record.request_time is not None:
+                extra["rt"] = record.request_time.isoformat()
+            records.append(
+                (
+                    record.word,
+                    record.response.to_code(),
+                    record.time,
+                    extra or None,
+                )
+            )
+        sessions: list[postgres.LexiconSessionRow] = [
+            (session.start, session.end)
+            for session in self.log.sessions[self.saved_sessions :]
+        ]
+        postgres.save_lexicon(
+            self.id_, self.language.get_code(), records, sessions
+        )
+        self.saved_records = len(self.log.records)
+        self.saved_sessions = len(self.log.sessions)
 
     def know(self, word: str) -> bool:
         """Check if user knows the word."""
@@ -1058,9 +1179,7 @@ class LexiconChecker:
         return -math.log2(theta)
 
     def estimate_r_with_sd(
-        self,
-        frequency_list: FrequencyList,
-        n_bootstrap: int = 200,
+        self, frequency_list: FrequencyList, n_bootstrap: int = 200
     ) -> tuple[float, float] | None:
         """Estimate r and its standard deviation via bootstrap resampling.
 
@@ -1340,9 +1459,11 @@ class LexiconChecker:
 
             # Estimate theta_k for each stratum.
             theta_k: list[float] = [
-                stratum_p_unknown[k] / stratum_p_tested[k]
-                if stratum_p_tested[k] > 0.0
-                else 0.5
+                (
+                    stratum_p_unknown[k] / stratum_p_tested[k]
+                    if stratum_p_tested[k] > 0.0
+                    else 0.5
+                )
                 for k in range(n_strata)
             ]
 
@@ -1410,9 +1531,7 @@ class LexiconChecker:
         return exit_code
 
     def do_skip(
-        self,
-        picked_word: str,
-        other_lexicons: list["Lexicon"],
+        self, picked_word: str, other_lexicons: list["Lexicon"]
     ) -> bool:
         """Check whether the word should be skipped.
 
