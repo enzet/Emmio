@@ -9,7 +9,7 @@ fi
 
 python_files="emmio/ tests/"
 
-tools=("Black" "isort" "Mypy" "Pylint" "Pytest")
+tools=("Ruff check" "isort" "Mypy" "Pylint" "Pytest")
 
 commands=(
     "ruff format --check ${python_files}"

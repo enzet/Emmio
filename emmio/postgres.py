@@ -79,6 +79,36 @@ def list_users() -> list[tuple[str, str]]:
         return [(row[0], row[1]) for row in cursor.fetchall()]
 
 
+def list_courses(user_id: str) -> list[tuple[str, str, str]]:
+    """Get a user's courses as (course id, name, learning language) tuples.
+
+    :param user_id: owning user login, e.g. `enzet`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT c.course_id, c.name, c.learning_language "
+            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s ORDER BY c.course_id",
+            (user_id,),
+        )
+        return [(row[0], row[1], row[2]) for row in cursor.fetchall()]
+
+
+def list_lexicons(user_id: str) -> list[tuple[str, str]]:
+    """Get a user's lexicons as (lexicon id, language) tuples.
+
+    :param user_id: owning user login, e.g. `enzet`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.lexicon_id, l.language "
+            "FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s ORDER BY l.lexicon_id",
+            (user_id,),
+        )
+        return [(row[0], row[1]) for row in cursor.fetchall()]
+
+
 def _get_user_db_id(cursor: psycopg.Cursor, user_id: str) -> int:
     """Get internal user identifier, raising if the user does not exist."""
 

@@ -40,6 +40,11 @@ dev = [
     "mypy~=1.15.0",
     "pylint~=3.3.5",
     "pytest~=8.3.4",
+    "httpx~=0.28.0",  # FastAPI test client.
+]
+api = [
+    "fastapi~=0.115.0",
+    "uvicorn~=0.34.0",
 ]
 
 [project.urls]
