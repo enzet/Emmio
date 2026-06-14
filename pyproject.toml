@@ -45,6 +45,9 @@ dev = [
 api = [
     "fastapi~=0.115.0",
     "uvicorn~=0.34.0",
+    "pyjwt~=2.10.0",  # Signing and verifying access tokens.
+    "bcrypt~=4.2.0",  # Password hashing.
+    "python-multipart~=0.0.18",  # OAuth2 login form parsing.
 ]
 
 [project.urls]

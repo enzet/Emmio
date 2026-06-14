@@ -71,6 +71,55 @@ def user_exists(user_id: str) -> bool:
         return cursor.fetchone() is not None
 
 
+def register_user(
+    user_id: str, name: str, email: str, hashed_password: str
+) -> None:
+    """Create a user with login credentials.
+
+    :param user_id: stable string login, e.g. `enzet`
+    :param name: display name
+    :param email: unique email address used to log in
+    :param hashed_password: already-hashed password (never the plaintext)
+    :raises ValueError: if the login or email is already taken
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT 1 FROM users WHERE user_id = %s OR email = %s",
+            (user_id, email),
+        )
+        if cursor.fetchone() is not None:
+            message: str = (
+                f"User `{user_id}` or email `{email}` already exists."
+            )
+            raise ValueError(message)
+        cursor.execute(
+            "INSERT INTO users (user_id, name, email, hashed_password) "
+            "VALUES (%s, %s, %s, %s)",
+            (user_id, name, email, hashed_password),
+        )
+    connection.commit()
+
+
+def get_credentials_by_email(email: str) -> tuple[str, str] | None:
+    """Get (user login, password hash) for an email, or None if not found.
+
+    Only users registered with a password (via the API) are returned; CLI-only
+    users have no password and cannot log in.
+
+    :param email: email address to look up
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT user_id, hashed_password FROM users "
+            "WHERE email = %s AND hashed_password IS NOT NULL",
+            (email,),
+        )
+        if row := cursor.fetchone():
+            return row[0], row[1]
+        return None
+
+
 def list_users() -> list[tuple[str, str]]:
     """Get all users as (login, display name) pairs, ordered by login."""
 

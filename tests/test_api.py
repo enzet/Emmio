@@ -11,48 +11,107 @@ __email__ = "me@enzet.ru"
 client: TestClient = TestClient(app)
 
 
-def test_list_users() -> None:
-    """All users are listed."""
+def _register_and_login(
+    user_id: str,
+    email: str,
+    password: str = "secret123",  # noqa: S107  # Test fixture, not a secret.
+) -> str:
+    """Register a user and return a valid access token."""
 
-    postgres.ensure_user("alice", "Alice")
-    postgres.ensure_user("bob", "Bob")
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "user_id": user_id,
+            "name": user_id.title(),
+            "email": email,
+            "password": password,
+        },
+    )
+    response = client.post(
+        "/api/v1/auth/login", data={"username": email, "password": password}
+    )
+    return str(response.json()["access_token"])
 
-    response = client.get("/api/v1/users")
 
-    assert response.status_code == 200
-    assert {user["user_id"] for user in response.json()} == {"alice", "bob"}
+def _auth(token: str) -> dict[str, str]:
+    """Build an authorization header from a token."""
+    return {"Authorization": f"Bearer {token}"}
 
 
-def test_courses_are_scoped_by_user() -> None:
-    """A user only sees their own courses."""
+def test_register_returns_user() -> None:
+    """Registration creates an account and echoes it back."""
 
-    postgres.ensure_user("alice", "Alice")
-    postgres.ensure_user("bob", "Bob")
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "user_id": "alice",
+            "name": "Alice",
+            "email": "alice@example.com",
+            "password": "secret123",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {"user_id": "alice", "name": "Alice"}
+
+
+def test_duplicate_registration_conflicts() -> None:
+    """Registering the same login twice fails with 409."""
+
+    payload = {
+        "user_id": "alice",
+        "name": "Alice",
+        "email": "alice@example.com",
+        "password": "secret123",
+    }
+    client.post("/api/v1/auth/register", json=payload)
+    response = client.post("/api/v1/auth/register", json=payload)
+
+    assert response.status_code == 409
+
+
+def test_login_with_wrong_password_fails() -> None:
+    """A wrong password is rejected with 401."""
+
+    _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/auth/login",
+        data={"username": "alice@example.com", "password": "wrong"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_protected_route_requires_token() -> None:
+    """Accessing `/me` without a token is rejected with 401."""
+
+    response = client.get("/api/v1/me/courses")
+
+    assert response.status_code == 401
+
+
+def test_me_courses_are_scoped_to_token_user() -> None:
+    """The token determines whose data is returned."""
+
+    alice_token = _register_and_login("alice", "alice@example.com")
+    _register_and_login("bob", "bob@example.com")
     # Saving with empty records still creates the (owned) course.
     postgres.save_learning("alice", "fr", "French", "fr", [], [])
 
-    alice_courses = client.get("/api/v1/users/alice/courses").json()
-    bob_courses = client.get("/api/v1/users/bob/courses").json()
+    response = client.get("/api/v1/me/courses", headers=_auth(alice_token))
 
-    assert [course["course_id"] for course in alice_courses] == ["fr"]
-    assert bob_courses == []
-
-
-def test_lexicons_are_scoped_by_user() -> None:
-    """A user only sees their own lexicons."""
-
-    postgres.ensure_user("alice", "Alice")
-    postgres.save_lexicon("alice", "de", "de", [], [])
-
-    lexicons = client.get("/api/v1/users/alice/lexicons").json()
-
-    assert [lexicon["lexicon_id"] for lexicon in lexicons] == ["de"]
-    assert lexicons[0]["language"] == "de"
+    assert response.status_code == 200
+    assert [course["course_id"] for course in response.json()] == ["fr"]
 
 
-def test_unknown_user_returns_404() -> None:
-    """Requesting data for a non-existent user returns 404."""
+def test_users_cannot_see_each_others_data() -> None:
+    """Bob's token never returns Alice's data."""
 
-    response = client.get("/api/v1/users/ghost/courses")
+    _register_and_login("alice", "alice@example.com")
+    bob_token = _register_and_login("bob", "bob@example.com")
+    postgres.save_learning("alice", "fr", "French", "fr", [], [])
 
-    assert response.status_code == 404
+    response = client.get("/api/v1/me/courses", headers=_auth(bob_token))
+
+    assert response.status_code == 200
+    assert response.json() == []
