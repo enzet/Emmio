@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from colour import Color
@@ -12,6 +13,9 @@ from svgwrite.container import Group
 from svgwrite.gradients import LinearGradient  # noqa: TC002
 from svgwrite.shapes import Line
 from svgwrite.text import Text
+
+if TYPE_CHECKING:
+    from svgwrite.path import Path as SVGPath
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -275,7 +279,7 @@ class Graph:
             d += f" L {point[0]},{point[1]}"
         d += " Z"
 
-        line: Line = svg.path(d=d, fill=color, opacity=opacity)
+        line: SVGPath = svg.path(d=d, fill=color, opacity=opacity)
         svg.add(line)
         if label:
             text_y = max(last_text_y + 15.0, points[-1][1] + 5.0)
