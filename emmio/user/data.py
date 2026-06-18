@@ -19,7 +19,7 @@ from emmio.language import Language
 from emmio.learn.config import LearnConfig, LearningConfigType
 from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
-from emmio.lexicon.config import LexiconConfig, LexiconConfigType
+from emmio.lexicon.config import LexiconConfigType
 from emmio.lexicon.core import Lexicon, LexiconResponse
 from emmio.lexicon.data import LexiconData
 from emmio.listen.config import ListenConfig, ListenConfigType
@@ -84,11 +84,9 @@ class UserData:
         """Verify user data configuration.
 
         Check whether the user configuration JSON file is valid. If not,
-        raise an exception.
+        raise an exception. Lexicon configuration is no longer validated here:
+        it is read from the database and validated when loaded.
         """
-        for lexicon_config in self.config["lexicon"].values():
-            LexiconConfig(**lexicon_config)
-
         for learning_config in self.config["learn"].values():
             LearnConfig(**learning_config)
 
@@ -109,14 +107,17 @@ class UserData:
         return self._learn_data
 
     def get_lexicon_data(self) -> LexiconData:
-        """Lazy-loads lexicon data."""
+        """Lazy-loads lexicon data.
 
+        Lexicon configuration is read from the database (the single source of
+        truth), not the on-disk `config.json`.
+        """
         if not self._lexicon_data:
             logger.info("Loading `%s` lexicon data...", self.user_id)
             postgres.ensure_user(self.user_id, self.user_name)
             self._lexicon_data = LexiconData.from_config(
                 self.path / LEXICON_DIRECTORY_NAME,
-                self.config["lexicon"],
+                postgres.get_lexicon_configs(self.user_id),
                 self.user_id,
             )
         return self._lexicon_data

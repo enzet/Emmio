@@ -5,6 +5,7 @@ import logging
 import math
 import random
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -225,6 +226,59 @@ class AnswerType(Enum):
 
         message = f"Unknown answer type code `{code}`."
         raise ValueError(message)
+
+
+_SAMPLE_ATTEMPTS: int = 100
+"""Random draws to try before falling back to a scan for an unanswered word."""
+
+
+def select_next_word(
+    frequency_list: FrequencyList, answered: set[str], selection: str
+) -> str | None:
+    """Pick the next word to check, honoring the lexicon's selection strategy.
+
+    This is the selection step lifted out of the interactive checking loop, so
+    it can be driven by a stateless request without touching any user
+    interface. The strategy must match how the lexicon's data was collected;
+    serving words by the wrong strategy biases the rate estimate.
+
+    :param frequency_list: source of candidate words
+    :param answered: words already recorded in the lexicon, to skip
+    :param selection: the lexicon's stored selection strategy
+    :return: the next word, or None if every candidate has been answered
+    :raises NotImplementedError: for strategies not yet served over the API
+    """
+    match selection:
+        case "frequency":
+            return _sample_unanswered(
+                frequency_list,
+                answered,
+                frequency_list.get_random_word_by_frequency,
+            )
+        case "random":
+            return _sample_unanswered(
+                frequency_list, answered, frequency_list.get_random_word
+            )
+        case _:
+            message = f"Selection `{selection}` is not supported over the API."
+            raise NotImplementedError(message)
+
+
+def _sample_unanswered(
+    frequency_list: FrequencyList,
+    answered: set[str],
+    draw: Callable[[], tuple[str, int]],
+) -> str | None:
+    """Draw an unanswered word, scanning as a fallback if draws keep missing."""
+
+    for _ in range(_SAMPLE_ATTEMPTS):
+        word, _occurrences = draw()
+        if word not in answered:
+            return word
+    for word in frequency_list.get_words():
+        if word not in answered:
+            return word
+    return None
 
 
 def compute_lexicon_rate(
@@ -492,7 +546,9 @@ class Lexicon(UserArtifact):
         """
         language: Language = Language.from_code(config.language)
 
-        file_path: Path = path / config.file_name
+        # `file_path` is vestigial (records live in the database); kept only to
+        # satisfy the `UserArtifact` base. Synthesized from the identifier.
+        file_path: Path = path / f"{id_}.json"
 
         words: dict[str, WordKnowledge] = {}
         dates: list[datetime] = []

@@ -51,9 +51,6 @@ class LexiconSelection(Enum):
 class LexiconConfig(BaseModel):
     """Configuration for the lexicon."""
 
-    file_name: str
-    """Path to the lexicon JSON file."""
-
     language: LanguageConfig
     """Language of the lexicon."""
 

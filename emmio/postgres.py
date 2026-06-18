@@ -29,6 +29,43 @@ LexiconRecordRow = tuple[str, str, datetime, dict | None]
 LexiconSessionRow = tuple[datetime, datetime | None]
 """Session start and end."""
 
+SAMPLING_SELECTIONS: frozenset[str] = frozenset(
+    {"frequency", "logistic", "stratified", "binary_search", "threshold"}
+)
+"""Sampling selection strategies.
+
+Selection strategies whose frequency list is the immutable sampling distribution
+(identity). Others treat frequency lists as a mutable pool.
+"""
+
+
+def split_lexicon_config(config: dict) -> tuple[str, dict | None, dict]:
+    """Split a flat lexicon configuration into its storage tiers.
+
+    :param config: flat lexicon config (the `LexiconConfig` fields)
+    :return: (selection, identity frequency list, mutable config). The identity
+        frequency list is the sampling distribution for sampling strategies, or
+        `None`; for pool strategies the frequency list goes into the mutable
+        config under `frequency_lists`.
+    """
+    selection: str = config.get("selection") or "unknown"
+    is_sampling: bool = selection in SAMPLING_SELECTIONS
+    frequency_list: dict | None = config.get("frequency_list")
+
+    identity_list: dict | None = frequency_list if is_sampling else None
+    mutable: dict = {}
+    if config.get("dictionaries"):
+        mutable["dictionaries"] = config["dictionaries"]
+    if config.get("sentences"):
+        mutable["sentences"] = config["sentences"]
+    if config.get("precision_per_week"):
+        mutable["precision_per_week"] = config["precision_per_week"]
+    if not is_sampling and frequency_list:
+        mutable["frequency_lists"] = [frequency_list]
+
+    return selection, identity_list, mutable
+
+
 _connection: psycopg.Connection | None = None
 
 
@@ -102,7 +139,7 @@ def register_user(
 
 
 def get_credentials_by_email(email: str) -> tuple[str, str] | None:
-    """Get (user login, password hash) for an email, or None if not found.
+    """Get (user login, password hash) for an email, or `None` if not found.
 
     Only users registered with a password (via the API) are returned; CLI-only
     users have no password and cannot log in.
@@ -131,7 +168,7 @@ def list_users() -> list[tuple[str, str]]:
 def list_courses(user_id: str) -> list[tuple[str, str, str]]:
     """Get a user's courses as (course id, name, learning language) tuples.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
@@ -146,7 +183,7 @@ def list_courses(user_id: str) -> list[tuple[str, str, str]]:
 def list_lexicons(user_id: str) -> list[tuple[str, str]]:
     """Get a user's lexicons as (lexicon id, language) tuples.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
@@ -156,6 +193,122 @@ def list_lexicons(user_id: str) -> list[tuple[str, str]]:
             (user_id,),
         )
         return [(row[0], row[1]) for row in cursor.fetchall()]
+
+
+def _assemble_lexicon_config(
+    language: str,
+    selection: str | None,
+    frequency_list: dict | None,
+    config: dict | None,
+) -> dict:
+    """Build a flat configuration dictionary from the tiered database columns.
+
+    Reassembles the in-memory `LexiconConfig` shape from identity columns plus
+    the mutable `config` JSONB. The frequency list is the identity column for
+    sampling strategies, or the first pooled list for pool strategies, so the
+    runtime config keeps a single `frequency_list` regardless of tier.
+    """
+    config = config or {}
+    if frequency_list is None:
+        pool: list = config.get("frequency_lists") or []
+        frequency_list = pool[0] if pool else None
+    return {
+        "language": language,
+        "selection": selection or "unknown",
+        "frequency_list": frequency_list,
+        "dictionaries": config.get("dictionaries"),
+        "sentences": config.get("sentences"),
+        "precision_per_week": config.get("precision_per_week", 0),
+    }
+
+
+def get_lexicon_config(user_id: str, lexicon_id: str) -> dict | None:
+    """Get a lexicon's reassembled config dict, or `None` if it does not exist.
+
+    The dict matches the `LexiconConfig` fields (language, selection,
+    frequency_list, dictionaries, sentences, precision_per_week).
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.language, l.selection, l.frequency_list, l.config "
+            "FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        if row := cursor.fetchone():
+            return _assemble_lexicon_config(row[0], row[1], row[2], row[3])
+        return None
+
+
+def get_lexicon_configs(user_id: str) -> dict[str, dict]:
+    """Get reassembled configuration dictionaries for all of a user's lexicons.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: mapping from lexicon identifier to its config dict
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.lexicon_id, l.language, l.selection, l.frequency_list, "
+            "l.config FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s ORDER BY l.lexicon_id",
+            (user_id,),
+        )
+        return {
+            row[0]: _assemble_lexicon_config(row[1], row[2], row[3], row[4])
+            for row in cursor.fetchall()
+        }
+
+
+def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
+    """Create or update a lexicon's tiered configuration.
+
+    :param user_id: owning user login, e.g. `enzet`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param config: flat lexicon config (the `LexiconConfig` fields)
+    """
+    selection, identity_list, mutable = split_lexicon_config(config)
+    language: str = config["language"]
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "INSERT INTO lexicons "
+            "(user_id, lexicon_id, language, selection, frequency_list, config)"
+            " VALUES (%s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (user_id, lexicon_id) DO UPDATE SET "
+            "language = excluded.language, selection = excluded.selection, "
+            "frequency_list = excluded.frequency_list, "
+            "config = excluded.config",
+            (
+                user_db_id,
+                lexicon_id,
+                language,
+                selection,
+                Jsonb(identity_list) if identity_list else None,
+                Jsonb(mutable),
+            ),
+        )
+    connection.commit()
+
+
+def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
+    """Get the set of words already recorded in a user's lexicon.
+
+    :param user_id: owning user login, e.g. `enzet`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word "
+            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        return {row[0] for row in cursor.fetchall()}
 
 
 def _get_user_db_id(cursor: psycopg.Cursor, user_id: str) -> int:

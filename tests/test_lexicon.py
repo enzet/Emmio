@@ -7,14 +7,62 @@ from pathlib import Path
 import pytest
 
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
-from emmio.lexicon.core import Lexicon, LexiconLog, LexiconResponse
-from emmio.lists.config import ListUsageConfig
+from emmio.lexicon.core import (
+    Lexicon,
+    LexiconLog,
+    LexiconResponse,
+    select_next_word,
+)
+from emmio.lists.config import (
+    FrequencyListConfig,
+    FrequencyListFileFormat,
+    ListUsageConfig,
+)
+from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import TerminalInterface
 
 
 def dt(year: int, month: int, day: int) -> datetime:
     """Create a UTC-aware datetime for tests."""
     return datetime(year, month, day, tzinfo=UTC)
+
+
+def _frequency_list(data: dict[str, int]) -> FrequencyList:
+    """Build an in-memory frequency list for tests."""
+    return FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="en",
+            path="unused",
+            is_stripped=False,
+        ),
+        data=data,
+    )
+
+
+def test_select_next_word_skips_answered_words() -> None:
+    """Selected words are drawn from the list and never already answered."""
+
+    frequency_list: FrequencyList = _frequency_list(
+        {"the": 100, "cat": 50, "dog": 10}
+    )
+    words: set[str] = {"the", "cat", "dog"}
+
+    for selection in ("frequency", "random"):
+        word = select_next_word(frequency_list, {"the", "cat"}, selection)
+        assert word == "dog"  # Only unanswered word.
+        assert select_next_word(frequency_list, words, selection) is None
+        assert select_next_word(frequency_list, set(), selection) in words
+
+
+def test_select_next_word_rejects_unsupported_strategy() -> None:
+    """Strategies not yet served over the API raise."""
+
+    frequency_list: FrequencyList = _frequency_list({"the": 100})
+
+    with pytest.raises(NotImplementedError):
+        select_next_word(frequency_list, set(), "logistic")
 
 
 @pytest.fixture(name="lexicon")
@@ -26,7 +74,6 @@ def fixture_lexicon() -> Lexicon:
             Path(temp_directory),
             "en",
             LexiconConfig(
-                file_name="en.json",
                 language="en",
                 frequency_list=ListUsageConfig(id="en"),
                 selection=LexiconSelection.ARBITRARY,

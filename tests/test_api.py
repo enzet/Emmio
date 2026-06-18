@@ -115,3 +115,58 @@ def test_users_cannot_see_each_others_data() -> None:
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_answer_records_the_word() -> None:
+    """Answering a word stores it in the user's lexicon."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    # Saving with empty records creates the (owned) lexicon.
+    postgres.save_lexicon("alice", "de", "de", [], [])
+
+    response = client.post(
+        "/api/v1/me/lexicons/de/answer",
+        json={"word": "hund", "response": "know"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 204
+    assert "hund" in postgres.get_answered_words("alice", "de")
+
+
+def test_answer_with_invalid_response_is_rejected() -> None:
+    """An unknown response value returns 422."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.save_lexicon("alice", "de", "de", [], [])
+
+    response = client.post(
+        "/api/v1/me/lexicons/de/answer",
+        json={"word": "hund", "response": "maybe"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_next_without_frequency_list_is_bad_request() -> None:
+    """A lexicon with no configured frequency list returns 400 for `next`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.save_lexicon("alice", "de", "de", [], [])
+
+    response = client.get("/api/v1/me/lexicons/de/next", headers=_auth(token))
+
+    assert response.status_code == 400
+
+
+def test_next_for_unknown_lexicon_is_not_found() -> None:
+    """Requesting `next` for a non-existent lexicon returns 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get(
+        "/api/v1/me/lexicons/ghost/next", headers=_auth(token)
+    )
+
+    assert response.status_code == 404

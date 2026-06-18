@@ -76,11 +76,25 @@ CREATE INDEX IF NOT EXISTS learn_sessions_course_start
 
 -- Stable identity per lexicon, owned by a user. Several lexicons may exist per
 -- language (e.g. `fr`, `fr_ex`, `fr_binary`). `lexicon_id` is unique per user.
+--
+-- Configuration is split by tier (see research/app.md "Lexicon configuration
+-- model"):
+--   - Identity (immutable; changing one means a different lexicon):
+--       `language`, `selection`, and `frequency_list` (the sampling
+--       distribution, only for sampling strategies; NULL otherwise).
+--   - Mutable preferences (`config` JSONB; changing them does not alter the
+--       meaning of past records): dictionaries, sentences, precision_per_week,
+--       and pooled `frequency_lists` for non-sampling strategies.
+-- Per-answer provenance (which sentence/dictionary was shown) lives in
+-- `lexicon_records.extra`, not here.
 CREATE TABLE IF NOT EXISTS lexicons (
-    id         SERIAL PRIMARY KEY,
-    user_id    INT NOT NULL REFERENCES users(id),
-    lexicon_id TEXT NOT NULL,
-    language   TEXT NOT NULL,
+    id             SERIAL PRIMARY KEY,
+    user_id        INT NOT NULL REFERENCES users(id),
+    lexicon_id     TEXT NOT NULL,
+    language       TEXT NOT NULL,
+    selection      TEXT,
+    frequency_list JSONB,
+    config         JSONB NOT NULL DEFAULT '{}',
     UNIQUE (user_id, lexicon_id)
 );
 

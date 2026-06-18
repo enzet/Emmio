@@ -202,6 +202,9 @@ def _store_lexicon(
         )
         for session in content.get("sessions", [])
     ]
+    # Store the lexicon's configuration (the CLI reads it from the database),
+    # then its records.
+    postgres.store_lexicon_config(user_id, lexicon_id, dict(config))
     postgres.save_lexicon(
         user_id, lexicon_id, cast("str", config["language"]), records, sessions
     )
