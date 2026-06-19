@@ -212,19 +212,22 @@ def list_courses(user_id: str) -> list[tuple[str, str, str]]:
         return [(row[0], row[1], row[2]) for row in cursor.fetchall()]
 
 
-def list_lexicons(user_id: str) -> list[tuple[str, str]]:
-    """Get a user's lexicons as (lexicon id, language) tuples.
+def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int]]:
+    """Get a user's lexicons with short info.
 
     :param user_id: owning user login, e.g. `john`
+    :return: (lexicon id, language, selection strategy, number of words
+        checked) tuples, ordered by lexicon id
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
-            "SELECT l.lexicon_id, l.language "
+            "SELECT l.lexicon_id, l.language, l.selection, "
+            "(SELECT count(*) FROM lexicon_words w WHERE w.lexicon_id = l.id) "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
         )
-        return [(row[0], row[1]) for row in cursor.fetchall()]
+        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
 
 
 def _assemble_lexicon_config(

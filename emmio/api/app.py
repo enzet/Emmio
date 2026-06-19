@@ -26,8 +26,11 @@ from pydantic import BaseModel
 from emmio import postgres
 from emmio.api import auth
 from emmio.data import Data
+from emmio.dictionary.config import DictionaryUsageConfig
+from emmio.language import KnownLanguages, Language
 from emmio.lexicon.core import LexiconResponse, select_next_word
 from emmio.lists.config import ListUsageConfig
+from emmio.ui import Element, TerminalInterface
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -57,10 +60,12 @@ class Course(BaseModel):
 
 
 class Lexicon(BaseModel):
-    """A lexicon owned by a user."""
+    """A lexicon owned by a user, with short info."""
 
     lexicon_id: str
     language: str
+    selection: str | None
+    words: int  # Number of words checked so far.
 
 
 class RegisterRequest(BaseModel):
@@ -146,8 +151,15 @@ def get_my_lexicons(
 ) -> list[Lexicon]:
     """List the authenticated user's lexicons."""
     return [
-        Lexicon(lexicon_id=lexicon_id, language=language)
-        for lexicon_id, language in postgres.list_lexicons(user_id)
+        Lexicon(
+            lexicon_id=lexicon_id,
+            language=language,
+            selection=selection,
+            words=words,
+        )
+        for lexicon_id, language, selection, words in postgres.list_lexicons(
+            user_id
+        )
     ]
 
 
@@ -155,6 +167,20 @@ class NextWord(BaseModel):
     """The next word to check, or `None` when the list is exhausted."""
 
     word: str | None
+
+
+class Translation(BaseModel):
+    """A word's translation, or `None` if no dictionary has it."""
+
+    word: str
+    translation: str | None
+
+
+# Languages the API returns definitions/translations in (matches the CLI).
+_DEFINITION_LANGUAGES: list[Language] = [
+    KnownLanguages.ENGLISH,
+    KnownLanguages.RUSSIAN,
+]
 
 
 class AnswerRequest(BaseModel):
@@ -255,6 +281,30 @@ def answer_lexicon_word(
         None,
     )
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/translation")
+async def get_lexicon_translation(
+    lexicon_id: str,
+    word: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> Translation:
+    """Get a word's translation from the lexicon's configured dictionaries."""
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    dictionaries = get_data().get_dictionaries(
+        [DictionaryUsageConfig(**d) for d in config["dictionaries"] or []]
+    )
+    elements: list[Element] | None = await dictionaries.to_text(
+        word, Language.from_code(config["language"]), _DEFINITION_LANGUAGES
+    )
+    if not elements:
+        return Translation(word=word, translation=None)
+
+    interface: TerminalInterface = TerminalInterface(use_input=False)
+    text: str = "\n".join(
+        interface.construct(element) for element in elements
+    ).strip()
+    return Translation(word=word, translation=text or None)
 
 
 # Serve the static web interface from the same origin as the API, so the

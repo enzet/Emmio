@@ -122,12 +122,22 @@ async function initLexicons() {
     status.textContent = "";
     for (const lexicon of lexicons) {
         const item = document.createElement("li");
+
         const link = document.createElement("a");
         link.href = `check.html?lexicon=${encodeURIComponent(
             lexicon.lexicon_id,
         )}`;
         link.textContent = `${lexicon.lexicon_id} (${lexicon.language})`;
         item.appendChild(link);
+
+        // Short info: selection strategy and number of words checked.
+        const info = document.createElement("small");
+        const parts = [];
+        if (lexicon.selection) parts.push(lexicon.selection);
+        parts.push(`${lexicon.words} words`);
+        info.textContent = ` — ${parts.join(", ")}`;
+        item.appendChild(info);
+
         list.appendChild(item);
     }
 }
@@ -141,12 +151,14 @@ async function initCheck() {
     const word = document.getElementById("word");
     const status = document.getElementById("status");
     const answers = document.getElementById("answers");
+    const translation = document.getElementById("translation");
 
     document.getElementById("lexicon-heading").textContent =
         `Check lexicon: ${lexiconId}`;
 
     async function loadNext() {
         word.textContent = "";
+        translation.textContent = "";
         status.textContent = "Loading…";
         answers.hidden = true;
 
@@ -178,11 +190,31 @@ async function initCheck() {
         await loadNext();
     }
 
+    async function showTranslation() {
+        const current = word.textContent;
+        if (!current) return;
+        translation.textContent = "Loading…";
+        const response = await api(
+            `/me/lexicons/${encodeURIComponent(lexiconId)}/translation` +
+                `?word=${encodeURIComponent(current)}`,
+        );
+        if (response.ok) {
+            const data = await response.json();
+            translation.textContent =
+                data.translation || "No translation found.";
+        } else {
+            translation.textContent = "Could not load translation.";
+        }
+    }
+
     for (const button of answers.querySelectorAll("button")) {
         button.addEventListener("click", () =>
             answer(button.dataset.response),
         );
     }
+    document
+        .getElementById("show-translation")
+        .addEventListener("click", showTranslation);
 
     await loadNext();
 }
