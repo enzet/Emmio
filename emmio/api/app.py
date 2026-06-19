@@ -189,6 +189,7 @@ class AnswerRequest(BaseModel):
 
     word: str
     response: str  # A `LexiconResponse` value, e.g. `know` or `dont`.
+    to_skip: bool = False  # Skip this word in future checks.
 
 
 _data: Data | None = None
@@ -279,7 +280,7 @@ def answer_lexicon_word(
         request.word,
         response.to_code(),
         datetime.now(UTC),
-        None,
+        {"sk": True} if request.to_skip else None,
     )
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
 

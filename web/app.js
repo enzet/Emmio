@@ -180,12 +180,12 @@ async function initCheck() {
         answers.hidden = false;
     }
 
-    async function answer(response) {
+    async function answer(response, toSkip = false) {
         const current = word.textContent;
         if (!current) return;
         await api(`/me/lexicons/${encodeURIComponent(lexiconId)}/answer`, {
             method: "POST",
-            body: { word: current, response },
+            body: { word: current, response, to_skip: toSkip },
         });
         await loadNext();
     }
@@ -214,7 +214,7 @@ async function initCheck() {
 
     for (const button of answers.querySelectorAll("button")) {
         button.addEventListener("click", () =>
-            answer(button.dataset.response),
+            answer(button.dataset.response, button.dataset.skip === "true"),
         );
     }
     document
