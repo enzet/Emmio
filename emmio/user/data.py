@@ -16,7 +16,7 @@ from typing import Any, Self
 from emmio import postgres
 from emmio.core import Record, Session
 from emmio.language import Language
-from emmio.learn.config import LearnConfig, LearningConfigType
+from emmio.learn.config import LearningConfigType
 from emmio.learn.core import Learning, Response
 from emmio.learn.data import LearnData
 from emmio.lexicon.config import LexiconConfigType
@@ -84,24 +84,24 @@ class UserData:
         """Verify user data configuration.
 
         Check whether the user configuration JSON file is valid. If not,
-        raise an exception. Lexicon configuration is no longer validated here:
-        it is read from the database and validated when loaded.
+        raise an exception. Learning and lexicon configuration are no longer
+        validated here: they are read from the database and validated on load.
         """
-        for learning_config in self.config["learn"].values():
-            LearnConfig(**learning_config)
-
         for listening_config in self.config["listen"].values():
             ListenConfig(**listening_config)
 
     def get_learn_data(self) -> LearnData:
-        """Lazy-loads learning data."""
+        """Lazy-loads learning data.
 
+        Course configuration is read from the database (the single source of
+        truth), not the on-disk `config.json`.
+        """
         if not self._learn_data:
             logger.info("Loading `%s` learning data...", self.user_id)
             postgres.ensure_user(self.user_id, self.user_name)
             self._learn_data = LearnData.from_config(
                 self.path / LEARN_DIRECTORY_NAME,
-                self.config["learn"],
+                postgres.get_learn_configs(self.user_id),
                 self.user_id,
             )
         return self._learn_data

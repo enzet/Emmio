@@ -308,7 +308,9 @@ class Learning(UserArtifact):
         base_languages: list[Language] = [
             Language.from_code(x) for x in config.base_languages
         ]
-        file_path: Path = path / config.file_name
+        # `file_path` is vestigial (records live in the database); kept only to
+        # satisfy the `UserArtifact` base. Synthesized from the identifier.
+        file_path: Path = path / f"{id_}.json"
 
         logger.info("Loading learning `%s` from database...", id_)
         record_rows, session_rows = postgres.load_learning(user_id, id_)

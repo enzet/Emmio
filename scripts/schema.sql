@@ -21,15 +21,21 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Learning.
 
--- Stable identity for a learning course, owned by a user. Base languages are a
--- display preference and live in user settings, not here. `course_id` is unique
+-- Stable identity for a learning course, owned by a user. `course_id` is unique
 -- per user, so different users may both have a `fr` course.
+--
+-- Unlike a lexicon, a course has no statistical estimate that depends on how
+-- questions are picked, so there is no immutable selection/frequency-list tier:
+-- only `learning_language` is identity. Everything else (scheme, dictionaries,
+-- sentences, audio, base languages, limits, ...) is mutable preference and
+-- lives in `config`. Per-answer provenance is in `learn_records.extra`.
 CREATE TABLE IF NOT EXISTS learn_courses (
     id                SERIAL PRIMARY KEY,
     user_id           INT NOT NULL REFERENCES users(id),
     course_id         TEXT NOT NULL,
     name              TEXT NOT NULL,
     learning_language TEXT NOT NULL,
+    config            JSONB NOT NULL DEFAULT '{}',
     UNIQUE (user_id, course_id)
 );
 

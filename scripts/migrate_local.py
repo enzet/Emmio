@@ -24,7 +24,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from emmio.learn.core import load_old_format
-from emmio.postgres import split_lexicon_config
+from emmio.postgres import learn_config_jsonb, split_lexicon_config
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -121,12 +121,13 @@ def migrate_learning(
 
     cursor.execute(
         "INSERT INTO learn_courses (user_id, course_id, name, "
-        "learning_language) VALUES (%s, %s, %s, %s) RETURNING id",
+        "learning_language, config) VALUES (%s, %s, %s, %s, %s) RETURNING id",
         (
             user_db_id,
             course_id,
             config.get("name", course_id),
             config["learning_language"],
+            Jsonb(learn_config_jsonb(config)),
         ),
     )
     row = cursor.fetchone()

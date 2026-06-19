@@ -156,6 +156,9 @@ def _store_learning(
         )
         for session in content.get("sessions", [])
     ]
+    # Store the course's configuration (the CLI reads it from the database),
+    # then its records.
+    postgres.store_learn_config(user_id, course_id, dict(config))
     postgres.save_learning(
         user_id,
         course_id,

@@ -79,9 +79,6 @@ class Scheme(BaseModel):
 class LearnConfig(BaseModel):
     """Learning process configuration."""
 
-    file_name: str
-    """Name of the file with learning process."""
-
     name: str
     """Name of the learning course."""
 

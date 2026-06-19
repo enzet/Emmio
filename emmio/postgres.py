@@ -294,6 +294,111 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
     connection.commit()
 
 
+LEARN_CONFIG_KEYS: tuple[str, ...] = (
+    "base_languages",
+    "is_active",
+    "scheme",
+    "sentences",
+    "dictionaries",
+    "audio",
+    "check_lexicon",
+    "ask_lexicon",
+    "max_for_day",
+)
+"""Mutable `LearnConfig` fields stored in the `config` JSONB.
+
+Identity fields (`name`, `learning_language`) are columns instead.
+"""
+
+
+def learn_config_jsonb(config: dict) -> dict:
+    """Extract the mutable part of a flat learn configuration for storage.
+
+    :param config: flat learn configuration (the `LearnConfig` fields)
+    :return: the subset stored in the `config` JSONB column
+    """
+    return {key: config[key] for key in LEARN_CONFIG_KEYS if key in config}
+
+
+def _assemble_learn_config(
+    name: str, learning_language: str, config: dict | None
+) -> dict:
+    """Build a flat learn configuration from the database columns plus JSONB."""
+    return {
+        "name": name,
+        "learning_language": learning_language,
+        **(config or {}),
+    }
+
+
+def get_learn_config(user_id: str, course_id: str) -> dict | None:
+    """Get a course's reassembled configuration dictionary.
+
+    Return `None` if it does not exist.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `fr`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT c.name, c.learning_language, c.config "
+            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s",
+            (user_id, course_id),
+        )
+        if row := cursor.fetchone():
+            return _assemble_learn_config(row[0], row[1], row[2])
+        return None
+
+
+def get_learn_configs(user_id: str) -> dict[str, dict]:
+    """Get reassembled configuration dictionaries for all of a user's courses.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: mapping from course identifier to its config dict
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT c.course_id, c.name, c.learning_language, c.config "
+            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s ORDER BY c.course_id",
+            (user_id,),
+        )
+        return {
+            row[0]: _assemble_learn_config(row[1], row[2], row[3])
+            for row in cursor.fetchall()
+        }
+
+
+def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
+    """Create or update a course's configuration.
+
+    :param user_id: owning user login, e.g. `enzet`
+    :param course_id: course identifier, e.g. `fr`
+    :param config: flat learn config (the `LearnConfig` fields)
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "INSERT INTO learn_courses "
+            "(user_id, course_id, name, learning_language, config) "
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT (user_id, course_id) DO UPDATE SET "
+            "name = excluded.name, "
+            "learning_language = excluded.learning_language, "
+            "config = excluded.config",
+            (
+                user_db_id,
+                course_id,
+                config["name"],
+                config["learning_language"],
+                Jsonb(learn_config_jsonb(config)),
+            ),
+        )
+    connection.commit()
+
+
 def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
     """Get the set of words already recorded in a user's lexicon.
 
