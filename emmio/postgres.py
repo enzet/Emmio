@@ -87,7 +87,7 @@ def get_connection() -> psycopg.Connection:
 def ensure_user(user_id: str, name: str) -> None:
     """Create the user if it does not exist yet.
 
-    :param user_id: stable string login, e.g. `enzet`
+    :param user_id: stable string login, e.g. `john`
     :param name: display name
     """
     connection: psycopg.Connection = get_connection()
@@ -113,7 +113,7 @@ def register_user(
 ) -> None:
     """Create a user with login credentials.
 
-    :param user_id: stable string login, e.g. `enzet`
+    :param user_id: stable string login, e.g. `john`
     :param name: display name
     :param email: unique email address used to log in
     :param hashed_password: already-hashed password (never the plaintext)
@@ -135,6 +135,38 @@ def register_user(
             "VALUES (%s, %s, %s, %s)",
             (user_id, name, email, hashed_password),
         )
+    connection.commit()
+
+
+def set_credentials(user_id: str, email: str, hashed_password: str) -> None:
+    """Set (or replace) an existing user's login credentials.
+
+    Useful for giving a CLI-only user (no password) the ability to log in via
+    the API.
+
+    :param user_id: stable string login, e.g. `john`
+    :param email: unique email address used to log in
+    :param hashed_password: already-hashed password (never the plaintext)
+    :raises ValueError: if the user does not exist, or the email belongs to
+        another user
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT 1 FROM users WHERE email = %s AND user_id <> %s",
+            (email, user_id),
+        )
+        if cursor.fetchone() is not None:
+            message: str = f"Email `{email}` is used by another user."
+            raise ValueError(message)
+        cursor.execute(
+            "UPDATE users SET email = %s, hashed_password = %s "
+            "WHERE user_id = %s RETURNING id",
+            (email, hashed_password, user_id),
+        )
+        if cursor.fetchone() is None:
+            message = f"Unknown user `{user_id}`."
+            raise ValueError(message)
     connection.commit()
 
 
@@ -265,7 +297,7 @@ def get_lexicon_configs(user_id: str) -> dict[str, dict]:
 def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
     """Create or update a lexicon's tiered configuration.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :param config: flat lexicon config (the `LexiconConfig` fields)
     """
@@ -373,7 +405,7 @@ def get_learn_configs(user_id: str) -> dict[str, dict]:
 def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
     """Create or update a course's configuration.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     :param config: flat learn config (the `LearnConfig` fields)
     """
@@ -402,7 +434,7 @@ def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
 def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
     """Get the set of words already recorded in a user's lexicon.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     """
     with get_connection().cursor() as cursor:
@@ -477,7 +509,7 @@ def load_learning(
 ) -> tuple[list[LearnRecordRow], list[LearnSessionRow]]:
     """Load all learning records and sessions of a user's course.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     :return: (records, sessions) in insertion order; empty lists if the
         course is not in the database
@@ -520,7 +552,7 @@ def save_learning(
 ) -> None:
     """Append learning records and sessions of a user's course.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     :param name: course name, used if the course is to be created
     :param language: learning language code, used if the course is to be
@@ -573,7 +605,7 @@ def load_lexicon(
 ) -> tuple[list[LexiconRecordRow], list[LexiconSessionRow]]:
     """Load all lexicon records and sessions of a user.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :return: (records, sessions) in insertion order; empty lists if the
         lexicon is not in the database
@@ -616,7 +648,7 @@ def save_lexicon(
     Word state (`lexicon_words.response`, `to_skip`, `last_seen`) is updated
     so that the last record wins, mirroring the in-memory behavior.
 
-    :param user_id: owning user login, e.g. `enzet`
+    :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :param language: lexicon language code, used if the lexicon is to be
         created

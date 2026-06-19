@@ -20,6 +20,7 @@ from typing import Annotated
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from emmio import postgres
@@ -254,3 +255,10 @@ def answer_lexicon_word(
         None,
     )
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
+
+
+# Serve the static web interface from the same origin as the API, so the
+# browser's `fetch` calls to `/api/v1/...` need no CORS configuration. Mounted
+# last so it never shadows an API route.
+_WEB_DIR: Path = Path(__file__).resolve().parents[2] / "web"
+app.mount("/app", StaticFiles(directory=_WEB_DIR, html=True), name="web")
