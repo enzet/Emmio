@@ -25,12 +25,13 @@ from pydantic import BaseModel
 
 from emmio import postgres
 from emmio.api import auth
+from emmio.api.render import elements_to_html
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.language import KnownLanguages, Language
 from emmio.lexicon.core import LexiconResponse, select_next_word
 from emmio.lists.config import ListUsageConfig
-from emmio.ui import Element, TerminalInterface
+from emmio.ui import Element
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -170,7 +171,7 @@ class NextWord(BaseModel):
 
 
 class Translation(BaseModel):
-    """A word's translation, or `None` if no dictionary has it."""
+    """A word's translation as a safe HTML fragment, or `None` if not found."""
 
     word: str
     translation: str | None
@@ -299,12 +300,7 @@ async def get_lexicon_translation(
     )
     if not elements:
         return Translation(word=word, translation=None)
-
-    interface: TerminalInterface = TerminalInterface(use_input=False)
-    text: str = "\n".join(
-        interface.construct(element) for element in elements
-    ).strip()
-    return Translation(word=word, translation=text or None)
+    return Translation(word=word, translation=elements_to_html(elements))
 
 
 # Serve the static web interface from the same origin as the API, so the

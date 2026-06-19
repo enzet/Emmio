@@ -200,8 +200,13 @@ async function initCheck() {
         );
         if (response.ok) {
             const data = await response.json();
-            translation.textContent =
-                data.translation || "No translation found.";
+            // The server returns a safe HTML fragment (text escaped, fixed
+            // tags) or null.
+            if (data.translation) {
+                translation.innerHTML = data.translation;
+            } else {
+                translation.textContent = "No translation found.";
+            }
         } else {
             translation.textContent = "Could not load translation.";
         }
