@@ -111,7 +111,8 @@ async function initLexicons() {
     });
 
     const status = document.getElementById("status");
-    const list = document.getElementById("lexicon-list");
+    const table = document.getElementById("lexicon-table");
+    const rows = document.getElementById("lexicon-rows");
     const response = await api("/me/lexicons");
     const lexicons = await response.json();
 
@@ -120,41 +121,90 @@ async function initLexicons() {
         return;
     }
     status.textContent = "";
+    table.hidden = false;
     for (const lexicon of lexicons) {
-        const item = document.createElement("li");
+        const row = document.createElement("tr");
 
+        const idCell = document.createElement("td");
         const link = document.createElement("a");
-        link.href = `check.html?lexicon=${encodeURIComponent(
+        link.href = `lexicon.html?lexicon=${encodeURIComponent(
             lexicon.lexicon_id,
         )}`;
-        link.textContent = `${lexicon.lexicon_id} (${lexicon.language})`;
-        item.appendChild(link);
+        link.textContent = lexicon.lexicon_id;
+        idCell.appendChild(link);
+        row.appendChild(idCell);
 
-        // Short info: selection strategy and number of words checked.
-        const info = document.createElement("small");
-        const parts = [];
-        if (lexicon.selection) parts.push(lexicon.selection);
-        parts.push(`${lexicon.words} words`);
-        info.textContent = ` — ${parts.join(", ")}`;
-        item.appendChild(info);
+        for (const value of [
+            lexicon.language,
+            lexicon.selection || "",
+            lexicon.words,
+            lexicon.dont_last_week,
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        }
 
-        list.appendChild(item);
+        rows.appendChild(row);
     }
 }
 
-// Lexicon checking page.
+// Lexicon detail page.
 
-async function initCheck() {
+async function initLexicon() {
     requireAuth();
 
     const lexiconId = new URLSearchParams(location.search).get("lexicon");
+    document.getElementById("lexicon-heading").textContent =
+        `Lexicon: ${lexiconId}`;
+    document.getElementById("check-link").href =
+        `check.html?lexicon=${encodeURIComponent(lexiconId)}`;
+
+    const status = document.getElementById("status");
+    const stats = document.getElementById("stats");
+    const response = await api(
+        `/me/lexicons/${encodeURIComponent(lexiconId)}/stats`,
+    );
+    if (!response.ok) {
+        status.textContent = "Could not load statistics.";
+        return;
+    }
+    const s = await response.json();
+    status.textContent = "";
+
+    const rows = [
+        ["Language", s.language],
+        ["Selection", s.selection || "—"],
+        ["Words checked", s.words],
+        ["Known", s.known],
+        ["Don't know", s.dont_know],
+        [
+            "Vocabulary rate",
+            s.rate === null ? "not enough data" : s.rate.toFixed(1),
+        ],
+        ["Precision (total don't-know answers)", s.precision],
+        ["Don't know (last 7 days)", s.dont_last_week],
+        ["Weekly goal", s.precision_per_week],
+    ];
+    for (const [label, value] of rows) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        stats.appendChild(term);
+        stats.appendChild(description);
+    }
+}
+
+// Session pages: lexicon checking and learning repetition share one flow —
+// fetch the next word, optionally reveal a translation, record an answer, and
+// move on. `base` is the resource path, e.g. `/me/lexicons/fr`.
+
+async function runSession(base, doneText) {
     const word = document.getElementById("word");
     const status = document.getElementById("status");
     const answers = document.getElementById("answers");
     const translation = document.getElementById("translation");
-
-    document.getElementById("lexicon-heading").textContent =
-        `Check lexicon: ${lexiconId}`;
 
     async function loadNext() {
         word.textContent = "";
@@ -162,9 +212,7 @@ async function initCheck() {
         status.textContent = "Loading…";
         answers.hidden = true;
 
-        const response = await api(
-            `/me/lexicons/${encodeURIComponent(lexiconId)}/next`,
-        );
+        const response = await api(`${base}/next`);
         if (!response.ok) {
             const { detail } = await response.json().catch(() => ({}));
             status.textContent = detail || "Could not load the next word.";
@@ -172,7 +220,7 @@ async function initCheck() {
         }
         const next = await response.json();
         if (!next.word) {
-            status.textContent = "No more words to check.";
+            status.textContent = doneText;
             return;
         }
         word.textContent = next.word;
@@ -183,7 +231,7 @@ async function initCheck() {
     async function answer(response, toSkip = false) {
         const current = word.textContent;
         if (!current) return;
-        await api(`/me/lexicons/${encodeURIComponent(lexiconId)}/answer`, {
+        await api(`${base}/answer`, {
             method: "POST",
             body: { word: current, response, to_skip: toSkip },
         });
@@ -195,8 +243,7 @@ async function initCheck() {
         if (!current) return;
         translation.textContent = "Loading…";
         const response = await api(
-            `/me/lexicons/${encodeURIComponent(lexiconId)}/translation` +
-                `?word=${encodeURIComponent(current)}`,
+            `${base}/translation?word=${encodeURIComponent(current)}`,
         );
         if (response.ok) {
             const data = await response.json();
@@ -221,7 +268,136 @@ async function initCheck() {
         .getElementById("show-translation")
         .addEventListener("click", showTranslation);
 
+    // Keyboard shortcuts: each button's `data-key` triggers a click (matches
+    // the CLI), plus space to reveal the translation.
+    document.addEventListener("keydown", (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.target.matches("input, textarea, select")) return;
+        const key = event.key === " " ? " " : event.key.toLowerCase();
+        const button = document.querySelector(`button[data-key="${key}"]`);
+        if (button) {
+            event.preventDefault();
+            button.click();
+        }
+    });
+
     await loadNext();
+}
+
+// Lexicon checking page.
+
+async function initCheck() {
+    requireAuth();
+    const id = new URLSearchParams(location.search).get("lexicon");
+    document.getElementById("lexicon-heading").textContent =
+        `Check lexicon: ${id}`;
+    await runSession(
+        `/me/lexicons/${encodeURIComponent(id)}`,
+        "No more words to check.",
+    );
+}
+
+// Learning repetition page.
+
+async function initLearn() {
+    requireAuth();
+    const id = new URLSearchParams(location.search).get("course");
+    document.getElementById("learn-heading").textContent = `Learn: ${id}`;
+    await runSession(
+        `/me/courses/${encodeURIComponent(id)}`,
+        "Nothing to repeat right now.",
+    );
+}
+
+// Courses list page.
+
+async function initCourses() {
+    requireAuth();
+
+    document.getElementById("logout").addEventListener("click", () => {
+        clearToken();
+        location.href = "index.html";
+    });
+
+    const status = document.getElementById("status");
+    const table = document.getElementById("course-table");
+    const rows = document.getElementById("course-rows");
+    const response = await api("/me/courses");
+    const courses = await response.json();
+
+    if (courses.length === 0) {
+        status.textContent = "No courses yet.";
+        return;
+    }
+    status.textContent = "";
+    table.hidden = false;
+    for (const course of courses) {
+        const row = document.createElement("tr");
+
+        const idCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `course.html?course=${encodeURIComponent(
+            course.course_id,
+        )}`;
+        link.textContent = course.name;
+        idCell.appendChild(link);
+        row.appendChild(idCell);
+
+        for (const value of [
+            course.learning_language,
+            course.words,
+            course.answers,
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        }
+
+        rows.appendChild(row);
+    }
+}
+
+// Course detail page.
+
+async function initCourse() {
+    requireAuth();
+
+    const courseId = new URLSearchParams(location.search).get("course");
+    document.getElementById("course-heading").textContent =
+        `Course: ${courseId}`;
+    document.getElementById("learn-link").href =
+        `learn.html?course=${encodeURIComponent(courseId)}`;
+
+    const status = document.getElementById("status");
+    const stats = document.getElementById("stats");
+    const response = await api(
+        `/me/courses/${encodeURIComponent(courseId)}/stats`,
+    );
+    if (!response.ok) {
+        status.textContent = "Could not load statistics.";
+        return;
+    }
+    const s = await response.json();
+    status.textContent = "";
+
+    const rows = [
+        ["Name", s.name],
+        ["Language", s.learning_language],
+        ["Words being learned", s.learning],
+        ["Due for repetition", s.to_repeat],
+        ["New words allowed today", s.to_add],
+        ["Added today", s.added_today],
+        ["Total answers", s.answers],
+        ["Actions (right/wrong)", s.actions],
+    ];
+    for (const [label, value] of rows) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        stats.appendChild(term);
+        stats.appendChild(description);
+    }
 }
 
 // Dispatch on the page.
@@ -230,5 +406,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const page = document.body.dataset.page;
     if (page === "login") initLogin();
     else if (page === "lexicons") initLexicons();
+    else if (page === "lexicon") initLexicon();
     else if (page === "check") initCheck();
+    else if (page === "courses") initCourses();
+    else if (page === "course") initCourse();
+    else if (page === "learn") initLearn();
 });

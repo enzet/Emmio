@@ -18,34 +18,42 @@
             <section aria-labelledby="word-heading">
                 <h2 id="word-heading">Do you know this word?</h2>
                 <p id="word"></p>
-                <p>
-                    <button type="button" id="show-translation">
-                        Show translation
-                    </button>
-                </p>
-                <div id="translation"></div>
                 <div id="answers">
-                    <button type="button" data-response="know">Know</button>
+                    <button type="button" data-response="know" data-key="y">
+                        Know <kbd>Y</kbd>
+                    </button>
                     <button
                         type="button"
                         data-response="know"
                         data-skip="true"
+                        data-key="s"
                     >
-                        Know and skip
+                        Know and skip <kbd>S</kbd>
                     </button>
-                    <button type="button" data-response="dont">
-                        Don't know
+                    <button type="button" data-response="dont" data-key="n">
+                        Don't know <kbd>N</kbd>
                     </button>
                     <button
                         type="button"
                         data-response="dont_but_proper_noun_too"
+                        data-key="b"
                     >
-                        Proper noun
+                        Proper noun <kbd>B</kbd>
                     </button>
-                    <button type="button" data-response="not_a_word">
-                        Not a word
+                    <button
+                        type="button"
+                        data-response="not_a_word"
+                        data-key="-"
+                    >
+                        Not a word <kbd>-</kbd>
                     </button>
                 </div>
+                <p>
+                    <button type="button" id="show-translation" data-key=" ">
+                        Show translation <kbd>Space</kbd>
+                    </button>
+                </p>
+                <div id="translation"></div>
             </section>
 
             <p id="status" role="status"></p>

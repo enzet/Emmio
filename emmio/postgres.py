@@ -197,37 +197,54 @@ def list_users() -> list[tuple[str, str]]:
         return [(row[0], row[1]) for row in cursor.fetchall()]
 
 
-def list_courses(user_id: str) -> list[tuple[str, str, str]]:
-    """Get a user's courses as (course id, name, learning language) tuples.
+def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
+    """Get a user's courses with short info.
 
     :param user_id: owning user login, e.g. `john`
+    :return: (course id, name, learning language, distinct words studied,
+        total answers) tuples, ordered by course id
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
-            "SELECT c.course_id, c.name, c.learning_language "
+            "SELECT c.course_id, c.name, c.learning_language, "
+            "(SELECT count(DISTINCT r.question_id) FROM learn_records r "
+            "WHERE r.course_id = c.id), "
+            "(SELECT count(*) FROM learn_records r WHERE r.course_id = c.id) "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
             "WHERE u.user_id = %s ORDER BY c.course_id",
             (user_id,),
         )
-        return [(row[0], row[1], row[2]) for row in cursor.fetchall()]
+        return [
+            (row[0], row[1], row[2], row[3], row[4])
+            for row in cursor.fetchall()
+        ]
 
 
-def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int]]:
+def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int, int]]:
     """Get a user's lexicons with short info.
 
     :param user_id: owning user login, e.g. `john`
     :return: (lexicon id, language, selection strategy, number of words
-        checked) tuples, ordered by lexicon id
+        checked, number of "don't know" answers in the last 7 days) tuples,
+        ordered by lexicon id
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, "
-            "(SELECT count(*) FROM lexicon_words w WHERE w.lexicon_id = l.id) "
+            "(SELECT count(*) FROM lexicon_words w "
+            "WHERE w.lexicon_id = l.id), "
+            "(SELECT count(*) FROM lexicon_records r "
+            "JOIN lexicon_words w2 ON w2.id = r.word_id "
+            "WHERE w2.lexicon_id = l.id AND r.response = 'D' "
+            "AND r.response_time >= now() - interval '7 days') "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
         )
-        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
+        return [
+            (row[0], row[1], row[2], row[3], row[4])
+            for row in cursor.fetchall()
+        ]
 
 
 def _assemble_lexicon_config(

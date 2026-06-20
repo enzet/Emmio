@@ -19,28 +19,44 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 
 ## Files
 
-| File            | Role                                                        |
-|-----------------|-------------------------------------------------------------|
-| `index.html`    | Log in and register forms.                                  |
-| `lexicons.html` | Lists the signed-in user's lexicons.                        |
-| `check.html`    | Checks one lexicon: shows a word, records know / don't know.|
-| `app.js`        | Token storage, the `fetch` helper, and per-page logic.      |
+| File            | Role                                                         |
+|-----------------|--------------------------------------------------------------|
+| `index.html`    | Log in and register forms.                                   |
+| `lexicons.html` | Table of the user's lexicons (short info per lexicon).       |
+| `lexicon.html`  | One lexicon: details and statistics (rate, precision, …).    |
+| `check.html`    | Check a lexicon: shows a word, records know / don't know.    |
+| `courses.html`  | Table of the user's learning courses.                        |
+| `course.html`   | One course: details and statistics (due, learning, …).       |
+| `learn.html`    | Repeat a course: shows a due word, records right / wrong.    |
+| `app.js`        | Token storage, the `fetch` helper, and per-page logic.       |
 
 `app.js` dispatches on `<body data-page="...">`, so each page is plain HTML that
-just includes the one script.
+just includes the one script. The lexicon-checking and learning pages share one
+`runSession()` flow (next → reveal translation → answer), differing only in the
+resource path (`/me/lexicons/{id}` vs `/me/courses/{id}`).
 
 ## Page flow
 
 ```mermaid
 flowchart LR
     index["index.html<br/>log in / register"]
-    lexicons["lexicons.html<br/>list lexicons"]
-    check["check.html<br/>check a word"]
+
+    subgraph lex["Lexicons"]
+        lexicons["lexicons.html<br/>list"]
+        lexicon["lexicon.html<br/>details + stats"]
+        check["check.html<br/>check words"]
+        lexicons --> lexicon --> check
+    end
+
+    subgraph courses["Courses"]
+        courseList["courses.html<br/>list"]
+        course["course.html<br/>details + stats"]
+        learn["learn.html<br/>repeat words"]
+        courseList --> course --> learn
+    end
 
     index -->|"log in → store token"| lexicons
-    lexicons -->|"pick a lexicon"| check
-    check -->|"← back"| lexicons
-    lexicons -->|"log out → clear token"| index
+    lexicons <-->|"nav"| courseList
 ```
 
 ## Authentication
@@ -80,17 +96,23 @@ sequenceDiagram
     end
 ```
 
-The `response` sent to `/answer` is a `LexiconResponse` value: `know`, `dont`,
-`dont_but_proper_noun_too`, or `not_a_word`.
+The same loop drives learning, against `/me/courses/{id}` instead. The
+`response` value depends on the resource:
+
+- Lexicon `/answer`: a `LexiconResponse` — `know`, `dont`,
+  `dont_but_proper_noun_too`, `not_a_word` (plus a "Know and skip" that sets the
+  skip flag).
+- Course `/answer`: a `Response` — `y` (right), `n` (wrong), `s` (skip).
 
 ## Scope and limitations
 
-The interface only covers what the API exposes today: **authentication and
-lexicon checking**.
-
-- **Learning** (the spaced-repetition flow) is not on the API yet, so it is not
-  in the web interface.
-- A **freshly registered** user has no lexicons, and there is **no
-  create-lexicon endpoint** yet — so the checking page is only usable by a user
-  who already owns lexicons in the database. Creating lexicons over the API is a
-  pending backend task.
+- **Learning is review-only.** The learning pages repeat words that are already
+  being learned and are *due* (spaced repetition). Adding *new* words needs the
+  interactive `Teacher` and is not exposed over the API yet, so a course with no
+  due words shows "Nothing to repeat right now."
+- **No create endpoints.** A freshly registered user has no lexicons or courses,
+  and there is no API to create them yet — so the session pages are usable only
+  by a user who already owns data in the database (e.g. a migrated CLI user).
+- **Sessions reload on each `next`.** Each "next" reloads the lexicon/course from
+  the database to pick the next word; fine for now, but stateful sessions are a
+  future optimization.
