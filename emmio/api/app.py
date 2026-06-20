@@ -32,7 +32,12 @@ from emmio.language import KnownLanguages, Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
-from emmio.lexicon.core import Lexicon, LexiconResponse, select_next_word
+from emmio.lexicon.core import (
+    Lexicon,
+    LexiconResponse,
+    compute_lexicon_rate,
+    select_next_word,
+)
 from emmio.lists.config import ListUsageConfig
 from emmio.ui import Element
 
@@ -73,6 +78,7 @@ class LexiconSummary(BaseModel):
     selection: str | None
     words: int  # Number of words checked so far.
     dont_last_week: int  # "Don't know" answers in the last 7 days.
+    rate: float | None  # Vocabulary rate, or None if not enough data.
 
 
 class RegisterRequest(BaseModel):
@@ -164,19 +170,38 @@ def get_my_courses(
 def get_my_lexicons(
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[LexiconSummary]:
-    """List the authenticated user's lexicons."""
-    return [
-        LexiconSummary(
-            lexicon_id=lexicon_id,
-            language=language,
-            selection=selection,
-            words=words,
-            dont_last_week=dont_last_week,
+    """List the authenticated user's lexicons, sorted by vocabulary rate.
+
+    The rate is computed from each lexicon's answer history (one bulk query);
+    lexicons without enough data (rate `None`) sort to the end.
+    """
+    sequences: dict[str, list[tuple[datetime, int]]] = (
+        postgres.get_lexicon_answer_sequences(user_id)
+    )
+    summaries: list[LexiconSummary] = []
+    for (
+        lexicon_id,
+        language,
+        selection,
+        words,
+        dont_last_week,
+    ) in postgres.list_lexicons(user_id):
+        _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
+        summaries.append(
+            LexiconSummary(
+                lexicon_id=lexicon_id,
+                language=language,
+                selection=selection,
+                words=words,
+                dont_last_week=dont_last_week,
+                rate=rate_values[-1] if rate_values else None,
+            )
         )
-        for lexicon_id, language, selection, words, dont_last_week in (
-            postgres.list_lexicons(user_id)
-        )
-    ]
+    summaries.sort(
+        key=lambda s: s.rate if s.rate is not None else float("-inf"),
+        reverse=True,
+    )
+    return summaries
 
 
 class NextWord(BaseModel):

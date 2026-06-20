@@ -137,6 +137,7 @@ async function initLexicons() {
         for (const value of [
             lexicon.language,
             lexicon.selection || "",
+            lexicon.rate === null ? "—" : lexicon.rate.toFixed(1),
             lexicon.words,
             lexicon.dont_last_week,
         ]) {
@@ -182,8 +183,8 @@ async function initLexicon() {
             "Vocabulary rate",
             s.rate === null ? "not enough data" : s.rate.toFixed(1),
         ],
-        ["Precision (total don't-know answers)", s.precision],
-        ["Don't know (last 7 days)", s.dont_last_week],
+        ["Precision (total)", s.precision],
+        ["Precision (last 7 days)", s.dont_last_week],
         ["Weekly goal", s.precision_per_week],
     ];
     for (const [label, value] of rows) {

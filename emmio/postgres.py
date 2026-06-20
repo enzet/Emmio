@@ -247,6 +247,37 @@ def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int, int]]:
         ]
 
 
+def get_lexicon_answer_sequences(
+    user_id: str,
+) -> dict[str, list[tuple[datetime, int]]]:
+    """Get each lexicon's chronological know / don't-know answers.
+
+    One query for all of a user's lexicons, used to compute the vocabulary
+    rate without loading full lexicon objects.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: mapping from lexicon id to a time-ordered list of
+        (response time, 1 for "know" / 0 for "don't know")
+    """
+    result: dict[str, list[tuple[datetime, int]]] = {}
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.lexicon_id, r.response_time, r.response "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND r.response IN ('K', 'D') "
+            "ORDER BY l.lexicon_id, r.id",
+            (user_id,),
+        )
+        for lexicon_id, response_time, response in cursor.fetchall():
+            result.setdefault(lexicon_id, []).append(
+                (response_time, 1 if response == "K" else 0)
+            )
+    return result
+
+
 def _assemble_lexicon_config(
     language: str,
     selection: str | None,
