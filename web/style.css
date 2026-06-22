@@ -1,0 +1,153 @@
+/* Emmio web interface styles.
+ *
+ * Intentionally empty for now — the markup is plain semantic HTML so the design
+ * can be decided later. Add rules here; useful hooks already in the markup:
+ * `.dictionary`, `.dictionary-name`, `.dictionary-body`, and the `id`s used by
+ * each page (e.g. `#word`, `#answers`, `#translation`, `#stats`). */
+
+main.login {
+    border: 1px solid #DDD;
+    border-radius: 10px;
+    width: 250px;
+    margin: auto;
+    padding: 0.1rem 1rem;
+}
+
+img.logo-corner {
+    width: 70px;
+}
+
+h1 img.logo {
+    width: 70px;
+}
+
+/* Center the logo and section headers (the inline logo follows `text-align`). */
+h1 {
+    text-align: center;
+}
+h1 {
+    padding: 0;
+    margin: 0;
+}
+h2 {
+    margin-top: 2rem;
+    margin-bottom: 0;
+}
+
+/* Center form submit buttons without affecting the fields above them. A button
+ * sizes to its content, so block + auto margins centers it. */
+form button {
+    display: block;
+    margin: 1rem auto;
+    color: white;
+    background-color: black;
+    border: none;
+    border-radius: 5px;
+    padding: 0.5rem 1rem;
+    width: 200px;
+}
+
+input.text {
+    border: 1px solid #EEE;
+    border-radius: 3px;
+    background: #EEE;
+    width: stretch;
+    padding: 0.3rem;
+}
+label {
+    display: block;
+    font-size: 80%;
+    padding-bottom: 0.1rem;
+}
+p {
+    margin: 0.5rem 0;
+}
+p#word {
+    font-size: 800%;
+    text-align: center;
+    padding: 2rem;
+    font-weight: 700;
+}
+
+dt {
+    color: #AAA;
+    font-size: 80%;
+}
+dd {
+    margin-left: 0;
+    margin-bottom: 0.5rem;
+}
+
+#translation {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.dictionary-body {
+    font-family: "Playfair", serif;
+}
+
+.dictionary-name {
+    margin-bottom: 0.5rem;
+    color: #AAA;
+}
+
+.dictionary-etymology {
+    color: #AAA;
+    padding-left: 1rem;
+}
+
+.dictionary-descripiton {
+    padding-left: 1rem;
+}
+
+.dictionary-definition {
+    padding-left: 2rem;
+}
+
+.dictionary-link {
+    padding-left: 2rem;
+    color: #AAA;
+}
+
+span.dictionary-transcription {
+    padding-left: 0.25rem;
+}
+
+span.dictionary-part-of-speech {
+    font-weight: bold;
+}
+
+.logo {
+    width: 12rem;
+    height: auto;
+}
+
+/* Logo in the top-left corner of app pages, next to the nav. */
+header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Main page: stacked, centered links to the two sections. */
+.home-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo-corner {
+    width: 40px;
+    height: auto;
+}
+
+table {
+    border-collapse: collapse;
+}
+table tr td, th {
+    padding: 0.3rem 0.7rem;
+    border-bottom: 1px solid #EEE;
+}
