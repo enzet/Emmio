@@ -22,6 +22,8 @@ import jwt
 _SECRET: str = os.environ.get("EMMIO_JWT_SECRET", "dev-secret-do-not-use")
 _ALGORITHM: str = "HS256"
 ACCESS_TOKEN_TTL: timedelta = timedelta(hours=1)
+REMEMBER_TOKEN_TTL: timedelta = timedelta(days=7)
+"""Longer token lifetime when the user ticks "remember me" at login."""
 
 
 def hash_password(password: str) -> str:
