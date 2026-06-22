@@ -525,6 +525,56 @@ def get_words_to_skip(
         return {row[0] for row in cursor.fetchall()}
 
 
+def delete_last_lexicon_record(user_id: str, lexicon_id: str) -> str | None:
+    """Delete the most recent answer in a lexicon and return its word.
+
+    Undoes a single answer: the word's cached state is rebuilt from its
+    remaining records (or the word is dropped if it has none left), so it
+    becomes selectable again.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: the word whose answer was removed, or `None` if there is nothing
+        to undo
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT r.id, w.id, w.word "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "ORDER BY r.response_time DESC, r.id DESC LIMIT 1",
+            (user_id, lexicon_id),
+        )
+        if not (row := cursor.fetchone()):
+            return None
+        record_id, word_id, word = row
+        cursor.execute(
+            "DELETE FROM lexicon_records WHERE id = %s", (record_id,)
+        )
+        cursor.execute(
+            "SELECT response, response_time, extra FROM lexicon_records "
+            "WHERE word_id = %s ORDER BY response_time DESC, id DESC LIMIT 1",
+            (word_id,),
+        )
+        if latest := cursor.fetchone():
+            response, response_time, extra = latest
+            cursor.execute(
+                "UPDATE lexicon_words SET response = %s, last_seen = %s, "
+                "to_skip = %s WHERE id = %s",
+                (response, response_time, (extra or {}).get("sk"), word_id),
+            )
+        else:
+            cursor.execute(
+                "DELETE FROM lexicon_words WHERE id = %s", (word_id,)
+            )
+    connection.commit()
+    return str(word)
+
+
 def _get_user_db_id(cursor: psycopg.Cursor, user_id: str) -> int:
     """Get internal user identifier, raising if the user does not exist."""
 
@@ -617,6 +667,36 @@ def load_learning(
             (row[0], row[1], row[2], row[3]) for row in cursor.fetchall()
         ]
     return records, sessions
+
+
+def delete_last_learn_record(user_id: str, course_id: str) -> str | None:
+    """Delete the most recent answer in a course and return its word.
+
+    Undoes a single repetition answer. Learning keeps no per-word cache (its
+    state is derived from the records on load), so only the record is removed.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `fr`
+    :return: the word whose answer was removed, or `None` if there is nothing
+        to undo
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT r.id, r.question_id "
+            "FROM learn_records r "
+            "JOIN learn_courses c ON c.id = r.course_id "
+            "JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s "
+            "ORDER BY r.response_time DESC, r.id DESC LIMIT 1",
+            (user_id, course_id),
+        )
+        if not (row := cursor.fetchone()):
+            return None
+        record_id, question_id = row
+        cursor.execute("DELETE FROM learn_records WHERE id = %s", (record_id,))
+    connection.commit()
+    return str(question_id)
 
 
 def save_learning(

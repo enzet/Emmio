@@ -372,6 +372,21 @@ def answer_lexicon_word(
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
 
 
+@app.post("/api/v1/me/lexicons/{lexicon_id}/undo")
+def undo_lexicon_answer(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> NextWord:
+    """Undo the most recent answer in the lexicon, returning its word.
+
+    The word becomes un-answered (and selectable) again, so a mis-click can be
+    corrected by re-answering it.
+    """
+    _lexicon_config_or_404(user_id, lexicon_id)
+    return NextWord(
+        word=postgres.delete_last_lexicon_record(user_id, lexicon_id)
+    )
+
+
 @app.get("/api/v1/me/lexicons/{lexicon_id}/translation")
 async def get_lexicon_translation(
     lexicon_id: str,
@@ -540,6 +555,18 @@ def answer_question(
         [record],
         [],
     )
+
+
+@app.post("/api/v1/me/courses/{course_id}/undo")
+def undo_course_answer(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> NextWord:
+    """Undo the most recent answer in the course, returning its word.
+
+    Lets a mis-clicked repetition answer be corrected by re-answering.
+    """
+    _course_config_or_404(user_id, course_id)
+    return NextWord(word=postgres.delete_last_learn_record(user_id, course_id))
 
 
 @app.get("/api/v1/me/courses/{course_id}/translation")

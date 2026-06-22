@@ -237,6 +237,17 @@ async function runSession(base, doneText) {
     const status = document.getElementById("status");
     const answers = document.getElementById("answers");
     const translation = document.getElementById("translation");
+    const undoBar = document.getElementById("undo-bar");
+    const undoWord = document.getElementById("undo-word");
+
+    // Show the current word with its answer buttons (used by loadNext and when
+    // re-presenting an undone word).
+    function showWord(value) {
+        word.textContent = value;
+        translation.textContent = "";
+        status.textContent = "";
+        answers.hidden = false;
+    }
 
     async function loadNext() {
         word.textContent = "";
@@ -255,9 +266,7 @@ async function runSession(base, doneText) {
             status.textContent = doneText;
             return;
         }
-        word.textContent = next.word;
-        status.textContent = "";
-        answers.hidden = false;
+        showWord(next.word);
     }
 
     async function answer(response, toSkip = false) {
@@ -267,7 +276,19 @@ async function runSession(base, doneText) {
             method: "POST",
             body: { word: current, response, to_skip: toSkip },
         });
+        // Offer to undo the answer just recorded while the next word loads.
+        undoWord.textContent = current;
+        undoBar.hidden = false;
         await loadNext();
+    }
+
+    // Remove the most recent answer and re-present that word to re-answer it.
+    async function undo() {
+        const response = await api(`${base}/undo`, { method: "POST" });
+        if (!response.ok) return;
+        const { word: undone } = await response.json();
+        undoBar.hidden = true;
+        if (undone) showWord(undone);
     }
 
     async function showTranslation() {
@@ -315,6 +336,7 @@ async function runSession(base, doneText) {
     document
         .getElementById("show-translation")
         .addEventListener("click", showTranslation);
+    document.getElementById("undo").addEventListener("click", undo);
 
     // Keyboard shortcuts: each button's `data-key` triggers a click (matches
     // the CLI), plus space to reveal the translation.
