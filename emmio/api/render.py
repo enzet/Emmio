@@ -27,28 +27,41 @@ _FORMAT_TAGS: dict[str, str] = {"bold": "b", "italic": "i", "underline": "u"}
 def to_html(element: Element | str) -> str:
     """Render a single UI element (or string) as HTML."""
 
+    def _attributes(element: Element) -> str:
+        return (
+            f' class="{escape(element.class_, quote=True)}"'
+            if element.class_
+            else ""
+        )
+
     if isinstance(element, str):
         return escape(element)
 
     if isinstance(element, Text):
-        return "".join(to_html(child) for child in element.elements)
+        inner = "".join(to_html(child) for child in element.elements)
+        if element.class_:
+            return f"<span{_attributes(element)}>{inner}</span>"
+        return inner
 
     if isinstance(element, Formatted):
         tag: str = _FORMAT_TAGS[element.format_]
-        return f"<{tag}>{to_html(element.text)}</{tag}>"
+        return f"<{tag}{_attributes(element)}>{to_html(element.text)}</{tag}>"
 
     # Colors are a display concern decided later; render the inner content.
     if isinstance(element, Colorized):
-        return to_html(element.text)
+        inner = to_html(element.text)
+        if element.class_:
+            return f"<span{_attributes(element)}>{inner}</span>"
+        return inner
 
     if isinstance(element, Block):
-        return f"<div>{to_html(element.text)}</div>"
+        return f"<div{_attributes(element)}>{to_html(element.text)}</div>"
 
     if isinstance(element, Header):
-        return f"<h3>{to_html(element.text)}</h3>"
+        return f"<h3{_attributes(element)}>{to_html(element.text)}</h3>"
 
     if isinstance(element, Title):
-        return f"<h2>{to_html(element.text)}</h2>"
+        return f"<h2{_attributes(element)}>{to_html(element.text)}</h2>"
 
     if isinstance(element, Table):
         head: str = "".join(f"<th>{to_html(c)}</th>" for c in element.columns)
