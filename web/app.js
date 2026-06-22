@@ -228,9 +228,13 @@ async function initLexicon() {
     }
 }
 
-// Session pages: lexicon checking and learning repetition share one flow —
-// fetch the next word, optionally reveal a translation, record an answer, and
-// move on. `base` is the resource path, e.g. `/me/lexicons/fr`.
+// Session pages: lexicon checking and learning repetition share one flow.
+// Rather than fetch one word per answer, the client keeps a small queue of
+// upcoming words (each with its translation already loading) plus a history
+// stack, so answering is instant and any number of answers can be undone.
+// `base` is the resource path, e.g. `/me/lexicons/fr`.
+
+const BUFFER_SIZE = 3; // Words kept prefetched ahead of the current one.
 
 async function runSession(base, doneText) {
     const word = document.getElementById("word");
@@ -240,71 +244,95 @@ async function runSession(base, doneText) {
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
 
-    // Show the current word with its answer buttons (used by loadNext and when
-    // re-presenting an undone word).
-    function showWord(value) {
-        word.textContent = value;
-        translation.textContent = "";
-        status.textContent = "";
-        answers.hidden = false;
+    const queue = []; // Upcoming { word, translation: Promise }.
+    const history = []; // Answered { word } (most recent last), for undo.
+    let current = null; // The { word, translation } on screen.
+
+    // Start loading a word's translation now so it's ready when needed. The
+    // promise is stored on the item and awaited later (instant if resolved).
+    function attachTranslation(item) {
+        item.translation = api(
+            `${base}/translation?word=${encodeURIComponent(item.word)}`,
+        ).then((response) => (response.ok ? response.json() : null));
     }
 
-    async function loadNext() {
-        word.textContent = "";
-        translation.textContent = "";
-        status.textContent = "Loading…";
-        answers.hidden = true;
+    // Refill the queue, skipping the current word and anything already queued
+    // so the server never hands back a duplicate.
+    async function fill() {
+        const need = BUFFER_SIZE - queue.length;
+        if (need <= 0) return;
+        const params = new URLSearchParams({ count: String(need) });
+        for (const item of [current, ...queue]) {
+            if (item) params.append("exclude", item.word);
+        }
+        const response = await api(`${base}/next?${params}`);
+        if (!response.ok) return;
+        for (const value of (await response.json()).words) {
+            const item = { word: value, translation: null };
+            attachTranslation(item);
+            queue.push(item);
+        }
+    }
 
-        const response = await api(`${base}/next`);
-        if (!response.ok) {
-            const { detail } = await response.json().catch(() => ({}));
-            status.textContent = detail || "Could not load the next word.";
-            return;
+    function render() {
+        translation.replaceChildren();
+        undoBar.hidden = history.length === 0;
+        if (history.length) {
+            undoWord.textContent = history[history.length - 1].word;
         }
-        const next = await response.json();
-        if (!next.word) {
+        if (current) {
+            word.textContent = current.word;
+            status.textContent = "";
+            answers.hidden = false;
+        } else {
+            word.textContent = "";
+            answers.hidden = true;
             status.textContent = doneText;
-            return;
         }
-        showWord(next.word);
+    }
+
+    // Move to the next queued word, topping the queue back up in the
+    // background so the wait is hidden behind the user's reading time.
+    async function advance() {
+        if (queue.length === 0) await fill();
+        current = queue.shift() || null;
+        render();
+        void fill();
     }
 
     async function answer(response, toSkip = false) {
-        const current = word.textContent;
         if (!current) return;
+        const answered = current.word;
+        history.push({ word: answered });
         await api(`${base}/answer`, {
             method: "POST",
-            body: { word: current, response, to_skip: toSkip },
+            body: { word: answered, response, to_skip: toSkip },
         });
-        // Offer to undo the answer just recorded while the next word loads.
-        undoWord.textContent = current;
-        undoBar.hidden = false;
-        await loadNext();
+        await advance();
     }
 
     // Remove the most recent answer and re-present that word to re-answer it.
+    // Repeating walks back through the history stack.
     async function undo() {
+        if (history.length === 0) return;
         const response = await api(`${base}/undo`, { method: "POST" });
         if (!response.ok) return;
         const { word: undone } = await response.json();
-        undoBar.hidden = true;
-        if (undone) showWord(undone);
+        if (!undone) return;
+        history.pop();
+        if (current) queue.unshift(current);
+        current = { word: undone, translation: null };
+        attachTranslation(current);
+        render();
     }
 
     async function showTranslation() {
-        const current = word.textContent;
         if (!current) return;
         translation.textContent = "Loading…";
-        const response = await api(
-            `${base}/translation?word=${encodeURIComponent(current)}`,
-        );
-        if (!response.ok) {
-            translation.textContent = "Could not load translation.";
-            return;
-        }
-        const data = await response.json();
+        if (!current.translation) attachTranslation(current);
+        const data = await current.translation;
         translation.replaceChildren();
-        if (data.dictionaries.length === 0) {
+        if (!data || data.dictionaries.length === 0) {
             translation.textContent = "No translation found.";
             return;
         }
@@ -351,7 +379,8 @@ async function runSession(base, doneText) {
         }
     });
 
-    await loadNext();
+    status.textContent = "Loading…";
+    await advance();
 }
 
 // Lexicon checking page.

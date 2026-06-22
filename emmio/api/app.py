@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, FastAPI, Form, HTTPException, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -36,7 +36,7 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconResponse,
     compute_lexicon_rate,
-    select_next_word,
+    select_next_words,
 )
 from emmio.lists.config import ListUsageConfig
 from emmio.ui import Element
@@ -219,6 +219,19 @@ class NextWord(BaseModel):
     word: str | None
 
 
+class NextWords(BaseModel):
+    """A batch of upcoming words, soonest first; empty when exhausted.
+
+    Lets the client prefetch a queue instead of fetching one word per answer.
+    """
+
+    words: list[str]
+
+
+# Most words a single `/next` request may prefetch.
+_BATCH_MAX: int = 50
+
+
 class DictionaryTranslation(BaseModel):
     """One dictionary's rendering of a word, as a safe HTML fragment."""
 
@@ -311,13 +324,18 @@ async def _translate(
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/next")
-def get_next_lexicon_word(
-    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
-) -> NextWord:
-    """Get the next word to check in the authenticated user's lexicon.
+def get_next_lexicon_words(
+    lexicon_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    count: int = 1,
+    exclude: Annotated[list[str] | None, Query()] = None,
+) -> NextWords:
+    """Get the next words to check in the authenticated user's lexicon.
 
-    The next word is drawn using the lexicon's stored selection strategy, so
-    the data stays consistent with how it was collected.
+    Words are drawn using the lexicon's stored selection strategy, so the data
+    stays consistent with how it was collected. `count` lets the client
+    prefetch a queue; `exclude` lists words already queued so the batch has no
+    duplicates.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     if config["frequency_list"] is None:
@@ -333,16 +351,20 @@ def get_next_lexicon_word(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Configured frequency list could not be loaded.",
         )
-    exclude: set[str] = postgres.get_words_to_skip(user_id, lexicon_id)
+    skip: set[str] = postgres.get_words_to_skip(user_id, lexicon_id)
+    skip |= set(exclude or [])
     try:
-        word: str | None = select_next_word(
-            frequency_list, exclude, config["selection"]
+        words: list[str] = select_next_words(
+            frequency_list,
+            skip,
+            config["selection"],
+            max(1, min(count, _BATCH_MAX)),
         )
     except NotImplementedError as error:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
         ) from error
-    return NextWord(word=word)
+    return NextWords(words=words)
 
 
 @app.post(
@@ -507,12 +529,23 @@ def get_course_stats(
 
 
 @app.get("/api/v1/me/courses/{course_id}/next")
-def get_next_question(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
-) -> NextWord:
-    """Get the next word due for repetition, or `None` if nothing is due."""
+def get_next_questions(
+    course_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    count: int = 1,
+    exclude: Annotated[list[str] | None, Query()] = None,
+) -> NextWords:
+    """Get the next words due for repetition, soonest-due first.
+
+    `count` lets the client prefetch a queue; `exclude` lists words already
+    queued so the batch has no duplicates.
+    """
     learning: Learning = _load_learning(user_id, course_id)
-    return NextWord(word=learning.get_next_question())
+    return NextWords(
+        words=learning.get_next_questions(
+            max(1, min(count, _BATCH_MAX)), set(exclude or [])
+        )
+    )
 
 
 class CourseAnswerRequest(BaseModel):

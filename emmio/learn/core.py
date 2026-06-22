@@ -479,6 +479,28 @@ class Learning(UserArtifact):
         knowledge = sorted(knowledge, key=self.get_next_time)
         return knowledge[0].question_id
 
+    def get_next_questions(self, count: int, exclude: set[str]) -> list[str]:
+        """Get up to `count` due question identifiers, in repetition order.
+
+        Lets a client prefetch a buffer of upcoming questions in one request.
+
+        :param count: maximum number of questions to return
+        :param exclude: question identifiers to skip (e.g. already queued on
+            the client)
+        :return: up to `count` question identifiers, soonest-due first
+        """
+        knowledge: list[Knowledge] = sorted(
+            self.__get_next_questions(), key=self.get_next_time
+        )
+        result: list[str] = []
+        for item in knowledge:
+            if item.question_id in exclude:
+                continue
+            result.append(item.question_id)
+            if len(result) >= count:
+                break
+        return result
+
     def has(self, question_id: str) -> bool:
         """Check whether the question is in the learning process."""
         return question_id in self.knowledge

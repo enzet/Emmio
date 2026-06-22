@@ -78,6 +78,10 @@ The token is obtained once at login and attached to every later request:
 
 ## Request flow (a checking session)
 
+The session page keeps a small client-side **queue** of upcoming words (each
+with its translation already loading) and a **history** stack, so answering and
+revealing a translation are instant, and any number of answers can be undone.
+
 ```mermaid
 sequenceDiagram
     participant B as Browser (app.js)
@@ -85,26 +89,33 @@ sequenceDiagram
     participant P as PostgreSQL
 
     B->>A: POST /auth/login (email, password)
-    A->>P: verify credentials
-    A-->>B: { access_token }
-    Note over B: store token in localStorage
+    A-->>B: { access_token }  (stored in localStorage)
 
-    B->>A: GET /me/lexicons  (Bearer token)
-    A->>P: list the user's lexicons
-    A-->>B: [ { lexicon_id, language }, ... ]
+    Note over B: prefetch a queue of words
+    B->>A: GET /me/lexicons/{id}/next?count=3
+    A-->>B: { words: [...] }
+    B->>A: GET /me/lexicons/{id}/translation?word=…  (per queued word)
+    A-->>B: { dictionaries: [...] }
 
-    loop until no words left
-        B->>A: GET /me/lexicons/{id}/next
-        A->>P: answered words + frequency list
-        A-->>B: { word }
+    loop per answer
+        Note over B: show queued word instantly
         B->>A: POST /me/lexicons/{id}/answer (word, response)
-        A->>P: record the answer
         A-->>B: 204 No Content
+        Note over B: push to history; pop next from queue
+        B->>A: GET /next?count=1&exclude=<queued>  (top up, in background)
+        A-->>B: { words: [...] }
+    end
+
+    opt undo (repeatable)
+        B->>A: POST /me/lexicons/{id}/undo
+        A->>P: delete latest record, rebuild word cache
+        A-->>B: { word }  (re-presented to re-answer)
     end
 ```
 
-The same loop drives learning, against `/me/courses/{id}` instead. The
-`response` value depends on the resource:
+`exclude` lists words already queued so a batch never repeats one. The same flow
+drives learning, against `/me/courses/{id}` instead (its `/next` returns the
+soonest-due questions). The `response` value depends on the resource:
 
 - Lexicon `/answer`: a `LexiconResponse` — `know`, `dont`,
   `dont_but_proper_noun_too`, `not_a_word` (plus a "Know and skip" that sets the
@@ -120,6 +131,6 @@ The same loop drives learning, against `/me/courses/{id}` instead. The
 - **No create endpoints.** A freshly registered user has no lexicons or courses,
   and there is no API to create them yet — so the session pages are usable only
   by a user who already owns data in the database (e.g. a migrated CLI user).
-- **Sessions reload on each `next`.** Each "next" reloads the lexicon/course from
-  the database to pick the next word; fine for now, but stateful sessions are a
-  future optimization.
+- **Each `next` reloads server-side state.** A `/next` request reloads the
+  lexicon/course from the database to pick words; the client buffer hides this
+  latency, but a persistent server-side session would still be more efficient.
