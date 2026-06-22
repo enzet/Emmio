@@ -132,11 +132,11 @@ def _store_learning(
         )
         records.append(
             (
-                cast("str", record["question_id"]),
-                cast("str", record["response"]),
-                _parse_time(cast("str", record["time"])),
+                record["question_id"],
+                record["response"],
+                _parse_time(record["time"]),
                 (
-                    _parse_time(cast("str", record["request_time"]))
+                    _parse_time(record["request_time"])
                     if record.get("request_time")
                     else None
                 ),
@@ -145,13 +145,9 @@ def _store_learning(
         )
     sessions: list[postgres.LearnSessionRow] = [
         (
-            cast("str", session["type"]),
-            _parse_time(cast("str", session["start"])),
-            (
-                _parse_time(cast("str", session["end"]))
-                if session.get("end")
-                else None
-            ),
+            session["type"],
+            _parse_time(session["start"]),
+            (_parse_time(session["end"]) if session.get("end") else None),
             cast("int | None", session.get("actions")),
         )
         for session in content.get("sessions", [])
@@ -188,20 +184,16 @@ def _store_lexicon(
             extra["sk"] = record["to_skip"]
         records.append(
             (
-                cast("str", record["word"]),
+                record["word"],
                 LexiconResponse(record["response"]).to_code(),
-                _parse_time(cast("str", record["time"])),
+                _parse_time(record["time"]),
                 extra or None,
             )
         )
     sessions: list[postgres.LexiconSessionRow] = [
         (
-            _parse_time(cast("str", session["start"])),
-            (
-                _parse_time(cast("str", session["end"]))
-                if session.get("end")
-                else None
-            ),
+            _parse_time(session["start"]),
+            (_parse_time(session["end"]) if session.get("end") else None),
         )
         for session in content.get("sessions", [])
     ]

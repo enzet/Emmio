@@ -85,18 +85,19 @@ class SentencesData(ArtifactData):
                     self.tatoeba_sentences = TatoebaSentences(
                         self.path, self.database
                     )
+                translation_languages = (
+                    [
+                        Language.from_code(language)
+                        for language in usage_config.translation_languages
+                    ]
+                    if usage_config.translation_languages
+                    else []
+                )
                 sentences.extend(
                     self.tatoeba_sentences.get(
                         word,
                         Language.from_code(usage_config.language),
-                        (
-                            [
-                                Language.from_code(language)
-                                for language in usage_config.translation_languages
-                            ]
-                            if usage_config.translation_languages
-                            else []
-                        ),
+                        translation_languages,
                     )
                 )
             elif usage_config.id in self.sentences:

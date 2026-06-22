@@ -43,11 +43,22 @@ function requireAuth() {
     if (!getToken()) location.href = "index.html";
 }
 
-// Login/register page.
+// Turn an ISO language code (e.g. `fr`) into a human name (`French`). Falls
+// back to the code itself for unknown or malformed codes.
+const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
+function languageName(code) {
+    try {
+        return languageNames.of(code) || code;
+    } catch {
+        return code;
+    }
+}
+
+// Login page.
 
 function initLogin() {
     if (getToken()) {
-        location.href = "lexicons.html";
+        location.href = "home.html";
         return;
     }
 
@@ -63,16 +74,26 @@ function initLogin() {
                 form: {
                     username: data.get("email"),
                     password: data.get("password"),
+                    remember: e.target.remember.checked ? "true" : "false",
                 },
             });
             if (response.ok) {
                 const { access_token } = await response.json();
                 setToken(access_token);
-                location.href = "lexicons.html";
+                location.href = "home.html";
             } else {
                 error.textContent = "Incorrect email or password.";
             }
         });
+}
+
+// Registration page.
+
+function initRegister() {
+    if (getToken()) {
+        location.href = "home.html";
+        return;
+    }
 
     document
         .getElementById("register-form")
@@ -98,6 +119,16 @@ function initLogin() {
                 message.textContent = detail || "Registration failed.";
             }
         });
+}
+
+// Home / dashboard page.
+
+function initHome() {
+    requireAuth();
+    document.getElementById("logout").addEventListener("click", () => {
+        clearToken();
+        location.href = "index.html";
+    });
 }
 
 // Lexicon list page.
@@ -135,7 +166,7 @@ async function initLexicons() {
         row.appendChild(idCell);
 
         for (const value of [
-            lexicon.language,
+            languageName(lexicon.language),
             lexicon.selection || "",
             lexicon.rate === null ? "—" : lexicon.rate.toFixed(1),
             lexicon.words,
@@ -174,7 +205,7 @@ async function initLexicon() {
     status.textContent = "";
 
     const rows = [
-        ["Language", s.language],
+        ["Language", languageName(s.language)],
         ["Selection", s.selection || "—"],
         ["Words checked", s.words],
         ["Known", s.known],
@@ -246,17 +277,33 @@ async function runSession(base, doneText) {
         const response = await api(
             `${base}/translation?word=${encodeURIComponent(current)}`,
         );
-        if (response.ok) {
-            const data = await response.json();
-            // The server returns a safe HTML fragment (text escaped, fixed
-            // tags) or null.
-            if (data.translation) {
-                translation.innerHTML = data.translation;
-            } else {
-                translation.textContent = "No translation found.";
-            }
-        } else {
+        if (!response.ok) {
             translation.textContent = "Could not load translation.";
+            return;
+        }
+        const data = await response.json();
+        translation.replaceChildren();
+        if (data.dictionaries.length === 0) {
+            translation.textContent = "No translation found.";
+            return;
+        }
+        // One block per dictionary, with classes for future CSS styling.
+        for (const entry of data.dictionaries) {
+            const block = document.createElement("div");
+            block.className = "dictionary";
+
+            const name = document.createElement("div");
+            name.className = "dictionary-name";
+            name.textContent = entry.dictionary;
+
+            const body = document.createElement("div");
+            body.className = "dictionary-body";
+            // The server returns a safe HTML fragment (text escaped, fixed
+            // tags).
+            body.innerHTML = entry.html;
+
+            block.append(name, body);
+            translation.append(block);
         }
     }
 
@@ -345,7 +392,7 @@ async function initCourses() {
         row.appendChild(idCell);
 
         for (const value of [
-            course.learning_language,
+            languageName(course.learning_language),
             course.words,
             course.answers,
         ]) {
@@ -383,7 +430,7 @@ async function initCourse() {
 
     const rows = [
         ["Name", s.name],
-        ["Language", s.learning_language],
+        ["Language", languageName(s.learning_language)],
         ["Words being learned", s.learning],
         ["Due for repetition", s.to_repeat],
         ["New words allowed today", s.to_add],
@@ -406,6 +453,8 @@ async function initCourse() {
 document.addEventListener("DOMContentLoaded", () => {
     const page = document.body.dataset.page;
     if (page === "login") initLogin();
+    else if (page === "register") initRegister();
+    else if (page === "home") initHome();
     else if (page === "lexicons") initLexicons();
     else if (page === "lexicon") initLexicon();
     else if (page === "check") initCheck();

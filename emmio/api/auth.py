@@ -36,14 +36,15 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
-def create_access_token(user_id: str) -> str:
+def create_access_token(user_id: str, ttl: timedelta | None = None) -> str:
     """Create a signed access token carrying the user login.
 
     :param user_id: user login to embed in the token's `sub` claim
+    :param ttl: how long the token stays valid; defaults to `ACCESS_TOKEN_TTL`
     """
     payload: dict[str, object] = {
         "sub": user_id,
-        "exp": datetime.now(UTC) + ACCESS_TOKEN_TTL,
+        "exp": datetime.now(UTC) + (ttl or ACCESS_TOKEN_TTL),
     }
     return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
 

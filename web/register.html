@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Register</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="style.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="register">
+        <main>
+            <h1>
+                <img src="/doc/logo.svg" alt="Emmio" class="logo" />
+            </h1>
+
+            <section aria-labelledby="register-heading">
+                <h2 id="register-heading">Register</h2>
+                <form id="register-form">
+                    <p>
+                        <label for="register-user-id">Login</label>
+                        <input
+                            id="register-user-id"
+                            class="text"
+                            name="user_id"
+                            required
+                        />
+                    </p>
+                    <p>
+                        <label for="register-name">Name</label>
+                        <input
+                            id="register-name"
+                            class="text"
+                            name="name"
+                            required
+                        />
+                    </p>
+                    <p>
+                        <label for="register-email">Email</label>
+                        <input
+                            id="register-email"
+                            class="text"
+                            name="email"
+                            type="email"
+                            required
+                        />
+                    </p>
+                    <p>
+                        <label for="register-password">Password</label>
+                        <input
+                            id="register-password"
+                            class="text"
+                            name="password"
+                            type="password"
+                            required
+                        />
+                    </p>
+                    <button type="submit">Register</button>
+                </form>
+                <p id="register-message" role="status"></p>
+                <p>Already have an account? <a href="index.html">Log in</a></p>
+            </section>
+        </main>
+    </body>
+</html>

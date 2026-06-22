@@ -915,3 +915,38 @@ class DictionaryCollection:
             return None
 
         return result
+
+    async def to_text_by_dictionary(
+        self, word: str, language: Language, languages: list[Language]
+    ) -> list[tuple[str, list[Element]]]:
+        """Get formatted dictionary items grouped by dictionary.
+
+        Like :py:meth:`to_text`, but keeps each dictionary's output separate
+        and omits the dictionary-name header element, so callers can render the
+        dictionaries apart (e.g. one block each).
+
+        :param word: word to get dictionary items for
+        :param language: language of the word
+        :param languages: languages of definitions or translations
+        :return: list of (dictionary name, formatted elements) pairs, one per
+            dictionary that produced any output, in priority order
+        """
+        items: list[
+            tuple[Dictionary, DictionaryItem]
+        ] = await self.get_items_marked(word, language)
+
+        grouped: dict[str, list[Element]] = {}
+        names: dict[str, str] = {}
+        order: list[str] = []
+        for dictionary, item in items:
+            item_text: list[Element] = item.to_text(languages)
+            if not item_text:
+                continue
+            key: str = dictionary.id_
+            if key not in grouped:
+                grouped[key] = []
+                names[key] = dictionary.get_name()
+                order.append(key)
+            grouped[key].extend(item_text)
+
+        return [(names[key], grouped[key]) for key in order]

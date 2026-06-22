@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, Form, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -131,8 +131,14 @@ def register(request: RegisterRequest) -> User:
 
 
 @app.post("/api/v1/auth/login")
-def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
-    """Log in with email (as `username`) and password, returning a token."""
+def login(
+    form: Annotated[OAuth2PasswordRequestForm, Depends()],
+    remember: Annotated[bool, Form()] = False,  # noqa: FBT002
+) -> Token:
+    """Log in with email (as `username`) and password, returning a token.
+
+    With `remember` set, the token lasts 7 days instead of the default hour.
+    """
     credentials: tuple[str, str] | None = postgres.get_credentials_by_email(
         form.username
     )
@@ -144,7 +150,10 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
             detail="Incorrect email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=auth.create_access_token(credentials[0]))
+    ttl: timedelta = (
+        auth.REMEMBER_TOKEN_TTL if remember else auth.ACCESS_TOKEN_TTL
+    )
+    return Token(access_token=auth.create_access_token(credentials[0], ttl))
 
 
 @app.get("/api/v1/me/courses")
@@ -210,11 +219,18 @@ class NextWord(BaseModel):
     word: str | None
 
 
+class DictionaryTranslation(BaseModel):
+    """One dictionary's rendering of a word, as a safe HTML fragment."""
+
+    dictionary: str  # Dictionary name.
+    html: str  # Definitions/translations as a safe HTML fragment.
+
+
 class Translation(BaseModel):
-    """A word's translation as a safe HTML fragment, or `None` if not found."""
+    """A word's translation, split per dictionary (empty if none found)."""
 
     word: str
-    translation: str | None
+    dictionaries: list[DictionaryTranslation]
 
 
 # Languages the API returns definitions/translations in (matches the CLI).
@@ -277,16 +293,21 @@ def _course_config_or_404(user_id: str, course_id: str) -> dict:
 
 async def _translate(
     word: str, language: str, dictionaries: list[dict] | None
-) -> str | None:
-    """Look a word up in the given dictionaries and render it as HTML."""
+) -> list[DictionaryTranslation]:
+    """Look a word up, rendering each dictionary's output separately."""
 
     collection = get_data().get_dictionaries(
         [DictionaryUsageConfig(**d) for d in dictionaries or []]
     )
-    elements: list[Element] | None = await collection.to_text(
+    groups: list[
+        tuple[str, list[Element]]
+    ] = await collection.to_text_by_dictionary(
         word, Language.from_code(language), _DEFINITION_LANGUAGES
     )
-    return elements_to_html(elements) if elements else None
+    return [
+        DictionaryTranslation(dictionary=name, html=elements_to_html(elements))
+        for name, elements in groups
+    ]
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/next")
@@ -359,10 +380,12 @@ async def get_lexicon_translation(
 ) -> Translation:
     """Get a word's translation from the lexicon's configured dictionaries."""
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
-    html: str | None = await _translate(
-        word, config["language"], config["dictionaries"]
+    return Translation(
+        word=word,
+        dictionaries=await _translate(
+            word, config["language"], config["dictionaries"]
+        ),
     )
-    return Translation(word=word, translation=html)
 
 
 class LexiconStats(BaseModel):
@@ -527,11 +550,18 @@ async def get_course_translation(
 ) -> Translation:
     """Get a word's translation from the course's configured dictionaries."""
     config: dict = _course_config_or_404(user_id, course_id)
-    html: str | None = await _translate(
-        word, config["learning_language"], config.get("dictionaries")
+    return Translation(
+        word=word,
+        dictionaries=await _translate(
+            word, config["learning_language"], config.get("dictionaries")
+        ),
     )
-    return Translation(word=word, translation=html)
 
+
+# Serve shared documentation assets (logo, headers) read-only, so the web
+# interface can reuse them without duplicating the files into `web/`.
+_DOC_DIR: Path = Path(__file__).resolve().parents[2] / "doc"
+app.mount("/doc", StaticFiles(directory=_DOC_DIR), name="doc")
 
 # Serve the static web interface from the same origin as the API, so the
 # browser's `fetch` calls to `/api/v1/...` need no CORS configuration. Mounted
