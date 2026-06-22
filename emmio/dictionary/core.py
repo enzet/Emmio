@@ -189,7 +189,11 @@ class Definition:
 
         if self.descriptors:
             text.add(
-                Colorized("(" + ", ".join(self.descriptors) + ") ", "#AAAAAA")
+                Colorized(
+                    "(" + ", ".join(self.descriptors) + ") ",
+                    "#AAAAAA",
+                    class_="dictionary-descriptors",
+                )
             )
 
         for index, value in enumerate(self.values):
@@ -297,16 +301,21 @@ class Form:
         if not show_word and words_to_hide:
             to_hide = sorted(words_to_hide, key=lambda word: -len(word))
 
-        description: list[str] = []
+        description: Text = Text()
         if self.part_of_speech:
-            description.append(self.part_of_speech)
+            description.add(
+                Text(self.part_of_speech, class_="dictionary-part-of-speech")
+            )
 
         if show_word:
-            if self.gender is not None:
-                description.append(self.gender)
+            if self.gender:
+                description.add(Text(self.gender, class_="dictionary-gender"))
             if self.transcriptions:
-                description.append(
-                    ", ".join([f"{x}" for x in self.transcriptions])
+                description.add(
+                    Text(
+                        ", ".join([f"{x}" for x in self.transcriptions]),
+                        class_="dictionary-transcription",
+                    )
                 )
 
         definitions: list[Text] = []
@@ -325,14 +334,22 @@ class Form:
         if not definitions and not links:
             return None
 
-        if description:
+        if description.elements:
             result.append(
-                Block(Colorized(" ".join(description), "#AAAAAA"), (0, 0, 0, 2))
+                Block(
+                    Colorized(description, "#AAAAAA"),
+                    (0, 0, 0, 2),
+                    class_="dictionary-descripiton",
+                )
             )
 
         if definitions:
             result.extend(
-                Block(definition_text, (0, 0, 0, 4))
+                Block(
+                    definition_text,
+                    (0, 0, 0, 4),
+                    class_="dictionary-definition",
+                )
                 for definition_text in definitions
             )
 
@@ -344,9 +361,17 @@ class Form:
                     .add(Colorized(link.link_type + " of", "#AAAAAA"))
                     .add(" " + link.link_value)
                 )
-                result.append(Block(link_text, (0, 0, 0, 4)))
+                result.append(
+                    Block(link_text, (0, 0, 0, 4), class_="dictionary-link")
+                )
             else:
-                result.append(Block(f"→ {link.link_type}", (0, 0, 0, 4)))
+                result.append(
+                    Block(
+                        f"→ {link.link_type}",
+                        (0, 0, 0, 4),
+                        class_="dictionary-link",
+                    )
+                )
 
         return result
 
@@ -430,12 +455,24 @@ class DictionaryItem:
         result: list[Element] = []
 
         if show_word:
-            result.append(Block(Formatted(self.word, "bold"), (0, 0, 0, 2)))
+            result.append(
+                Block(
+                    Formatted(self.word, "bold"),
+                    (0, 0, 0, 2),
+                    class_="dictionary-word",
+                )
+            )
             if self.etymology:
                 etymology_text: InlineElement = Colorized(
                     Formatted(self.etymology, "italic"), "#888888"
                 )
-                result.append(Block(etymology_text, (0, 0, 0, 2)))
+                result.append(
+                    Block(
+                        etymology_text,
+                        (0, 0, 0, 2),
+                        class_="dictionary-etymology",
+                    )
+                )
 
         for form in self.get_forms():
             for language in languages:
@@ -447,7 +484,7 @@ class DictionaryItem:
                     max_definitions=max_definitions_per_form,
                 )
                 if form_text:
-                    result.extend(form_text)
+                    result.extend(element for element in form_text if element)
 
         return result
 

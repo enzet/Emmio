@@ -2,7 +2,7 @@
 
 import sys
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Self, override
 
 import readchar
@@ -45,10 +45,15 @@ def table(columns: list[str], rows: list[list[str]]) -> str:
     return result
 
 
+@dataclass
 class Element:
     """Interface element."""
 
+    class_: str | None = field(default=None, kw_only=True)
+    """Semantic class name, used as the CSS class when rendered to HTML."""
 
+
+@dataclass
 class InlineElement(Element):
     """Inline element.
 
@@ -57,6 +62,7 @@ class InlineElement(Element):
     """
 
 
+@dataclass
 class BlockElement(Element):
     """Block element.
 
@@ -64,10 +70,14 @@ class BlockElement(Element):
     """
 
 
+@dataclass
 class Text(InlineElement):
     """Text element."""
 
-    def __init__(self, text: str | InlineElement | None = None) -> None:
+    def __init__(
+        self, text: str | InlineElement | None = None, class_: str | None = None
+    ) -> None:
+        self.class_: str | None = class_
         self.elements: list[InlineElement | str] = (
             [] if text is None else [text]
         )
