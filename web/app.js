@@ -33,14 +33,14 @@ async function api(path, { method = "GET", body, form } = {}) {
     });
     if (response.status === 401) {
         clearToken();
-        location.href = "index.html";
+        location.href = "login.html";
         throw new Error("Not authenticated");
     }
     return response;
 }
 
 function requireAuth() {
-    if (!getToken()) location.href = "index.html";
+    if (!getToken()) location.href = "login.html";
 }
 
 // Turn an ISO language code (e.g. `fr`) into a human name (`French`). Falls
@@ -58,7 +58,7 @@ function languageName(code) {
 
 function initLogin() {
     if (getToken()) {
-        location.href = "home.html";
+        location.href = "index.html";
         return;
     }
 
@@ -80,7 +80,7 @@ function initLogin() {
             if (response.ok) {
                 const { access_token } = await response.json();
                 setToken(access_token);
-                location.href = "home.html";
+                location.href = "index.html";
             } else {
                 error.textContent = "Incorrect email or password.";
             }
@@ -91,7 +91,7 @@ function initLogin() {
 
 function initRegister() {
     if (getToken()) {
-        location.href = "home.html";
+        location.href = "index.html";
         return;
     }
 
@@ -127,7 +127,7 @@ function initHome() {
     requireAuth();
     document.getElementById("logout").addEventListener("click", () => {
         clearToken();
-        location.href = "index.html";
+        location.href = "login.html";
     });
 }
 
@@ -138,7 +138,7 @@ async function initLexicons() {
 
     document.getElementById("logout").addEventListener("click", () => {
         clearToken();
-        location.href = "index.html";
+        location.href = "login.html";
     });
 
     const status = document.getElementById("status");
@@ -364,7 +364,7 @@ async function initCourses() {
 
     document.getElementById("logout").addEventListener("click", () => {
         clearToken();
-        location.href = "index.html";
+        location.href = "login.html";
     });
 
     const status = document.getElementById("status");

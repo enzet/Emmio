@@ -21,7 +21,9 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 
 | File            | Role                                                         |
 |-----------------|--------------------------------------------------------------|
-| `index.html`    | Log in and register forms.                                   |
+| `index.html`    | Home / dashboard: links to lexicons and courses.             |
+| `login.html`    | Log in form.                                                 |
+| `register.html` | Registration form.                                           |
 | `lexicons.html` | Table of the user's lexicons (short info per lexicon).       |
 | `lexicon.html`  | One lexicon: details and statistics (rate, precision, …).    |
 | `check.html`    | Check a lexicon: shows a word, records know / don't know.    |
@@ -39,7 +41,10 @@ resource path (`/me/lexicons/{id}` vs `/me/courses/{id}`).
 
 ```mermaid
 flowchart LR
-    index["index.html<br/>log in / register"]
+    login["login.html<br/>log in"]
+    register["register.html<br/>register"]
+    home["index.html<br/>home / dashboard"]
+    login <-->|"links"| register
 
     subgraph lex["Lexicons"]
         lexicons["lexicons.html<br/>list"]
@@ -55,7 +60,9 @@ flowchart LR
         courseList --> course --> learn
     end
 
-    index -->|"log in → store token"| lexicons
+    login -->|"log in → store token"| home
+    home --> lexicons
+    home --> courseList
     lexicons <-->|"nav"| courseList
 ```
 
@@ -67,7 +74,7 @@ The token is obtained once at login and attached to every later request:
   `localStorage["emmio_token"]`.
 - The `api()` helper adds `Authorization: Bearer <token>` to each request.
 - A `401` (missing or expired token) clears the token and returns to
-  `index.html`.
+  `login.html`.
 
 ## Request flow (a checking session)
 
