@@ -333,10 +333,10 @@ def get_next_lexicon_word(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Configured frequency list could not be loaded.",
         )
-    answered: set[str] = postgres.get_answered_words(user_id, lexicon_id)
+    exclude: set[str] = postgres.get_words_to_skip(user_id, lexicon_id)
     try:
         word: str | None = select_next_word(
-            frequency_list, answered, config["selection"]
+            frequency_list, exclude, config["selection"]
         )
     except NotImplementedError as error:
         raise HTTPException(

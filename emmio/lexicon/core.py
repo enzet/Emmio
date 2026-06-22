@@ -233,7 +233,7 @@ _SAMPLE_ATTEMPTS: int = 100
 
 
 def select_next_word(
-    frequency_list: FrequencyList, answered: set[str], selection: str
+    frequency_list: FrequencyList, exclude: set[str], selection: str
 ) -> str | None:
     """Pick the next word to check, honoring the lexicon's selection strategy.
 
@@ -243,40 +243,42 @@ def select_next_word(
     serving words by the wrong strategy biases the rate estimate.
 
     :param frequency_list: source of candidate words
-    :param answered: words already recorded in the lexicon, to skip
+    :param exclude: words to skip (e.g. flagged to skip or answered recently);
+        a frequency lexicon re-samples words over time, so this is *not* every
+        word ever answered
     :param selection: the lexicon's stored selection strategy
-    :return: the next word, or None if every candidate has been answered
+    :return: the next word, or None if every candidate is excluded
     :raises NotImplementedError: for strategies not yet served over the API
     """
     match selection:
         case "frequency":
-            return _sample_unanswered(
+            return _sample_selectable(
                 frequency_list,
-                answered,
+                exclude,
                 frequency_list.get_random_word_by_frequency,
             )
         case "random":
-            return _sample_unanswered(
-                frequency_list, answered, frequency_list.get_random_word
+            return _sample_selectable(
+                frequency_list, exclude, frequency_list.get_random_word
             )
         case _:
             message = f"Selection `{selection}` is not supported over the API."
             raise NotImplementedError(message)
 
 
-def _sample_unanswered(
+def _sample_selectable(
     frequency_list: FrequencyList,
-    answered: set[str],
+    exclude: set[str],
     draw: Callable[[], tuple[str, int]],
 ) -> str | None:
-    """Draw an unanswered word, scanning as a fallback if draws keep missing."""
+    """Draw a selectable word, scanning as a fallback if draws keep missing."""
 
     for _ in range(_SAMPLE_ATTEMPTS):
         word, _occurrences = draw()
-        if word not in answered:
+        if word not in exclude:
             return word
     for word in frequency_list.get_words():
-        if word not in answered:
+        if word not in exclude:
             return word
     return None
 

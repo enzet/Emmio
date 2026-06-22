@@ -5,11 +5,20 @@
  * `.dictionary`, `.dictionary-name`, `.dictionary-body`, and the `id`s used by
  * each page (e.g. `#word`, `#answers`, `#translation`, `#stats`). */
 
-main.login {
+/* Auth pages (login, register): center the card in the viewport. */
+body[data-page="login"],
+body[data-page="register"] {
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+main.card, main.login {
     border: 1px solid #DDD;
     border-radius: 10px;
     width: 250px;
-    margin: auto;
     padding: 0.1rem 1rem;
 }
 
@@ -18,7 +27,7 @@ img.logo-corner {
 }
 
 h1 img.logo {
-    width: 70px;
+    width: 50px;
 }
 
 /* Center the logo and section headers (the inline logo follows `text-align`). */
@@ -27,10 +36,10 @@ h1 {
 }
 h1 {
     padding: 0;
-    margin: 0;
+    margin: 5px;
 }
 h2 {
-    margin-top: 2rem;
+    margin-top: 1rem;
     margin-bottom: 0;
 }
 
@@ -61,6 +70,15 @@ label {
 }
 p {
     margin: 0.5rem 0;
+}
+
+p.login-footer {
+    font-size: 85%;
+    text-align: center;
+}
+
+p#login-error {
+    /* font-size: 85%; */
 }
 p#word {
     font-size: 800%;

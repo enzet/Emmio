@@ -499,6 +499,32 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
         return {row[0] for row in cursor.fetchall()}
 
 
+def get_words_to_skip(
+    user_id: str, lexicon_id: str, recent_days: int = 30
+) -> set[str]:
+    """Get words to exclude when picking the next word to check.
+
+    A frequency lexicon re-samples words over time, so a word is only excluded
+    if it is flagged to skip or was answered within the last `recent_days`
+    days; everything else stays selectable (mirrors the CLI's checking loop).
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param recent_days: re-ask an answered word only after this many days
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word "
+            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "AND (w.to_skip = true "
+            "OR w.last_seen >= now() - make_interval(days => %s))",
+            (user_id, lexicon_id, recent_days),
+        )
+        return {row[0] for row in cursor.fetchall()}
+
+
 def _get_user_db_id(cursor: psycopg.Cursor, user_id: str) -> int:
     """Get internal user identifier, raising if the user does not exist."""
 
