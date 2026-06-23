@@ -220,13 +220,15 @@ def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
         ]
 
 
-def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int, int]]:
+def list_lexicons(
+    user_id: str,
+) -> list[tuple[str, str, str | None, int, int, bool]]:
     """Get a user's lexicons with short info.
 
     :param user_id: owning user login, e.g. `john`
     :return: (lexicon id, language, selection strategy, number of words
-        checked, number of "don't know" answers in the last 7 days) tuples,
-        ordered by lexicon id
+        checked, number of "don't know" answers in the last 7 days, whether
+        it is the main lexicon for its language) tuples, ordered by lexicon id
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
@@ -236,15 +238,89 @@ def list_lexicons(user_id: str) -> list[tuple[str, str, str | None, int, int]]:
             "(SELECT count(*) FROM lexicon_records r "
             "JOIN lexicon_words w2 ON w2.id = r.word_id "
             "WHERE w2.lexicon_id = l.id AND r.response = 'D' "
-            "AND r.response_time >= now() - interval '7 days') "
+            "AND r.response_time >= now() - interval '7 days'), "
+            "l.is_main "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
         )
         return [
-            (row[0], row[1], row[2], row[3], row[4])
+            (row[0], row[1], row[2], row[3], row[4], row[5])
             for row in cursor.fetchall()
         ]
+
+
+def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
+    """Check whether a lexicon is the main one for its language."""
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.is_main FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        row = cursor.fetchone()
+        return bool(row and row[0])
+
+
+def get_main_lexicons(user_id: str) -> list[tuple[str, str]]:
+    """Get the user's main lexicons, one per language.
+
+    :return: (language, lexicon id) pairs, ordered by language
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT l.language, l.lexicon_id "
+            "FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.is_main ORDER BY l.language",
+            (user_id,),
+        )
+        return [(row[0], row[1]) for row in cursor.fetchall()]
+
+
+def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
+    """Make a lexicon the main one for its language.
+
+    Any other main lexicon for the same language is cleared first, so the
+    per-language "at most one main" rule holds (also enforced by a partial
+    unique index).
+
+    :raises ValueError: if the lexicon does not exist
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT l.id, l.language "
+            "FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        if not (row := cursor.fetchone()):
+            message: str = f"Unknown lexicon `{lexicon_id}`."
+            raise ValueError(message)
+        db_id, language = row
+        cursor.execute(
+            "UPDATE lexicons SET is_main = false FROM users u "
+            "WHERE lexicons.user_id = u.id AND u.user_id = %s "
+            "AND lexicons.language = %s AND lexicons.is_main",
+            (user_id, language),
+        )
+        cursor.execute(
+            "UPDATE lexicons SET is_main = true WHERE id = %s", (db_id,)
+        )
+    connection.commit()
+
+
+def clear_main_lexicon(user_id: str, lexicon_id: str) -> None:
+    """Clear a lexicon's main flag (its language then has no main)."""
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE lexicons SET is_main = false FROM users u "
+            "WHERE lexicons.user_id = u.id AND u.user_id = %s "
+            "AND lexicons.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+    connection.commit()
 
 
 def get_lexicon_answer_sequences(

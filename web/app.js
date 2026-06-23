@@ -132,8 +132,42 @@ function initRegister() {
 
 // Home / dashboard page.
 
-function initHome() {
+async function initHome() {
     requireAuth();
+
+    const status = document.getElementById("languages-status");
+    const table = document.getElementById("languages-table");
+    const rows = document.getElementById("languages-rows");
+    const response = await api("/me/languages");
+    const languages = await response.json();
+
+    if (languages.length === 0) {
+        status.textContent =
+            "No main lexicon set yet. Mark a lexicon as main to track a " +
+            "language's level here.";
+        return;
+    }
+    status.textContent = "";
+    table.hidden = false;
+    for (const entry of languages) {
+        const row = document.createElement("tr");
+
+        const nameCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `lexicon.html?lexicon=${encodeURIComponent(
+            entry.lexicon_id,
+        )}`;
+        link.textContent = languageName(entry.language);
+        nameCell.appendChild(link);
+        row.appendChild(nameCell);
+
+        const rateCell = document.createElement("td");
+        rateCell.textContent =
+            entry.rate === null ? "—" : entry.rate.toFixed(1);
+        row.appendChild(rateCell);
+
+        rows.appendChild(row);
+    }
 }
 
 // Lexicon list page.
@@ -161,7 +195,9 @@ async function initLexicons() {
         link.href = `lexicon.html?lexicon=${encodeURIComponent(
             lexicon.lexicon_id,
         )}`;
-        link.textContent = lexicon.lexicon_id;
+        // A leading star marks the main lexicon for its language.
+        link.textContent =
+            (lexicon.is_main ? "★ " : "") + lexicon.lexicon_id;
         idCell.appendChild(link);
         row.appendChild(idCell);
 
@@ -204,8 +240,27 @@ async function initLexicon() {
     const s = await response.json();
     status.textContent = "";
 
+    // "Main" toggle: this lexicon's rate counts as the language's level.
+    // Setting it replaces any other main lexicon for the same language.
+    const toggle = document.getElementById("main-toggle");
+    const language = languageName(s.language);
+    function renderToggle(isMain) {
+        toggle.textContent = isMain
+            ? `★ Main for ${language} (click to unset)`
+            : `Set as main for ${language}`;
+        toggle.hidden = false;
+    }
+    renderToggle(s.is_main);
+    toggle.addEventListener("click", async () => {
+        const isMain = toggle.textContent.startsWith("★");
+        const r = await api(`/me/lexicons/${encodeURIComponent(lexiconId)}/main`, {
+            method: isMain ? "DELETE" : "PUT",
+        });
+        if (r.ok) renderToggle(!isMain);
+    });
+
     const rows = [
-        ["Language", languageName(s.language)],
+        ["Language", language],
         ["Selection", s.selection || "—"],
         ["Words checked", s.words],
         ["Known", s.known],

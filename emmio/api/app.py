@@ -83,6 +83,7 @@ class LexiconSummary(BaseModel):
     words: int  # Number of words checked so far.
     dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
+    is_main: bool  # Main lexicon for its language (its rate is language level).
 
 
 class RegisterRequest(BaseModel):
@@ -198,6 +199,7 @@ def get_my_lexicons(
         selection,
         words,
         dont_last_week,
+        is_main,
     ) in postgres.list_lexicons(user_id):
         _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
         summaries.append(
@@ -208,6 +210,7 @@ def get_my_lexicons(
                 words=words,
                 dont_last_week=dont_last_week,
                 rate=rate_values[-1] if rate_values else None,
+                is_main=is_main,
             )
         )
     summaries.sort(
@@ -604,6 +607,7 @@ class LexiconStats(BaseModel):
     precision: int  # Total "don't know" answers (the rate's precision).
     dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
+    is_main: bool  # Main lexicon for its language.
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/stats")
@@ -640,7 +644,61 @@ def get_lexicon_stats(
         precision=lexicon.count_unknowns(),
         dont_last_week=lexicon.count_unknowns(now - timedelta(days=7), now),
         rate=lexicon.get_last_rate(),
+        is_main=postgres.is_main_lexicon(user_id, lexicon_id),
     )
+
+
+class LanguageRate(BaseModel):
+    """A language's level: the rate of its main lexicon."""
+
+    language: str
+    lexicon_id: str  # The main lexicon the rate comes from.
+    rate: float | None  # Vocabulary rate, or None if not enough data.
+
+
+@app.get("/api/v1/me/languages")
+def get_my_languages(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[LanguageRate]:
+    """List the user's languages and their level (the main lexicon's rate)."""
+    sequences: dict[str, list[tuple[datetime, int]]] = (
+        postgres.get_lexicon_answer_sequences(user_id)
+    )
+    rates: list[LanguageRate] = []
+    for language, lexicon_id in postgres.get_main_lexicons(user_id):
+        _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
+        rates.append(
+            LanguageRate(
+                language=language,
+                lexicon_id=lexicon_id,
+                rate=rate_values[-1] if rate_values else None,
+            )
+        )
+    return rates
+
+
+@app.put(
+    "/api/v1/me/lexicons/{lexicon_id}/main",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def set_lexicon_main(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Make this lexicon the main one for its language (its rate = level)."""
+    _lexicon_config_or_404(user_id, lexicon_id)
+    postgres.set_main_lexicon(user_id, lexicon_id)
+
+
+@app.delete(
+    "/api/v1/me/lexicons/{lexicon_id}/main",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def clear_lexicon_main(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Clear this lexicon's main flag; its language then has no main."""
+    _lexicon_config_or_404(user_id, lexicon_id)
+    postgres.clear_main_lexicon(user_id, lexicon_id)
 
 
 # Learning. Only the spaced-repetition review of words already being learned is

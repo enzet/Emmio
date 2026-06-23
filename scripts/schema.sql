@@ -93,6 +93,9 @@ CREATE INDEX IF NOT EXISTS learn_sessions_course_start
 --       and pooled `frequency_lists` for non-sampling strategies.
 -- Per-answer provenance (which sentence/dictionary was shown) lives in
 -- `lexicon_records.extra`, not here.
+--
+-- `is_main` marks the lexicon whose rate is taken as the user's level in that
+-- language; the partial unique index allows at most one main per language.
 CREATE TABLE IF NOT EXISTS lexicons (
     id             SERIAL PRIMARY KEY,
     user_id        INT NOT NULL REFERENCES users(id),
@@ -101,8 +104,12 @@ CREATE TABLE IF NOT EXISTS lexicons (
     selection      TEXT,
     frequency_list JSONB,
     config         JSONB NOT NULL DEFAULT '{}',
+    is_main        BOOLEAN NOT NULL DEFAULT FALSE,
     UNIQUE (user_id, lexicon_id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS lexicons_one_main_per_language
+    ON lexicons (user_id, language) WHERE is_main;
 
 -- Each word stored once per lexicon. Also caches current word state
 -- (`response`, `to_skip`, `last_seen`) for fast lookups without scanning

@@ -39,7 +39,9 @@ nav a, nav span {
 }
 
 img.logo-corner {
-    width: 40px;
+    width: 60px;
+    display: inline-block;
+    vertical-align: -2px;
 }
 
 h1 img.logo {
@@ -223,4 +225,19 @@ table {
 table tr td, th {
     padding: 0.3rem 0.7rem;
     border-bottom: 1px solid #EEE;
+}
+
+td a.language-code {
+    text-transform: uppercase;
+    font-size: 80%;
+    font-weight: 500;
+    letter-spacing: 0.05rem;
+    text-decoration: none;
+    display: inline-block;
+    border: 1.5px solid black;
+    padding: 1px 3px;
+    border-radius: 5px;
+    color: black;
+    min-width: 23px;
+    text-align: center;
 }
