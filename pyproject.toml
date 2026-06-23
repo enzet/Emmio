@@ -35,10 +35,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black~=24.4.2",
-    "isort~=6.0.1",
-    "mypy~=1.15.0",
-    "pylint~=3.3.5",
+    "ruff~=0.14.13",
+    "ty~=0.0.52",
     "pytest~=8.3.4",
     "httpx~=0.28.0",  # FastAPI test client.
 ]
@@ -58,43 +56,6 @@ emmio = "emmio.__main__:main"
 
 [tool.setuptools]
 packages = ["emmio"]
-
-[tool.black]
-line-length = 80
-skip-magic-trailing-comma = true
-
-[tool.isort]
-profile = "black"
-
-[tool.mypy]
-python_version = "3.12"
-disable_error_code = ["import-untyped"]
-disallow_untyped_defs = true  # Report functions without type annotations.
-disallow_untyped_decorators = true  # Ensure decorators have types.
-warn_return_any = true  # Warn if return type is inferred as `Any`.
-
-[tool.pylint]
-py-version = "3.12"
-disable = [
-    "E0401",  # Import error (Pylint usually fails to track imports correctly).
-    "C0302",  # Too many lines in module.
-    "C0415",  # Import outside toplevel.
-    "R0902",  # Too many instance attributes.
-    "R0903",  # Too few public methods.
-    "R0904",  # Too many public methods.
-    "R0911",  # Too many return statements.
-    "R0912",  # Too many branches.
-    "R0913",  # Too many arguments in function.
-    "R0914",  # Too many local variables.
-    "R0915",  # Too many statements.
-    "R0917",  # Too many positional arguments.
-    "R0801",  # Similar lines across files (noisy for load/save symmetry).
-]
-
-[tool.pylint.typecheck]
-# Pylint cannot introspect psycopg's C-extension types and reports false
-# `no-member` errors for `Connection.cursor`, `Connection.commit`, etc.
-ignored-modules = ["psycopg"]
 
 [tool.ruff]
 lint.select = ["ALL"]
@@ -126,3 +87,8 @@ lint.ignore = [
     "TD003",   # Issues for todos are not required.
 ]
 line-length = 80
+# Required by `format.skip-magic-trailing-comma`.
+lint.isort.split-on-trailing-comma = false
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true  # Match previous Black formatting.

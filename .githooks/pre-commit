@@ -9,13 +9,12 @@ fi
 
 python_files="emmio/ tests/"
 
-tools=("Ruff check" "isort" "Mypy" "Pylint" "Pytest")
+tools=("Ruff format" "Ruff lint" "ty" "Pytest")
 
 commands=(
     "ruff format --check ${python_files}"
-    "isort --check-only ${python_files}"
-    "mypy ${python_files}"
-    "pylint ${python_files}"
+    "ruff check ${python_files}"
+    "ty check ${python_files}"
     "pytest"
 )
 times=()

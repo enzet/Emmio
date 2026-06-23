@@ -45,7 +45,6 @@ class LearningYAMLDecoder:
         learning: Learning = Learning.from_config(
             path,
             LearnConfig(
-                file_name=path.name,
                 name=path.stem,
                 learning_language=path.name[:2],
                 base_languages=[],

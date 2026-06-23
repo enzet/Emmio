@@ -6,6 +6,7 @@ database is cleaned before every test.
 """
 
 import os
+from typing import LiteralString
 
 import pytest
 
@@ -15,7 +16,7 @@ os.environ["EMMIO_DATABASE_URL"] = "postgresql:///emmio_test"
 # lazily created global connection uses the test database.
 from emmio import postgres  # pylint: disable=wrong-import-position
 
-CLEAN_STATEMENT: str = (
+CLEAN_STATEMENT: LiteralString = (
     "TRUNCATE users, learn_records, learn_sessions, learn_courses, "
     "lexicon_records, lexicon_words, lexicon_sessions, lexicons "
     "RESTART IDENTITY CASCADE"

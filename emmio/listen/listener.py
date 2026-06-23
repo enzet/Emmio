@@ -7,7 +7,7 @@ from pathlib import Path
 try:
     import mpv
 except (OSError, ImportError):
-    mpv = None
+    mpv = None  # ty: ignore[invalid-assignment]
 
 from emmio.audio.core import AudioCollection
 from emmio.data import Data

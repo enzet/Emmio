@@ -130,7 +130,7 @@ class Visualizer:
         for index, i in enumerate(categories):
             if by_language:
                 language = Language.from_code(str(i))
-                color = util.get_color(str(i))
+                color = util.get_color(str(i)).hex
                 label = language.get_name()
             elif i == 0:  # log
                 color = "#E8F0F8"
@@ -151,7 +151,7 @@ class Visualizer:
                 plt.bar(
                     [mdates.date2num(z) for z in xs],
                     ys,
-                    color=color.hex,
+                    color=color,
                     linewidth=0,
                     width=width,
                     label=label,
@@ -384,12 +384,13 @@ class Visualizer:
     def graph_mistakes(self, learnings: Iterator[Learning]) -> None:
         """Show the graph of mistakes."""
 
+        size: int = 10
+
         for learning in learnings:
             records: list[tuple[str, LearningRecord]] = [
                 (learning.id_, record) for record in learning.process.records
             ]
 
-            size: int = 10
             xs = range(size)
             ys: list[int] = [0] * size
             ns: list[int] = [0] * size

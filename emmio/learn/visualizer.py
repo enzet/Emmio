@@ -80,10 +80,10 @@ class LearningVisualizer:
                 return learning.learning_language.get_code()
             if self.use_subtypes:
                 return (
-                    f"{get_depth(knowledges[record.question_id].interval):05},"
+                    f"{knowledges[record.question_id].get_depth():05},"
                     f"{knowledges[record.question_id].count_responses():05}"
                 )
-            return get_depth(knowledges[record.question_id].interval)
+            return knowledges[record.question_id].get_depth()
 
         def parse_data_id(id_: str) -> list[int]:
             return [int(z) for z in id_.split(",")]
@@ -143,11 +143,12 @@ class LearningVisualizer:
         # Plot data.
 
         for id_ in sorted(data.keys()):
+            depth, returns = 0, 1
             if not self.by_language:
                 if self.use_subtypes:
-                    depth, returns = parse_data_id(id_)
+                    depth, returns = parse_data_id(str(id_))
                 else:
-                    depth, returns = id_, 1
+                    depth, returns = int(id_), 1
                 max_depth = max(max_depth, depth)
 
             color: str
@@ -165,14 +166,14 @@ class LearningVisualizer:
 
             if self.graph_mode == "fill_between":
                 plt.fill_between(
-                    x,
+                    x,  # type: ignore  # matplotlib accepts datetime via units
                     [0] * (len(x) - len(y[id_])) + y[id_],
                     color=color,
                     label=label,
                 )
             else:  # lines
                 plt.plot(
-                    x,
+                    x,  # type: ignore  # matplotlib accepts datetime via units
                     [0] * (len(x) - len(y[id_])) + y[id_],
                     color=color,
                     linewidth=0.5,
@@ -199,7 +200,7 @@ class LearningVisualizer:
                     string_id: str = f"{depth:05},{j:05}"
                     if string_id in y:
                         plt.text(
-                            x[-1],
+                            x[-1],  # type: ignore  # mpl accepts datetime
                             y[string_id][-1],
                             f"{2**depth} days",
                             transform=trans_offset,

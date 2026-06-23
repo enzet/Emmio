@@ -146,7 +146,8 @@ class LexiconVisualizer:
                     ax.transData, fig=fig, x=0.1, y=0
                 )
                 plt.text(
-                    mdates.date2num(data_range.xs[-1]),
+                    # date2num returns a scalar for a single datetime.
+                    mdates.date2num(data_range.xs[-1]),  # pyright: ignore[reportArgumentType]
                     sum(data_range.y_ranges[-1]) / len(data_range.y_ranges[-1]),
                     title,
                     transform=trans_offset,

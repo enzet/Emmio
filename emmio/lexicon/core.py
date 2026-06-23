@@ -1420,6 +1420,7 @@ class LexiconChecker:
 
             if params is not None:
                 # Exploit: pick the untested word with highest score.
+                a, b, c = params
                 best_score: float = -1.0
                 for rank, word in untested:
                     p_i: float = frequency_list.get_occurrences(word) / total

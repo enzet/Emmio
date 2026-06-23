@@ -13,7 +13,7 @@ from typing import Self, override
 try:
     import mpv
 except (OSError, ImportError):
-    mpv = None
+    mpv = None  # ty: ignore[invalid-assignment]
 
 from emmio.audio.config import AudioConfig
 from emmio.language import Language
