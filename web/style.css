@@ -193,6 +193,11 @@ header {
     gap: 1rem;
 }
 
+/* Log out always sits in the top-right corner. */
+header #logout {
+    margin-left: auto;
+}
+
 /* Main page: stacked, centered links to the two sections. */
 .home-links {
     display: flex;

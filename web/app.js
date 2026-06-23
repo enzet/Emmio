@@ -134,21 +134,12 @@ function initRegister() {
 
 function initHome() {
     requireAuth();
-    document.getElementById("logout").addEventListener("click", () => {
-        clearToken();
-        location.href = "login.html";
-    });
 }
 
 // Lexicon list page.
 
 async function initLexicons() {
     requireAuth();
-
-    document.getElementById("logout").addEventListener("click", () => {
-        clearToken();
-        location.href = "login.html";
-    });
 
     const status = document.getElementById("status");
     const table = document.getElementById("lexicon-table");
@@ -453,11 +444,6 @@ async function initLearn() {
 async function initCourses() {
     requireAuth();
 
-    document.getElementById("logout").addEventListener("click", () => {
-        clearToken();
-        location.href = "login.html";
-    });
-
     const status = document.getElementById("status");
     const table = document.getElementById("course-table");
     const rows = document.getElementById("course-rows");
@@ -542,6 +528,15 @@ async function initCourse() {
 // Dispatch on the page.
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Log out is present on every signed-in page; wire it once here.
+    const logout = document.getElementById("logout");
+    if (logout) {
+        logout.addEventListener("click", () => {
+            clearToken();
+            location.href = "login.html";
+        });
+    }
+
     const page = document.body.dataset.page;
     if (page === "login") initLogin();
     else if (page === "register") initRegister();
