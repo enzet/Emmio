@@ -22,8 +22,22 @@ main.card, main.login {
     padding: 0.1rem 1rem;
 }
 
+nav {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin: 0.5rem;
+}
+nav a, nav span {
+    font-size: 85%;
+    color: black;
+    text-decoration: none;
+    font-weight: 500;
+}
+
 img.logo-corner {
-    width: 70px;
+    width: 50px;
+    margin: 1rem;
 }
 
 h1 img.logo {
@@ -47,19 +61,24 @@ h2 {
  * sizes to its content, so block + auto margins centers it. */
 button {
     background-color: white;
-    border: 1px solid #CCC;
+    border: 1px solid #0003;
     border-radius: 5px;
     padding: 0.2rem 0.5rem;
+    cursor: pointer;
+}
+div#answers {
+    display: flex;
+    justify-content: center;
+    gap: 0.3rem;
+}
+p#sentence {
+    text-align: center;
 }
 button[data-key="y"], button[data-key="s"] {
-    background-color: green;
-    border: green;
-    color: white;
 }
 button[data-key="n"] {
-    background-color: red;
-    border: red;
-    color: white;
+    color: red;
+    border: 1px solid #F004;
 }
 kbd {
     padding-left: 3px;
@@ -102,7 +121,7 @@ p#login-error {
     /* font-size: 85%; */
 }
 p#word {
-    font-size: 800%;
+    font-size: 640%;
     text-align: center;
     padding: 2rem;
     font-weight: 700;

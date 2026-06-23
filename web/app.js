@@ -253,6 +253,7 @@ async function runSession(base, doneText) {
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
     const lastAnswer = document.getElementById("last-answer");
+    const sentence = document.getElementById("sentence");
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, translation }.
     const history = []; // Answered { word } (most recent last), for undo.
@@ -282,6 +283,7 @@ async function runSession(base, doneText) {
                 word: card.word,
                 lastResponse: card.last_response,
                 lastTime: card.last_time,
+                sentence: card.sentence,
                 translation: null,
             };
             attachTranslation(item);
@@ -296,6 +298,14 @@ async function runSession(base, doneText) {
             undoWord.textContent = history[history.length - 1].word;
         }
         renderLastAnswer();
+        // The server returns a safe HTML fragment (text escaped, word in <b>).
+        if (current && current.sentence) {
+            sentence.innerHTML = current.sentence;
+            sentence.hidden = false;
+        } else {
+            sentence.replaceChildren();
+            sentence.hidden = true;
+        }
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -419,7 +429,7 @@ async function initCheck() {
     requireAuth();
     const id = new URLSearchParams(location.search).get("lexicon");
     document.getElementById("lexicon-heading").textContent =
-        `Check lexicon: ${id}`;
+        `${id}`;
     await runSession(
         `/me/lexicons/${encodeURIComponent(id)}`,
         "No more words to check.",

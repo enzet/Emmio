@@ -13,6 +13,7 @@ Run locally with:
 """
 
 import os
+import random
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
@@ -25,7 +26,7 @@ from pydantic import BaseModel
 
 from emmio import postgres
 from emmio.api import auth
-from emmio.api.render import elements_to_html
+from emmio.api.render import elements_to_html, to_html
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.language import KnownLanguages, Language
@@ -40,7 +41,9 @@ from emmio.lexicon.core import (
     select_next_word,
 )
 from emmio.lists.config import ListUsageConfig
-from emmio.ui import Element
+from emmio.sentence.config import SentencesUsageConfig
+from emmio.sentence.core import SentenceElement
+from emmio.ui import Element, Formatted, Text
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -226,6 +229,7 @@ class WordCard(BaseModel):
     word: str
     last_response: str | None  # Human label of the last answer, e.g. "know".
     last_time: datetime | None  # When the word was last answered.
+    sentence: str | None  # Example-sentence HTML (word in bold), if available.
 
 
 class NextWords(BaseModel):
@@ -255,8 +259,10 @@ def _word_cards(
     words: list[str],
     answers: dict[str, tuple[str, datetime]],
     labels: dict[str, str],
+    sentences: dict[str, str | None] | None = None,
 ) -> list[WordCard]:
-    """Build word cards, attaching each word's last answer where known."""
+    """Build word cards, attaching each word's last answer and example."""
+    sentences = sentences or {}
     cards: list[WordCard] = []
     for word in words:
         code_time: tuple[str, datetime] | None = answers.get(word)
@@ -269,9 +275,42 @@ def _word_cards(
                     else None
                 ),
                 last_time=code_time[1] if code_time else None,
+                sentence=sentences.get(word),
             )
         )
     return cards
+
+
+def _sentence_html(
+    word: str, language: str, configs: list[dict] | None
+) -> str | None:
+    """Render one example sentence for a word, with the word in bold.
+
+    Mirrors the CLI's usage example: a sentence in the lexicon's language with
+    the target word highlighted (its translation is intentionally not shown).
+    Returns `None` if the lexicon has no sentence sources or none are found.
+    """
+    if not configs:
+        return None
+    examples = (
+        get_data()
+        .get_sentences_data()
+        .get(word, [SentencesUsageConfig(**config) for config in configs])
+    )
+    if not examples:
+        return None
+    language_object: Language = Language.from_code(language)
+    sentence = random.choice(examples).sentence
+    text: Text = Text()
+    for part, element in sentence.get_words(language_object):
+        if (
+            element == SentenceElement.WORD
+            and language_object.normalize(part) == word
+        ):
+            text.add(Formatted(part, "bold"))
+        else:
+            text.add(part)
+    return to_html(text)
 
 
 # Most words a single `/next` request may prefetch.
@@ -479,8 +518,12 @@ def get_next_lexicon_words(
     if auto:
         postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
     answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
+    sentences: dict[str, str | None] = {
+        word: _sentence_html(word, language, config.get("sentences"))
+        for word in words
+    }
     return NextWords(
-        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS)
+        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS, sentences)
     )
 
 
