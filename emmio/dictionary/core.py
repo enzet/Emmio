@@ -816,43 +816,36 @@ class DictionaryCollection:
 
         items_marked: list[tuple[Dictionary, DictionaryItem]] = []
 
-        tasks: list = []
-        dictionary: Dictionary
-        for dictionary in self.dictionaries:
-            coroutine = dictionary.get_items_marked(
-                word, follow_links=follow_links
+        # Each dictionary already follows links recursively (deduping within
+        # itself), so the collection must not follow them again.
+        tasks: list[asyncio.Task[list[tuple[Dictionary, DictionaryItem]]]] = [
+            asyncio.create_task(
+                dictionary.get_items_marked(word, follow_links=follow_links)
             )
-            tasks.append(asyncio.create_task(coroutine))
-
+            for dictionary in self.dictionaries
+        ]
         result: list[
             list[tuple[Dictionary, DictionaryItem]]
         ] = await asyncio.gather(*tasks)
-
         for main_items_marked in result:
-            if not main_items_marked:
-                continue
             items_marked += main_items_marked
-            if not follow_links:
-                continue
-            for main_item_marked in main_items_marked:
-                dictionary = main_item_marked[0]
-                item: DictionaryItem = main_item_marked[1]
-                links: set[str] = set()
-                for form in item.get_forms():
-                    links |= {x.link_value for x in form.links}
-                for link in links:
-                    if link_item := await dictionary.get_item(link):
-                        items_marked.append((dictionary, link_item))
-                    if (variant := language.get_variant(link)) and (
-                        link_item := await dictionary.get_item(variant)
-                    ):
-                        items_marked.append((dictionary, link_item))
 
-        # If the word may be written in different way, try to find this variant.
+        # If the word may be written a different way, also try that variant.
         if variant := language.get_variant(word):
-            items_marked += await self.get_items_marked(variant, language)
+            items_marked += await self.get_items_marked(
+                variant, language, follow_links=follow_links
+            )
 
-        return items_marked
+        # Deduplicate: the same (dictionary, word) can still be reached twice,
+        # e.g. via a word and its variant, or a shared link target.
+        seen: set[tuple[str, str]] = set()
+        unique: list[tuple[Dictionary, DictionaryItem]] = []
+        for dictionary, item in items_marked:
+            key: tuple[str, str] = (dictionary.id_, item.word)
+            if key not in seen:
+                seen.add(key)
+                unique.append((dictionary, item))
+        return unique
 
     async def get_items(
         self, word: str, language: Language, *, follow_links: bool = True
