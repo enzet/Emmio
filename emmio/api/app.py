@@ -480,6 +480,7 @@ def get_next_lexicon_words(
             detail="Configured frequency list could not be loaded.",
         )
     language: str = config["language"]
+    selection: str = config["selection"]
     symbols: str | None = Language.from_code(language).get_symbols()
     states: dict[str, tuple[str | None, bool | None]] = (
         postgres.get_language_word_states(user_id, language)
@@ -488,6 +489,11 @@ def get_next_lexicon_words(
 
     limit: int = max(1, min(count, _BATCH_MAX))
     drawn: set[str] = set(exclude or [])
+    # "top" walks the list in rank order and never re-asks an answered word, so
+    # exclude everything already recorded; sampling strategies re-sample, so
+    # they rely on `_skip_decision` instead.
+    if selection == "top":
+        drawn |= postgres.get_answered_words(user_id, lexicon_id)
     words: list[str] = []
     auto: list[postgres.LexiconRecordRow] = []
     now: datetime = datetime.now(UTC)
@@ -496,7 +502,7 @@ def get_next_lexicon_words(
             break
         try:
             candidate: str | None = select_next_word(
-                frequency_list, drawn, config["selection"]
+                frequency_list, drawn, selection
             )
         except NotImplementedError as error:
             raise HTTPException(

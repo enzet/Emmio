@@ -44,6 +44,9 @@ class LexiconSelection(Enum):
 
     STRATIFIED = "stratified"
 
+    TOP = "top"
+    """Select the first unanswered word from the frequency list (by rank)."""
+
     UNKNOWN = "unknown"
     """Selection is unknown."""
 

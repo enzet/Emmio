@@ -261,6 +261,12 @@ def select_next_word(
             return _sample_selectable(
                 frequency_list, exclude, frequency_list.get_random_word
             )
+        case "top":
+            # Deterministic: the first word, by frequency rank, not excluded.
+            for word in frequency_list.get_words():
+                if word not in exclude:
+                    return word
+            return None
         case _:
             message = f"Selection `{selection}` is not supported over the API."
             raise NotImplementedError(message)
@@ -1097,6 +1103,14 @@ class LexiconChecker:
                 other_lexicons,
                 frequency_list,
                 stop_at=None,
+                stop_at_wrong=stop_at_wrong,
+            )
+        elif self.lexicon.config.selection == LexiconSelection.TOP:
+            await self.check_frequency(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                log_type="most frequent",
                 stop_at_wrong=stop_at_wrong,
             )
 
