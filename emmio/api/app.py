@@ -33,10 +33,11 @@ from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import (
+    AnswerType,
     Lexicon,
     LexiconResponse,
     compute_lexicon_rate,
-    select_next_words,
+    select_next_word,
 )
 from emmio.lists.config import ListUsageConfig
 from emmio.ui import Element
@@ -231,6 +232,12 @@ class NextWords(BaseModel):
 # Most words a single `/next` request may prefetch.
 _BATCH_MAX: int = 50
 
+# Most words a single `/next` request may draw. Selection samples by frequency
+# and records (propagates) every word it does not present, so a high-rate
+# lexicon needs many draws to surface one word worth asking. Caps the work (and
+# the records written) per request; the request just returns fewer words.
+_DRAW_BUDGET: int = 256
+
 
 class DictionaryTranslation(BaseModel):
     """One dictionary's rendering of a word, as a safe HTML fragment."""
@@ -323,6 +330,41 @@ async def _translate(
     ]
 
 
+def _skip_decision(
+    word: str,
+    symbols: str | None,
+    states: dict[str, tuple[str | None, bool | None]],
+    recent: set[str],
+) -> tuple[str, AnswerType, bool | None] | None:
+    """Decide whether a drawn word should be auto-answered instead of asked.
+
+    Mirrors the CLI's `do_skip`, using state already loaded into memory. A
+    word is auto-answered (and so not presented) when it is outside the
+    language's alphabet, flagged to skip, already "not a word", or was answered
+    recently; otherwise it is presented (a new or stale word worth asking).
+
+    :return: (response code, answer type, to_skip) to record, or `None` to
+        present the word to the user
+    """
+    not_a_word: str = LexiconResponse.NOT_A_WORD.to_code()
+    if symbols and any(symbol not in symbols for symbol in word):
+        return not_a_word, AnswerType.ASSUME__NOT_A_WORD__ALPHABET, None
+    if word not in states:
+        return None  # Never seen anywhere: a new word to ask.
+    response, to_skip = states[word]
+    if to_skip:
+        return (
+            response or LexiconResponse.KNOW.to_code(),
+            AnswerType.PROPAGATE__SKIP,
+            to_skip,
+        )
+    if response == not_a_word:
+        return not_a_word, AnswerType.PROPAGATE__NOT_A_WORD, None
+    if word in recent and response is not None:
+        return response, AnswerType.PROPAGATE__TIME, None
+    return None  # Seen but stale: re-ask to refresh the estimate.
+
+
 @app.get("/api/v1/me/lexicons/{lexicon_id}/next")
 def get_next_lexicon_words(
     lexicon_id: str,
@@ -332,10 +374,12 @@ def get_next_lexicon_words(
 ) -> NextWords:
     """Get the next words to check in the authenticated user's lexicon.
 
-    Words are drawn using the lexicon's stored selection strategy, so the data
-    stays consistent with how it was collected. `count` lets the client
-    prefetch a queue; `exclude` lists words already queued so the batch has no
-    duplicates.
+    Words are drawn by the lexicon's frequency strategy. Every drawn word that
+    is not presented is *recorded* with the answer it can be given automatically
+    (already known/skipped/foreign/recently answered) rather than excluded, so
+    the records stay a faithful frequency-weighted sample and the rate is
+    computed correctly. `count` requests how many words to present; `exclude`
+    lists words already queued on the client.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     if config["frequency_list"] is None:
@@ -351,19 +395,44 @@ def get_next_lexicon_words(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Configured frequency list could not be loaded.",
         )
-    skip: set[str] = postgres.get_words_to_skip(user_id, lexicon_id)
-    skip |= set(exclude or [])
-    try:
-        words: list[str] = select_next_words(
-            frequency_list,
-            skip,
-            config["selection"],
-            max(1, min(count, _BATCH_MAX)),
-        )
-    except NotImplementedError as error:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
-        ) from error
+    language: str = config["language"]
+    symbols: str | None = Language.from_code(language).get_symbols()
+    states: dict[str, tuple[str | None, bool | None]] = (
+        postgres.get_language_word_states(user_id, language)
+    )
+    recent: set[str] = postgres.get_recently_answered(user_id, lexicon_id)
+
+    limit: int = max(1, min(count, _BATCH_MAX))
+    drawn: set[str] = set(exclude or [])
+    words: list[str] = []
+    auto: list[postgres.LexiconRecordRow] = []
+    now: datetime = datetime.now(UTC)
+    for _ in range(_DRAW_BUDGET):
+        if len(words) >= limit:
+            break
+        try:
+            candidate: str | None = select_next_word(
+                frequency_list, drawn, config["selection"]
+            )
+        except NotImplementedError as error:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
+            ) from error
+        if candidate is None:
+            break
+        drawn.add(candidate)
+        decision = _skip_decision(candidate, symbols, states, recent)
+        if decision is None:
+            words.append(candidate)
+            continue
+        response, answer_type, to_skip = decision
+        extra: dict = {"at": answer_type.to_code()}
+        if to_skip is not None:
+            extra["sk"] = to_skip
+        auto.append((candidate, response, now, extra))
+
+    if auto:
+        postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
     return NextWords(words=words)
 
 

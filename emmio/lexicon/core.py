@@ -266,36 +266,6 @@ def select_next_word(
             raise NotImplementedError(message)
 
 
-def select_next_words(
-    frequency_list: FrequencyList,
-    exclude: set[str],
-    selection: str,
-    count: int,
-) -> list[str]:
-    """Pick up to `count` distinct next words (see :func:`select_next_word`).
-
-    Lets a client prefetch a buffer of upcoming words in one request. Words are
-    drawn one at a time, each added to the exclusion set so the batch has no
-    duplicates.
-
-    :param frequency_list: source of candidate words
-    :param exclude: words to skip (recently answered, flagged, or already
-        queued on the client)
-    :param selection: the lexicon's stored selection strategy
-    :param count: maximum number of words to return
-    :return: up to `count` distinct words, fewer if candidates run out
-    """
-    chosen: list[str] = []
-    seen: set[str] = set(exclude)
-    for _ in range(count):
-        word: str | None = select_next_word(frequency_list, seen, selection)
-        if word is None:
-            break
-        chosen.append(word)
-        seen.add(word)
-    return chosen
-
-
 def _sample_selectable(
     frequency_list: FrequencyList,
     exclude: set[str],

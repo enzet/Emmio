@@ -117,6 +117,16 @@ sequenceDiagram
 drives learning, against `/me/courses/{id}` instead (its `/next` returns the
 soonest-due questions). The `response` value depends on the resource:
 
+> **Lexicon `/next` records as it samples.** It draws frequency-weighted words
+> and, for every word it does *not* present (already known, flagged "skip",
+> "not a word", foreign-alphabet, or answered recently), writes an automatic
+> record — `propagate_skip`, `propagate_time`, `propagate_not_a_word`, or
+> `assume_not_a_word` — instead of excluding it. This keeps the record stream a
+> faithful frequency-weighted sample, which is what the vocabulary rate is
+> computed from. A high-rate lexicon therefore writes many such records per
+> request and may return fewer than `count` words (the client just tops up).
+
+
 - Lexicon `/answer`: a `LexiconResponse` — `know`, `dont`,
   `dont_but_proper_noun_too`, `not_a_word` (plus a "Know and skip" that sets the
   skip flag).

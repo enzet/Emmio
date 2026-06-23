@@ -45,15 +45,36 @@ h2 {
 
 /* Center form submit buttons without affecting the fields above them. A button
  * sizes to its content, so block + auto margins centers it. */
+button {
+    background-color: white;
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+}
+button[data-key="y"], button[data-key="s"] {
+    background-color: green;
+    border: green;
+    color: white;
+}
+button[data-key="n"] {
+    background-color: red;
+    border: red;
+    color: white;
+}
+kbd {
+    padding-left: 3px;
+    font-family: SF Pro;
+    opacity: 50%;
+    font-size: 80%;
+}
 form button {
+    background-color: black;
+    color: white;
+    border: none;
     display: block;
     margin: 1rem auto;
-    color: white;
-    background-color: black;
-    border: none;
-    border-radius: 5px;
-    padding: 0.5rem 1rem;
     width: 200px;
+    padding: 0.5rem 1rem;
 }
 
 input.text {

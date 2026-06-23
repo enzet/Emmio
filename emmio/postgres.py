@@ -499,27 +499,55 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
         return {row[0] for row in cursor.fetchall()}
 
 
-def get_words_to_skip(
-    user_id: str, lexicon_id: str, recent_days: int = 30
-) -> set[str]:
-    """Get words to exclude when picking the next word to check.
+def get_language_word_states(
+    user_id: str, language: str
+) -> dict[str, tuple[str | None, bool | None]]:
+    """Get every word's latest state across a user's same-language lexicons.
 
-    A frequency lexicon re-samples words over time, so a word is only excluded
-    if it is flagged to skip or was answered within the last `recent_days`
-    days; everything else stays selectable (mirrors the CLI's checking loop).
+    Loaded once per selection so the draw-and-record loop can decide, in
+    memory, whether a drawn word should be presented or auto-answered
+    (propagated). The most recently seen lexicon wins per word.
 
     :param user_id: owning user login, e.g. `john`
-    :param lexicon_id: lexicon identifier, e.g. `fr`
-    :param recent_days: re-ask an answered word only after this many days
+    :param language: language code shared by the lexicons
+    :return: mapping from word to its (response code, to_skip)
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
-            "SELECT w.word "
-            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "SELECT DISTINCT ON (w.word) w.word, w.response, w.to_skip "
+            "FROM lexicon_words w "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.language = %s "
+            "ORDER BY w.word, w.last_seen DESC NULLS LAST",
+            (user_id, language),
+        )
+        return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+
+def get_recently_answered(
+    user_id: str, lexicon_id: str, recent_days: int = 30
+) -> set[str]:
+    """Get words the user *answered* in a lexicon within the last days.
+
+    Only real user answers count (auto/propagated records are ignored), so a
+    word keeps being re-affirmed by propagation until the user actually
+    re-answers it after the window. Drives the "propagate time" decision.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param recent_days: length of the window in days
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT DISTINCT w.word "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
             "JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s "
-            "AND (w.to_skip = true "
-            "OR w.last_seen >= now() - make_interval(days => %s))",
+            "AND r.response_time >= now() - make_interval(days => %s) "
+            "AND (r.extra IS NULL OR NOT (r.extra ? 'at'))",
             (user_id, lexicon_id, recent_days),
         )
         return {row[0] for row in cursor.fetchall()}
