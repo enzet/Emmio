@@ -73,10 +73,14 @@ div#answers {
     justify-content: center;
     gap: 0.3rem;
 }
-p#sentence {
+p#sentence, p#question {
     text-align: center;
 }
-button[data-key="y"], button[data-key="s"] {
+p#sentence {
+    padding: 1rem;
+}
+p#question {
+    font-size: 85%;
 }
 button[data-key="n"] {
     color: red;

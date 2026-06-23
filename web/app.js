@@ -243,7 +243,7 @@ async function runSession(base, doneText) {
     const translation = document.getElementById("translation");
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
-    const lastAnswer = document.getElementById("last-answer");
+    const question = document.getElementById("question");
     const sentence = document.getElementById("sentence");
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, translation }.
@@ -312,13 +312,13 @@ async function runSession(base, doneText) {
     function renderLastAnswer() {
         if (current && current.lastResponse) {
             const when = current.lastTime
-                ? ` · ${relativeTime(current.lastTime)}`
+                ? ` (${relativeTime(current.lastTime)})`
                 : "";
-            lastAnswer.textContent =
-                `Last answer: ${current.lastResponse}${when}`;
-            lastAnswer.hidden = false;
+            question.textContent =
+                `Do you know at least one meaning of the word? Last answer was ${current.lastResponse}${when}.`;
         } else {
-            lastAnswer.hidden = true;
+            question.textContent =
+                `Do you know at least one meaning of the word?`;
         }
     }
 
