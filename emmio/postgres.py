@@ -499,6 +499,60 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
         return {row[0] for row in cursor.fetchall()}
 
 
+def get_last_lexicon_answers(
+    user_id: str, lexicon_id: str, words: list[str]
+) -> dict[str, tuple[str, datetime]]:
+    """Get each given word's most recent *user* answer in a lexicon.
+
+    Used to show "last answer" context when a word is presented again.
+    Auto/propagated records are ignored, so the time reflects when the user
+    actually answered.
+
+    :return: mapping word -> (response code, response time); words the user
+        never answered are absent
+    """
+    if not words:
+        return {}
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT DISTINCT ON (w.word) w.word, r.response, r.response_time "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s AND w.word = ANY(%s) "
+            "AND (r.extra IS NULL OR NOT (r.extra ? 'at')) "
+            "ORDER BY w.word, r.response_time DESC, r.id DESC",
+            (user_id, lexicon_id, words),
+        )
+        return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+
+def get_last_learn_answers(
+    user_id: str, course_id: str, questions: list[str]
+) -> dict[str, tuple[str, datetime]]:
+    """Get each given question's most recent answer in a course.
+
+    :return: mapping question -> (response code, response time); unanswered
+        questions are absent
+    """
+    if not questions:
+        return {}
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT DISTINCT ON (r.question_id) "
+            "r.question_id, r.response, r.response_time "
+            "FROM learn_records r "
+            "JOIN learn_courses c ON c.id = r.course_id "
+            "JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s "
+            "AND r.question_id = ANY(%s) "
+            "ORDER BY r.question_id, r.response_time DESC, r.id DESC",
+            (user_id, course_id, questions),
+        )
+        return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+
 def get_language_word_states(
     user_id: str, language: str
 ) -> dict[str, tuple[str | None, bool | None]]:

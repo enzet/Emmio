@@ -43,6 +43,15 @@ function requireAuth() {
     if (!getToken()) location.href = "login.html";
 }
 
+// Format an ISO timestamp as a short, human "time ago" (falls back to a date).
+function relativeTime(iso) {
+    const days = Math.floor((Date.now() - new Date(iso)) / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 30) return `${days} days ago`;
+    return new Date(iso).toLocaleDateString();
+}
+
 // Turn an ISO language code (e.g. `fr`) into a human name (`French`). Falls
 // back to the code itself for unknown or malformed codes.
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
@@ -243,10 +252,11 @@ async function runSession(base, doneText) {
     const translation = document.getElementById("translation");
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
+    const lastAnswer = document.getElementById("last-answer");
 
-    const queue = []; // Upcoming { word, translation: Promise }.
+    const queue = []; // Upcoming { word, lastResponse, lastTime, translation }.
     const history = []; // Answered { word } (most recent last), for undo.
-    let current = null; // The { word, translation } on screen.
+    let current = null; // The item on screen.
 
     // Start loading a word's translation now so it's ready when needed. The
     // promise is stored on the item and awaited later (instant if resolved).
@@ -267,8 +277,13 @@ async function runSession(base, doneText) {
         }
         const response = await api(`${base}/next?${params}`);
         if (!response.ok) return;
-        for (const value of (await response.json()).words) {
-            const item = { word: value, translation: null };
+        for (const card of (await response.json()).words) {
+            const item = {
+                word: card.word,
+                lastResponse: card.last_response,
+                lastTime: card.last_time,
+                translation: null,
+            };
             attachTranslation(item);
             queue.push(item);
         }
@@ -280,6 +295,7 @@ async function runSession(base, doneText) {
         if (history.length) {
             undoWord.textContent = history[history.length - 1].word;
         }
+        renderLastAnswer();
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -288,6 +304,20 @@ async function runSession(base, doneText) {
             word.textContent = "";
             answers.hidden = true;
             status.textContent = doneText;
+        }
+    }
+
+    // Show what the user last answered for the current word, and when.
+    function renderLastAnswer() {
+        if (current && current.lastResponse) {
+            const when = current.lastTime
+                ? ` · ${relativeTime(current.lastTime)}`
+                : "";
+            lastAnswer.textContent =
+                `Last answer: ${current.lastResponse}${when}`;
+            lastAnswer.hidden = false;
+        } else {
+            lastAnswer.hidden = true;
         }
     }
 

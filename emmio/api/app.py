@@ -220,13 +220,58 @@ class NextWord(BaseModel):
     word: str | None
 
 
+class WordCard(BaseModel):
+    """One upcoming word with its last-answer context (if any)."""
+
+    word: str
+    last_response: str | None  # Human label of the last answer, e.g. "know".
+    last_time: datetime | None  # When the word was last answered.
+
+
 class NextWords(BaseModel):
     """A batch of upcoming words, soonest first; empty when exhausted.
 
     Lets the client prefetch a queue instead of fetching one word per answer.
     """
 
-    words: list[str]
+    words: list[WordCard]
+
+
+# Short human labels for stored response codes, for the "last answer" hint.
+_LEXICON_RESPONSE_LABELS: dict[str, str] = {
+    LexiconResponse.KNOW.to_code(): "know",
+    LexiconResponse.DONT.to_code(): "don't know",
+    LexiconResponse.DONT_BUT_PROPER_NOUN_TOO.to_code(): "proper noun",
+    LexiconResponse.NOT_A_WORD.to_code(): "not a word",
+}
+_LEARN_RESPONSE_LABELS: dict[str, str] = {
+    Response.RIGHT.value: "right",
+    Response.WRONG.value: "wrong",
+    Response.SKIP.value: "skip",
+}
+
+
+def _word_cards(
+    words: list[str],
+    answers: dict[str, tuple[str, datetime]],
+    labels: dict[str, str],
+) -> list[WordCard]:
+    """Build word cards, attaching each word's last answer where known."""
+    cards: list[WordCard] = []
+    for word in words:
+        code_time: tuple[str, datetime] | None = answers.get(word)
+        cards.append(
+            WordCard(
+                word=word,
+                last_response=(
+                    labels.get(code_time[0], code_time[0])
+                    if code_time
+                    else None
+                ),
+                last_time=code_time[1] if code_time else None,
+            )
+        )
+    return cards
 
 
 # Most words a single `/next` request may prefetch.
@@ -433,7 +478,10 @@ def get_next_lexicon_words(
 
     if auto:
         postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
-    return NextWords(words=words)
+    answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
+    return NextWords(
+        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS)
+    )
 
 
 @app.post(
@@ -610,10 +658,12 @@ def get_next_questions(
     queued so the batch has no duplicates.
     """
     learning: Learning = _load_learning(user_id, course_id)
+    questions: list[str] = learning.get_next_questions(
+        max(1, min(count, _BATCH_MAX)), set(exclude or [])
+    )
+    answers = postgres.get_last_learn_answers(user_id, course_id, questions)
     return NextWords(
-        words=learning.get_next_questions(
-            max(1, min(count, _BATCH_MAX)), set(exclude or [])
-        )
+        words=_word_cards(questions, answers, _LEARN_RESPONSE_LABELS)
     )
 
 
