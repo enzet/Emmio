@@ -262,19 +262,25 @@ def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
         return bool(row and row[0])
 
 
-def get_main_lexicons(user_id: str) -> list[tuple[str, str]]:
-    """Get the user's main lexicons, one per language.
+def get_main_lexicons(user_id: str) -> list[tuple[str, str, int, int]]:
+    """Get the user's main lexicons, one per language, with weekly progress.
 
-    :return: (language, lexicon id) pairs, ordered by language
+    :return: (language, lexicon id, weekly precision goal, "don't know"
+        answers in the last 7 days) tuples, ordered by language
     """
     with get_connection().cursor() as cursor:
         cursor.execute(
-            "SELECT l.language, l.lexicon_id "
+            "SELECT l.language, l.lexicon_id, "
+            "COALESCE((l.config->>'precision_per_week')::int, 0), "
+            "(SELECT count(*) FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "WHERE w.lexicon_id = l.id AND r.response = 'D' "
+            "AND r.response_time >= now() - interval '7 days') "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.is_main ORDER BY l.language",
             (user_id,),
         )
-        return [(row[0], row[1]) for row in cursor.fetchall()]
+        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
 
 
 def set_main_lexicon(user_id: str, lexicon_id: str) -> None:

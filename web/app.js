@@ -166,6 +166,22 @@ async function initHome() {
             entry.rate === null ? "—" : entry.rate.toFixed(1);
         row.appendChild(rateCell);
 
+        // "Don't know" answers still wanted this week; blank when on target.
+        const remainingCell = document.createElement("td");
+        remainingCell.textContent =
+            entry.weekly_remaining === 0 ? "" : entry.weekly_remaining;
+        row.appendChild(remainingCell);
+
+        const checkCell = document.createElement("td");
+        const check = document.createElement("a");
+        check.className = "button";
+        check.href = `check.html?lexicon=${encodeURIComponent(
+            entry.lexicon_id,
+        )}`;
+        check.textContent = "Check lexicon";
+        checkCell.appendChild(check);
+        row.appendChild(checkCell);
+
         rows.appendChild(row);
     }
 }

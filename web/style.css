@@ -70,6 +70,18 @@ button {
     padding: 0.2rem 0.5rem;
     cursor: pointer;
 }
+
+/* A link styled as a button, e.g. "Check lexicon" on the home page. */
+a.button {
+    display: inline-block;
+    background-color: white;
+    border: 1px solid #0003;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    color: black;
+    text-decoration: none;
+    font-size: 85%;
+}
 div#answers {
     display: flex;
     justify-content: center;
