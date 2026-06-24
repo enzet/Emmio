@@ -130,6 +130,10 @@ class Data:
         """Get a frequency list by usage configuration."""
         return self.get_lists_data().get_frequency_list(usage_config)
 
+    def get_frequency_list_languages(self) -> dict[str, dict]:
+        """Map each language with a frequency list to its usage config."""
+        return self.get_lists_data().get_frequency_list_languages()
+
     def get_dictionary(
         self, usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:

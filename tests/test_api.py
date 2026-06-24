@@ -1,14 +1,41 @@
 """Tests for the HTTP API."""
 
+from typing import Any
+
+import pytest
 from fastapi.testclient import TestClient
 
 from emmio import postgres
+from emmio.api import app as app_module
 from emmio.api.app import app
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
 client: TestClient = TestClient(app)
+
+
+class _FakeData:
+    """Stand-in for the shared data, with a fixed frequency-list inventory."""
+
+    def __init__(self, languages: dict[str, dict]) -> None:
+        self._languages = languages
+
+    def get_frequency_list_languages(self) -> dict[str, dict]:
+        return self._languages
+
+
+@pytest.fixture
+def fake_languages(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict]:
+    """Make the data layer report a fixed set of frequency-list languages."""
+
+    languages: dict[str, dict] = {
+        "uk": {"id": "uk_list"},
+        "la": {"id": "frequency_words", "language": "la", "year": 2022},
+    }
+    fake: Any = _FakeData(languages)
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    return languages
 
 
 def _register_and_login(
@@ -170,3 +197,64 @@ def test_next_for_unknown_lexicon_is_not_found() -> None:
     )
 
     assert response.status_code == 404
+
+
+def test_lexicon_languages_lists_available_languages(
+    fake_languages: dict[str, dict],
+) -> None:
+    """Only languages with a frequency list are offered, sorted by code."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/lexicon-languages", headers=_auth(token))
+
+    assert response.status_code == 200
+    assert [row["language"] for row in response.json()] == sorted(
+        fake_languages
+    )
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_sets_it_as_main() -> None:
+    """Creating a lexicon stores it and marks it main for its language."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    assert response.status_code == 201
+    lexicon_id = response.json()["lexicon_id"]
+    assert lexicon_id == "uk"
+    assert postgres.is_main_lexicon("alice", "uk")
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_for_unknown_language_is_bad_request() -> None:
+    """A language without a frequency list cannot be created."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons", json={"language": "xx"}, headers=_auth(token)
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_suffixes_duplicate_ids() -> None:
+    """A second lexicon for the same language gets a numbered id."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    first = client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+    second = client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    assert first.json()["lexicon_id"] == "uk"
+    assert second.json()["lexicon_id"] == "uk_2"

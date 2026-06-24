@@ -142,9 +142,8 @@ async function initHome() {
     const languages = await response.json();
 
     if (languages.length === 0) {
-        status.textContent =
-            "No main lexicon set yet. Mark a lexicon as main to track a " +
-            "language's level here.";
+        status.textContent = "";
+        await showWelcome();
         return;
     }
     status.textContent = "";
@@ -184,6 +183,55 @@ async function initHome() {
 
         rows.appendChild(row);
     }
+}
+
+// Empty home state: no main lexicon yet. Offer a language selector and a
+// button to create the user's first lexicon (which is then set as main, so
+// the home page shows it on reload).
+async function showWelcome() {
+    const welcome = document.getElementById("welcome");
+    const select = document.getElementById("new-lexicon-language");
+    const createStatus = document.getElementById("create-status");
+    welcome.hidden = false;
+
+    const response = await api("/lexicon-languages");
+    const available = await response.json();
+    if (available.length === 0) {
+        createStatus.textContent =
+            "No languages with a frequency list are available yet.";
+        select.disabled = true;
+        return;
+    }
+
+    available
+        .map((entry) => ({ code: entry.language, name: languageName(entry.language) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((entry) => {
+            const option = document.createElement("option");
+            option.value = entry.code;
+            option.textContent = entry.name;
+            select.appendChild(option);
+        });
+
+    document
+        .getElementById("create-lexicon-form")
+        .addEventListener("submit", async (event) => {
+            event.preventDefault();
+            createStatus.textContent = "Creating…";
+            const result = await api("/me/lexicons", {
+                method: "POST",
+                body: { language: select.value },
+            });
+            if (result.ok) {
+                const { lexicon_id } = await result.json();
+                location.href = `lexicon.html?lexicon=${encodeURIComponent(
+                    lexicon_id,
+                )}`;
+            } else {
+                const { detail } = await result.json().catch(() => ({}));
+                createStatus.textContent = detail || "Could not create lexicon.";
+            }
+        });
 }
 
 // Lexicon list page.

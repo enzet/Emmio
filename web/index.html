@@ -22,6 +22,21 @@
                 <a href="courses.html">Courses</a>
             </nav>
 
+            <section id="welcome" aria-labelledby="welcome-heading" hidden>
+                <h2 id="welcome-heading">Welcome to Emmio</h2>
+                <p>
+                    A lexicon tracks how much of a language's vocabulary you
+                    know. You don't have one set as your main lexicon yet —
+                    pick a language to create your first one.
+                </p>
+                <form id="create-lexicon-form">
+                    <label for="new-lexicon-language">Language</label>
+                    <select id="new-lexicon-language" required></select>
+                    <button type="submit">Create lexicon</button>
+                </form>
+                <p id="create-status" role="status"></p>
+            </section>
+
             <section aria-labelledby="languages-heading">
                 <h2 id="languages-heading">Languages</h2>
                 <p id="languages-status" role="status"></p>

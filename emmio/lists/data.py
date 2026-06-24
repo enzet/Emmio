@@ -1,6 +1,7 @@
 """Data for lists."""
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
@@ -94,6 +95,50 @@ class ListsData(ArtifactData):
                         self.path, FrequencyListConfig(**list_config)
                     )
                 return self.frequency_lists[id_]
+
+    def get_frequency_list_languages(self) -> dict[str, dict]:
+        """Map each language with a frequency list to its usage config.
+
+        Two sources are covered: configured `frequency_list` entries (preferred)
+        and the FrequencyWords (Opensubtitles) lists, which are plain files
+        named `<language>_opensubtitles_<year>.txt` in the directory rather than
+        entries in the configuration. For the latter the most recent year wins.
+
+        :return: mapping from language code (e.g. `uk`) to a frequency-list
+            usage config (the `ListUsageConfig` fields) ready to store on a
+            lexicon
+        """
+        languages: dict[str, dict] = {}
+
+        # Configured frequency lists take priority.
+        for id_, config in self.list_configs.items():
+            if (
+                isinstance(config, dict)
+                and config.get("type") == "frequency_list"
+                and (language := config.get("language")) is not None
+            ):
+                languages.setdefault(language, {"id": id_})
+
+        # FrequencyWords lists are files, not configuration entries; keep the
+        # most recent year for each language.
+        best_year: dict[str, int] = {}
+        for file_path in self.path.glob("*_opensubtitles_*.txt"):
+            match = re.fullmatch(
+                r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
+            )
+            if match is None:
+                continue
+            language = match["language"]
+            year: int = int(match["year"])
+            if year > best_year.get(language, 0):
+                best_year[language] = year
+        for language, year in best_year.items():
+            languages.setdefault(
+                language,
+                {"id": "frequency_words", "language": language, "year": year},
+            )
+
+        return languages
 
     def get_list(self, list_usage_config: ListUsageConfig) -> List | None:
         """Get word list or frequency list."""

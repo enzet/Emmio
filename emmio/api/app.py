@@ -224,6 +224,77 @@ def get_my_lexicons(
     return summaries
 
 
+class LexiconLanguage(BaseModel):
+    """A language a lexicon can be created for (it has a frequency list)."""
+
+    language: str  # ISO code, e.g. `uk`.
+
+
+@app.get("/api/v1/lexicon-languages", dependencies=[Depends(get_current_user)])
+def get_lexicon_languages() -> list[LexiconLanguage]:
+    """List languages a new lexicon can be created for.
+
+    A lexicon needs a frequency list to draw words from, so only languages
+    with a configured frequency list are offered.
+    """
+    languages: dict[str, dict] = get_data().get_frequency_list_languages()
+    return [
+        LexiconLanguage(language=language) for language in sorted(languages)
+    ]
+
+
+class CreateLexiconRequest(BaseModel):
+    """Payload to create a lexicon: just the language to track."""
+
+    language: str
+
+
+class CreatedLexicon(BaseModel):
+    """The identifier assigned to a freshly created lexicon."""
+
+    lexicon_id: str
+
+
+@app.post("/api/v1/me/lexicons", status_code=status.HTTP_201_CREATED)
+def create_lexicon(
+    request: CreateLexiconRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> CreatedLexicon:
+    """Create a lexicon for a language and make it the language's main one.
+
+    The lexicon samples words by the `frequency` strategy from the language's
+    frequency list. Its id is the language code, suffixed if one already
+    exists. It is set as main so it shows up on the home page at once.
+    """
+    languages: dict[str, dict] = get_data().get_frequency_list_languages()
+    frequency_list: dict | None = languages.get(request.language)
+    if frequency_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"No frequency list available for language "
+                f"`{request.language}`."
+            ),
+        )
+
+    existing: set[str] = {row[0] for row in postgres.list_lexicons(user_id)}
+    lexicon_id: str = request.language
+    suffix: int = 2
+    while lexicon_id in existing:
+        lexicon_id = f"{request.language}_{suffix}"
+        suffix += 1
+
+    config: dict = {
+        "language": request.language,
+        "selection": "frequency",
+        "frequency_list": frequency_list,
+        "precision_per_week": 0,
+    }
+    postgres.store_lexicon_config(user_id, lexicon_id, config)
+    postgres.set_main_lexicon(user_id, lexicon_id)
+    return CreatedLexicon(lexicon_id=lexicon_id)
+
+
 class NextWord(BaseModel):
     """The next word to check, or `None` when the list is exhausted."""
 
