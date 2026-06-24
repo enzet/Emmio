@@ -25,7 +25,7 @@ from emmio.sentence.core import (
     split_sentence,
 )
 from emmio.sentence.database import TatoebaDatabase
-from emmio.util import download
+from emmio.util import download, log_duration
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -89,19 +89,22 @@ class TatoebaSentences(Sentences):
             self.cache_path / f"words_{language.get_part3()}.json"
         )
         if word_cache_path.is_file():
-            logger.info(
-                "Reading word to Tatoeba sentence cache for `%s`...",
-                language.get_name(),
-            )
-            with word_cache_path.open(encoding="utf-8") as input_file:
+            with (
+                log_duration(
+                    f"read Tatoeba word cache for {language.get_code()}", logger
+                ),
+                word_cache_path.open(encoding="utf-8") as input_file,
+            ):
                 self.word_cache[language] = json.load(input_file)
-                return self.word_cache[language]
-        else:
+            return self.word_cache[language]
+        with log_duration(
+            f"build Tatoeba word cache for {language.get_code()}", logger
+        ):
             word_to_sentence_id: dict[str, list[int]] = self.create_word_cache(
                 word_cache_path, language
             )
-            self.word_cache[language] = word_to_sentence_id
-            return word_to_sentence_id
+        self.word_cache[language] = word_to_sentence_id
+        return word_to_sentence_id
 
     def read_links__old(
         self, cache_path: Path, language_1: Language, language_2: Language
@@ -193,7 +196,12 @@ class TatoebaSentences(Sentences):
             self.cache_path / f"links_{language.get_part3()}.bin"
         )
         if cache_file_path.is_file():
-            with cache_file_path.open("rb") as input_file:
+            with (
+                log_duration(
+                    f"read Tatoeba links for {language.get_code()}", logger
+                ),
+                cache_file_path.open("rb") as input_file,
+            ):
                 while True:
                     from_: int = int.from_bytes(input_file.read(4), "big")
                     if not from_:

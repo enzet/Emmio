@@ -69,12 +69,17 @@ class SentencesData(ArtifactData):
         return cls(path, database, sentences)
 
     def get(
-        self, word: str, usage_configs: list[SentencesUsageConfig]
+        self,
+        word: str,
+        usage_configs: list[SentencesUsageConfig],
+        max_number: int = 1000,
     ) -> list[SentenceAndTranslations]:
         """Get sentences by a word.
 
         :param word: word to search for
         :param usage_configs: list of configurations for sentences
+        :param max_number: cap on sentences inspected per source; keep it small
+            when only one example is needed, as each sentence costs a lookup
         :return: list of sentences with the word
         """
         sentences: list[SentenceAndTranslations] = []
@@ -98,6 +103,7 @@ class SentencesData(ArtifactData):
                         word,
                         Language.from_code(usage_config.language),
                         translation_languages,
+                        max_number=max_number,
                     )
                 )
             elif usage_config.id in self.sentences:

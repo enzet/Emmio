@@ -169,7 +169,7 @@ async function initHome() {
         // "Don't know" answers still wanted this week; blank when on target.
         const remainingCell = document.createElement("td");
         remainingCell.textContent =
-            entry.weekly_remaining === 0 ? "" : entry.weekly_remaining;
+            entry.weekly_remaining <= 0 ? "" : entry.weekly_remaining;
         row.appendChild(remainingCell);
 
         const checkCell = document.createElement("td");
@@ -329,6 +329,16 @@ async function runSession(base, doneText) {
         ).then((response) => (response.ok ? response.json() : null));
     }
 
+    // Likewise the example sentence: a slow Tatoeba lookup, kept off `/next`
+    // and prefetched so it appears under the word when ready (HTML or null).
+    function attachSentence(item) {
+        item.sentence = api(
+            `${base}/sentence?word=${encodeURIComponent(item.word)}`,
+        )
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => (data ? data.sentence : null));
+    }
+
     // Refill the queue, skipping the current word and anything already queued
     // so the server never hands back a duplicate.
     async function fill() {
@@ -345,10 +355,11 @@ async function runSession(base, doneText) {
                 word: card.word,
                 lastResponse: card.last_response,
                 lastTime: card.last_time,
-                sentence: card.sentence,
                 translation: null,
+                sentence: null,
             };
             attachTranslation(item);
+            attachSentence(item);
             queue.push(item);
         }
     }
@@ -360,14 +371,7 @@ async function runSession(base, doneText) {
             undoWord.textContent = history[history.length - 1].word;
         }
         renderLastAnswer();
-        // The server returns a safe HTML fragment (text escaped, word in <b>).
-        if (current && current.sentence) {
-            sentence.innerHTML = current.sentence;
-            sentence.hidden = false;
-        } else {
-            sentence.replaceChildren();
-            sentence.hidden = true;
-        }
+        renderSentence();
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -377,6 +381,21 @@ async function runSession(base, doneText) {
             answers.hidden = true;
             status.textContent = doneText;
         }
+    }
+
+    // Show the current word's example sentence once its prefetch resolves,
+    // ignoring the result if we have since moved to another word.
+    function renderSentence() {
+        sentence.replaceChildren();
+        sentence.hidden = true;
+        if (!current || !current.sentence) return;
+        const item = current;
+        // The server returns a safe HTML fragment (text escaped, word in <b>).
+        item.sentence.then((html) => {
+            if (current !== item || !html) return;
+            sentence.innerHTML = html;
+            sentence.hidden = false;
+        });
     }
 
     // Show what the user last answered for the current word, and when.
@@ -423,8 +442,9 @@ async function runSession(base, doneText) {
         if (!undone) return;
         history.pop();
         if (current) queue.unshift(current);
-        current = { word: undone, translation: null };
+        current = { word: undone, translation: null, sentence: null };
         attachTranslation(current);
+        attachSentence(current);
         render();
     }
 

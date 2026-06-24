@@ -1,6 +1,6 @@
 """Data for dictionaries."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self
 
@@ -25,6 +25,16 @@ class DictionaryData(ArtifactData):
 
     dictionaries: dict[str, Dictionary]
     """Mapping from unique dictionary string identifier to dictionary."""
+
+    _kaikki_cache: dict[tuple[str, str], EnglishWiktionaryKaikki] = field(
+        default_factory=dict
+    )
+    """Cache of constructed Kaikki dictionaries, keyed by language and name.
+
+    Kaikki dictionaries parse a whole shard file on first lookup of a word and
+    keep parsed items in memory, so reusing the same instance across requests
+    avoids re-reading multi-megabyte shards on every translation.
+    """
 
     @classmethod
     def from_config(cls, path: Path) -> Self:
@@ -54,12 +64,20 @@ class DictionaryData(ArtifactData):
                 if dictionary_usage_config.name is None:
                     msg = "Name is required for Kaikki dictionary."
                     raise ValueError(msg)
-                return EnglishWiktionaryKaikki(
-                    self.path,
-                    self.path / "cache",
-                    Language.from_code(dictionary_usage_config.from_language),
+                cache_key: tuple[str, str] = (
+                    dictionary_usage_config.from_language,
                     dictionary_usage_config.name,
                 )
+                if cache_key not in self._kaikki_cache:
+                    self._kaikki_cache[cache_key] = EnglishWiktionaryKaikki(
+                        self.path,
+                        self.path / "cache",
+                        Language.from_code(
+                            dictionary_usage_config.from_language
+                        ),
+                        dictionary_usage_config.name,
+                    )
+                return self._kaikki_cache[cache_key]
             case "google_translate":
                 if dictionary_usage_config.from_language is None:
                     msg = (

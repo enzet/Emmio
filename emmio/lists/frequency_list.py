@@ -69,15 +69,15 @@ class FrequencyList(List):
 
     def __post_init__(self) -> None:
         if self.data:
-            self._occurrences: int = sum(self.data.values())
-            self._sorted_keys: list[str] = sorted(
-                self.data.keys(), key=lambda word: -self.data[word]
-            )
-
-        assert self._occurrences == sum(self.data.values()), (
-            f"Precomputed number of occurrences {self._occurrences} is not "
-            f"equal to the sum of occurrences: {sum(self.data.values())}."
-        )
+            self._occurrences = sum(self.data.values())
+            # Sorting `items` by the count avoids a per-element dict lookup in
+            # the key (much faster than `key=lambda word: -self.data[word]`).
+            self._sorted_keys = [
+                word
+                for word, _count in sorted(
+                    self.data.items(), key=lambda item: item[1], reverse=True
+                )
+            ]
 
     def __len__(self) -> int:
         return len(self.data)

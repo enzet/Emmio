@@ -1,6 +1,9 @@
 """Utility functions."""
 
 import logging
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -15,6 +18,27 @@ __email__ = "me@enzet.ru"
 logger: logging.Logger = logging.getLogger(__name__)
 
 HIDE_SYMBOL: str = "░"
+
+
+@contextmanager
+def log_duration(
+    label: str, log: logging.Logger | None = None
+) -> Iterator[None]:
+    """Log how long the wrapped block took, at INFO level.
+
+    Use it to time expensive actions (loading frequency lists, dictionaries,
+    sentences, etc.) so slow steps show up in the logs.
+
+    :param label: human description of the action, e.g. `load fr frequency list`
+    :param log: logger to use; defaults to this module's logger
+    """
+    start: float = time.perf_counter()
+    try:
+        yield
+    finally:
+        (log or logger).info(
+            "%s took %.0f ms.", label, (time.perf_counter() - start) * 1000.0
+        )
 
 
 def write_atomic(path: Path, data: str) -> None:

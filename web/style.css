@@ -61,16 +61,6 @@ h2 {
     margin-bottom: 0;
 }
 
-/* Center form submit buttons without affecting the fields above them. A button
- * sizes to its content, so block + auto margins centers it. */
-button {
-    background-color: white;
-    border: 1px solid #0003;
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
-    cursor: pointer;
-}
-
 /* A link styled as a button, e.g. "Check lexicon" on the home page. */
 a.button {
     display: inline-block;
@@ -82,6 +72,9 @@ a.button {
     text-decoration: none;
     font-size: 85%;
 }
+button[data-key="n"] {
+    color: red;
+}
 div#answers {
     display: flex;
     justify-content: center;
@@ -91,20 +84,12 @@ p#sentence, p#question {
     text-align: center;
 }
 p#sentence {
-    padding: 1rem;
+    padding-bottom: 1rem;
+    width: 300px;
+    margin: auto;
 }
 p#question {
     font-size: 85%;
-}
-button[data-key="n"] {
-    color: red;
-    border: 1px solid #F004;
-}
-kbd {
-    padding-left: 3px;
-    font-family: SF Pro;
-    opacity: 50%;
-    font-size: 80%;
 }
 form button {
     background-color: black;
@@ -130,6 +115,7 @@ label {
 }
 p {
     margin: 0.5rem 0;
+    text-align: center;
 }
 
 p.login-footer {
@@ -143,8 +129,10 @@ p#login-error {
 p#word {
     font-size: 640%;
     text-align: center;
-    padding: 2rem;
+    padding-top: 1rem;
     font-weight: 700;
+    margin: 0;
+    padding-bottom: 0.5rem;
 }
 
 dt {
@@ -156,42 +144,64 @@ dd {
     margin-bottom: 0.5rem;
 }
 
+button#show-translation{
+    margin: auto;
+}
+
 #translation {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    max-width: 600px;
+    margin: auto;
 }
 
 .dictionary-body {
-    font-family: "Playfair", serif;
-}
-
-span.dictionary-descriptors {
-    color: #AAA;
+    font-family: serif;
 }
 
 .dictionary-name {
     margin-bottom: 0.5rem;
-    color: #AAA;
+    font-size: 80%;
 }
 
-.dictionary-etymology {
-    color: #AAA;
+.dictionary-etymology, .dictionary-descripiton {
     padding-left: 1rem;
 }
 
-.dictionary-descripiton {
-    padding-left: 1rem;
-}
-
-.dictionary-definition {
+.dictionary-definition, .dictionary-link {
     padding-left: 2rem;
 }
 
-.dictionary-link {
-    padding-left: 2rem;
-    color: #AAA;
+/*
+button {
+    background-color: white;
+    border: 1px solid #0003;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
 }
+button[data-key="n"] {
+    color: red;
+    border: 1px solid #F004;
+}
+kbd {
+    padding-left: 3px;
+    font-family: SF Pro;
+    opacity: 50%;
+    font-size: 80%;
+}
+.dictionary-link,
+.dictionary-descripiton,
+.dictionary-etymology,
+.dictionary-name,
+.dictionary-descriptors {
+    color: #CCC;
+}
+.dictionary-body {
+    font-family: "Playfair", serif;
+}
+*/
 
 span.dictionary-transcription {
     padding-left: 0.25rem;

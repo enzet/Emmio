@@ -12,6 +12,7 @@ Run locally with:
     uvicorn emmio.api.app:app --reload
 """
 
+import logging
 import os
 import random
 from datetime import UTC, datetime, timedelta
@@ -44,9 +45,12 @@ from emmio.lists.config import ListUsageConfig
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import SentenceElement
 from emmio.ui import Element, Formatted, Text
+from emmio.util import log_duration
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 app: FastAPI = FastAPI(title="Emmio API", version="0.1")
 
@@ -232,7 +236,11 @@ class WordCard(BaseModel):
     word: str
     last_response: str | None  # Human label of the last answer, e.g. "know".
     last_time: datetime | None  # When the word was last answered.
-    sentence: str | None  # Example-sentence HTML (word in bold), if available.
+
+
+# Sentences containing a word to inspect when one example is enough. Keeping
+# this small avoids processing the hundreds a common word may appear in.
+_SENTENCE_SAMPLE: int = 30
 
 
 class NextWords(BaseModel):
@@ -262,10 +270,8 @@ def _word_cards(
     words: list[str],
     answers: dict[str, tuple[str, datetime]],
     labels: dict[str, str],
-    sentences: dict[str, str | None] | None = None,
 ) -> list[WordCard]:
-    """Build word cards, attaching each word's last answer and example."""
-    sentences = sentences or {}
+    """Build word cards, attaching each word's last answer."""
     cards: list[WordCard] = []
     for word in words:
         code_time: tuple[str, datetime] | None = answers.get(word)
@@ -278,7 +284,6 @@ def _word_cards(
                     else None
                 ),
                 last_time=code_time[1] if code_time else None,
-                sentence=sentences.get(word),
             )
         )
     return cards
@@ -295,11 +300,18 @@ def _sentence_html(
     """
     if not configs:
         return None
-    examples = (
-        get_data()
-        .get_sentences_data()
-        .get(word, [SentencesUsageConfig(**config) for config in configs])
-    )
+    # Only one example is shown, so inspect a handful of sentences rather than
+    # all (hundreds) containing the word.
+    with log_duration(f"sentence lookup for `{word}` ({language})", logger):
+        examples = (
+            get_data()
+            .get_sentences_data()
+            .get(
+                word,
+                [SentencesUsageConfig(**config) for config in configs],
+                max_number=_SENTENCE_SAMPLE,
+            )
+        )
     if not examples:
         return None
     language_object: Language = Language.from_code(language)
@@ -406,11 +418,12 @@ async def _translate(
     collection = get_data().get_dictionaries(
         [DictionaryUsageConfig(**d) for d in dictionaries or []]
     )
-    groups: list[
-        tuple[str, list[Element]]
-    ] = await collection.to_text_by_dictionary(
-        word, Language.from_code(language), _DEFINITION_LANGUAGES
-    )
+    with log_duration(f"translate `{word}` ({language})", logger):
+        groups: list[
+            tuple[str, list[Element]]
+        ] = await collection.to_text_by_dictionary(
+            word, Language.from_code(language), _DEFINITION_LANGUAGES
+        )
     return [
         DictionaryTranslation(dictionary=name, html=elements_to_html(elements))
         for name, elements in groups
@@ -527,12 +540,8 @@ def get_next_lexicon_words(
     if auto:
         postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
     answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
-    sentences: dict[str, str | None] = {
-        word: _sentence_html(word, language, config.get("sentences"))
-        for word in words
-    }
     return NextWords(
-        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS, sentences)
+        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS)
     )
 
 
@@ -590,6 +599,29 @@ async def get_lexicon_translation(
         word=word,
         dictionaries=await _translate(
             word, config["language"], config["dictionaries"]
+        ),
+    )
+
+
+class Sentence(BaseModel):
+    """An example sentence for a word, as a safe HTML fragment, or `None`."""
+
+    word: str
+    sentence: str | None
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/sentence")
+def get_lexicon_sentence(
+    lexicon_id: str,
+    word: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> Sentence:
+    """Get one example sentence for a word (slow lookup, kept off `/next`)."""
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    return Sentence(
+        word=word,
+        sentence=_sentence_html(
+            word, config["language"], config.get("sentences")
         ),
     )
 
