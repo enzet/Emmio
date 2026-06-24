@@ -277,7 +277,7 @@ class Form:
 
     def to_text(
         self,
-        language: Language,
+        languages: list[Language],
         *,
         show_word: bool = True,
         words_to_hide: set[str] | None = None,
@@ -286,9 +286,12 @@ class Form:
     ) -> list[Element] | None:
         """Get human-readable representation of the word form.
 
-        :param language: language of definitions (if language is the same as the
-            language of the word form) or translations (if language is
-            different)
+        Definitions are gathered for all `languages` in one pass; the
+        language-independent parts (part of speech, transcription, links) are
+        rendered once, so a form is never repeated per language.
+
+        :param languages: languages of definitions (if a language is the same
+            as the word form's) or translations (if different)
         :param show_word: if false, hide word from the output
         :param words_to_hide: set of words to be hidden from the output
         :param only_common: return only common words
@@ -320,11 +323,12 @@ class Form:
 
         definitions: list[Text] = []
 
-        if self.definitions and language in self.definitions:
-            for definition in self.definitions[language]:
-                definition_text: Text | None = definition.to_text(to_hide)
-                if definition_text is not None:
-                    definitions.append(definition_text)
+        for language in languages:
+            if self.definitions and language in self.definitions:
+                for definition in self.definitions[language]:
+                    definition_text: Text | None = definition.to_text(to_hide)
+                    if definition_text is not None:
+                        definitions.append(definition_text)
 
         if max_definitions:
             definitions = definitions[:max_definitions]
@@ -475,16 +479,15 @@ class DictionaryItem:
                 )
 
         for form in self.get_forms():
-            for language in languages:
-                form_text: list[Element] | None = form.to_text(
-                    language,
-                    show_word=show_word,
-                    words_to_hide=words_to_hide,
-                    only_common=only_common,
-                    max_definitions=max_definitions_per_form,
-                )
-                if form_text:
-                    result.extend(element for element in form_text if element)
+            form_text: list[Element] | None = form.to_text(
+                languages,
+                show_word=show_word,
+                words_to_hide=words_to_hide,
+                only_common=only_common,
+                max_definitions=max_definitions_per_form,
+            )
+            if form_text:
+                result.extend(element for element in form_text if element)
 
         return result
 
