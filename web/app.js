@@ -205,13 +205,18 @@ async function initHome() {
 async function setupCreateLexicon(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
+    const targets = form.querySelector(".translation-languages");
     const createStatus = document.getElementById(statusId);
 
-    const response = await api("/lexicon-languages");
+    const [response, targetResponse] = await Promise.all([
+        api("/lexicon-languages"),
+        api("/translation-languages"),
+    ]);
     const available = await response.json();
     if (available.length === 0) {
         createStatus.textContent =
-            "No languages with a frequency list are available yet.";
+            "No languages with a frequency list and sentences are available " +
+            "yet.";
         select.disabled = true;
         form.querySelector("button").disabled = true;
         return;
@@ -230,12 +235,40 @@ async function setupCreateLexicon(formId, selectId, statusId) {
             select.appendChild(option);
         });
 
+    // Fill the "translate into" picker with every known language; preselect
+    // English as the most common target.
+    (await targetResponse.json())
+        .map((entry) => ({
+            code: entry.language,
+            name: languageName(entry.language),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((entry) => {
+            const option = document.createElement("option");
+            option.value = entry.code;
+            option.textContent = entry.name;
+            option.selected = entry.code === "en";
+            targets.appendChild(option);
+        });
+
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const translationLanguages = Array.from(
+            targets.selectedOptions,
+            (option) => option.value,
+        );
+        if (translationLanguages.length === 0) {
+            createStatus.textContent =
+                "Pick at least one language to translate into.";
+            return;
+        }
         createStatus.textContent = "Creating…";
         const result = await api("/me/lexicons", {
             method: "POST",
-            body: { language: select.value },
+            body: {
+                language: select.value,
+                translation_languages: translationLanguages,
+            },
         });
         if (result.ok) {
             const { lexicon_id } = await result.json();

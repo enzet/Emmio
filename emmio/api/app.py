@@ -23,14 +23,14 @@ import jwt
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from emmio import postgres
 from emmio.api import auth
 from emmio.api.render import elements_to_html, to_html
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
-from emmio.language import KnownLanguages, Language
+from emmio.language import KnownLanguages, Language, LanguageNotFoundError
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
@@ -287,25 +287,100 @@ class LexiconLanguage(BaseModel):
 def get_lexicon_languages() -> list[LexiconLanguage]:
     """List languages a new lexicon can be created for.
 
-    A lexicon needs a frequency list to draw words from, so only languages
-    with a configured frequency list are offered.
+    A lexicon needs a frequency list to draw words from and Tatoeba sentences
+    to show usage examples, so only languages with both are offered.
     """
-    languages: dict[str, dict] = get_data().get_frequency_list_languages()
+    data = get_data()
+    frequency_languages: set[str] = set(data.get_frequency_list_languages())
+    sentence_languages: set[str] = data.get_sentence_languages()
     return [
-        LexiconLanguage(language=language) for language in sorted(languages)
+        LexiconLanguage(language=language)
+        for language in sorted(frequency_languages & sentence_languages)
+    ]
+
+
+class TranslationLanguage(BaseModel):
+    """A language a lexicon's words can be translated into."""
+
+    language: str  # ISO code, e.g. `en`.
+
+
+@app.get(
+    "/api/v1/translation-languages", dependencies=[Depends(get_current_user)]
+)
+def get_translation_languages() -> list[TranslationLanguage]:
+    """List languages a lexicon's words and sentences can be translated into.
+
+    Google Translate covers any pair, so every language Emmio knows is offered
+    as a translation target (English additionally gets richer Kaikki entries).
+    """
+    return [
+        TranslationLanguage(language=language.get_code())
+        for language in KnownLanguages.get_languages()
     ]
 
 
 class CreateLexiconRequest(BaseModel):
-    """Payload to create a lexicon: just the language to track."""
+    """Payload to create a lexicon: the language and its translation targets."""
 
     language: str
+    translation_languages: list[str] = Field(default_factory=lambda: ["en"])
 
 
 class CreatedLexicon(BaseModel):
     """The identifier assigned to a freshly created lexicon."""
 
     lexicon_id: str
+
+
+def _is_known_language(code: str) -> bool:
+    """Check whether `code` is a language Emmio knows."""
+    try:
+        Language.from_code(code)
+    except LanguageNotFoundError:
+        return False
+    return True
+
+
+def _translation_config(
+    language: str, targets: list[str], *, with_kaikki: bool
+) -> tuple[list[dict], list[dict]]:
+    """Build a lexicon's `dictionaries` and `sentences` config.
+
+    Dictionaries: a Kaikki (en.wiktionary) entry when `with_kaikki` is set
+    (English is a target and the language has a Kaikki cache), plus a Google
+    Translate entry into every target language. Sentences: Tatoeba examples in
+    the lexicon's language, translated into the target languages.
+
+    :param language: the lexicon's language code
+    :param targets: language codes to translate words and sentences into
+    :param with_kaikki: whether to add the Kaikki English-definition dictionary
+    """
+    dictionaries: list[dict] = []
+    if with_kaikki:
+        dictionaries.append(
+            {
+                "id": "kaikki",
+                "from_language": language,
+                "name": Language.from_code(language).get_name(),
+            }
+        )
+    dictionaries.extend(
+        {
+            "id": "google_translate",
+            "from_language": language,
+            "to_language": target,
+        }
+        for target in targets
+    )
+    sentences: list[dict] = [
+        {
+            "id": "tatoeba",
+            "language": language,
+            "translation_languages": targets,
+        }
+    ]
+    return dictionaries, sentences
 
 
 @app.post("/api/v1/me/lexicons", status_code=status.HTTP_201_CREATED)
@@ -316,11 +391,14 @@ def create_lexicon(
     """Create a lexicon for a language and make it the language's main one.
 
     The lexicon samples words by the `frequency` strategy from the language's
-    frequency list. Its id is the language code, suffixed if one already
-    exists. It is set as main so it shows up on the home page at once.
+    frequency list, shows usage examples from Tatoeba, and translates words into
+    the requested target languages. Its id is the language code, suffixed if one
+    already exists. It is set as main so it shows up on the home page at once.
     """
-    languages: dict[str, dict] = get_data().get_frequency_list_languages()
-    frequency_list: dict | None = languages.get(request.language)
+    data = get_data()
+    frequency_list: dict | None = data.get_frequency_list_languages().get(
+        request.language
+    )
     if frequency_list is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -330,6 +408,17 @@ def create_lexicon(
             ),
         )
 
+    targets: list[str] = [
+        target
+        for target in dict.fromkeys(request.translation_languages)
+        if _is_known_language(target)
+    ]
+    if not targets:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one valid translation language is required.",
+        )
+
     existing: set[str] = {row[0] for row in postgres.list_lexicons(user_id)}
     lexicon_id: str = request.language
     suffix: int = 2
@@ -337,11 +426,19 @@ def create_lexicon(
         lexicon_id = f"{request.language}_{suffix}"
         suffix += 1
 
+    with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
+        Language.from_code(request.language)
+    )
+    dictionaries, sentences = _translation_config(
+        request.language, targets, with_kaikki=with_kaikki
+    )
     config: dict = {
         "language": request.language,
         "selection": "frequency",
         "frequency_list": frequency_list,
         "precision_per_week": 0,
+        "dictionaries": dictionaries,
+        "sentences": sentences,
     }
     postgres.store_lexicon_config(user_id, lexicon_id, config)
     postgres.set_main_lexicon(user_id, lexicon_id)

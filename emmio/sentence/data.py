@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from emmio.core import ArtifactData
-from emmio.language import Language
+from emmio.language import KnownLanguages, Language
 from emmio.sentence.config import (
     SentenceConfig,
     SentencesUsageConfig,
@@ -67,6 +67,24 @@ class SentencesData(ArtifactData):
         database: TatoebaDatabase = TatoebaDatabase(database_path, cache_path)
 
         return cls(path, database, sentences)
+
+    def get_supported_languages(self) -> set[str]:
+        """Get codes of languages with Tatoeba sentences available locally.
+
+        Detected from the downloaded `<part3>_sentences.tsv[.bz2]` cache files,
+        so the result reflects data actually present without loading it. Only
+        languages Emmio knows a two-letter code for are returned.
+        """
+        code_by_part3: dict[str, str] = {
+            language.get_part3(): language.get_code()
+            for language in KnownLanguages.get_languages()
+        }
+        codes: set[str] = set()
+        for cache_file in (self.path / "cache").glob("*_sentences.tsv*"):
+            part3: str = cache_file.name.split("_sentences", 1)[0]
+            if (code := code_by_part3.get(part3)) is not None:
+                codes.add(code)
+        return codes
 
     def get(
         self,

@@ -15,14 +15,26 @@ __email__ = "me@enzet.ru"
 client: TestClient = TestClient(app)
 
 
+class _FakeDictionaries:
+    """Stand-in for the dictionary inventory: no Kaikki caches available."""
+
+    def has_kaikki(self, language: object) -> bool:  # noqa: ARG002
+        return False
+
+
 class _FakeData:
     """Stand-in for the shared data, with a fixed frequency-list inventory."""
 
     def __init__(self, languages: dict[str, dict]) -> None:
         self._languages = languages
+        self.dictionaries = _FakeDictionaries()
 
     def get_frequency_list_languages(self) -> dict[str, dict]:
         return self._languages
+
+    def get_sentence_languages(self) -> set[str]:
+        # Every frequency-list language also has Tatoeba sentences here.
+        return set(self._languages)
 
 
 @pytest.fixture
@@ -228,6 +240,34 @@ def test_create_lexicon_sets_it_as_main() -> None:
     lexicon_id = response.json()["lexicon_id"]
     assert lexicon_id == "uk"
     assert postgres.is_main_lexicon("alice", "uk")
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_configures_translations_and_sentences() -> None:
+    """A created lexicon gets Google Translate and Tatoeba config."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en", "ru"]},
+        headers=_auth(token),
+    )
+
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    # No Kaikki here (the fake reports none); Google Translate per target.
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"},
+        {"id": "google_translate", "from_language": "uk", "to_language": "ru"},
+    ]
+    assert config["sentences"] == [
+        {
+            "id": "tatoeba",
+            "language": "uk",
+            "translation_languages": ["en", "ru"],
+        }
+    ]
 
 
 @pytest.mark.usefixtures("fake_languages")

@@ -51,6 +51,14 @@ class DictionaryData(ArtifactData):
             )
         return cls(path, dictionaries)
 
+    def has_kaikki(self, language: Language) -> bool:
+        """Check whether a Kaikki (en.wiktionary) dictionary exists for it.
+
+        Kaikki caches are stored under `cache/kaikki/<English language name>`,
+        so its presence tells whether the language can be looked up at all.
+        """
+        return (self.path / "cache" / "kaikki" / language.get_name()).is_dir()
+
     def get_dictionary(
         self, dictionary_usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:

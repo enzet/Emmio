@@ -134,6 +134,10 @@ class Data:
         """Map each language with a frequency list to its usage config."""
         return self.get_lists_data().get_frequency_list_languages()
 
+    def get_sentence_languages(self) -> set[str]:
+        """Get codes of languages with Tatoeba sentences available locally."""
+        return self.get_sentences_data().get_supported_languages()
+
     def get_dictionary(
         self, usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:

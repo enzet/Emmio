@@ -33,6 +33,13 @@
                 <form id="create-lexicon-form">
                     <label for="new-lexicon-language">Language</label>
                     <select id="new-lexicon-language" required></select>
+                    <label for="new-lexicon-targets">Translate into</label>
+                    <select
+                        id="new-lexicon-targets"
+                        class="translation-languages"
+                        multiple
+                        required
+                    ></select>
                     <button type="submit">Create lexicon</button>
                 </form>
                 <p id="create-status" role="status"></p>
@@ -57,6 +64,13 @@
                 <form id="add-lexicon-form">
                     <label for="add-lexicon-language">Language</label>
                     <select id="add-lexicon-language" required></select>
+                    <label for="add-lexicon-targets">Translate into</label>
+                    <select
+                        id="add-lexicon-targets"
+                        class="translation-languages"
+                        multiple
+                        required
+                    ></select>
                     <button type="submit">Create lexicon</button>
                 </form>
                 <p id="add-status" role="status"></p>
