@@ -197,6 +197,77 @@ def list_users() -> list[tuple[str, str]]:
         return [(row[0], row[1]) for row in cursor.fetchall()]
 
 
+def get_user(user_id: str) -> tuple[str, str, str | None] | None:
+    """Get a user as a (login, display name, email) tuple, or `None`.
+
+    :param user_id: user login, e.g. `john`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT user_id, name, email FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        if row := cursor.fetchone():
+            return (row[0], row[1], row[2])
+        return None
+
+
+def delete_user(user_id: str) -> bool:
+    """Delete a user and all data they own.
+
+    Removes the user's lexicons and courses with their words, records, and
+    sessions. The schema has no `ON DELETE CASCADE`, so child rows are deleted
+    in dependency order inside one transaction; either all of it goes or none.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: whether a user was deleted (`False` if none existed)
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id FROM users WHERE user_id = %s", (user_id,))
+        if not (row := cursor.fetchone()):
+            return False
+        user_db_id: int = int(row[0])
+
+        # Lexicon data, deepest first.
+        cursor.execute(
+            "DELETE FROM lexicon_records r USING lexicon_words w, lexicons l "
+            "WHERE r.word_id = w.id AND w.lexicon_id = l.id "
+            "AND l.user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM lexicon_sessions s USING lexicons l "
+            "WHERE s.lexicon_id = l.id AND l.user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM lexicon_words w USING lexicons l "
+            "WHERE w.lexicon_id = l.id AND l.user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute("DELETE FROM lexicons WHERE user_id = %s", (user_db_id,))
+
+        # Learning data, deepest first.
+        cursor.execute(
+            "DELETE FROM learn_records r USING learn_courses c "
+            "WHERE r.course_id = c.id AND c.user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM learn_sessions s USING learn_courses c "
+            "WHERE s.course_id = c.id AND c.user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM learn_courses WHERE user_id = %s", (user_db_id,)
+        )
+
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_db_id,))
+    connection.commit()
+    return True
+
+
 def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
     """Get a user's courses with short info.
 

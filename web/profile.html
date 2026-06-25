@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Profile</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="style.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="profile">
+        <header>
+            <a href="index.html" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="lexicons.html">Lexicons</a>
+                <a href="courses.html">Courses</a>
+            </nav>
+            <button id="logout" type="button">Log out</button>
+        </header>
+        <main>
+            <h1>Profile</h1>
+            <p id="status" role="status">Loading…</p>
+            <dl id="profile" hidden></dl>
+
+            <section aria-labelledby="danger-heading">
+                <h2 id="danger-heading">Delete account</h2>
+                <p>
+                    Permanently delete your account and all of your data —
+                    every lexicon, course, and answer. This cannot be undone.
+                </p>
+                <button id="delete-account" type="button" class="danger">
+                    Delete account
+                </button>
+                <p id="delete-status" role="status"></p>
+            </section>
+        </main>
+    </body>
+</html>

@@ -165,6 +165,35 @@ def login(
     return Token(access_token=auth.create_access_token(credentials[0], ttl))
 
 
+class Profile(BaseModel):
+    """The authenticated user's account details."""
+
+    user_id: str
+    name: str
+    email: str | None
+
+
+@app.get("/api/v1/me")
+def get_me(user_id: Annotated[str, Depends(get_current_user)]) -> Profile:
+    """Get the authenticated user's profile."""
+    user: tuple[str, str, str | None] | None = postgres.get_user(user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
+    return Profile(user_id=user[0], name=user[1], email=user[2])
+
+
+@app.delete("/api/v1/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(user_id: Annotated[str, Depends(get_current_user)]) -> None:
+    """Delete the authenticated user and all their data.
+
+    Irreversible: removes the account along with every lexicon, course, and
+    answer it owns. The caller's token becomes useless once the user is gone.
+    """
+    postgres.delete_user(user_id)
+
+
 @app.get("/api/v1/me/courses")
 def get_my_courses(
     user_id: Annotated[str, Depends(get_current_user)],

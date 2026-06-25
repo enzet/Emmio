@@ -258,3 +258,52 @@ def test_create_lexicon_suffixes_duplicate_ids() -> None:
 
     assert first.json()["lexicon_id"] == "uk"
     assert second.json()["lexicon_id"] == "uk_2"
+
+
+def test_me_returns_profile() -> None:
+    """`/me` returns the authenticated user's account details."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/me", headers=_auth(token))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user_id": "alice",
+        "name": "Alice",
+        "email": "alice@example.com",
+    }
+
+
+def test_delete_me_removes_user_and_data() -> None:
+    """Deleting the account removes the user and everything they own."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.save_lexicon("alice", "de", "de", [], [])
+    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+    # An actual answer creates a word and record, exercising the cascade order.
+    client.post(
+        "/api/v1/me/lexicons/de/answer",
+        json={"word": "hund", "response": "know"},
+        headers=_auth(token),
+    )
+
+    response = client.delete("/api/v1/me", headers=_auth(token))
+
+    assert response.status_code == 204
+    assert not postgres.user_exists("alice")
+    assert postgres.list_lexicons("alice") == []
+    assert postgres.list_courses("alice") == []
+
+
+def test_delete_me_leaves_other_users_intact() -> None:
+    """Deleting one account does not touch another user's data."""
+
+    alice_token = _register_and_login("alice", "alice@example.com")
+    _register_and_login("bob", "bob@example.com")
+    postgres.save_lexicon("bob", "de", "de", [], [])
+
+    client.delete("/api/v1/me", headers=_auth(alice_token))
+
+    assert postgres.user_exists("bob")
+    assert [row[0] for row in postgres.list_lexicons("bob")] == ["de"]

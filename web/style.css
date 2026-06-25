@@ -185,6 +185,10 @@ button[data-key="n"] {
     color: red;
     border: 1px solid #F004;
 }
+button.danger {
+    color: red;
+    border: 1px solid #F004;
+}
 kbd {
     padding-left: 3px;
     font-family: SF Pro;

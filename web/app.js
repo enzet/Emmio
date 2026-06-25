@@ -664,6 +664,58 @@ async function initCourse() {
     }
 }
 
+// Profile page.
+
+async function initProfile() {
+    requireAuth();
+
+    const status = document.getElementById("status");
+    const profile = document.getElementById("profile");
+    const response = await api("/me");
+    if (!response.ok) {
+        status.textContent = "Could not load profile.";
+        return;
+    }
+    const me = await response.json();
+    status.textContent = "";
+    profile.hidden = false;
+    for (const [label, value] of [
+        ["User", me.user_id],
+        ["Name", me.name],
+        ["Email", me.email || "—"],
+    ]) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        profile.append(term, description);
+    }
+
+    // Deleting the account is irreversible; confirm, then drop the now-useless
+    // token and return to login.
+    const deleteStatus = document.getElementById("delete-status");
+    document
+        .getElementById("delete-account")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    "Delete your account and all of your data? This cannot " +
+                        "be undone.",
+                )
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api("/me", { method: "DELETE" });
+            if (result.ok) {
+                clearToken();
+                location.href = "login.html";
+            } else {
+                deleteStatus.textContent = "Could not delete account.";
+            }
+        });
+}
+
 // Dispatch on the page.
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -686,4 +738,5 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (page === "courses") initCourses();
     else if (page === "course") initCourse();
     else if (page === "learn") initLearn();
+    else if (page === "profile") initProfile();
 });
