@@ -6,10 +6,13 @@ Tatoeba is a project that provides a database of sentences in many languages.
 See https://tatoeba.org/
 """
 
+import array
 import bz2
 import contextlib
 import json
 import logging
+import sys
+import threading
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -77,6 +80,15 @@ class TatoebaSentences(Sentences):
         # TODO(enzet): implement.
         self.ids_to_skip: set[int] = set()
 
+        # Guard the lazy per-language caches: sentence lookups run in a thread
+        # pool, so without these several concurrent requests would each parse
+        # the multi-megabyte cache files at once (contending on the GIL) and
+        # build duplicate copies. The first thread loads; the rest reuse.
+        # No type annotation: `threading.Lock` is a factory, not a type, so
+        # annotating it trips up the runtime type checker.
+        self._links_lock = threading.Lock()
+        self._word_cache_lock = threading.Lock()
+
     def get_word_to_sentence_id(
         self, language: Language
     ) -> dict[str, list[int]]:
@@ -85,26 +97,32 @@ class TatoebaSentences(Sentences):
         if language in self.word_cache:
             return self.word_cache[language]
 
-        word_cache_path: Path = (
-            self.cache_path / f"words_{language.get_part3()}.json"
-        )
-        if word_cache_path.is_file():
-            with (
-                log_duration(
-                    f"read Tatoeba word cache for {language.get_code()}", logger
-                ),
-                word_cache_path.open(encoding="utf-8") as input_file,
-            ):
-                self.word_cache[language] = json.load(input_file)
-            return self.word_cache[language]
-        with log_duration(
-            f"build Tatoeba word cache for {language.get_code()}", logger
-        ):
-            word_to_sentence_id: dict[str, list[int]] = self.create_word_cache(
-                word_cache_path, language
+        with self._word_cache_lock:
+            # Another thread may have loaded it while we waited for the lock.
+            if language in self.word_cache:
+                return self.word_cache[language]
+
+            word_cache_path: Path = (
+                self.cache_path / f"words_{language.get_part3()}.json"
             )
-        self.word_cache[language] = word_to_sentence_id
-        return word_to_sentence_id
+            if word_cache_path.is_file():
+                with (
+                    log_duration(
+                        f"read Tatoeba word cache for {language.get_code()}",
+                        logger,
+                    ),
+                    word_cache_path.open(encoding="utf-8") as input_file,
+                ):
+                    self.word_cache[language] = json.load(input_file)
+                return self.word_cache[language]
+            with log_duration(
+                f"build Tatoeba word cache for {language.get_code()}", logger
+            ):
+                word_to_sentence_id: dict[str, list[int]] = (
+                    self.create_word_cache(word_cache_path, language)
+                )
+            self.word_cache[language] = word_to_sentence_id
+            return word_to_sentence_id
 
     def read_links__old(
         self, cache_path: Path, language_1: Language, language_2: Language
@@ -189,9 +207,25 @@ class TatoebaSentences(Sentences):
         if language in self.links:
             return self.links[language]
 
+        with self._links_lock:
+            # Another thread may have loaded them while we waited for the lock.
+            if language in self.links:
+                return self.links[language]
+            links: dict[int, set[int]] = self._load_links(language)
+            self.links[language] = links
+            return links
+
+    def _load_links(self, language: Language) -> dict[int, set[int]]:
+        """Load links for a language from the `.bin` cache.
+
+        Build the cache first from the downloaded `links.csv` if it does not
+        exist yet.
+        """
         links: dict[int, set[int]] = {}
 
-        # If links for the language are in cache, read them.
+        # If links for the language are in cache, read them. The file is a flat
+        # sequence of big-endian uint32 (from, to) pairs; read and unpack it in
+        # one go rather than four bytes at a time.
         cache_file_path: Path = (
             self.cache_path / f"links_{language.get_part3()}.bin"
         )
@@ -202,17 +236,15 @@ class TatoebaSentences(Sentences):
                 ),
                 cache_file_path.open("rb") as input_file,
             ):
-                while True:
-                    from_: int = int.from_bytes(input_file.read(4), "big")
-                    if not from_:
-                        break
-                    to_: int = int.from_bytes(input_file.read(4), "big")
-                    if not to_:
-                        break
+                values: array.array = array.array("I")
+                values.frombytes(input_file.read())
+                if sys.byteorder == "little":
+                    values.byteswap()  # File is big-endian.
+                pairs = iter(values)
+                for from_, to_ in zip(pairs, pairs, strict=False):
                     if from_ not in links:
                         links[from_] = set()
                     links[from_].add(to_)
-            self.links[language] = links
             return links
 
         links_csv_path: Path = self.cache_path / "links.csv"
