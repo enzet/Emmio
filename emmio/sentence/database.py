@@ -62,14 +62,18 @@ class TatoebaDatabase(Database):
             # Remove zipped links file.
             links_zip_path.unlink()
 
-        self.cursor.execute("CREATE TABLE links (id_1 integer, id_2 integer)")
+        self.connection.execute(
+            "CREATE TABLE links (id_1 integer, id_2 integer)"
+        )
 
         with links_csv_path.open(encoding="utf-8") as input_csv:
             lines = input_csv.readlines()
 
         for line in lines:
             id_1, id_2 = map(int, line[:-1].split("\t"))
-            self.cursor.execute("INSERT INTO links VALUES (?, ?)", (id_1, id_2))
+            self.connection.execute(
+                "INSERT INTO links VALUES (?, ?)", (id_1, id_2)
+            )
         self.connection.commit()
 
     def load_language(self, language: Language, cache_path: Path) -> None:
@@ -119,14 +123,14 @@ class TatoebaDatabase(Database):
                     )
                     cache_file.write(zip_file.read())
 
-        self.cursor.execute(
+        self.connection.execute(
             f"CREATE VIRTUAL TABLE {table_id} USING fts5(sentence)"
         )
         logger.info("Reading table `%s`...", table_id)
         with file_path.open(encoding="utf-8") as input_file:
             for line in input_file.readlines():
                 id_, _, sentence = line[:-1].split("\t")
-                self.cursor.execute(
+                self.connection.execute(
                     f"INSERT INTO {table_id}(rowid, sentence) VALUES (?,?)",  # noqa: S608
                     (int(id_), sentence),
                 )
@@ -146,7 +150,7 @@ class TatoebaDatabase(Database):
         if not self.has_table(table_id):
             self.load_language(language, self.cache_path)
 
-        result = self.cursor.execute(
+        result = self.connection.execute(
             f"SELECT rowid, sentence FROM {table_id} WHERE rowid=?",  # noqa: S608
             (sentence_id,),
         ).fetchone()
@@ -169,7 +173,7 @@ class TatoebaDatabase(Database):
             self.load_language(language, self.cache_path)
 
         result: dict[int, Sentence] = {}
-        for id_, text in self.cursor.execute(
+        for id_, text in self.connection.execute(
             f"SELECT rowid, sentence FROM {table_id}"  # noqa: S608
         ):
             result[id_] = Sentence(id_, text)
