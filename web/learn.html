@@ -16,7 +16,7 @@
             <nav>
                 <a href="courses.html">← Courses</a>
             </nav>
-            <button id="logout" type="button">Log out</button>
+            <a href="profile.html" class="profile-link">Profile</a>
         </header>
         <main>
             <h1 id="learn-heading">Learn</h1>
@@ -37,10 +37,11 @@
                         Skip <kbd>S</kbd>
                     </button>
                 </div>
-                <p>
+                <p id="translation-button">
                     <button type="button" id="show-translation" data-key=" ">
                         Show translation <kbd>Space</kbd>
                     </button>
+                    <span id="no-translation" hidden>No translation found.</span>
                 </p>
                 <div id="translation"></div>
             </section>

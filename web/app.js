@@ -414,6 +414,7 @@ async function runSession(base, doneText) {
     const sentence = document.getElementById("sentence");
 
     const showButton = document.getElementById("show-translation");
+    const noTranslation = document.getElementById("no-translation");
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, results }.
     const history = []; // Answered { word } (most recent last), for undo.
@@ -446,15 +447,21 @@ async function runSession(base, doneText) {
     }
 
     // React to one of `item`'s dictionaries resolving: enable the reveal
-    // button once any has content (or all have resolved, so an empty result
-    // can still be shown), and re-render if the word is already revealed.
-    // Ignored if the user has moved to another word.
+    // button once any has content, or — if every dictionary resolved with
+    // nothing — replace the button with a "No translation found." notice.
+    // Re-renders if the word is already revealed. Ignored once the user has
+    // moved to another word.
     function onTranslationProgress(item) {
         if (current !== item) return;
         const results = item.results || [];
         const hasContent = results.some((result) => result && result.length);
         const allResolved = results.every((result) => result !== undefined);
-        if (hasContent || allResolved) showButton.disabled = false;
+        if (hasContent) {
+            showButton.disabled = false;
+        } else if (allResolved) {
+            showButton.hidden = true;
+            noTranslation.hidden = false;
+        }
         if (revealed) renderRevealed(item);
     }
 
@@ -517,7 +524,9 @@ async function runSession(base, doneText) {
     function render() {
         translation.replaceChildren();
         revealed = false;
+        showButton.hidden = false;
         showButton.disabled = true;
+        noTranslation.hidden = true;
         undoBar.hidden = history.length === 0;
         if (history.length) {
             undoWord.textContent = history[history.length - 1].word;
@@ -538,18 +547,26 @@ async function runSession(base, doneText) {
         }
     }
 
-    // Show the current word's example sentence once its prefetch resolves,
-    // ignoring the result if we have since moved to another word.
+    // Show the current word's example sentence: "Loading…" until its prefetch
+    // resolves, then the sentence or "No sentence." Results are ignored if we
+    // have since moved to another word.
     function renderSentence() {
         sentence.replaceChildren();
-        sentence.hidden = true;
-        if (!current || !current.sentence) return;
+        if (!current || !current.sentence) {
+            sentence.hidden = true;
+            return;
+        }
+        sentence.hidden = false;
+        sentence.textContent = "···";
         const item = current;
         // The server returns a safe HTML fragment (text escaped, word in <b>).
         item.sentence.then((html) => {
-            if (current !== item || !html) return;
-            sentence.innerHTML = html;
-            sentence.hidden = false;
+            if (current !== item) return;
+            if (html) {
+                sentence.innerHTML = html;
+            } else {
+                sentence.textContent = "—";
+            }
         });
     }
 
@@ -650,7 +667,9 @@ async function runSession(base, doneText) {
         if (event.target.matches("input, textarea, select")) return;
         const key = event.key === " " ? " " : event.key.toLowerCase();
         const button = document.querySelector(`button[data-key="${key}"]`);
-        if (button) {
+        // Skip a hidden button (e.g. the reveal button once it has been
+        // replaced by the "No translation found." notice).
+        if (button && !button.hidden) {
             event.preventDefault();
             button.click();
         }
@@ -832,7 +851,7 @@ async function initProfile() {
 // Dispatch on the page.
 
 document.addEventListener("DOMContentLoaded", () => {
-    // Log out is present on every signed-in page; wire it once here.
+    // Log out lives on the profile page; wire it when present.
     const logout = document.getElementById("logout");
     if (logout) {
         logout.addEventListener("click", () => {

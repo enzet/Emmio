@@ -50,7 +50,7 @@ h1 img.logo {
 
 /* Center the logo and section headers (the inline logo follows `text-align`). */
 h1 {
-    text-align: center;
+    /* text-align: center; */
 }
 h1 {
     padding: 0;
@@ -73,8 +73,11 @@ p#sentence, p#question {
     text-align: center;
 }
 p#sentence {
-    padding-bottom: 1rem;
-    width: 300px;
+    width: 500px;
+    /* Reserve exactly three lines so the layout does not jump as the sentence
+       loads, is absent, or wraps. `em` tracks this element's font size. */
+    line-height: 1.2;
+    height: 3.6em;
     margin: auto;
 }
 p#question {
@@ -108,6 +111,10 @@ p#word {
     font-weight: 700;
     margin: 0;
     padding-bottom: 0.5rem;
+    /* Reserve one line so the layout does not jump while the word loads or is
+       empty. `em` tracks this element's font size, so it stays one line tall. */
+    line-height: 1.2;
+    min-height: 1.2em;
 }
 
 button#show-translation{
@@ -159,8 +166,8 @@ header {
     gap: 2rem;
 }
 
-/* Log out always sits in the top-right corner. */
-header #logout {
+/* The Profile link always sits in the top-right corner. */
+header .profile-link {
     margin-left: auto;
 }
 
@@ -198,6 +205,30 @@ td a.language-code {
     color: black;
     min-width: 23px;
     text-align: center;
+}
+
+/* Render definition lists (profile details, lexicon/course stats) as a
+   two-column table: terms on the left, values on the right, with a rule under
+   each row. Padding (not column-gap) separates the columns so the row rule
+   runs unbroken across both. */
+dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    /* max-width: 24rem; */
+    /* margin: 1rem auto; */
+}
+dt, dd {
+    padding: 0.3rem 0.5rem;
+    /* border-bottom: 1px solid #DDD; */
+}
+dt {
+    padding-left: 0;
+    /* color: #888; */
+}
+dd {
+    padding-right: 0;
+    margin: 0;
+    /* text-align: right; */
 }
 
 /*
