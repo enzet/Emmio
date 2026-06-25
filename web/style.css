@@ -61,17 +61,6 @@ h2 {
     margin-bottom: 0;
 }
 
-/* A link styled as a button, e.g. "Check lexicon" on the home page. */
-a.button {
-    display: inline-block;
-    background-color: white;
-    border: 1px solid #0003;
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
-    color: black;
-    text-decoration: none;
-    font-size: 85%;
-}
 button[data-key="n"] {
     color: red;
 }
@@ -91,29 +80,15 @@ p#sentence {
 p#question {
     font-size: 85%;
 }
-form button {
-    background-color: black;
-    color: white;
-    border: none;
-    display: block;
-    margin: 1rem auto;
-    width: 200px;
-    padding: 0.5rem 1rem;
-}
 
-input.text {
-    border: 1px solid #EEE;
-    border-radius: 3px;
-    background: #EEE;
-    width: stretch;
-    padding: 0.3rem;
-}
 label {
     display: block;
     font-size: 80%;
     padding-bottom: 0.1rem;
 }
 p {
+}
+p#translation-button {
     margin: 0.5rem 0;
     text-align: center;
 }
@@ -133,15 +108,6 @@ p#word {
     font-weight: 700;
     margin: 0;
     padding-bottom: 0.5rem;
-}
-
-dt {
-    color: #AAA;
-    font-size: 80%;
-}
-dd {
-    margin-left: 0;
-    margin-bottom: 0.5rem;
 }
 
 button#show-translation{
@@ -172,40 +138,6 @@ button#show-translation{
 .dictionary-definition, .dictionary-link {
     padding-left: 2rem;
 }
-
-/*
-button {
-    background-color: white;
-    border: 1px solid #0003;
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
-    cursor: pointer;
-}
-button[data-key="n"] {
-    color: red;
-    border: 1px solid #F004;
-}
-button.danger {
-    color: red;
-    border: 1px solid #F004;
-}
-kbd {
-    padding-left: 3px;
-    font-family: SF Pro;
-    opacity: 50%;
-    font-size: 80%;
-}
-.dictionary-link,
-.dictionary-descripiton,
-.dictionary-etymology,
-.dictionary-name,
-.dictionary-descriptors {
-    color: #CCC;
-}
-.dictionary-body {
-    font-family: "Playfair", serif;
-}
-*/
 
 span.dictionary-transcription {
     padding-left: 0.25rem;
@@ -250,7 +182,7 @@ table {
 }
 table tr td, th {
     padding: 0.3rem 0.7rem;
-    border-bottom: 1px solid #EEE;
+    border: 1px inset;
 }
 
 td a.language-code {
@@ -267,3 +199,73 @@ td a.language-code {
     min-width: 23px;
     text-align: center;
 }
+
+/*
+input.text {
+    border: 1px solid #EEE;
+    border-radius: 3px;
+    background: #EEE;
+    width: stretch;
+    padding: 0.3rem;
+}
+
+button {
+    background-color: white;
+    border: 1px solid #0003;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+}
+button[data-key="n"] {
+    color: red;
+    border: 1px solid #F004;
+}
+button.danger {
+    color: red;
+    border: 1px solid #F004;
+}
+kbd {
+    padding-left: 3px;
+    font-family: SF Pro;
+    opacity: 50%;
+    font-size: 80%;
+}
+.dictionary-link,
+.dictionary-descripiton,
+.dictionary-etymology,
+.dictionary-name,
+.dictionary-descriptors {
+    color: #CCC;
+}
+.dictionary-body {
+    font-family: "Playfair", serif;
+}
+a.button {
+    display: inline-block;
+    background-color: white;
+    border: 1px solid #0003;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    color: black;
+    text-decoration: none;
+    font-size: 85%;
+}
+form button {
+    background-color: black;
+    color: white;
+    border: none;
+    display: block;
+    margin: 1rem auto;
+    width: 200px;
+    padding: 0.5rem 1rem;
+}
+dt {
+    color: #AAA;
+    font-size: 80%;
+}
+dd {
+    margin-left: 0;
+    margin-bottom: 0.5rem;
+}
+
+*/

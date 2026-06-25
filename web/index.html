@@ -38,7 +38,7 @@
                 <p id="create-status" role="status"></p>
             </section>
 
-            <section aria-labelledby="languages-heading">
+            <section id="languages" aria-labelledby="languages-heading" hidden>
                 <h2 id="languages-heading">Languages</h2>
                 <p id="languages-status" role="status"></p>
                 <table id="languages-table" hidden>
@@ -52,6 +52,14 @@
                     </thead>
                     <tbody id="languages-rows"></tbody>
                 </table>
+
+                <h3 id="add-lexicon-heading">Add a lexicon</h3>
+                <form id="add-lexicon-form">
+                    <label for="add-lexicon-language">Language</label>
+                    <select id="add-lexicon-language" required></select>
+                    <button type="submit">Create lexicon</button>
+                </form>
+                <p id="add-status" role="status"></p>
             </section>
         </main>
     </body>

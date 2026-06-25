@@ -52,6 +52,30 @@ __email__ = "me@enzet.ru"
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+
+def _configure_logging() -> None:
+    """Surface Emmio's own logs (including `log_duration` timings).
+
+    Uvicorn configures only its own `uvicorn*` loggers and leaves the root
+    logger at `WARNING`, so `emmio.*` `INFO` records are otherwise dropped.
+    Route them through Uvicorn's handler when present (matching its
+    formatting), and fall back to a basic config when running outside Uvicorn.
+    """
+    emmio_logger: logging.Logger = logging.getLogger("emmio")
+    emmio_logger.setLevel(logging.INFO)
+    if emmio_logger.handlers:
+        return
+    uvicorn_handlers = logging.getLogger("uvicorn.error").handlers
+    if uvicorn_handlers:
+        for handler in uvicorn_handlers:
+            emmio_logger.addHandler(handler)
+        emmio_logger.propagate = False
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+
+_configure_logging()
+
 app: FastAPI = FastAPI(title="Emmio API", version="0.1")
 
 # Tells clients (and `/docs`) where to obtain a token, and extracts the bearer

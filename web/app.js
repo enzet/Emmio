@@ -141,11 +141,19 @@ async function initHome() {
     const response = await api("/me/languages");
     const languages = await response.json();
 
+    // No main lexicon yet: welcome the user and offer to create their first
+    // one. Otherwise show the languages dashboard, with an "Add a lexicon"
+    // control to create further ones.
     if (languages.length === 0) {
-        status.textContent = "";
-        await showWelcome();
+        document.getElementById("welcome").hidden = false;
+        await setupCreateLexicon(
+            "create-lexicon-form",
+            "new-lexicon-language",
+            "create-status",
+        );
         return;
     }
+    document.getElementById("languages").hidden = false;
     status.textContent = "";
     table.hidden = false;
     for (const entry of languages) {
@@ -183,16 +191,21 @@ async function initHome() {
 
         rows.appendChild(row);
     }
+    await setupCreateLexicon(
+        "add-lexicon-form",
+        "add-lexicon-language",
+        "add-status",
+    );
 }
 
-// Empty home state: no main lexicon yet. Offer a language selector and a
-// button to create the user's first lexicon (which is then set as main, so
-// the home page shows it on reload).
-async function showWelcome() {
-    const welcome = document.getElementById("welcome");
-    const select = document.getElementById("new-lexicon-language");
-    const createStatus = document.getElementById("create-status");
-    welcome.hidden = false;
+// Wire up a "create lexicon" form: fill its language selector from the
+// available frequency-list languages, and on submit create the lexicon (which
+// is set as main, with `frequency` selection) and open it. Shared by the
+// empty-state welcome form and the dashboard's "Add a lexicon" form.
+async function setupCreateLexicon(formId, selectId, statusId) {
+    const form = document.getElementById(formId);
+    const select = document.getElementById(selectId);
+    const createStatus = document.getElementById(statusId);
 
     const response = await api("/lexicon-languages");
     const available = await response.json();
@@ -200,11 +213,15 @@ async function showWelcome() {
         createStatus.textContent =
             "No languages with a frequency list are available yet.";
         select.disabled = true;
+        form.querySelector("button").disabled = true;
         return;
     }
 
     available
-        .map((entry) => ({ code: entry.language, name: languageName(entry.language) }))
+        .map((entry) => ({
+            code: entry.language,
+            name: languageName(entry.language),
+        }))
         .sort((a, b) => a.name.localeCompare(b.name))
         .forEach((entry) => {
             const option = document.createElement("option");
@@ -213,25 +230,23 @@ async function showWelcome() {
             select.appendChild(option);
         });
 
-    document
-        .getElementById("create-lexicon-form")
-        .addEventListener("submit", async (event) => {
-            event.preventDefault();
-            createStatus.textContent = "Creating…";
-            const result = await api("/me/lexicons", {
-                method: "POST",
-                body: { language: select.value },
-            });
-            if (result.ok) {
-                const { lexicon_id } = await result.json();
-                location.href = `lexicon.html?lexicon=${encodeURIComponent(
-                    lexicon_id,
-                )}`;
-            } else {
-                const { detail } = await result.json().catch(() => ({}));
-                createStatus.textContent = detail || "Could not create lexicon.";
-            }
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        createStatus.textContent = "Creating…";
+        const result = await api("/me/lexicons", {
+            method: "POST",
+            body: { language: select.value },
         });
+        if (result.ok) {
+            const { lexicon_id } = await result.json();
+            location.href = `lexicon.html?lexicon=${encodeURIComponent(
+                lexicon_id,
+            )}`;
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            createStatus.textContent = detail || "Could not create lexicon.";
+        }
+    });
 }
 
 // Lexicon list page.
