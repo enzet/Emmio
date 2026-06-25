@@ -12,6 +12,11 @@ from googletrans import Translator
 from emmio.dictionary.core import Dictionary, DictionaryItem
 from emmio.language import Language
 
+# Cap how long a single live translation may take. Without a bound, a slow or
+# rate-limited Google response blocks the whole lookup for many seconds; we
+# would rather fail fast (return `None`) and serve the rest of the result.
+_TIMEOUT_SECONDS: float = 5.0
+
 
 class GoogleTranslate(Dictionary):
     """Google Translate dictionary."""
@@ -45,7 +50,12 @@ class GoogleTranslate(Dictionary):
         self.to_language: Language = to_language
         self.is_machine: bool = True
 
-        self.translator: Translator = Translator()
+        # A single client is reused across lookups so repeated network calls
+        # share the connection (keepalive), avoiding a fresh TLS handshake per
+        # uncached word. The instance itself is cached in `DictionaryData`.
+        self.translator: Translator = Translator(
+            timeout=httpx.Timeout(_TIMEOUT_SECONDS)
+        )
 
         self.items: dict[str, DictionaryItem] = {}
 
@@ -68,9 +78,11 @@ class GoogleTranslate(Dictionary):
         cache_path: Path = self.cache_directory / word
         if cache_path.exists():
             with cache_path.open(encoding="utf-8") as input_file:
-                return DictionaryItem.from_simple_translation(
+                item: DictionaryItem = DictionaryItem.from_simple_translation(
                     word, self.to_language, input_file.read()
                 )
+            self.items[word] = item
+            return item
 
         if cache_only:
             return None
@@ -81,11 +93,12 @@ class GoogleTranslate(Dictionary):
                 src=self.from_language.get_code(),
                 dest=self.to_language.get_code(),
             )
-        except httpx.ConnectError:
-            return None
-        except httpx.ConnectTimeout:
-            return None
-        except httpx.ReadTimeout:
+        except (
+            httpx.ConnectError,
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.TimeoutException,
+        ):
             return None
 
         with (self.cache_directory / word).open(
@@ -93,9 +106,11 @@ class GoogleTranslate(Dictionary):
         ) as output_file:
             output_file.write(translation.text)
 
-        return DictionaryItem.from_simple_translation(
+        item = DictionaryItem.from_simple_translation(
             word, self.to_language, translation.text
         )
+        self.items[word] = item
+        return item
 
     @override
     def check_from_language(self, language: Language) -> bool:

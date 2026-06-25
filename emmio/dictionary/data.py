@@ -36,6 +36,16 @@ class DictionaryData(ArtifactData):
     avoids re-reading multi-megabyte shards on every translation.
     """
 
+    _google_translate_cache: dict[tuple[str, str], GoogleTranslate] = field(
+        default_factory=dict
+    )
+    """Cache of Google Translate dictionaries, keyed by language pair.
+
+    Reusing the same instance keeps a single HTTP client alive across requests
+    (connection keepalive) and an in-memory cache of looked-up words, so
+    uncached translations avoid a fresh TLS handshake on every request.
+    """
+
     @classmethod
     def from_config(cls, path: Path) -> Self:
         """Initialize dictionaries from a directory.
@@ -99,12 +109,20 @@ class DictionaryData(ArtifactData):
                         "dictionary."
                     )
                     raise ValueError(msg)
-                return GoogleTranslate(
-                    self.path,
-                    self.path / "cache",
-                    Language.from_code(dictionary_usage_config.from_language),
-                    Language.from_code(dictionary_usage_config.to_language),
+                google_key: tuple[str, str] = (
+                    dictionary_usage_config.from_language,
+                    dictionary_usage_config.to_language,
                 )
+                if google_key not in self._google_translate_cache:
+                    self._google_translate_cache[google_key] = GoogleTranslate(
+                        self.path,
+                        self.path / "cache",
+                        Language.from_code(
+                            dictionary_usage_config.from_language
+                        ),
+                        Language.from_code(dictionary_usage_config.to_language),
+                    )
+                return self._google_translate_cache[google_key]
             case _:
                 if id_ in self.dictionaries:
                     return self.dictionaries[id_]

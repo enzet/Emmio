@@ -413,16 +413,70 @@ async function runSession(base, doneText) {
     const question = document.getElementById("question");
     const sentence = document.getElementById("sentence");
 
-    const queue = []; // Upcoming { word, lastResponse, lastTime, translation }.
+    const showButton = document.getElementById("show-translation");
+
+    const queue = []; // Upcoming { word, lastResponse, lastTime, results }.
     const history = []; // Answered { word } (most recent last), for undo.
     let current = null; // The item on screen.
+    let revealed = false; // Whether the current word's translation is shown.
 
-    // Start loading a word's translation now so it's ready when needed. The
-    // promise is stored on the item and awaited later (instant if resolved).
+    // The lexicon/course's dictionaries, loaded once. Each is fetched
+    // separately per word so a slow one (e.g. Google Translate over the
+    // network) never holds up the fast ones; loaded on demand below.
+    let dictionaries = [];
+
+    // Start loading a word's translation now so it's ready when needed. Each
+    // dictionary is fetched independently and its result stored by position in
+    // `item.results` (`undefined` until it resolves, then a list of rendered
+    // dictionary entries). As soon as the first one with content arrives the
+    // reveal button is enabled; the rest fill in afterwards.
     function attachTranslation(item) {
-        item.translation = api(
-            `${base}/translation?word=${encodeURIComponent(item.word)}`,
-        ).then((response) => (response.ok ? response.json() : null));
+        item.results = dictionaries.map(() => undefined);
+        dictionaries.forEach(({ index }, slot) => {
+            api(
+                `${base}/translation?word=${encodeURIComponent(item.word)}` +
+                    `&index=${index}`,
+            )
+                .then((response) => (response.ok ? response.json() : null))
+                .then((data) => {
+                    item.results[slot] = (data && data.dictionaries) || [];
+                    onTranslationProgress(item);
+                });
+        });
+    }
+
+    // React to one of `item`'s dictionaries resolving: enable the reveal
+    // button once any has content (or all have resolved, so an empty result
+    // can still be shown), and re-render if the word is already revealed.
+    // Ignored if the user has moved to another word.
+    function onTranslationProgress(item) {
+        if (current !== item) return;
+        const results = item.results || [];
+        const hasContent = results.some((result) => result && result.length);
+        const allResolved = results.every((result) => result !== undefined);
+        if (hasContent || allResolved) showButton.disabled = false;
+        if (revealed) renderRevealed(item);
+    }
+
+    // Render one block per dictionary entry into the translation area.
+    function appendDictionaries(entries) {
+        for (const entry of entries) {
+            const block = document.createElement("div");
+            block.className = "dictionary";
+
+            const name = document.createElement("div");
+            name.className = "dictionary-name";
+            name.textContent = entry.dictionary;
+
+            const body = document.createElement("div");
+            body.className = "dictionary-body";
+            // The server returns a safe HTML fragment (text escaped, fixed
+            // tags).
+            body.innerHTML = entry.html;
+
+            block.append(name, body);
+            translation.append(block);
+        }
     }
 
     // Likewise the example sentence: a slow Tatoeba lookup, kept off `/next`
@@ -451,7 +505,7 @@ async function runSession(base, doneText) {
                 word: card.word,
                 lastResponse: card.last_response,
                 lastTime: card.last_time,
-                translation: null,
+                results: null,
                 sentence: null,
             };
             attachTranslation(item);
@@ -462,6 +516,8 @@ async function runSession(base, doneText) {
 
     function render() {
         translation.replaceChildren();
+        revealed = false;
+        showButton.disabled = true;
         undoBar.hidden = history.length === 0;
         if (history.length) {
             undoWord.textContent = history[history.length - 1].word;
@@ -472,6 +528,9 @@ async function runSession(base, doneText) {
             word.textContent = current.word;
             status.textContent = "";
             answers.hidden = false;
+            // Enable the reveal button now if a dictionary already resolved
+            // while this word was queued.
+            onTranslationProgress(current);
         } else {
             word.textContent = "";
             answers.hidden = true;
@@ -538,39 +597,39 @@ async function runSession(base, doneText) {
         if (!undone) return;
         history.pop();
         if (current) queue.unshift(current);
-        current = { word: undone, translation: null, sentence: null };
+        current = { word: undone, results: null, sentence: null };
         attachTranslation(current);
         attachSentence(current);
         render();
     }
 
-    async function showTranslation() {
+    // Reveal the current word's translation. From here on the area re-renders
+    // as each remaining dictionary resolves (see `onTranslationProgress`).
+    function showTranslation() {
         if (!current) return;
-        translation.textContent = "Loading…";
-        if (!current.translation) attachTranslation(current);
-        const data = await current.translation;
+        revealed = true;
+        if (!current.results) attachTranslation(current);
+        renderRevealed(current);
+    }
+
+    // Render every dictionary that has resolved so far for `item`, in
+    // configured order (so a fast dictionary that resolves later still keeps
+    // its place). Shows "Loading…" until the first arrives and "No
+    // translation found." once every dictionary has resolved empty.
+    function renderRevealed(item) {
+        if (current !== item) return;
         translation.replaceChildren();
-        if (!data || data.dictionaries.length === 0) {
-            translation.textContent = "No translation found.";
-            return;
+        const results = item.results || [];
+        const groups = [];
+        for (const result of results) {
+            if (result) groups.push(...result);
         }
-        // One block per dictionary, with classes for future CSS styling.
-        for (const entry of data.dictionaries) {
-            const block = document.createElement("div");
-            block.className = "dictionary";
-
-            const name = document.createElement("div");
-            name.className = "dictionary-name";
-            name.textContent = entry.dictionary;
-
-            const body = document.createElement("div");
-            body.className = "dictionary-body";
-            // The server returns a safe HTML fragment (text escaped, fixed
-            // tags).
-            body.innerHTML = entry.html;
-
-            block.append(name, body);
-            translation.append(block);
+        if (groups.length) {
+            appendDictionaries(groups);
+        } else if (results.every((result) => result !== undefined)) {
+            translation.textContent = "No translation found.";
+        } else {
+            translation.textContent = "Loading…";
         }
     }
 
@@ -598,6 +657,12 @@ async function runSession(base, doneText) {
     });
 
     status.textContent = "Loading…";
+    // Load the dictionary list first so the per-word prefetch knows which
+    // dictionaries to request; an empty list just means no translations.
+    const dictionariesResponse = await api(`${base}/dictionaries`);
+    if (dictionariesResponse.ok) {
+        dictionaries = await dictionariesResponse.json();
+    }
     await advance();
 }
 

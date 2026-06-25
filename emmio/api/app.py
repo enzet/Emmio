@@ -30,6 +30,7 @@ from emmio.api import auth
 from emmio.api.render import elements_to_html, to_html
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
+from emmio.dictionary.core import DictionaryCollection
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
@@ -631,14 +632,38 @@ def _course_config_or_404(user_id: str, course_id: str) -> dict:
     return config
 
 
-async def _translate(
-    word: str, language: str, dictionaries: list[dict] | None
-) -> list[DictionaryTranslation]:
-    """Look a word up, rendering each dictionary's output separately."""
+def _dictionary_configs(
+    dictionaries: list[dict] | None,
+) -> list[DictionaryUsageConfig]:
+    """Parse a lexicon/course's raw dictionary configs, preserving order."""
+    return [DictionaryUsageConfig(**d) for d in dictionaries or []]
 
-    collection = get_data().get_dictionaries(
-        [DictionaryUsageConfig(**d) for d in dictionaries or []]
-    )
+
+async def _translate(
+    word: str,
+    language: str,
+    dictionaries: list[dict] | None,
+    *,
+    index: int | None = None,
+) -> list[DictionaryTranslation]:
+    """Look a word up, rendering each dictionary's output separately.
+
+    When ``index`` is given, only the dictionary at that position in the
+    configured list is queried; this lets the client load each dictionary
+    independently and reveal them as they arrive, rather than waiting for the
+    slowest one. ``None`` queries every configured dictionary.
+    """
+
+    configs: list[DictionaryUsageConfig] = _dictionary_configs(dictionaries)
+    data: Data = get_data()
+    if index is None:
+        collection = data.get_dictionaries(configs)
+    elif 0 <= index < len(configs):
+        dictionary = data.get_dictionary(configs[index])
+        collection = DictionaryCollection([dictionary] if dictionary else [])
+    else:
+        collection = DictionaryCollection([])
+
     with log_duration(f"translate `{word}` ({language})", logger):
         groups: list[
             tuple[str, list[Element]]
@@ -649,6 +674,30 @@ async def _translate(
         DictionaryTranslation(dictionary=name, html=elements_to_html(elements))
         for name, elements in groups
     ]
+
+
+class DictionaryInfo(BaseModel):
+    """A configured dictionary the client can request a translation from."""
+
+    index: int  # Position in the lexicon/course's dictionary list.
+    name: str  # Human-readable dictionary name.
+
+
+def _dictionary_infos(dictionaries: list[dict] | None) -> list[DictionaryInfo]:
+    """List the constructable dictionaries with their positional indices.
+
+    Indices match those accepted by :py:func:`_translate`, so the client can
+    fetch each dictionary's translation separately.
+    """
+    data: Data = get_data()
+    infos: list[DictionaryInfo] = []
+    for index, config in enumerate(_dictionary_configs(dictionaries)):
+        dictionary = data.get_dictionary(config)
+        if dictionary is not None:
+            infos.append(
+                DictionaryInfo(index=index, name=dictionary.get_name())
+            )
+    return infos
 
 
 def _skip_decision(
@@ -808,18 +857,33 @@ def undo_lexicon_answer(
     )
 
 
+@app.get("/api/v1/me/lexicons/{lexicon_id}/dictionaries")
+def get_lexicon_dictionaries(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> list[DictionaryInfo]:
+    """List a lexicon's dictionaries so the client can load each separately."""
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    return _dictionary_infos(config["dictionaries"])
+
+
 @app.get("/api/v1/me/lexicons/{lexicon_id}/translation")
 async def get_lexicon_translation(
     lexicon_id: str,
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
+    index: int | None = None,
 ) -> Translation:
-    """Get a word's translation from the lexicon's configured dictionaries."""
+    """Get a word's translation from the lexicon's configured dictionaries.
+
+    ``index`` optionally restricts the result to the single dictionary at that
+    position (see ``/dictionaries``), so the client can load each dictionary
+    independently and reveal them as they arrive.
+    """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     return Translation(
         word=word,
         dictionaries=await _translate(
-            word, config["language"], config["dictionaries"]
+            word, config["language"], config["dictionaries"], index=index
         ),
     )
 
@@ -1092,18 +1156,36 @@ def undo_course_answer(
     return NextWord(word=postgres.delete_last_learn_record(user_id, course_id))
 
 
+@app.get("/api/v1/me/courses/{course_id}/dictionaries")
+def get_course_dictionaries(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> list[DictionaryInfo]:
+    """List the course's dictionaries so the client can load each separately."""
+    config: dict = _course_config_or_404(user_id, course_id)
+    return _dictionary_infos(config.get("dictionaries"))
+
+
 @app.get("/api/v1/me/courses/{course_id}/translation")
 async def get_course_translation(
     course_id: str,
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
+    index: int | None = None,
 ) -> Translation:
-    """Get a word's translation from the course's configured dictionaries."""
+    """Get a word's translation from the course's configured dictionaries.
+
+    ``index`` optionally restricts the result to the single dictionary at that
+    position (see ``/dictionaries``), so the client can load each dictionary
+    independently and reveal them as they arrive.
+    """
     config: dict = _course_config_or_404(user_id, course_id)
     return Translation(
         word=word,
         dictionaries=await _translate(
-            word, config["learning_language"], config.get("dictionaries")
+            word,
+            config["learning_language"],
+            config.get("dictionaries"),
+            index=index,
         ),
     )
 
