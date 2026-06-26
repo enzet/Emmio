@@ -21,6 +21,7 @@ from typing import Annotated
 
 import jwt
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -1202,4 +1203,24 @@ app.mount("/doc", StaticFiles(directory=_DOC_DIR), name="doc")
 # browser's `fetch` calls to `/api/v1/...` need no CORS configuration. Mounted
 # last so it never shadows an API route.
 _WEB_DIR: Path = Path(__file__).resolve().parents[2] / "web"
+
+
+@app.get("/app/{page}")
+async def serve_web_page(page: str) -> FileResponse:
+    """Serve a web page, resolving extension-less paths to their `.html` file.
+
+    Clean URLs like `/app/profile` map to `profile.html` so the address bar
+    hides the extension; real assets such as `style.css` or `app.js` are still
+    served as-is. Declared before the `StaticFiles` mount below so it takes
+    precedence for single-segment paths under `/app`.
+    """
+    target: Path = _WEB_DIR / f"{page}.html"
+    if not target.is_file():
+        target = _WEB_DIR / page
+    resolved: Path = target.resolve()
+    if not target.is_file() or not resolved.is_relative_to(_WEB_DIR):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return FileResponse(resolved)
+
+
 app.mount("/app", StaticFiles(directory=_WEB_DIR, html=True), name="web")

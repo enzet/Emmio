@@ -7,6 +7,24 @@
 const API = "/api/v1";
 const TOKEN_KEY = "emmio_token";
 
+// "Book" icon from @enzet/roentgen, inlined so it inherits the link's color via
+// `currentColor` (a referenced `<img>` can't follow the host page's color).
+const BOOK_ICON =
+    '<svg class="button-icon" viewBox="0 0 16 16" aria-hidden="true">' +
+    '<path d="M 4.5,2.0 C 3.671,2.0 3.0,2.672 3.0,3.5 L 3.0,12.5 C 3.0,13.328 ' +
+    "3.671,14.0 4.498,14.0 L 12.5,14.0 C 12.777,14.0 13.0,13.776 13.0,13.5 C " +
+    "13.0,13.224 12.777,13.0 12.501,13.0 L 4.5,13.0 C 4.223,13.0 4.0,12.776 " +
+    "4.0,12.5 L 4.0,11.501 C 4.0,11.224 4.223,11.0 4.499,11.0 L 12.5,11.0 C " +
+    "12.777,11.0 13.0,10.776 13.0,10.5 L 13.0,2.501 C 13.0,2.224 12.777,2.0 " +
+    "12.501,2.0 L 5.5,2.0 L 4.5,2.0 M 5.499,4.0 L 10.5,4.0 C 10.777,4.001 " +
+    "11.0,4.224 11.0,4.5 C 11.0,4.776 10.777,4.999 10.501,5.0 L 5.5,5.0 C " +
+    "5.223,4.999 5.0,4.776 5.0,4.5 C 5.0,4.224 5.223,4.001 5.499,4.0 M " +
+    "5.499,6.0 L 8.5,6.0 C 8.777,6.001 9.0,6.224 9.0,6.5 C 9.0,6.776 8.777,6.999 " +
+    "8.501,7.0 L 5.5,7.0 C 5.223,6.999 5.0,6.776 5.0,6.5 C 5.0,6.224 5.223,6.001 " +
+    "5.499,6.0 M 5.499,8.0 L 9.5,8.0 C 9.777,8.0 10.0,8.224 10.0,8.5 C 10.0,8.776 " +
+    "9.777,9.0 9.501,9.0 L 5.5,9.0 C 5.223,9.0 5.0,8.776 5.0,8.5 C 5.0,8.224 " +
+    '5.223,8.0 5.499,8.0" fill="currentColor" /></svg>';
+
 const getToken = () => localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 const clearToken = () => localStorage.removeItem(TOKEN_KEY);
@@ -33,14 +51,14 @@ async function api(path, { method = "GET", body, form } = {}) {
     });
     if (response.status === 401) {
         clearToken();
-        location.href = "login.html";
+        location.href = "login";
         throw new Error("Not authenticated");
     }
     return response;
 }
 
 function requireAuth() {
-    if (!getToken()) location.href = "login.html";
+    if (!getToken()) location.href = "login";
 }
 
 // Format an ISO timestamp as a short, human "time ago" (falls back to a date).
@@ -67,7 +85,7 @@ function languageName(code) {
 
 function initLogin() {
     if (getToken()) {
-        location.href = "index.html";
+        location.href = "index";
         return;
     }
 
@@ -89,7 +107,7 @@ function initLogin() {
             if (response.ok) {
                 const { access_token } = await response.json();
                 setToken(access_token);
-                location.href = "index.html";
+                location.href = "index";
             } else {
                 error.textContent = "Incorrect email or password.";
             }
@@ -100,7 +118,7 @@ function initLogin() {
 
 function initRegister() {
     if (getToken()) {
-        location.href = "index.html";
+        location.href = "index";
         return;
     }
 
@@ -161,7 +179,7 @@ async function initHome() {
 
         const nameCell = document.createElement("td");
         const link = document.createElement("a");
-        link.href = `lexicon.html?lexicon=${encodeURIComponent(
+        link.href = `lexicon?lexicon=${encodeURIComponent(
             entry.lexicon_id,
         )}`;
         link.textContent = languageName(entry.language);
@@ -180,13 +198,16 @@ async function initHome() {
         row.appendChild(remainingCell);
 
         const checkCell = document.createElement("td");
-        const check = document.createElement("a");
-        check.className = "button";
-        check.href = `check.html?lexicon=${encodeURIComponent(
-            entry.lexicon_id,
-        )}`;
-        check.textContent = "Check lexicon";
-        checkCell.appendChild(check);
+        if (entry.weekly_remaining > 0) {
+            const check = document.createElement("a");
+            check.className = "button";
+            check.href = `check?lexicon=${encodeURIComponent(
+                entry.lexicon_id,
+            )}`;
+            check.insertAdjacentHTML("afterbegin", BOOK_ICON);
+            check.appendChild(document.createTextNode("Check"));
+            checkCell.appendChild(check);
+        }
         row.appendChild(checkCell);
 
         rows.appendChild(row);
@@ -272,7 +293,7 @@ async function setupCreateLexicon(formId, selectId, statusId) {
         });
         if (result.ok) {
             const { lexicon_id } = await result.json();
-            location.href = `lexicon.html?lexicon=${encodeURIComponent(
+            location.href = `lexicon?lexicon=${encodeURIComponent(
                 lexicon_id,
             )}`;
         } else {
@@ -304,7 +325,7 @@ async function initLexicons() {
 
         const idCell = document.createElement("td");
         const link = document.createElement("a");
-        link.href = `lexicon.html?lexicon=${encodeURIComponent(
+        link.href = `lexicon?lexicon=${encodeURIComponent(
             lexicon.lexicon_id,
         )}`;
         // A leading star marks the main lexicon for its language.
@@ -338,7 +359,7 @@ async function initLexicon() {
     document.getElementById("lexicon-heading").textContent =
         `Lexicon: ${lexiconId}`;
     document.getElementById("check-link").href =
-        `check.html?lexicon=${encodeURIComponent(lexiconId)}`;
+        `check?lexicon=${encodeURIComponent(lexiconId)}`;
 
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
@@ -757,7 +778,7 @@ async function initCourses() {
 
         const idCell = document.createElement("td");
         const link = document.createElement("a");
-        link.href = `course.html?course=${encodeURIComponent(
+        link.href = `course?course=${encodeURIComponent(
             course.course_id,
         )}`;
         link.textContent = course.name;
@@ -787,7 +808,7 @@ async function initCourse() {
     document.getElementById("course-heading").textContent =
         `Course: ${courseId}`;
     document.getElementById("learn-link").href =
-        `learn.html?course=${encodeURIComponent(courseId)}`;
+        `learn?course=${encodeURIComponent(courseId)}`;
 
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
@@ -866,7 +887,7 @@ async function initProfile() {
             const result = await api("/me", { method: "DELETE" });
             if (result.ok) {
                 clearToken();
-                location.href = "login.html";
+                location.href = "login";
             } else {
                 deleteStatus.textContent = "Could not delete account.";
             }
@@ -881,7 +902,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (logout) {
         logout.addEventListener("click", () => {
             clearToken();
-            location.href = "login.html";
+            location.href = "login";
         });
     }
 
