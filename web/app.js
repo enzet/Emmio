@@ -81,6 +81,37 @@ function languageName(code) {
     }
 }
 
+// Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
+// Shared by the lexicon, course, and profile detail pages.
+function renderDefinitionList(container, rows) {
+    for (const [label, value] of rows) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        container.append(term, description);
+    }
+}
+
+// Fill a `<select>` with one `<option>` per language, sorted by display name.
+// `entries` is a list of API rows carrying a `language` ISO code; `selectCode`
+// optionally preselects the matching option.
+function fillLanguageSelect(select, entries, selectCode) {
+    entries
+        .map((entry) => ({
+            code: entry.language,
+            name: languageName(entry.language),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((entry) => {
+            const option = document.createElement("option");
+            option.value = entry.code;
+            option.textContent = entry.name;
+            if (entry.code === selectCode) option.selected = true;
+            select.appendChild(option);
+        });
+}
+
 // Login page.
 
 function initLogin() {
@@ -243,34 +274,11 @@ async function setupCreateLexicon(formId, selectId, statusId) {
         return;
     }
 
-    available
-        .map((entry) => ({
-            code: entry.language,
-            name: languageName(entry.language),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .forEach((entry) => {
-            const option = document.createElement("option");
-            option.value = entry.code;
-            option.textContent = entry.name;
-            select.appendChild(option);
-        });
+    fillLanguageSelect(select, available);
 
     // Fill the "translate into" picker with every known language; preselect
     // English as the most common target.
-    (await targetResponse.json())
-        .map((entry) => ({
-            code: entry.language,
-            name: languageName(entry.language),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .forEach((entry) => {
-            const option = document.createElement("option");
-            option.value = entry.code;
-            option.textContent = entry.name;
-            option.selected = entry.code === "en";
-            targets.appendChild(option);
-        });
+    fillLanguageSelect(targets, await targetResponse.json(), "en");
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -406,14 +414,7 @@ async function initLexicon() {
         ["Precision (last 7 days)", s.dont_last_week],
         ["Weekly goal", s.precision_per_week],
     ];
-    for (const [label, value] of rows) {
-        const term = document.createElement("dt");
-        term.textContent = label;
-        const description = document.createElement("dd");
-        description.textContent = value;
-        stats.appendChild(term);
-        stats.appendChild(description);
-    }
+    renderDefinitionList(stats, rows);
 }
 
 // Session pages: lexicon checking and learning repetition share one flow.
@@ -832,14 +833,7 @@ async function initCourse() {
         ["Total answers", s.answers],
         ["Actions (right/wrong)", s.actions],
     ];
-    for (const [label, value] of rows) {
-        const term = document.createElement("dt");
-        term.textContent = label;
-        const description = document.createElement("dd");
-        description.textContent = value;
-        stats.appendChild(term);
-        stats.appendChild(description);
-    }
+    renderDefinitionList(stats, rows);
 }
 
 // Profile page.
@@ -857,17 +851,11 @@ async function initProfile() {
     const me = await response.json();
     status.textContent = "";
     profile.hidden = false;
-    for (const [label, value] of [
+    renderDefinitionList(profile, [
         ["User", me.user_id],
         ["Name", me.name],
         ["Email", me.email || "—"],
-    ]) {
-        const term = document.createElement("dt");
-        term.textContent = label;
-        const description = document.createElement("dd");
-        description.textContent = value;
-        profile.append(term, description);
-    }
+    ]);
 
     // Deleting the account is irreversible; confirm, then drop the now-useless
     // token and return to login.
