@@ -440,6 +440,8 @@ async function runSession(base, doneText) {
     const externalLinks = document.getElementById("external-links");
     const googleLink = document.getElementById("google-link");
     const yandexLink = document.getElementById("yandex-link");
+    const wiktionaryLink = document.getElementById("wiktionary-link");
+    const kaikkiLink = document.getElementById("kaikki-link");
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, results }.
     const history = []; // Answered { word } (most recent last), for undo.
@@ -577,20 +579,33 @@ async function runSession(base, doneText) {
     }
 
     // Point the external lookup links at the current word: a Google search
-    // (`translate French word "bonjour"`) and a Yandex translation into
-    // English. Hidden when no word is showing.
+    // (`translate French word "bonjour"`), a Yandex translation into English,
+    // the word's English Wiktionary entry, and its Kaikki (Wiktionary data)
+    // page. Hidden when no word is showing.
     function renderExternalLinks() {
         if (!current) {
             externalLinks.hidden = true;
             return;
         }
         const word = encodeURIComponent(current.word);
-        const query = `translate ${languageName(language)} word "${current.word}"`;
+        const langName = languageName(language);
+        const query = `translate ${langName} word "${current.word}"`;
         googleLink.href =
             `https://www.google.com/search?q=${encodeURIComponent(query)}`;
         yandexLink.href =
             `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
             `&target_lang=en&text=${word}`;
+        // Wiktionary anchors the per-language section by its English name.
+        wiktionaryLink.href =
+            `https://en.wiktionary.org/wiki/${word}` +
+            `#${encodeURIComponent(langName.replace(/ /g, "_"))}`;
+        // Kaikki stores each word under <Language>/meaning/<c1>/<c1c2>/<word>.
+        const lower = current.word.toLowerCase();
+        kaikkiLink.href =
+            `https://kaikki.org/dictionary/${encodeURIComponent(langName)}/meaning/` +
+            `${encodeURIComponent(lower.slice(0, 1))}/` +
+            `${encodeURIComponent(lower.slice(0, 2))}/` +
+            `${encodeURIComponent(lower)}.html`;
         externalLinks.hidden = false;
     }
 
