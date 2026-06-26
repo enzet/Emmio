@@ -281,10 +281,21 @@ button {
     border-radius: 5px;
     padding: 0.2rem 0.5rem;
     cursor: pointer;
+    transition: transform 0.08s ease, background-color 0.08s ease,
+        box-shadow 0.08s ease;
+}
+/* Visual confirmation when a button is pressed, whether via the mouse
+   (:active) or via a keyboard shortcut (.pressed, added by app.js since a
+   programmatic click does not trigger :active). */
+button:active,
+button.pressed {
+    transform: scale(0.94);
+    background-color: #0001;
+    box-shadow: inset 0 1px 3px #0002;
 }
 button[data-key="n"] {
     color: red;
-    border: 1px solid #F004;
+    /* border: 1px solid #F004; */
 }
 button.danger {
     color: red;

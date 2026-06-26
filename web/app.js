@@ -733,6 +733,11 @@ async function runSession(base, doneText) {
         // replaced by the "No translation found." notice).
         if (button && !button.hidden) {
             event.preventDefault();
+            // Briefly flash the pressed state so a keyboard shortcut gives the
+            // same visual feedback as a mouse click (a programmatic click does
+            // not trigger :active).
+            button.classList.add("pressed");
+            setTimeout(() => button.classList.remove("pressed"), 120);
             button.click();
         }
     });
