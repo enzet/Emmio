@@ -24,6 +24,30 @@ with (Path(__file__).parent / "digraphs.json").open(
 
 LATIN_CODE: dict[str, str] = {"ā": "a", "ē": "e", "ī": "i", "ō": "o", "ū": "u"}
 
+# Simplified spellings per language code. When the proper characters are not
+# available, these ASCII sequences are commonly used instead. Each maps such a
+# sequence back to the character it may stand for, so that a word typed in the
+# simplified form can be matched against its proper spelling.
+# fmt: off
+VARIANT_SUBSTITUTIONS: dict[str, dict[str, str]] = {
+    # German umlauts and eszett.
+    "de": {"ae": "ä", "oe": "ö", "ue": "ü", "ss": "ß"},
+    # Esperanto x-system and h-system. The h-system has no unambiguous form
+    # for "ŭ" (it is written as a bare "u"), so only "ux" recovers it.
+    "eo": {
+        "cx": "ĉ", "gx": "ĝ", "hx": "ĥ", "jx": "ĵ", "sx": "ŝ", "ux": "ŭ",
+        "ch": "ĉ", "gh": "ĝ", "hh": "ĥ", "jh": "ĵ", "sh": "ŝ",
+    },
+    # Icelandic ligature and thorn/eth.
+    "is": {"ae": "æ", "th": "þ", "dh": "ð"},
+    # Norwegian letters.
+    "no": {"aa": "å", "ae": "æ", "oe": "ø"},
+    "nb": {"aa": "å", "ae": "æ", "oe": "ø"},
+    # Swedish letters.
+    "sv": {"aa": "å", "ae": "ä", "oe": "ö"},
+}
+# fmt: on
+
 
 LanguageConfig = str
 """2-letter language code."""
@@ -183,17 +207,46 @@ class Language:
         """Get random color for the language."""
         return "#" + str(hex(abs(hash(self.get_code()))))[2:8]
 
-    def get_variant(self, word: str) -> str | None:
-        """Get another way to write the word."""
+    def get_variants(self, word: str) -> list[str]:
+        """Get words that may be represented by the given word.
+
+        Some words are written using a simplified spelling (e.g. when the
+        proper characters are not available). This method tries to recover the
+        original words that such a spelling may stand for.
+        """
+
+        variants: list[str] = []
 
         if self == KnownLanguages.LATIN:
             decoded = self.decode_text(word)
             if decoded != word:
-                return decoded
+                variants.append(decoded)
         if self == KnownLanguages.GERMAN and word[0].upper() != word[0]:
-            return word[0].upper() + word[1:]
+            variants.append(word[0].upper() + word[1:])
 
-        return None
+        for sequence, character in VARIANT_SUBSTITUTIONS.get(
+            self.get_code(), {}
+        ).items():
+            pattern: re.Pattern[str] = re.compile(
+                re.escape(sequence), re.IGNORECASE
+            )
+            if not pattern.search(word):
+                continue
+
+            def replace(
+                match: re.Match[str], character: str = character
+            ) -> str:
+                # Match the case of the replaced sequence: a leading uppercase
+                # letter (e.g. "Oe" or "OE") yields an uppercase character.
+                return (
+                    character.upper()
+                    if match.group()[0].isupper()
+                    else character
+                )
+
+            variants.append(pattern.sub(replace, word))
+
+        return variants
 
 
 def letter_range(start: str, stop: str) -> str:

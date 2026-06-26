@@ -833,8 +833,8 @@ class DictionaryCollection:
         for main_items_marked in result:
             items_marked += main_items_marked
 
-        # If the word may be written a different way, also try that variant.
-        if variant := language.get_variant(word):
+        # If the word may be written a different way, also try those variants.
+        for variant in language.get_variants(word):
             items_marked += await self.get_items_marked(
                 variant, language, follow_links=follow_links
             )
