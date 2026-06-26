@@ -15,8 +15,10 @@ Run locally with:
 import logging
 import os
 import random
+import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from tempfile import mkdtemp
 from typing import Annotated
 
 import jwt
@@ -25,6 +27,7 @@ from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from emmio import postgres
 from emmio.api import auth
@@ -47,6 +50,7 @@ from emmio.lists.config import ListUsageConfig
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import SentenceElement
 from emmio.ui import Element, Formatted, Text
+from emmio.user.export import UnknownUserError, build_archive
 from emmio.util import log_duration
 
 __author__ = "Sergey Vartanov"
@@ -218,6 +222,34 @@ def delete_me(user_id: Annotated[str, Depends(get_current_user)]) -> None:
     answer it owns. The caller's token becomes useless once the user is gone.
     """
     postgres.delete_user(user_id)
+
+
+@app.get("/api/v1/me/export")
+def export_me(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> FileResponse:
+    """Download a ZIP archive of all data Emmio holds about the user.
+
+    The data-portability export (GDPR Art. 15 / 20): account profile plus every
+    learning, lexicon, and listening artifact as JSON. The archive is built in
+    a temporary directory that is removed once the response has been sent.
+    """
+    temporary: Path = Path(mkdtemp())
+    try:
+        archive: Path = build_archive(
+            user_id, _data_dir(), temporary / f"{user_id}-emmio-data.zip"
+        )
+    except UnknownUserError as error:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+        ) from error
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename=archive.name,
+        background=BackgroundTask(shutil.rmtree, temporary, ignore_errors=True),
+    )
 
 
 @app.get("/api/v1/me/courses")
@@ -594,6 +626,11 @@ class AnswerRequest(BaseModel):
 _data: Data | None = None
 
 
+def _data_dir() -> Path:
+    """Get the Emmio data directory (`EMMIO_DATA_DIR`, default `~/.emmio`)."""
+    return Path(os.environ.get("EMMIO_DATA_DIR", str(Path.home() / ".emmio")))
+
+
 def get_data() -> Data:
     """Get the shared read-only data (frequency lists, dictionaries).
 
@@ -603,10 +640,7 @@ def get_data() -> Data:
     global _data  # noqa: PLW0603  # pylint: disable=global-statement
 
     if _data is None:
-        path: Path = Path(
-            os.environ.get("EMMIO_DATA_DIR", str(Path.home() / ".emmio"))
-        )
-        _data = Data.from_directory(path)
+        _data = Data.from_directory(_data_dir())
     return _data
 
 

@@ -1,5 +1,8 @@
 """Tests for the HTTP API."""
 
+import io
+import json
+import zipfile
 from typing import Any
 
 import pytest
@@ -313,6 +316,40 @@ def test_me_returns_profile() -> None:
         "name": "Alice",
         "email": "alice@example.com",
     }
+
+
+def test_export_me_returns_archive_of_user_data() -> None:
+    """`/me/export` returns a ZIP with the profile and the user's data."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.save_lexicon("alice", "de", "de", [], [])
+    client.post(
+        "/api/v1/me/lexicons/de/answer",
+        json={"word": "hund", "response": "know"},
+        headers=_auth(token),
+    )
+
+    response = client.get("/api/v1/me/export", headers=_auth(token))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    names = set(archive.namelist())
+    assert "profile.json" in names
+    assert "lexicon/de.json" in names
+    profile = json.loads(archive.read("profile.json"))
+    assert profile["user_id"] == "alice"
+    assert profile["email"] == "alice@example.com"
+    # The password hash is never exported.
+    assert "hashed_password" not in profile
+
+
+def test_export_me_requires_token() -> None:
+    """Exporting data without a token is rejected with 401."""
+
+    response = client.get("/api/v1/me/export")
+
+    assert response.status_code == 401
 
 
 def test_delete_me_removes_user_and_data() -> None:

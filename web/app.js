@@ -872,6 +872,29 @@ async function initProfile() {
         ["Email", me.email || "—"],
     ]);
 
+    // Download all of the user's data as a ZIP. The endpoint needs the bearer
+    // token, so fetch it as a blob and trigger a download rather than linking.
+    const exportStatus = document.getElementById("export-status");
+    document
+        .getElementById("export-data")
+        .addEventListener("click", async () => {
+            exportStatus.textContent = "Preparing your archive…";
+            const result = await api("/me/export");
+            if (!result.ok) {
+                exportStatus.textContent = "Could not export your data.";
+                return;
+            }
+            const url = URL.createObjectURL(await result.blob());
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${me.user_id}-emmio-data.zip`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            exportStatus.textContent = "Downloaded.";
+        });
+
     // Deleting the account is irreversible; confirm, then drop the now-useless
     // token and return to login.
     const deleteStatus = document.getElementById("delete-status");

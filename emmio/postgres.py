@@ -212,6 +212,31 @@ def get_user(user_id: str) -> tuple[str, str, str | None] | None:
         return None
 
 
+def get_account(user_id: str) -> dict[str, object] | None:
+    """Get a user's account profile for a data export, or `None`.
+
+    Returns the personal data held in the `users` row, excluding the password
+    hash (a one-way secret of no use to the user). Intended for the
+    "download my data" export (GDPR Art. 15 / 20).
+
+    :param user_id: user login, e.g. `john`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT user_id, name, email, created_at "
+            "FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        if row := cursor.fetchone():
+            return {
+                "user_id": row[0],
+                "name": row[1],
+                "email": row[2],
+                "created_at": row[3].isoformat() if row[3] else None,
+            }
+        return None
+
+
 def delete_user(user_id: str) -> bool:
     """Delete a user and all data they own.
 
