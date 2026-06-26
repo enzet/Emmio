@@ -471,6 +471,7 @@ class NextWords(BaseModel):
     Lets the client prefetch a queue instead of fetching one word per answer.
     """
 
+    language: str  # ISO code of the words' language, e.g. `fr`.
     words: list[WordCard]
 
 
@@ -811,7 +812,8 @@ def get_next_lexicon_words(
         postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
     answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
     return NextWords(
-        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS)
+        language=language,
+        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS),
     )
 
 
@@ -1098,7 +1100,8 @@ def get_next_questions(
     )
     answers = postgres.get_last_learn_answers(user_id, course_id, questions)
     return NextWords(
-        words=_word_cards(questions, answers, _LEARN_RESPONSE_LABELS)
+        language=learning.learning_language.get_code(),
+        words=_word_cards(questions, answers, _LEARN_RESPONSE_LABELS),
     )
 
 

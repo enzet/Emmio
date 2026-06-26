@@ -415,11 +415,15 @@ async function runSession(base, doneText) {
 
     const showButton = document.getElementById("show-translation");
     const noTranslation = document.getElementById("no-translation");
+    const externalLinks = document.getElementById("external-links");
+    const googleLink = document.getElementById("google-link");
+    const yandexLink = document.getElementById("yandex-link");
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, results }.
     const history = []; // Answered { word } (most recent last), for undo.
     let current = null; // The item on screen.
     let revealed = false; // Whether the current word's translation is shown.
+    let language = null; // ISO code of the session's language (from `/next`).
 
     // The lexicon/course's dictionaries, loaded once. Each is fetched
     // separately per word so a slow one (e.g. Google Translate over the
@@ -507,7 +511,9 @@ async function runSession(base, doneText) {
         }
         const response = await api(`${base}/next?${params}`);
         if (!response.ok) return;
-        for (const card of (await response.json()).words) {
+        const batch = await response.json();
+        language = batch.language;
+        for (const card of batch.words) {
             const item = {
                 word: card.word,
                 lastResponse: card.last_response,
@@ -533,6 +539,7 @@ async function runSession(base, doneText) {
         }
         renderLastAnswer();
         renderSentence();
+        renderExternalLinks();
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -545,6 +552,24 @@ async function runSession(base, doneText) {
             answers.hidden = true;
             status.textContent = doneText;
         }
+    }
+
+    // Point the external lookup links at the current word: a Google search
+    // (`translate French word "bonjour"`) and a Yandex translation into
+    // English. Hidden when no word is showing.
+    function renderExternalLinks() {
+        if (!current) {
+            externalLinks.hidden = true;
+            return;
+        }
+        const word = encodeURIComponent(current.word);
+        const query = `translate ${languageName(language)} word "${current.word}"`;
+        googleLink.href =
+            `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        yandexLink.href =
+            `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
+            `&target_lang=en&text=${word}`;
+        externalLinks.hidden = false;
     }
 
     // Show the current word's example sentence: "Loading…" until its prefetch

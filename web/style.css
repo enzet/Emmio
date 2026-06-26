@@ -31,7 +31,7 @@ nav {
     gap: 1rem;
     margin: 0;
 }
-nav a, nav span {
+header a, nav span {
     font-size: 85%;
     color: black;
     text-decoration: none;
@@ -94,6 +94,15 @@ p {
 p#translation-button {
     margin: 0.5rem 0;
     text-align: center;
+}
+
+p#external-links {
+    margin: 0.5rem 0;
+    text-align: center;
+    font-size: 85%;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
 }
 
 p.login-footer {
