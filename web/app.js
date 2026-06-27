@@ -252,17 +252,19 @@ async function initHome() {
 
 // Wire up a "create lexicon" form: fill its language selector from the
 // available frequency-list languages, and on submit create the lexicon (which
-// is set as main, with `frequency` selection) and open it. Shared by the
-// empty-state welcome form and the dashboard's "Add a lexicon" form.
+// is set as main, with the chosen selection strategy) and open it. Shared by
+// the empty-state welcome form and the dashboard's "Add a lexicon" form.
 async function setupCreateLexicon(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
     const targets = form.querySelector(".translation-languages");
+    const selection = form.querySelector(".lexicon-selection");
     const createStatus = document.getElementById(statusId);
 
-    const [response, targetResponse] = await Promise.all([
+    const [response, targetResponse, strategyResponse] = await Promise.all([
         api("/lexicon-languages"),
         api("/translation-languages"),
+        api("/lexicon-strategies"),
     ]);
     const available = await response.json();
     if (available.length === 0) {
@@ -279,6 +281,15 @@ async function setupCreateLexicon(formId, selectId, statusId) {
     // Fill the "translate into" picker with every known language; preselect
     // English as the most common target.
     fillLanguageSelect(targets, await targetResponse.json(), "en");
+
+    // Fill the selection-strategy picker from the server's single source of
+    // truth; the first strategy (frequency-weighted random) is the default.
+    for (const strategy of await strategyResponse.json()) {
+        const option = document.createElement("option");
+        option.value = strategy.value;
+        option.textContent = strategy.label;
+        selection.appendChild(option);
+    }
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -297,6 +308,7 @@ async function setupCreateLexicon(formId, selectId, statusId) {
             body: {
                 language: select.value,
                 translation_languages: translationLanguages,
+                selection: selection.value,
             },
         });
         if (result.ok) {

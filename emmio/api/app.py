@@ -317,6 +317,38 @@ class LexiconLanguage(BaseModel):
     language: str  # ISO code, e.g. `uk`.
 
 
+class LexiconStrategy(BaseModel):
+    """A word-selection strategy offered when creating a lexicon."""
+
+    value: str  # Stored on the lexicon, e.g. `frequency`.
+    label: str  # Human-readable name shown in the UI.
+
+
+# The single source of truth for the selectable strategies: the creation
+# endpoint validates against it, `/lexicon-strategies` serves it, and the web
+# UI populates its dropdowns from it. Every value here must be servable by
+# `select_next_word` in `emmio.lexicon.core`.
+LEXICON_STRATEGIES: tuple[LexiconStrategy, ...] = (
+    LexiconStrategy(value="frequency", label="Frequency-weighted random"),
+    LexiconStrategy(value="random", label="Uniform random"),
+    LexiconStrategy(value="top", label="Most frequent first"),
+    LexiconStrategy(value="logistic", label="Logistic adaptive"),
+    LexiconStrategy(value="threshold", label="Optimal threshold"),
+    LexiconStrategy(
+        value="stratified", label="Stratified frequency-weighted random"
+    ),
+)
+_VALID_SELECTIONS: frozenset[str] = frozenset(
+    strategy.value for strategy in LEXICON_STRATEGIES
+)
+
+
+@app.get("/api/v1/lexicon-strategies", dependencies=[Depends(get_current_user)])
+def get_lexicon_strategies() -> list[LexiconStrategy]:
+    """List the word-selection strategies a new lexicon can be created with."""
+    return list(LEXICON_STRATEGIES)
+
+
 @app.get("/api/v1/lexicon-languages", dependencies=[Depends(get_current_user)])
 def get_lexicon_languages() -> list[LexiconLanguage]:
     """List languages a new lexicon can be created for.
@@ -359,6 +391,8 @@ class CreateLexiconRequest(BaseModel):
 
     language: str
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
+    selection: str = "frequency"
+    """Word-selection strategy; one of `LEXICON_STRATEGIES`."""
 
 
 class CreatedLexicon(BaseModel):
@@ -424,11 +458,20 @@ def create_lexicon(
 ) -> CreatedLexicon:
     """Create a lexicon for a language and make it the language's main one.
 
-    The lexicon samples words by the `frequency` strategy from the language's
+    The lexicon samples words by the requested strategy from the language's
     frequency list, shows usage examples from Tatoeba, and translates words into
     the requested target languages. Its id is the language code, suffixed if one
     already exists. It is set as main so it shows up on the home page at once.
     """
+    if request.selection not in _VALID_SELECTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported selection strategy `{request.selection}`. "
+                f"Choose one of: {', '.join(sorted(_VALID_SELECTIONS))}."
+            ),
+        )
+
     data = get_data()
     frequency_list: dict | None = data.get_frequency_list_languages().get(
         request.language
@@ -468,7 +511,7 @@ def create_lexicon(
     )
     config: dict = {
         "language": request.language,
-        "selection": "frequency",
+        "selection": request.selection,
         "frequency_list": frequency_list,
         "precision_per_week": 0,
         "dictionaries": dictionaries,
@@ -824,7 +867,7 @@ def get_next_lexicon_words(
             break
         try:
             candidate: str | None = select_next_word(
-                frequency_list, drawn, selection
+                frequency_list, drawn, selection, states
             )
         except NotImplementedError as error:
             raise HTTPException(

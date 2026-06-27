@@ -57,12 +57,57 @@ def test_select_next_word_skips_answered_words() -> None:
 
 
 def test_select_next_word_rejects_unsupported_strategy() -> None:
-    """Strategies not yet served over the API raise."""
+    """Strategies not served over the API raise."""
 
     frequency_list: FrequencyList = _frequency_list({"the": 100})
 
     with pytest.raises(NotImplementedError):
-        select_next_word(frequency_list, set(), "logistic")
+        select_next_word(frequency_list, set(), "binary_search")
+
+
+def _ranked_frequency_list(size: int) -> FrequencyList:
+    """Build a frequency list of `size` words with strictly decreasing counts.
+
+    Word `w{i}` has rank `i + 1` (most frequent first), so rank and knowledge
+    can be reasoned about directly in tests.
+    """
+    return _frequency_list({f"w{i}": size - i for i in range(size)})
+
+
+def test_select_next_word_top_walks_by_rank() -> None:
+    """`top` returns the most frequent word not already excluded."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(5)
+
+    assert select_next_word(frequency_list, set(), "top") == "w0"
+    assert select_next_word(frequency_list, {"w0", "w1"}, "top") == "w2"
+
+
+def test_select_next_word_threshold_targets_the_boundary() -> None:
+    """`threshold` picks an untested word near the known/unknown boundary."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(20)
+    # Words below rank ~10 are known, above are unknown; w9/w10 are untested.
+    states: dict[str, tuple[str | None, bool | None]] = {}
+    for i in range(20):
+        if i in (9, 10):
+            continue
+        states[f"w{i}"] = (("K" if i < 10 else "D"), None)
+
+    word = select_next_word(frequency_list, set(), "threshold", states)
+    assert word in {"w9", "w10"}
+
+
+def test_select_next_word_model_strategies_skip_answered() -> None:
+    """Model strategies never re-pick a word that already has a response."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(6)
+    states: dict[str, tuple[str | None, bool | None]] = {
+        f"w{i}": (("K" if i % 2 else "D"), None) for i in range(5)
+    }  # Only `w5` is untested.
+
+    for strategy in ("logistic", "threshold", "stratified"):
+        assert select_next_word(frequency_list, set(), strategy, states) == "w5"
 
 
 @pytest.fixture(name="lexicon")

@@ -232,8 +232,20 @@ _SAMPLE_ATTEMPTS: int = 100
 """Random draws to try before falling back to a scan for an unanswered word."""
 
 
+WordStates = dict[str, tuple[str | None, bool | None]]
+"""Per-word latest state: word → (response code, to_skip).
+
+Mirrors `postgres.get_language_word_states`. The response code is the
+single-character `LexiconResponse` code (e.g. `K`, `D`); `None` means the word
+has no recorded response.
+"""
+
+
 def select_next_word(
-    frequency_list: FrequencyList, exclude: set[str], selection: str
+    frequency_list: FrequencyList,
+    exclude: set[str],
+    selection: str,
+    states: WordStates | None = None,
 ) -> str | None:
     """Pick the next word to check, honoring the lexicon's selection strategy.
 
@@ -242,13 +254,19 @@ def select_next_word(
     interface. The strategy must match how the lexicon's data was collected;
     serving words by the wrong strategy biases the rate estimate.
 
+    The model-based strategies (`logistic`, `threshold`, `stratified`) need the
+    learner's answered words to fit their model; pass them via `states`. Their
+    selection logic mirrors the interactive `check_logistic`/`check_stratified`
+    methods — keep the two in sync.
+
     :param frequency_list: source of candidate words
     :param exclude: words to skip (e.g. flagged to skip or answered recently);
         a frequency lexicon re-samples words over time, so this is *not* every
         word ever answered
     :param selection: the lexicon's stored selection strategy
+    :param states: per-word state, required by the model-based strategies
     :return: the next word, or None if every candidate is excluded
-    :raises NotImplementedError: for strategies not yet served over the API
+    :raises NotImplementedError: for strategies not served over the API
     """
     match selection:
         case "frequency":
@@ -267,6 +285,12 @@ def select_next_word(
                 if word not in exclude:
                     return word
             return None
+        case "logistic":
+            return _select_logistic(frequency_list, states or {}, exclude)
+        case "threshold":
+            return _select_threshold(frequency_list, states or {}, exclude)
+        case "stratified":
+            return _select_stratified(frequency_list, states or {}, exclude)
         case _:
             message = f"Selection `{selection}` is not supported over the API."
             raise NotImplementedError(message)
@@ -287,6 +311,185 @@ def _sample_selectable(
         if word not in exclude:
             return word
     return None
+
+
+def _tested_and_candidates(
+    frequency_list: FrequencyList, states: WordStates, exclude: set[str]
+) -> tuple[list[int], list[int], list[tuple[int, str]]]:
+    """Split the frequency list into the tested set and the candidate pool.
+
+    A word answered `KNOW`/`DONT` (anywhere in the same language) joins the
+    tested set with a 0/1 label; a word answered otherwise (e.g. not-a-word,
+    proper noun) is resolved and so is neither tested nor a candidate; a word
+    never seen is a candidate unless excluded.
+
+    :return: (tested ranks, tested labels with 1 = unknown, ascending-rank
+        list of (rank, word) candidates)
+    """
+    know: str = LexiconResponse.KNOW.to_code()
+    dont: str = LexiconResponse.DONT.to_code()
+    tested_ranks: list[int] = []
+    tested_labels: list[int] = []
+    candidates: list[tuple[int, str]] = []
+    for rank, word in enumerate(frequency_list.get_words(), start=1):
+        state: tuple[str | None, bool | None] | None = states.get(word)
+        if state is None:
+            if word not in exclude:
+                candidates.append((rank, word))
+            continue
+        code: str | None = state[0]
+        if code == know:
+            tested_ranks.append(rank)
+            tested_labels.append(0)
+        elif code == dont:
+            tested_ranks.append(rank)
+            tested_labels.append(1)
+    return tested_ranks, tested_labels, candidates
+
+
+def _select_logistic(
+    frequency_list: FrequencyList, states: WordStates, exclude: set[str]
+) -> str | None:
+    """Pick the next word under the logistic-adaptive strategy (LA).
+
+    With enough data, fit the logistic model and exploit by maximising
+    p_i² · π_i (1 − π_i); otherwise explore a log-uniform random rank.
+    """
+    tested_ranks, tested_labels, candidates = _tested_and_candidates(
+        frequency_list, states, exclude
+    )
+    if not candidates:
+        return None
+
+    if (
+        sum(tested_labels) >= MIN_N_UNKNOWN
+        and len(tested_ranks) >= MIN_SIZE_TESTED_RANKS
+    ):
+        total: int = frequency_list.get_all_occurrences()
+        a, b, c = _fit_logistic(tested_ranks, tested_labels)
+        best_word: str | None = None
+        best_score: float = -1.0
+        for rank, word in candidates:
+            p_i: float = frequency_list.get_occurrences(word) / total
+            pi_i: float = _predict(a, b, c, rank)
+            score: float = p_i**2 * pi_i * (1.0 - pi_i)
+            if score > best_score:
+                best_score = score
+                best_word = word
+        return best_word
+
+    # Explore: log-uniform random rank until the model is ready.
+    max_rank: int = candidates[-1][0]
+    target: int = max(1, int(max_rank ** random.random()))
+    return min(candidates, key=lambda rw: abs(rw[0] - target))[1]
+
+
+def _select_threshold(
+    frequency_list: FrequencyList, states: WordStates, exclude: set[str]
+) -> str | None:
+    """Pick the next word under the optimal-threshold strategy (OT).
+
+    Find the rank i* that minimises misclassification under the step-function
+    assumption (a decision stump on rank), then pick the untested word nearest
+    to that boundary.
+    """
+    tested_ranks, tested_labels, candidates = _tested_and_candidates(
+        frequency_list, states, exclude
+    )
+    if not candidates:
+        return None
+    if not tested_ranks:
+        # No data yet: start at the most frequent candidate.
+        return candidates[0][1]
+
+    paired: list[tuple[int, int]] = sorted(
+        zip(tested_ranks, tested_labels, strict=True)
+    )
+    # Sweep a split point: the first j tested words are predicted known, the
+    # rest unknown. errors(j) = (unknown among first j) + (known among rest).
+    known_suffix: int = tested_labels.count(0)
+    unknown_prefix: int = 0
+    best_j: int = 0
+    best_err: int = known_suffix
+    for j in range(1, len(paired) + 1):
+        if paired[j - 1][1] == 1:
+            unknown_prefix += 1
+        else:
+            known_suffix -= 1
+        err: int = unknown_prefix + known_suffix
+        if err < best_err:
+            best_err = err
+            best_j = j
+
+    if best_j == 0:
+        i_star: int = paired[0][0]
+    elif best_j == len(paired):
+        i_star = paired[-1][0]
+    else:
+        i_star = (paired[best_j - 1][0] + paired[best_j][0]) // 2
+
+    return min(candidates, key=lambda rw: abs(rw[0] - i_star))[1]
+
+
+def _select_stratified(
+    frequency_list: FrequencyList,
+    states: WordStates,
+    exclude: set[str],
+    n_strata: int = 10,
+) -> str | None:
+    """Pick the next word under the stratified strategy (SFWR).
+
+    Divide the list into log-uniform strata, then query the stratum with the
+    highest variance contribution P_k² · θ_k (1 − θ_k), taking its
+    highest-frequency untested word.
+    """
+    know: str = LexiconResponse.KNOW.to_code()
+    dont: str = LexiconResponse.DONT.to_code()
+    words: list[str] = frequency_list.get_words()
+    n: int = len(words)
+    if n <= 1:
+        return words[0] if n == 1 and words[0] not in exclude else None
+    total: int = frequency_list.get_all_occurrences()
+    log_n: float = math.log(n)
+
+    p_total: list[float] = [0.0] * n_strata
+    p_unknown: list[float] = [0.0] * n_strata
+    p_tested: list[float] = [0.0] * n_strata
+    untested: list[list[tuple[int, str]]] = [[] for _ in range(n_strata)]
+
+    for rank, word in enumerate(words, start=1):
+        k: int = min(
+            max(int(n_strata * math.log(rank) / log_n), 0), n_strata - 1
+        )
+        p_i: float = frequency_list.get_occurrences(word) / total
+        p_total[k] += p_i
+        state: tuple[str | None, bool | None] | None = states.get(word)
+        if state is None:
+            if word not in exclude:
+                untested[k].append((rank, word))
+        elif state[0] in (know, dont):
+            p_tested[k] += p_i
+            if state[0] == dont:
+                p_unknown[k] += p_i
+
+    theta_k: list[float] = [
+        p_unknown[k] / p_tested[k] if p_tested[k] > 0.0 else 0.5
+        for k in range(n_strata)
+    ]
+
+    best_k: int | None = None
+    best_score: float = -1.0
+    for k in range(n_strata):
+        if not untested[k]:
+            continue
+        score: float = p_total[k] ** 2 * theta_k[k] * (1.0 - theta_k[k])
+        if score > best_score:
+            best_score = score
+            best_k = k
+
+    if best_k is None:
+        return None
+    return min(untested[best_k], key=lambda rw: rw[0])[1]
 
 
 def compute_lexicon_rate(

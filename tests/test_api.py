@@ -273,6 +273,68 @@ def test_create_lexicon_configures_translations_and_sentences() -> None:
     ]
 
 
+def test_lexicon_strategies_are_listed() -> None:
+    """`/lexicon-strategies` serves the selectable strategies with labels."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/lexicon-strategies", headers=_auth(token))
+
+    assert response.status_code == 200
+    strategies = response.json()
+    values = {strategy["value"] for strategy in strategies}
+    assert "frequency" in values
+    assert {"logistic", "threshold", "stratified"} <= values
+    assert all(strategy["label"] for strategy in strategies)
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_defaults_to_frequency_selection() -> None:
+    """Omitting the selection strategy stores the `frequency` default."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["selection"] == "frequency"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_stores_requested_selection() -> None:
+    """A requested selection strategy is stored on the lexicon."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "selection": "top"},
+        headers=_auth(token),
+    )
+
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["selection"] == "top"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_rejects_unsupported_selection() -> None:
+    """A selection strategy not servable over the API is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "selection": "binary_search"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
 @pytest.mark.usefixtures("fake_languages")
 def test_create_lexicon_for_unknown_language_is_bad_request() -> None:
     """A language without a frequency list cannot be created."""

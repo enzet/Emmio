@@ -24,15 +24,20 @@
                     pick a language to create your first one.
                 </p>
                 <form id="create-lexicon-form">
-                    <label for="new-lexicon-language">Language</label>
+                    Add lexicon for
                     <select id="new-lexicon-language" required></select>
-                    <label for="new-lexicon-targets">Translate into</label>
+                    with definitions in
                     <select
                         id="new-lexicon-targets"
                         class="translation-languages"
-                        multiple
                         required
                     ></select>
+                    that uses
+                    <select
+                        id="new-lexicon-selection"
+                        class="lexicon-selection"
+                    ></select>
+                    selection strategy.
                     <button type="submit">Create lexicon</button>
                 </form>
                 <p id="create-status" role="status"></p>
@@ -55,15 +60,20 @@
 
                 <h3 id="add-lexicon-heading">Add a lexicon</h3>
                 <form id="add-lexicon-form">
-                    <label for="add-lexicon-language">Language</label>
-                    <select id="add-lexicon-language" required></select>
-                    <label for="add-lexicon-targets">Translate into</label>
+                    Add lexicon for
+                    <select id="add-lexicon-language" required></select> language<br />
+                    with definitions in
                     <select
                         id="add-lexicon-targets"
                         class="translation-languages"
-                        multiple
                         required
-                    ></select>
+                    ></select> language<br />
+                    that uses
+                    <select
+                        id="add-lexicon-selection"
+                        class="lexicon-selection"
+                    ></select><br />
+                    selection strategy.<br />
                     <button type="submit">Create lexicon</button>
                 </form>
                 <p id="add-status" role="status"></p>
