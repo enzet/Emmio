@@ -5,7 +5,7 @@ import logging
 import math
 import random
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -432,33 +432,6 @@ def rate(ratio: float) -> float | None:
     if not ratio:
         return None
     return -math.log2(ratio)
-
-
-class WordSelection(Enum):
-    """How to select words for checking."""
-
-    ARBITRARY = "arbitrary"
-    """Select words arbitrarily."""
-
-    RANDOM_WORD_FROM_LIST = "random"
-    """Select a word randomly from a list of all unique words.
-
-    Note, that is not the same as selecting a random word from the whole corpus
-    of texts.
-    """
-
-    FREQUENCY = "frequency"
-    """Select word randomly from the corpus of texts.
-
-    This is the same as selecting words from frequency list, taking into account
-    the frequency of the words.
-    """
-
-    UNKNOWN = "unknown"
-    """Select unknown words."""
-
-    TOP = "top"
-    """Select most frequent words first."""
 
 
 class LexiconLog(BaseModel):
@@ -1083,98 +1056,72 @@ class LexiconChecker:
         stop_at_wrong: int | None,
     ) -> None:
         """Check lexicon."""
-        if self.lexicon.config.selection == LexiconSelection.FREQUENCY:
+        selection: LexiconSelection = self.lexicon.config.selection
+        if selection == LexiconSelection.FREQUENCY:
             await self.check_frequency(
                 other_lexicons,
                 frequency_list,
                 stop_at=None,
-                log_type="frequency",
                 stop_at_wrong=stop_at_wrong,
             )
-        elif self.lexicon.config.selection == LexiconSelection.LOGISTIC:
+        elif selection == LexiconSelection.RANDOM:
+            await self.check_random(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                stop_at_wrong=stop_at_wrong,
+            )
+        elif selection == LexiconSelection.TOP:
+            await self.check_top(
+                other_lexicons,
+                frequency_list,
+                stop_at=None,
+                stop_at_wrong=stop_at_wrong,
+            )
+        elif selection == LexiconSelection.LOGISTIC:
             await self.check_logistic(
                 other_lexicons,
                 frequency_list,
                 stop_at=None,
                 stop_at_wrong=stop_at_wrong,
             )
-        elif self.lexicon.config.selection == LexiconSelection.STRATIFIED:
+        elif selection == LexiconSelection.STRATIFIED:
             await self.check_stratified(
                 other_lexicons,
                 frequency_list,
                 stop_at=None,
                 stop_at_wrong=stop_at_wrong,
             )
-        elif self.lexicon.config.selection == LexiconSelection.TOP:
-            await self.check_frequency(
-                other_lexicons,
-                frequency_list,
-                stop_at=None,
-                log_type="most frequent",
-                stop_at_wrong=stop_at_wrong,
-            )
 
-    async def check_frequency(
+    async def _check_loop(
         self,
         other_lexicons: list["Lexicon"],
-        frequency_list: FrequencyList,
+        pick_next: Callable[[], Awaitable[str | None]],
         stop_at: int | None,
-        log_type: str,
         stop_at_wrong: int | None,
     ) -> str:
-        """Check current user vocabulary.
+        """Run the interactive checking loop with a pluggable word picker.
+
+        This is the shared body of the pool-based strategies (FWR, random,
+        top). Each strategy supplies a ``pick_next`` coroutine that returns the
+        next word to ask, or ``None`` when its candidates are exhausted.
 
         :param other_lexicons: other user lexicons of the same language
-        :param frequency_list: list of the words with frequency to check
+        :param pick_next: coroutine yielding the next word, or ``None`` to stop
         :param stop_at: stop after a number of actions
-        :param log_type: the method of picking words
         :param stop_at_wrong: stop after a number of unknown words
-
         :return: exit code
         """
-
         session: LexiconLogSession = LexiconLogSession(start=datetime.now(UTC))
 
-        # Actions during current session:
         actions: int = 0
         wrong_answers: int = 0
-
-        checked_in_session: set[str] = set()
-
         exit_code: str = "quit"
 
-        most_frequent_index: int = 0
-
         while True:
-            # If all words are checked, exit. This case may happen only if the
-            # frequency list is too small.
-            if len(checked_in_session) >= len(frequency_list):
+            picked_word: str | None = await pick_next()
+            if picked_word is None:
                 break
-
-            picked_word: str
-
-            if log_type == "frequency":
-                picked_word, _ = frequency_list.get_random_word_by_frequency()
-            elif log_type == "random":
-                picked_word, _ = frequency_list.get_random_word()
-            elif log_type == "most frequent":
-                picked_word, _ = frequency_list.get_word_by_index(
-                    most_frequent_index
-                )
-                most_frequent_index += 1
-                if self.lexicon.has(picked_word):
-                    continue
-                items: list[DictionaryItem] = await self.dictionaries.get_items(
-                    picked_word, self.lexicon.language
-                )
-                if not items or items[0].is_not_common(self.lexicon.language):
-                    continue
-            else:
-                message = f"Unknown lexicon log type `{log_type}."
-                raise ValueError(message)
-
-            if picked_word:
-                checked_in_session.add(picked_word)
 
             if self.do_skip(picked_word, other_lexicons):
                 continue
@@ -1204,6 +1151,111 @@ class LexiconChecker:
         self.lexicon.write()
 
         return exit_code
+
+    async def check_frequency(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
+        stop_at: int | None,
+        stop_at_wrong: int | None,
+    ) -> str:
+        """Check vocabulary using frequency-weighted random sampling (FWR).
+
+        Words are drawn with probability proportional to their corpus
+        frequency.
+
+        :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: list of the words with frequency to check
+        :param stop_at: stop after a number of actions
+        :param stop_at_wrong: stop after a number of unknown words
+        :return: exit code
+        """
+        # If all words are checked, stop. This may happen only if the frequency
+        # list is too small.
+        checked_in_session: set[str] = set()
+
+        async def pick_next() -> str | None:
+            if len(checked_in_session) >= len(frequency_list):
+                return None
+            picked_word, _ = frequency_list.get_random_word_by_frequency()
+            if picked_word:
+                checked_in_session.add(picked_word)
+            return picked_word
+
+        return await self._check_loop(
+            other_lexicons, pick_next, stop_at, stop_at_wrong
+        )
+
+    async def check_random(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
+        stop_at: int | None,
+        stop_at_wrong: int | None,
+    ) -> str:
+        """Check vocabulary by sampling words uniformly at random.
+
+        Unlike FWR, each unique word form is equally likely, regardless of its
+        corpus frequency.
+
+        :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: list of the words with frequency to check
+        :param stop_at: stop after a number of actions
+        :param stop_at_wrong: stop after a number of unknown words
+        :return: exit code
+        """
+        checked_in_session: set[str] = set()
+
+        async def pick_next() -> str | None:
+            if len(checked_in_session) >= len(frequency_list):
+                return None
+            picked_word, _ = frequency_list.get_random_word()
+            if picked_word:
+                checked_in_session.add(picked_word)
+            return picked_word
+
+        return await self._check_loop(
+            other_lexicons, pick_next, stop_at, stop_at_wrong
+        )
+
+    async def check_top(
+        self,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList,
+        stop_at: int | None,
+        stop_at_wrong: int | None,
+    ) -> str:
+        """Check vocabulary by walking the frequency list in rank order.
+
+        Picks the most frequent not-yet-answered word, skipping words that are
+        not common according to the dictionaries.
+
+        :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: list of the words with frequency to check
+        :param stop_at: stop after a number of actions
+        :param stop_at_wrong: stop after a number of unknown words
+        :return: exit code
+        """
+        index: int = 0
+
+        async def pick_next() -> str | None:
+            nonlocal index
+            while index < len(frequency_list):
+                picked_word, _ = frequency_list.get_word_by_index(index)
+                index += 1
+                if self.lexicon.has(picked_word):
+                    continue
+                items: list[DictionaryItem] = await self.dictionaries.get_items(
+                    picked_word, self.lexicon.language
+                )
+                if not items or items[0].is_not_common(self.lexicon.language):
+                    continue
+                return picked_word
+            return None
+
+        return await self._check_loop(
+            other_lexicons, pick_next, stop_at, stop_at_wrong
+        )
 
     def estimate_r(
         self, frequency_list: FrequencyList, a: float, b: float, c: float

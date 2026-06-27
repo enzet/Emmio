@@ -30,7 +30,7 @@ LexiconSessionRow = tuple[datetime, datetime | None]
 """Session start and end."""
 
 SAMPLING_SELECTIONS: frozenset[str] = frozenset(
-    {"frequency", "logistic", "stratified", "binary_search", "threshold"}
+    {"frequency", "logistic", "stratified", "threshold"}
 )
 """Sampling selection strategies.
 

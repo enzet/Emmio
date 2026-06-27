@@ -25,24 +25,34 @@ class LexiconUsageConfig(BaseModel):
 class LexiconSelection(Enum):
     """How words for lexicon checking was picked."""
 
-    BINARY_SEARCH = "binary_search"
-    """Words were picked from binary search."""
-
     RANDOM = "random"
-    """Words were picked randomly."""
+    """Words were picked uniformly at random from the frequency list."""
 
     ARBITRARY = "arbitrary"
-    """Words were picked arbitrarily."""
+    """Words were picked arbitrarily.
+
+    Used for lexicons imported from elsewhere, where the selection procedure is
+    external and not reproducible here. Such lexicons have no check method.
+    """
 
     FREQUENCY = "frequency"
-    """Words were picked from the specified frequency list."""
+    """Frequency-weighted random sampling (FWR).
+
+    Words were drawn with probability proportional to their corpus frequency.
+    """
 
     LOGISTIC = "logistic"
-    """Select next word based on logistic method."""
+    """Logistic model with adaptive sampling (LA).
+
+    Words were picked to maximally reduce the variance of the estimate under a
+    fitted logistic model.
+    """
 
     THRESHOLD = "threshold"
+    """Optimal frequency threshold (OT)."""
 
     STRATIFIED = "stratified"
+    """Stratified frequency-weighted random sampling (SFWR)."""
 
     TOP = "top"
     """Select the first unanswered word from the frequency list (by rank)."""

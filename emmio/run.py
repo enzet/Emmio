@@ -614,9 +614,18 @@ class Emmio:
                 self.data.get_sentences_data(),
                 lexicon.config.sentences or [],
             )
-            await checker.check_frequency(
-                other_lexicons, frequency_list, None, lexicon_type, need
-            )
+            if lexicon_type == "random":
+                await checker.check_random(
+                    other_lexicons, frequency_list, None, need
+                )
+            elif lexicon_type == "most frequent":
+                await checker.check_top(
+                    other_lexicons, frequency_list, None, need
+                )
+            else:
+                await checker.check_frequency(
+                    other_lexicons, frequency_list, None, need
+                )
             break
 
     async def learn(self, learnings: list[Learning]) -> None:
