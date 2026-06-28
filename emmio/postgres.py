@@ -677,6 +677,32 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
         return {row[0] for row in cursor.fetchall()}
 
 
+def get_lexicon_word_states(
+    user_id: str, lexicon_id: str
+) -> dict[str, str | None]:
+    """Get each word's current cached response in one lexicon.
+
+    Reads the per-word state cache (`lexicon_words.response`), so no record
+    history is scanned. Used by new-word selection to know whether a candidate
+    is already known (or marked "don't know") in a course's `check_lexicons` /
+    `ask_lexicon`.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: mapping from word to its current response code (the value may be
+        `None` when the word is recorded without a cached response)
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word, w.response "
+            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        return {row[0]: row[1] for row in cursor.fetchall()}
+
+
 def get_last_lexicon_answers(
     user_id: str, lexicon_id: str, words: list[str]
 ) -> dict[str, tuple[str, datetime]]:

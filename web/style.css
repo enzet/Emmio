@@ -101,6 +101,14 @@ p#sentence {
 p#question {
     font-size: 85%;
 }
+/* The example sentence's translation, shown muted under the blanked sentence. */
+p#sentence-translation {
+    text-align: center;
+    width: 500px;
+    margin: 0 auto 0.5rem;
+    color: #888;
+    font-style: italic;
+}
 
 label {
     display: block;
@@ -108,10 +116,6 @@ label {
     padding-bottom: 0.1rem;
 }
 p {
-}
-p#translation-button {
-    margin: 0.5rem 0;
-    text-align: center;
 }
 
 p#external-links {
@@ -327,6 +331,33 @@ a.button {
     color: black;
     text-decoration: none;
     font-size: 85%;
+}
+/* Course links in the Languages table, wrapping with a little breathing room. */
+td.courses-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+/* The learning typing field, centered under the blanked word. */
+input#answer-input {
+    display: block;
+    margin: 0 auto 0.5rem;
+    font-size: 200%;
+    text-align: center;
+    border: 1px solid #EEE;
+    border-radius: 3px;
+    background: #EEE;
+    padding: 0.3rem 0.6rem;
+    width: stretch;
+    max-width: 20rem;
+}
+/* The word shown for the new-word know/don't-know check. */
+p#ask-word,
+p.word {
+    font-size: 320%;
+    text-align: center;
+    font-weight: 700;
+    margin: 0.5rem 0;
 }
 /*
 form button {

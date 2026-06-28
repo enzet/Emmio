@@ -29,13 +29,16 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `check.html`    | Check a lexicon: shows a word, records know / don't know.    |
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
-| `learn.html`    | Repeat a course: shows a due word, records right / wrong.    |
+| `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
 | `app.js`        | Token storage, the `fetch` helper, and per-page logic.       |
 
 `app.js` dispatches on `<body data-page="...">`, so each page is plain HTML that
-just includes the one script. The lexicon-checking and learning pages share one
-`runSession()` flow (next → reveal translation → answer), differing only in the
-resource path (`/me/lexicons/{id}` vs `/me/courses/{id}`).
+just includes the one script. Lexicon checking uses `runSession()` (a yes/no
+flow: next → reveal translation → answer). Learning uses `runLearnSession()`, a
+*production* flow: the meaning (the definition with the word blanked) and a
+translated example sentence are shown as the prompt, the word is blanked, and
+the user types it — auto-accepted the instant the entry matches the card's
+server-provided `accepted` forms; "I don't know" reveals the word.
 
 ## Page flow
 
@@ -113,9 +116,11 @@ sequenceDiagram
     end
 ```
 
-`exclude` lists words already queued so a batch never repeats one. The same flow
-drives learning, against `/me/courses/{id}` instead (its `/next` returns the
-soonest-due questions). The `response` value depends on the resource:
+`exclude` lists words already queued so a batch never repeats one. Learning runs
+the analogous flow against `/me/courses/{id}` (its `/next` returns the
+soonest-due questions); when those run out it pulls new words from `/new`, which
+may first ask a know/don't-know check recorded in the course's `ask_lexicon`
+before the word is taught. The `response` value depends on the resource:
 
 > **Lexicon `/next` records as it samples.** It draws frequency-weighted words
 > and, for every word it does *not* present (already known, flagged "skip",
@@ -134,13 +139,15 @@ soonest-due questions). The `response` value depends on the resource:
 
 ## Scope and limitations
 
-- **Learning is review-only.** The learning pages repeat words that are already
-  being learned and are *due* (spaced repetition). Adding *new* words needs the
-  interactive `Teacher` and is not exposed over the API yet, so a course with no
-  due words shows "Nothing to repeat right now."
-- **No create endpoints.** A freshly registered user has no lexicons or courses,
-  and there is no API to create them yet — so the session pages are usable only
-  by a user who already owns data in the database (e.g. a migrated CLI user).
+- **Learning teaches new words too.** The learning page repeats *due* words and,
+  when none remain, adds new ones drawn from the course's frequency lists
+  (`/new`), honoring its `check_lexicons` / `ask_lexicon`. Typing is graded
+  against the card's `accepted` forms (today the exact word). Audio
+  pronunciation is the one `Teacher` feature not yet exposed.
+- **Create from the home page.** A freshly registered user has no lexicons or
+  courses; the home page offers "Add a lexicon" (`POST /me/lexicons`) and "Add a
+  course" (`POST /me/courses`) to make the first ones. Both draw on the shared
+  frequency lists, dictionaries and Tatoeba sentences for the chosen language.
 - **Each `next` reloads server-side state.** A `/next` request reloads the
   lexicon/course from the database to pick words; the client buffer hides this
   latency, but a persistent server-side session would still be more efficient.

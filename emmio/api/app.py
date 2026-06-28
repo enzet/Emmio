@@ -48,7 +48,8 @@ from emmio.lexicon.core import (
 )
 from emmio.lists.config import ListUsageConfig
 from emmio.sentence.config import SentencesUsageConfig
-from emmio.sentence.core import SentenceElement
+from emmio.sentence.core import Sentence as ExampleSentence
+from emmio.sentence.core import SentenceAndTranslations, SentenceElement
 from emmio.ui import Element, Formatted, Text
 from emmio.user.export import UnknownUserError, build_archive
 from emmio.util import log_duration
@@ -522,6 +523,91 @@ def create_lexicon(
     return CreatedLexicon(lexicon_id=lexicon_id)
 
 
+class CreateCourseRequest(BaseModel):
+    """Payload to create a learning course: language and translation targets."""
+
+    language: str
+    translation_languages: list[str] = Field(default_factory=lambda: ["en"])
+
+
+class CreatedCourse(BaseModel):
+    """The identifier assigned to a freshly created course."""
+
+    course_id: str
+
+
+@app.post("/api/v1/me/courses", status_code=status.HTTP_201_CREATED)
+def create_course(
+    request: CreateCourseRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> CreatedCourse:
+    """Create a learning course for a language.
+
+    New words are drawn from the language's frequency list (skipping ones a
+    dictionary marks uncommon), shown with Tatoeba usage examples, and
+    translated into the requested target languages — the same shared data a
+    lexicon uses. Its id is the language code, suffixed if one already exists.
+    """
+    data = get_data()
+    frequency_list: dict | None = data.get_frequency_list_languages().get(
+        request.language
+    )
+    if frequency_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"No frequency list available for language "
+                f"`{request.language}`."
+            ),
+        )
+
+    targets: list[str] = [
+        target
+        for target in dict.fromkeys(request.translation_languages)
+        if _is_known_language(target)
+    ]
+    if not targets:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one valid translation language is required.",
+        )
+
+    existing: set[str] = {row[0] for row in postgres.list_courses(user_id)}
+    course_id: str = request.language
+    suffix: int = 2
+    while course_id in existing:
+        course_id = f"{request.language}_{suffix}"
+        suffix += 1
+
+    with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
+        Language.from_code(request.language)
+    )
+    dictionaries, sentences = _translation_config(
+        request.language, targets, with_kaikki=with_kaikki
+    )
+    # New words come from the frequency list; when a Kaikki dictionary is
+    # available it also filters out words it marks uncommon (mere word forms).
+    new_question: dict = {"pick_from": [frequency_list]}
+    if with_kaikki:
+        new_question["ignore_not_common"] = [
+            {
+                "id": "kaikki",
+                "from_language": request.language,
+                "name": Language.from_code(request.language).get_name(),
+            }
+        ]
+    config: dict = {
+        "name": Language.from_code(request.language).get_name(),
+        "learning_language": request.language,
+        "base_languages": targets,
+        "scheme": {"new_question": new_question},
+        "dictionaries": dictionaries,
+        "sentences": sentences,
+    }
+    postgres.store_learn_config(user_id, course_id, config)
+    return CreatedCourse(course_id=course_id)
+
+
 class NextWord(BaseModel):
     """The next word to check, or `None` when the list is exhausted."""
 
@@ -534,6 +620,14 @@ class WordCard(BaseModel):
     word: str
     last_response: str | None  # Human label of the last answer, e.g. "know".
     last_time: datetime | None  # When the word was last answered.
+    accepted: list[str] | None = None
+    """Typed answers that count as correct, for live "auto-accept on match".
+
+    Set for learning cards (the user types the word); `None` for lexicon cards
+    (a yes/no check, nothing is typed). The client compares the typed text
+    against this set and accepts on a hit, so the language-matching rule stays a
+    server concern rather than being reimplemented in the client.
+    """
 
 
 # Sentences containing a word to inspect when one example is enough. Keeping
@@ -569,8 +663,15 @@ def _word_cards(
     words: list[str],
     answers: dict[str, tuple[str, datetime]],
     labels: dict[str, str],
+    *,
+    typed: bool = False,
 ) -> list[WordCard]:
-    """Build word cards, attaching each word's last answer."""
+    """Build word cards, attaching each word's last answer.
+
+    :param typed: whether the card is answered by typing the word (learning),
+        in which case `accepted` is populated so the client can auto-accept a
+        correct entry; lexicon cards leave it `None`.
+    """
     cards: list[WordCard] = []
     for word in words:
         code_time: tuple[str, datetime] | None = answers.get(word)
@@ -583,26 +684,24 @@ def _word_cards(
                     else None
                 ),
                 last_time=code_time[1] if code_time else None,
+                accepted=[word] if typed else None,
             )
         )
     return cards
 
 
-def _sentence_html(
+def _example_sentences(
     word: str, language: str, configs: list[dict] | None
-) -> str | None:
-    """Render one example sentence for a word, with the word in bold.
+) -> list:
+    """Look up a handful of example sentences containing a word.
 
-    Mirrors the CLI's usage example: a sentence in the lexicon's language with
-    the target word highlighted (its translation is intentionally not shown).
-    Returns `None` if the lexicon has no sentence sources or none are found.
+    Inspects a small sample rather than all (hundreds) of a common word's
+    sentences, since only one example is ever shown.
     """
     if not configs:
-        return None
-    # Only one example is shown, so inspect a handful of sentences rather than
-    # all (hundreds) containing the word.
+        return []
     with log_duration(f"sentence lookup for `{word}` ({language})", logger):
-        examples = (
+        return (
             get_data()
             .get_sentences_data()
             .get(
@@ -611,20 +710,83 @@ def _sentence_html(
                 max_number=_SENTENCE_SAMPLE,
             )
         )
-    if not examples:
-        return None
-    language_object: Language = Language.from_code(language)
-    sentence = random.choice(examples).sentence
+
+
+def _render_sentence(
+    sentence: ExampleSentence, language: Language, word: str, *, mask: bool
+) -> str:
+    """Render a sentence to HTML, with the target word bold or blanked.
+
+    :param mask: replace the word with underscores (a recall prompt) instead of
+        bolding it
+    """
     text: Text = Text()
-    for part, element in sentence.get_words(language_object):
-        if (
-            element == SentenceElement.WORD
-            and language_object.normalize(part) == word
-        ):
-            text.add(Formatted(part, "bold"))
+    for part, element in sentence.get_words(language):
+        if element == SentenceElement.WORD and language.normalize(part) == word:
+            text.add("_" * len(part) if mask else Formatted(part, "bold"))
         else:
             text.add(part)
     return to_html(text)
+
+
+def _sentence_html(
+    word: str, language: str, configs: list[dict] | None
+) -> str | None:
+    """Render one example sentence for a word, with the word bolded.
+
+    The CLI's usage example: a sentence in the word's language with the target
+    word highlighted (its translation is intentionally not shown). Returns
+    `None` if there are no sentence sources or none are found.
+    """
+    examples: list[SentenceAndTranslations] = _example_sentences(
+        word, language, configs
+    )
+    if not examples:
+        return None
+    return _render_sentence(
+        random.choice(examples).sentence,
+        Language.from_code(language),
+        word,
+        mask=False,
+    )
+
+
+def _course_sentence(
+    word: str,
+    language: str,
+    configs: list[dict] | None,
+    base_languages: list[str],
+) -> tuple[str, str] | None:
+    """One example sentence (word blanked) plus one of its translations.
+
+    Only sentences that have a translation into one of the course's base
+    languages are used, so a learner always sees a translated example. Returns
+    `(sentence_html, translation_text)`, or `None` when no such sentence exists.
+    """
+    examples: list[SentenceAndTranslations] = _example_sentences(
+        word, language, configs
+    )
+    if not examples:
+        return None
+    bases: list[Language] = [
+        Language.from_code(code) for code in base_languages
+    ]
+    # Keep only examples that carry a translation into a base language, pairing
+    # each with that language's translations to draw one from.
+    candidates: list[tuple[SentenceAndTranslations, list[ExampleSentence]]] = []
+    for example in examples:
+        for base in bases:
+            translations = example.translations.get(base)
+            if translations:
+                candidates.append((example, translations))
+                break
+    if not candidates:
+        return None
+    example, translations = random.choice(candidates)
+    sentence_html: str = _render_sentence(
+        example.sentence, Language.from_code(language), word, mask=True
+    )
+    return sentence_html, random.choice(translations).text
 
 
 # Most words a single `/next` request may prefetch.
@@ -724,13 +886,16 @@ async def _translate(
     dictionaries: list[dict] | None,
     *,
     index: int | None = None,
+    hide_word: bool = False,
 ) -> list[DictionaryTranslation]:
     """Look a word up, rendering each dictionary's output separately.
 
     When ``index`` is given, only the dictionary at that position in the
     configured list is queried; this lets the client load each dictionary
     independently and reveal them as they arrive, rather than waiting for the
-    slowest one. ``None`` queries every configured dictionary.
+    slowest one. ``None`` queries every configured dictionary. With
+    ``hide_word`` the word is blanked out of the definitions, so they can serve
+    as a learning prompt without revealing the answer.
     """
 
     configs: list[DictionaryUsageConfig] = _dictionary_configs(dictionaries)
@@ -747,7 +912,10 @@ async def _translate(
         groups: list[
             tuple[str, list[Element]]
         ] = await collection.to_text_by_dictionary(
-            word, Language.from_code(language), _DEFINITION_LANGUAGES
+            word,
+            Language.from_code(language),
+            _DEFINITION_LANGUAGES,
+            hide_word=hide_word,
         )
     return [
         DictionaryTranslation(dictionary=name, html=elements_to_html(elements))
@@ -973,6 +1141,8 @@ class Sentence(BaseModel):
 
     word: str
     sentence: str | None
+    translation: str | None = None
+    """A translation of the sentence (course learning only), else `None`."""
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/sentence")
@@ -1179,7 +1349,9 @@ def get_next_questions(
     answers = postgres.get_last_learn_answers(user_id, course_id, questions)
     return NextWords(
         language=learning.learning_language.get_code(),
-        words=_word_cards(questions, answers, _LEARN_RESPONSE_LABELS),
+        words=_word_cards(
+            questions, answers, _LEARN_RESPONSE_LABELS, typed=True
+        ),
     )
 
 
@@ -1255,9 +1427,10 @@ async def get_course_translation(
 ) -> Translation:
     """Get a word's translation from the course's configured dictionaries.
 
-    ``index`` optionally restricts the result to the single dictionary at that
-    position (see ``/dictionaries``), so the client can load each dictionary
-    independently and reveal them as they arrive.
+    The word is blanked out of the definitions, so the meaning serves as a
+    recall prompt without revealing the answer. ``index`` optionally restricts
+    the result to the single dictionary at that position (see
+    ``/dictionaries``), so the client can load each dictionary independently.
     """
     config: dict = _course_config_or_404(user_id, course_id)
     return Translation(
@@ -1267,8 +1440,185 @@ async def get_course_translation(
             config["learning_language"],
             config.get("dictionaries"),
             index=index,
+            hide_word=True,
         ),
     )
+
+
+@app.get("/api/v1/me/courses/{course_id}/sentence")
+def get_course_sentence(
+    course_id: str,
+    word: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> Sentence:
+    """Get one example sentence for a word, blanked, with a translation.
+
+    A recall prompt: the word is blanked out and the sentence comes with one of
+    its translations into a base language (only translated sentences are used).
+    A slow lookup kept off `/next` so the card appears immediately and the
+    example is revealed when it arrives.
+    """
+    config: dict = _course_config_or_404(user_id, course_id)
+    result: tuple[str, str] | None = _course_sentence(
+        word,
+        config["learning_language"],
+        config.get("sentences"),
+        config.get("base_languages") or [],
+    )
+    if result is None:
+        return Sentence(word=word, sentence=None, translation=None)
+    sentence_html, translation = result
+    return Sentence(word=word, sentence=sentence_html, translation=translation)
+
+
+class NewQuestion(BaseModel):
+    """The next new word to add to a course, or `None` when none remains."""
+
+    word: str | None
+    accepted: list[str] | None = None  # Typed answers that count as correct.
+    check_lexicon: str | None = None
+    """Lexicon to ask know/don't-know in *before* learning this word.
+
+    Set when the course has an `ask_lexicon` and the word has not been answered
+    there yet: the client first presents a yes/no check and posts the answer to
+    that lexicon's `/answer`. "Know" means skip the word (request `/new` again);
+    "don't know" admits it to learning. `None` means learn the word directly.
+    """
+    remaining_today: int  # New words still allowed today (`max_for_day`).
+
+
+# Most dictionary look-ups one `/new` request may perform before giving up.
+# New-word selection re-walks the question lists from the top each call (it is
+# stateless), skipping already-handled words cheaply in memory; only words at
+# the frontier need a slow dictionary "is it common" check. This caps that work
+# so a long run of undefined words cannot stall a request (it returns no word,
+# and the client may retry).
+_NEW_WORD_DICT_BUDGET: int = 64
+
+
+async def _is_common(
+    word: str,
+    dictionaries: DictionaryCollection,
+    language: Language,
+    base_languages: list[Language],
+) -> bool:
+    """Whether a word is worth learning per the course's dictionaries.
+
+    Ports `Teacher.check_common`: a word is skipped when no configured
+    dictionary defines it, or when it is solely an uncommon form of other words.
+    """
+    if not await dictionaries.get_items(word, language):
+        return False  # No definition anywhere.
+    items = await dictionaries.get_items(word, language, follow_links=False)
+    for item in items:
+        for base_language in base_languages:
+            if item.has_definitions() and item.is_not_common(base_language):
+                return False  # Solely an uncommon form of another word.
+    return True
+
+
+@app.get("/api/v1/me/courses/{course_id}/new")
+async def get_new_question_word(
+    course_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    exclude: Annotated[list[str] | None, Query()] = None,
+) -> NewQuestion:
+    """Get the next new word to add to a course, from its question lists.
+
+    Ports the selection half of `Teacher`: walks the configured frequency lists
+    in order and returns the first candidate worth learning, skipping words
+    already being learned, already known in a `check_lexicons` lexicon, or not
+    common per the configured dictionaries. A word marked "don't know" in a
+    check lexicon is returned to learn directly; otherwise, when an
+    `ask_lexicon` is configured and the word is new there, it is returned with
+    `check_lexicon` set so the client first asks the user know/don't-know.
+
+    Stateless: it re-scans from the top each call (the in-memory skips are
+    cheap), so an answered or admitted word simply stops being returned next
+    time. Returns `word=None` when the daily limit is reached, the course has no
+    new-question scheme, or the lists are exhausted.
+    """
+    learning: Learning = _load_learning(user_id, course_id)
+    scheme = learning.config.scheme
+    remaining: int = learning.count_questions_to_add()
+    if (
+        remaining <= 0
+        or scheme is None
+        or scheme.new_question is None
+        or not scheme.new_question.pick_from
+    ):
+        return NewQuestion(word=None, remaining_today=max(0, remaining))
+
+    new_question = scheme.new_question
+    data = get_data()
+
+    # Candidate words, list-then-rank order (mirrors `Teacher.question_ids`).
+    candidates: list[str] = []
+    for list_config in new_question.pick_from:
+        word_list = data.get_list(list_config)
+        if word_list is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Question list `{list_config.id}` could not be loaded.",
+            )
+        candidates.extend(word_list.get_words())
+
+    # Current state for the non-interactive filters, each loaded once.
+    check_states: list[dict[str, str | None]] = [
+        postgres.get_lexicon_word_states(user_id, lexicon.id)
+        for lexicon in (new_question.check_lexicons or [])
+    ]
+    ask_lexicon_id: str | None = (
+        new_question.ask_lexicon.id if new_question.ask_lexicon else None
+    )
+    ask_states: dict[str, str | None] = (
+        postgres.get_lexicon_word_states(user_id, ask_lexicon_id)
+        if ask_lexicon_id
+        else {}
+    )
+    dictionaries: DictionaryCollection = (
+        data.get_dictionaries(new_question.ignore_not_common)
+        if new_question.ignore_not_common
+        else DictionaryCollection([])
+    )
+
+    language: Language = learning.learning_language
+    dont: str = LexiconResponse.DONT.to_code()
+    excluded: set[str] = set(exclude or [])
+    dict_checks: int = 0
+
+    for word in candidates:
+        if word in excluded or learning.has(word):
+            continue
+        # Already known (anything but "don't know") in a check lexicon -> skip.
+        if any(
+            word in states and states[word] != dont for states in check_states
+        ):
+            continue
+        if dictionaries.dictionaries:
+            dict_checks += 1
+            if dict_checks > _NEW_WORD_DICT_BUDGET:
+                break  # Budget spent; report no word, the client may retry.
+            if not await _is_common(
+                word, dictionaries, language, learning.base_languages
+            ):
+                continue
+        # A "don't know" in a check lexicon means learn it now, skipping the
+        # ask-lexicon prompt; an unseen word with an `ask_lexicon` is asked
+        # first; anything else is learned directly.
+        check_lexicon: str | None = None
+        if not any(word in states for states in check_states) and (
+            ask_lexicon_id is not None and word not in ask_states
+        ):
+            check_lexicon = ask_lexicon_id
+        return NewQuestion(
+            word=word,
+            accepted=[word],
+            check_lexicon=check_lexicon,
+            remaining_today=remaining,
+        )
+
+    return NewQuestion(word=None, remaining_today=remaining)
 
 
 # Serve shared documentation assets (logo, headers) read-only, so the web

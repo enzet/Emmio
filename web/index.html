@@ -52,6 +52,7 @@
                             <th scope="col">Language</th>
                             <th scope="col">Rate</th>
                             <th scope="col">Remaining</th>
+                            <th scope="col">Courses</th>
                             <th scope="col"></th>
                         </tr>
                     </thead>
@@ -77,6 +78,20 @@
                     <button type="submit">Create lexicon</button>
                 </form>
                 <p id="add-status" role="status"></p>
+
+                <h3 id="add-course-heading">Add a course</h3>
+                <form id="add-course-form">
+                    Learn
+                    <select id="add-course-language" required></select> language<br />
+                    with definitions in
+                    <select
+                        id="add-course-targets"
+                        class="translation-languages"
+                        required
+                    ></select> language.<br />
+                    <button type="submit">Create course</button>
+                </form>
+                <p id="add-course-status" role="status"></p>
             </section>
         </main>
     </body>

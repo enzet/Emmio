@@ -3,6 +3,7 @@
 import io
 import json
 import zipfile
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -11,6 +12,9 @@ from fastapi.testclient import TestClient
 from emmio import postgres
 from emmio.api import app as app_module
 from emmio.api.app import app
+from emmio.language import Language
+from emmio.sentence.core import Sentence as ExampleSentence
+from emmio.sentence.core import SentenceAndTranslations
 
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
@@ -273,6 +277,62 @@ def test_create_lexicon_configures_translations_and_sentences() -> None:
     ]
 
 
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_stores_learnable_config() -> None:
+    """A created course draws new words from the language's frequency list."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "translation_languages": ["en", "ru"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["course_id"] == "uk"
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["learning_language"] == "uk"
+    assert config["base_languages"] == ["en", "ru"]
+    # New words are picked from the language's frequency list.
+    assert config["scheme"]["new_question"]["pick_from"] == [{"id": "uk_list"}]
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"},
+        {"id": "google_translate", "from_language": "uk", "to_language": "ru"},
+    ]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_for_unknown_language_is_bad_request() -> None:
+    """A language without a frequency list cannot be made into a course."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses", json={"language": "xx"}, headers=_auth(token)
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_suffixes_duplicate_ids() -> None:
+    """A second course for the same language gets a suffixed id."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    first = client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+    second = client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    assert first.json()["course_id"] == "uk"
+    assert second.json()["course_id"] == "uk_2"
+
+
 def test_lexicon_strategies_are_listed() -> None:
     """`/lexicon-strategies` serves the selectable strategies with labels."""
 
@@ -446,3 +506,268 @@ def test_delete_me_leaves_other_users_intact() -> None:
 
     assert postgres.user_exists("bob")
     assert [row[0] for row in postgres.list_lexicons("bob")] == ["de"]
+
+
+# Learning: adding new words, example sentences, typed-answer matching.
+
+
+class _FakeWordList:
+    """A frequency list returning a fixed sequence of words."""
+
+    def __init__(self, words: list[str]) -> None:
+        self._words = words
+
+    def get_words(self) -> list[str]:
+        return self._words
+
+    def get_name(self) -> str:
+        return "test list"
+
+
+class _FakeSelectionData:
+    """Stand-in data exposing one fixed question list and no dictionaries."""
+
+    def __init__(self, words: list[str]) -> None:
+        self._words = words
+
+    def get_list(self, usage_config: object) -> _FakeWordList:  # noqa: ARG002
+        return _FakeWordList(self._words)
+
+
+def _make_course(
+    user_id: str, course_id: str = "eo", *, scheme: dict | None = None
+) -> None:
+    """Store a minimal learning course with the given (or no) scheme."""
+
+    postgres.store_learn_config(
+        user_id,
+        course_id,
+        {
+            "name": "Esperanto",
+            "learning_language": "eo",
+            "base_languages": ["en"],
+            "scheme": scheme,
+            "dictionaries": [],
+        },
+    )
+
+
+def _new_question_scheme(
+    *, check_lexicons: list[str] | None = None, ask_lexicon: str | None = None
+) -> dict:
+    """Build a `new_question` scheme picking from the fake `test_list`."""
+
+    new_question: dict[str, Any] = {"pick_from": [{"id": "test_list"}]}
+    if check_lexicons is not None:
+        new_question["check_lexicons"] = [{"id": x} for x in check_lexicons]
+    if ask_lexicon is not None:
+        new_question["ask_lexicon"] = {"id": ask_lexicon}
+    return {"new_question": new_question}
+
+
+def test_new_question_for_unknown_course_is_not_found() -> None:
+    """Requesting a new word for a missing course returns 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/me/courses/ghost/new", headers=_auth(token))
+
+    assert response.status_code == 404
+
+
+def test_new_question_without_scheme_returns_none() -> None:
+    """A course with no new-question scheme offers no new word."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme=None)
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] is None
+    assert body["remaining_today"] == 10  # `max_for_day` default.
+
+
+def test_new_question_skips_known_and_learning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Words already learned or known in a check lexicon are skipped."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course(
+        "alice",
+        scheme=_new_question_scheme(check_lexicons=["cl"], ask_lexicon="al"),
+    )
+    # "alpha" is already known in the check lexicon.
+    postgres.save_lexicon(
+        "alice", "cl", "eo", [("alpha", "K", datetime.now(UTC), None)], []
+    )
+    # "beta" is already being learned.
+    postgres.save_learning(
+        "alice",
+        "eo",
+        "Esperanto",
+        "eo",
+        [("beta", "y", datetime.now(UTC), None, None)],
+        [],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "get_data",
+        lambda: _FakeSelectionData(["alpha", "beta", "gamma"]),
+    )
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] == "gamma"
+    # Unseen in the ask lexicon, so the client must ask know/don't-know first.
+    assert body["check_lexicon"] == "al"
+    assert body["accepted"] == ["gamma"]
+
+
+def test_new_question_dont_in_check_learns_directly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A "don't know" in a check lexicon admits the word without asking."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course(
+        "alice",
+        scheme=_new_question_scheme(check_lexicons=["cl"], ask_lexicon="al"),
+    )
+    postgres.save_lexicon(
+        "alice", "cl", "eo", [("gamma", "D", datetime.now(UTC), None)], []
+    )
+    monkeypatch.setattr(
+        app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
+    )
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    body = response.json()
+    assert body["word"] == "gamma"
+    assert body["check_lexicon"] is None  # Learned directly.
+
+
+def test_new_question_excludes_queued_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`exclude` skips words the client already has in hand."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme=_new_question_scheme())
+    monkeypatch.setattr(
+        app_module, "get_data", lambda: _FakeSelectionData(["alpha", "beta"])
+    )
+
+    response = client.get(
+        "/api/v1/me/courses/eo/new",
+        params={"exclude": ["alpha"]},
+        headers=_auth(token),
+    )
+
+    body = response.json()
+    assert body["word"] == "beta"
+    assert body["check_lexicon"] is None  # No ask lexicon configured.
+
+
+def test_course_sentence_without_sources_is_null() -> None:
+    """A course with no sentence sources returns no example sentence."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme=None)
+
+    response = client.get(
+        "/api/v1/me/courses/eo/sentence",
+        params={"word": "saluton"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] == "saluton"
+    assert body["sentence"] is None
+
+
+class _FakeSentencesData:
+    """Stand-in sentence store returning a fixed list of examples."""
+
+    def __init__(self, examples: list[SentenceAndTranslations]) -> None:
+        self._examples = examples
+
+    def get(
+        self,
+        word: str,  # noqa: ARG002
+        usage_configs: object,  # noqa: ARG002
+        max_number: int = 1000,  # noqa: ARG002
+    ) -> list[SentenceAndTranslations]:
+        return self._examples
+
+
+class _FakeSentenceData:
+    """Stand-in data exposing only the sentence store."""
+
+    def __init__(self, examples: list[SentenceAndTranslations]) -> None:
+        self._examples = examples
+
+    def get_sentences_data(self) -> _FakeSentencesData:
+        return _FakeSentencesData(self._examples)
+
+
+def test_course_sentence_requires_base_language_translation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only translated examples are used; the word is blanked, one shown."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.store_learn_config(
+        "alice",
+        "fr",
+        {
+            "name": "French",
+            "learning_language": "fr",
+            "base_languages": ["en"],
+            "scheme": None,
+            "dictionaries": [],
+            "sentences": [
+                {
+                    "id": "tatoeba",
+                    "language": "fr",
+                    "translation_languages": ["en"],
+                }
+            ],
+        },
+    )
+    english = Language.from_code("en")
+    french = Language.from_code("fr")
+    translated = SentenceAndTranslations(
+        sentence=ExampleSentence(1, "Le chat dort."),
+        language=french,
+        translations={english: [ExampleSentence(2, "The cat sleeps.")]},
+    )
+    untranslated = SentenceAndTranslations(
+        sentence=ExampleSentence(3, "Un chat noir."),
+        language=french,
+        translations={},
+    )
+    monkeypatch.setattr(
+        app_module,
+        "get_data",
+        lambda: _FakeSentenceData([untranslated, translated]),
+    )
+
+    response = client.get(
+        "/api/v1/me/courses/fr/sentence",
+        params={"word": "chat"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # The translated example wins; its word is blanked and a translation shown.
+    assert body["translation"] == "The cat sleeps."
+    assert "chat" not in body["sentence"]
+    assert "____" in body["sentence"]

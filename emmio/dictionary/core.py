@@ -913,7 +913,12 @@ class DictionaryCollection:
         return result
 
     async def to_text_by_dictionary(
-        self, word: str, language: Language, languages: list[Language]
+        self,
+        word: str,
+        language: Language,
+        languages: list[Language],
+        *,
+        hide_word: bool = False,
     ) -> list[tuple[str, list[Element]]]:
         """Get formatted dictionary items grouped by dictionary.
 
@@ -924,6 +929,9 @@ class DictionaryCollection:
         :param word: word to get dictionary items for
         :param language: language of the word
         :param languages: languages of definitions or translations
+        :param hide_word: blank out the word (and the forms it links to) in the
+            output, so the definition can be shown as a learning prompt without
+            giving the answer away (mirrors the CLI's `Teacher.learn`)
         :return: list of (dictionary name, formatted elements) pairs, one per
             dictionary that produced any output, in priority order
         """
@@ -931,11 +939,27 @@ class DictionaryCollection:
             tuple[Dictionary, DictionaryItem]
         ] = await self.get_items_marked(word, language)
 
+        words_to_hide: set[str] = set()
+        if hide_word:
+            for _dictionary, item in items:
+                words_to_hide.add(item.word)
+                for link in item.get_links():
+                    words_to_hide.add(link.link_value)
+
         grouped: dict[str, list[Element]] = {}
         names: dict[str, str] = {}
         order: list[str] = []
         for dictionary, item in items:
-            item_text: list[Element] = item.to_text(languages)
+            item_text: list[Element] = (
+                item.to_text(
+                    languages,
+                    show_word=False,
+                    words_to_hide=words_to_hide,
+                    only_common=False,
+                )
+                if hide_word
+                else item.to_text(languages)
+            )
             if not item_text:
                 continue
             key: str = dictionary.id_

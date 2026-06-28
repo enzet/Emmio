@@ -190,10 +190,21 @@ async function initHome() {
     const response = await api("/me/languages");
     const languages = await response.json();
 
-    // No main lexicon yet: welcome the user and offer to create their first
-    // one. Otherwise show the languages dashboard, with an "Add a lexicon"
-    // control to create further ones.
-    if (languages.length === 0) {
+    // The user's courses, grouped by learning language, so each language row
+    // can list the courses available to study for it.
+    const coursesResponse = await api("/me/courses");
+    const courses = coursesResponse.ok ? await coursesResponse.json() : [];
+    const coursesByLanguage = new Map();
+    for (const course of courses) {
+        const list = coursesByLanguage.get(course.learning_language) || [];
+        list.push(course);
+        coursesByLanguage.set(course.learning_language, list);
+    }
+
+    // Nothing yet: welcome the user and offer to create their first lexicon.
+    // The dashboard shows for any language the user has a main lexicon *or* a
+    // course for.
+    if (languages.length === 0 && courses.length === 0) {
         document.getElementById("welcome").hidden = false;
         await setupCreateLexicon(
             "create-lexicon-form",
@@ -205,31 +216,53 @@ async function initHome() {
     document.getElementById("languages").hidden = false;
     status.textContent = "";
     table.hidden = false;
-    for (const entry of languages) {
+
+    // Render one language row. `entry` is its main-lexicon stats (`/me/languages`)
+    // or `null` when the language only has courses; `courseList` are its courses.
+    function renderLanguageRow(language, entry, courseList) {
         const row = document.createElement("tr");
 
         const nameCell = document.createElement("td");
-        const link = document.createElement("a");
-        link.href = `lexicon?lexicon=${encodeURIComponent(
-            entry.lexicon_id,
-        )}`;
-        link.textContent = languageName(entry.language);
-        nameCell.appendChild(link);
+        if (entry) {
+            const link = document.createElement("a");
+            link.href = `lexicon?lexicon=${encodeURIComponent(
+                entry.lexicon_id,
+            )}`;
+            link.textContent = languageName(language);
+            nameCell.appendChild(link);
+        } else {
+            nameCell.textContent = languageName(language);
+        }
         row.appendChild(nameCell);
 
         const rateCell = document.createElement("td");
         rateCell.textContent =
-            entry.rate === null ? "—" : entry.rate.toFixed(1);
+            entry && entry.rate !== null ? entry.rate.toFixed(1) : "—";
         row.appendChild(rateCell);
 
-        // "Don't know" answers still wanted this week; blank when on target.
+        // "Don't know" answers still wanted this week; blank when on target or
+        // when the language has no lexicon.
         const remainingCell = document.createElement("td");
         remainingCell.textContent =
-            entry.weekly_remaining <= 0 ? "" : entry.weekly_remaining;
+            entry && entry.weekly_remaining > 0 ? entry.weekly_remaining : "";
         row.appendChild(remainingCell);
 
+        // Courses to study for this language, each linking to its session.
+        const coursesCell = document.createElement("td");
+        coursesCell.className = "courses-cell";
+        for (const course of courseList) {
+            const learn = document.createElement("a");
+            learn.className = "button";
+            learn.href = `learn?course=${encodeURIComponent(
+                course.course_id,
+            )}`;
+            learn.textContent = course.name;
+            coursesCell.appendChild(learn);
+        }
+        row.appendChild(coursesCell);
+
         const checkCell = document.createElement("td");
-        if (entry.weekly_remaining > 0) {
+        if (entry && entry.weekly_remaining > 0) {
             const check = document.createElement("a");
             check.className = "button";
             check.href = `check?lexicon=${encodeURIComponent(
@@ -243,10 +276,33 @@ async function initHome() {
 
         rows.appendChild(row);
     }
+
+    // Languages with a main lexicon first (already sorted by rate), then the
+    // course-only ones, alphabetically.
+    const rated = new Set();
+    for (const entry of languages) {
+        rated.add(entry.language);
+        renderLanguageRow(
+            entry.language,
+            entry,
+            coursesByLanguage.get(entry.language) || [],
+        );
+    }
+    const courseOnly = [...coursesByLanguage.keys()]
+        .filter((language) => !rated.has(language))
+        .sort((a, b) => languageName(a).localeCompare(languageName(b)));
+    for (const language of courseOnly) {
+        renderLanguageRow(language, null, coursesByLanguage.get(language));
+    }
     await setupCreateLexicon(
         "add-lexicon-form",
         "add-lexicon-language",
         "add-status",
+    );
+    await setupCreateCourse(
+        "add-course-form",
+        "add-course-language",
+        "add-course-status",
     );
 }
 
@@ -319,6 +375,62 @@ async function setupCreateLexicon(formId, selectId, statusId) {
         } else {
             const { detail } = await result.json().catch(() => ({}));
             createStatus.textContent = detail || "Could not create lexicon.";
+        }
+    });
+}
+
+// Wire up an "add a course" form: fill its language selector from the languages
+// available for learning (the same ones a lexicon can use — a frequency list to
+// draw new words from and Tatoeba sentences for examples), and on submit create
+// the course and open its learning session.
+async function setupCreateCourse(formId, selectId, statusId) {
+    const form = document.getElementById(formId);
+    const select = document.getElementById(selectId);
+    const targets = form.querySelector(".translation-languages");
+    const createStatus = document.getElementById(statusId);
+
+    const [response, targetResponse] = await Promise.all([
+        api("/lexicon-languages"),
+        api("/translation-languages"),
+    ]);
+    const available = await response.json();
+    if (available.length === 0) {
+        createStatus.textContent =
+            "No languages with a frequency list and sentences are available " +
+            "yet.";
+        select.disabled = true;
+        form.querySelector("button").disabled = true;
+        return;
+    }
+
+    fillLanguageSelect(select, available);
+    fillLanguageSelect(targets, await targetResponse.json(), "en");
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const translationLanguages = Array.from(
+            targets.selectedOptions,
+            (option) => option.value,
+        );
+        if (translationLanguages.length === 0) {
+            createStatus.textContent =
+                "Pick at least one language to translate into.";
+            return;
+        }
+        createStatus.textContent = "Creating…";
+        const result = await api("/me/courses", {
+            method: "POST",
+            body: {
+                language: select.value,
+                translation_languages: translationLanguages,
+            },
+        });
+        if (result.ok) {
+            const { course_id } = await result.json();
+            location.href = `learn?course=${encodeURIComponent(course_id)}`;
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            createStatus.textContent = detail || "Could not create course.";
         }
     });
 }
@@ -764,6 +876,396 @@ async function runSession(base, doneText) {
     await advance();
 }
 
+// Learning session (production recall): the word is blanked and the user types
+// it, auto-accepted the instant the entry matches the card's `accepted` forms.
+// Due repetitions come first (`/next`); then new words (`/new`), which may first
+// run a know/don't-know lexicon check (`check_lexicon`) before being taught.
+
+async function runLearnSession(base) {
+    const wordEl = document.getElementById("word");
+    const input = document.getElementById("answer-input");
+    const status = document.getElementById("status");
+    const answers = document.getElementById("answers");
+    const translation = document.getElementById("translation");
+    const undoBar = document.getElementById("undo-bar");
+    const undoWord = document.getElementById("undo-word");
+    const question = document.getElementById("question");
+    const sentence = document.getElementById("sentence");
+    const sentenceTranslation = document.getElementById("sentence-translation");
+    const externalLinks = document.getElementById("external-links");
+    const googleLink = document.getElementById("google-link");
+    const yandexLink = document.getElementById("yandex-link");
+    const wiktionaryLink = document.getElementById("wiktionary-link");
+    const kaikkiLink = document.getElementById("kaikki-link");
+    const continueBar = document.getElementById("continue-bar");
+    const continueButton = document.getElementById("continue");
+    const teachBox = document.getElementById("teach-box");
+    const askBox = document.getElementById("ask-box");
+    const askWord = document.getElementById("ask-word");
+
+    const reviewQueue = []; // Prefetched due repetitions.
+    const history = []; // Answered words (most recent last), for undo.
+    const handledNew = new Set(); // New words decided this session.
+    let current = null; // { word, accepted, source, checkLexicon, ... }.
+    let answeredWrong = false; // Whether the word was revealed after "I don't know".
+    let language = null;
+    let dictionaries = [];
+    let reviewsDone = false; // No more due repetitions this session.
+    let newExhausted = false; // `/new` has nothing more to offer.
+
+    // Prefetch a word's meaning; each dictionary resolves independently so a
+    // slow one never holds up the fast ones. The server blanks the word out of
+    // the definitions, so the meaning is always shown as the recall prompt.
+    function attachTranslation(item) {
+        item.results = dictionaries.map(() => undefined);
+        dictionaries.forEach(({ index }, slot) => {
+            api(
+                `${base}/translation?word=${encodeURIComponent(item.word)}` +
+                    `&index=${index}`,
+            )
+                .then((response) => (response.ok ? response.json() : null))
+                .then((data) => {
+                    item.results[slot] = (data && data.dictionaries) || [];
+                    if (current === item) renderMeaning(item);
+                });
+        });
+    }
+    function appendDictionaries(entries) {
+        for (const entry of entries) {
+            const block = document.createElement("div");
+            block.className = "dictionary";
+            const name = document.createElement("div");
+            name.className = "dictionary-name";
+            name.textContent = entry.dictionary;
+            const body = document.createElement("div");
+            body.className = "dictionary-body";
+            body.innerHTML = entry.html; // Safe HTML fragment from the server.
+            block.append(name, body);
+            translation.append(block);
+        }
+    }
+    function renderMeaning(item) {
+        if (current !== item) return;
+        translation.replaceChildren();
+        const results = item.results || [];
+        const groups = [];
+        for (const result of results) if (result) groups.push(...result);
+        if (groups.length) {
+            appendDictionaries(groups);
+        } else if (results.every((result) => result !== undefined)) {
+            translation.textContent = "No translation found.";
+        } else {
+            translation.textContent = "Loading…";
+        }
+    }
+    // The course `/sentence` blanks the target word and pairs the example with
+    // one of its translations, both shown as the recall prompt.
+    function attachSentence(item) {
+        item.sentence = api(
+            `${base}/sentence?word=${encodeURIComponent(item.word)}`,
+        )
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) =>
+                data && data.sentence
+                    ? { html: data.sentence, translation: data.translation }
+                    : null,
+            );
+    }
+    function makeItem(card) {
+        const item = {
+            word: card.word,
+            accepted: card.accepted || [card.word],
+            source: card.source || "review",
+            checkLexicon: card.checkLexicon || null,
+            results: null,
+            sentence: null,
+        };
+        attachTranslation(item);
+        attachSentence(item);
+        return item;
+    }
+
+    // Refill the due-repetition queue from `/next`, excluding what is already in
+    // hand so a batch never repeats a word.
+    async function fillReview() {
+        const BUFFER = 3;
+        const need = BUFFER - reviewQueue.length;
+        if (need <= 0) return;
+        const params = new URLSearchParams({ count: String(need) });
+        for (const item of [current, ...reviewQueue]) {
+            if (item && item.source === "review") {
+                params.append("exclude", item.word);
+            }
+        }
+        const response = await api(`${base}/next?${params}`);
+        if (!response.ok) return;
+        const batch = await response.json();
+        language = batch.language;
+        for (const card of batch.words) {
+            reviewQueue.push(makeItem({ ...card, source: "review" }));
+        }
+    }
+
+    // Get one new word to add from `/new` (or null when none remains), skipping
+    // words already decided this session.
+    async function fetchNew() {
+        if (newExhausted) return null;
+        const params = new URLSearchParams();
+        for (const word of handledNew) params.append("exclude", word);
+        const response = await api(`${base}/new?${params}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (!data.word) {
+            newExhausted = true;
+            return null;
+        }
+        return makeItem({
+            word: data.word,
+            accepted: data.accepted,
+            source: "new",
+            checkLexicon: data.check_lexicon,
+        });
+    }
+
+    // Pick the next thing to present: due repetitions first, then new words
+    // (which may need a know/don't-know check before being taught).
+    async function advance() {
+        answeredWrong = false;
+        if (reviewQueue.length === 0 && !reviewsDone) {
+            await fillReview();
+            if (reviewQueue.length === 0) reviewsDone = true;
+        }
+        if (reviewQueue.length > 0) {
+            current = reviewQueue.shift();
+            renderTeach();
+            if (!reviewsDone) void fillReview();
+            return;
+        }
+        const item = await fetchNew();
+        if (item) {
+            current = item;
+            if (item.checkLexicon) renderAsk();
+            else renderTeach();
+            return;
+        }
+        current = null;
+        renderDone();
+    }
+
+    // Teaching: show the meaning (word blanked) and a translated example as the
+    // prompt, blank the word's answer slot, and await typing.
+    function renderTeach() {
+        askBox.hidden = true;
+        teachBox.hidden = false;
+        answeredWrong = false;
+        continueBar.hidden = true;
+        answers.hidden = false;
+        input.hidden = false;
+        input.value = "";
+        input.disabled = false;
+        undoBar.hidden = history.length === 0;
+        if (history.length) {
+            undoWord.textContent = history[history.length - 1].word;
+        }
+        wordEl.textContent = "_".repeat([...current.word].length);
+        question.textContent =
+            current.source === "new" ? "New word — type it." : "Type the word.";
+        status.textContent = "";
+        renderMeaning(current);
+        renderSentence();
+        renderExternalLinks();
+        input.focus();
+    }
+
+    // New-word check: ask whether the user already knows it (recorded in the
+    // course's `ask_lexicon`).
+    function renderAsk() {
+        teachBox.hidden = true;
+        askBox.hidden = false;
+        askWord.textContent = current.word;
+        status.textContent = "";
+        undoBar.hidden = history.length === 0;
+    }
+
+    function renderDone() {
+        teachBox.hidden = false;
+        askBox.hidden = true;
+        input.hidden = true;
+        answers.hidden = true;
+        continueBar.hidden = true;
+        wordEl.textContent = "";
+        sentence.hidden = true;
+        sentenceTranslation.hidden = true;
+        question.textContent = "";
+        externalLinks.hidden = true;
+        translation.replaceChildren();
+        status.textContent = "Nothing to learn right now.";
+        undoBar.hidden = history.length === 0;
+    }
+
+    // Show the example sentence (word blanked) and one of its translations,
+    // both kept off `/next` so the card appears immediately.
+    function renderSentence() {
+        sentence.replaceChildren();
+        sentenceTranslation.replaceChildren();
+        sentenceTranslation.hidden = true;
+        if (!current || !current.sentence) {
+            sentence.hidden = true;
+            return;
+        }
+        sentence.hidden = false;
+        sentence.textContent = "···";
+        const item = current;
+        item.sentence.then((data) => {
+            if (current !== item) return;
+            if (data && data.html) {
+                sentence.innerHTML = data.html; // Safe fragment, word blanked.
+                if (data.translation) {
+                    sentenceTranslation.textContent = data.translation;
+                    sentenceTranslation.hidden = false;
+                }
+            } else {
+                sentence.textContent = "—";
+            }
+        });
+    }
+
+    function renderExternalLinks() {
+        if (!current) {
+            externalLinks.hidden = true;
+            return;
+        }
+        const encoded = encodeURIComponent(current.word);
+        const langName = languageName(language);
+        const query = `translate ${langName} word "${current.word}"`;
+        googleLink.href =
+            `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        yandexLink.href =
+            `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
+            `&target_lang=en&text=${encoded}`;
+        wiktionaryLink.href =
+            `https://en.wiktionary.org/wiki/${encoded}` +
+            `#${encodeURIComponent(langName.replace(/ /g, "_"))}`;
+        const lower = current.word.toLowerCase();
+        kaikkiLink.href =
+            `https://kaikki.org/dictionary/${encodeURIComponent(langName)}/meaning/` +
+            `${encodeURIComponent(lower.slice(0, 1))}/` +
+            `${encodeURIComponent(lower.slice(0, 2))}/` +
+            `${encodeURIComponent(lower)}.html`;
+        externalLinks.hidden = false;
+    }
+
+    // Record an answer. "I don't know" first reveals the word (the meaning is
+    // already shown); a second action (Continue) records the wrong answer.
+    async function record(response, toSkip = false) {
+        if (!current) return;
+        const item = current;
+        if (response === "n" && !answeredWrong) {
+            answeredWrong = true;
+            wordEl.textContent = item.word;
+            input.hidden = true;
+            answers.hidden = true;
+            continueBar.hidden = false;
+            continueButton.focus();
+            return;
+        }
+        if (item.source === "new") handledNew.add(item.word);
+        history.push({ word: item.word });
+        await api(`${base}/answer`, {
+            method: "POST",
+            body: { word: item.word, response, to_skip: toSkip },
+        });
+        await advance();
+    }
+
+    // Remove the most recent answer and re-present that word to re-answer it.
+    async function undo() {
+        if (history.length === 0) return;
+        const response = await api(`${base}/undo`, { method: "POST" });
+        if (!response.ok) return;
+        const { word: undone } = await response.json();
+        if (!undone) return;
+        history.pop();
+        if (current) reviewQueue.unshift(current);
+        current = makeItem({ word: undone, source: "review" });
+        renderTeach();
+    }
+
+    // The new-word check: record know/don't-know in the `ask_lexicon`. "Know"
+    // skips learning the word; "don't know" admits it and teaches it now.
+    async function askAnswer(knows) {
+        if (!current || !current.checkLexicon) return;
+        const item = current;
+        handledNew.add(item.word);
+        await api(
+            `/me/lexicons/${encodeURIComponent(item.checkLexicon)}/answer`,
+            {
+                method: "POST",
+                body: { word: item.word, response: knows ? "know" : "dont" },
+            },
+        );
+        if (knows) {
+            await advance();
+        } else {
+            item.checkLexicon = null;
+            current = item;
+            renderTeach();
+        }
+    }
+
+    for (const button of answers.querySelectorAll("button")) {
+        button.addEventListener("click", () =>
+            record(button.dataset.response, button.dataset.skip === "true"),
+        );
+    }
+    continueButton.addEventListener("click", () => record("n"));
+    document.getElementById("undo").addEventListener("click", undo);
+    document
+        .getElementById("ask-know")
+        .addEventListener("click", () => askAnswer(true));
+    document
+        .getElementById("ask-dont")
+        .addEventListener("click", () => askAnswer(false));
+
+    // Auto-accept the instant the typed text matches an accepted form.
+    input.addEventListener("input", () => {
+        if (!current || current.checkLexicon) return;
+        if ((current.accepted || []).includes(input.value)) void record("y");
+    });
+
+    // Keyboard: while typing, only Escape (give up) is a shortcut — letters go
+    // to the field; otherwise a visible button's `data-key` triggers it.
+    document.addEventListener("keydown", (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.target === input) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                void record("n");
+            }
+            return;
+        }
+        if (event.target.matches("textarea, select")) return;
+        let key;
+        if (event.key === " ") key = " ";
+        else if (event.key === "Enter") key = "enter";
+        else key = event.key.toLowerCase();
+        const button = [
+            ...document.querySelectorAll(`button[data-key="${key}"]`),
+        ].find((candidate) => !candidate.hidden && candidate.offsetParent);
+        if (button) {
+            event.preventDefault();
+            button.classList.add("pressed");
+            setTimeout(() => button.classList.remove("pressed"), 120);
+            button.click();
+        }
+    });
+
+    status.textContent = "Loading…";
+    const dictionariesResponse = await api(`${base}/dictionaries`);
+    if (dictionariesResponse.ok) dictionaries = await dictionariesResponse.json();
+    await advance();
+}
+
 // Lexicon checking page.
 
 async function initCheck() {
@@ -783,10 +1285,7 @@ async function initLearn() {
     requireAuth();
     const id = new URLSearchParams(location.search).get("course");
     document.getElementById("learn-heading").textContent = `Learn: ${id}`;
-    await runSession(
-        `/me/courses/${encodeURIComponent(id)}`,
-        "Nothing to repeat right now.",
-    );
+    await runLearnSession(`/me/courses/${encodeURIComponent(id)}`);
 }
 
 // Courses list page.
