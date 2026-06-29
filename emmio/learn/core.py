@@ -71,6 +71,13 @@ class LearningRecord(Record):
     sentence_id: int | None = None
     """Sentence identifier used to learn the question."""
 
+    question_type: str | None = None
+    """How the question was asked (e.g. `type_word`).
+
+    Stored as `extra.qt`. `None` (no `qt`) means an unknown question type — a
+    record made before this provenance was kept.
+    """
+
     @override
     def get_symbol(self) -> str:
         """Get short symbol for the learning record."""
@@ -125,6 +132,7 @@ class LearningProcess(BaseModel):
             "question_id",
             "response",
             "sentence_id",
+            "question_type",
             "time",
             "request_time",
         ]
@@ -321,6 +329,7 @@ class Learning(UserArtifact):
                     question_id=question_id,
                     response=Response(response),
                     sentence_id=(extra or {}).get("si"),
+                    question_type=(extra or {}).get("qt"),
                     time=response_time,
                     request_time=request_time,
                 )
@@ -364,9 +373,11 @@ class Learning(UserArtifact):
 
         records: list[postgres.LearnRecordRow] = []
         for record in self.process.records[self.saved_records :]:
-            extra: dict | None = (
-                {"si": record.sentence_id} if record.sentence_id else None
-            )
+            extra: dict = {}
+            if record.question_type:
+                extra["qt"] = record.question_type
+            if record.sentence_id:
+                extra["si"] = record.sentence_id
             records.append(
                 (
                     record.question_id,

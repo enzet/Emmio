@@ -756,12 +756,13 @@ def _course_sentence(
     language: str,
     configs: list[dict] | None,
     base_languages: list[str],
-) -> tuple[str, str] | None:
+) -> tuple[int, str, str] | None:
     """One example sentence (word blanked) plus one of its translations.
 
     Only sentences that have a translation into one of the course's base
     languages are used, so a learner always sees a translated example. Returns
-    `(sentence_html, translation_text)`, or `None` when no such sentence exists.
+    `(sentence_id, sentence_html, translation_text)`, or `None` when no such
+    sentence exists. The id is recorded as provenance with the answer.
     """
     examples: list[SentenceAndTranslations] = _example_sentences(
         word, language, configs
@@ -786,7 +787,11 @@ def _course_sentence(
     sentence_html: str = _render_sentence(
         example.sentence, Language.from_code(language), word, mask=True
     )
-    return sentence_html, random.choice(translations).text
+    return (
+        example.sentence.id_,
+        sentence_html,
+        random.choice(translations).text,
+    )
 
 
 # Most words a single `/next` request may prefetch.
@@ -1143,6 +1148,8 @@ class Sentence(BaseModel):
     sentence: str | None
     translation: str | None = None
     """A translation of the sentence (course learning only), else `None`."""
+    sentence_id: int | None = None
+    """The example's id (course learning only), recorded with the answer."""
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/sentence")
@@ -1355,11 +1362,31 @@ def get_next_questions(
     )
 
 
+# Question-type code stored in `learn_records.extra.qt`. A record without `qt`
+# predates this provenance and so has an unknown question type. `type_word` is
+# the only kind so far: the meaning and an example are shown and the user types
+# the word.
+QUESTION_TYPE_TYPE_WORD: str = "type_word"
+
+
 class CourseAnswerRequest(BaseModel):
     """A user's answer to a repetition question."""
 
     word: str
     response: str  # A `Response` value: "y" right, "n" wrong, "s" skip.
+    question_type: str = QUESTION_TYPE_TYPE_WORD
+    """How the word was asked, stored as provenance (`extra.qt`).
+
+    Defaults to the typed-recall question (the only kind today). A record with
+    no `qt` predates this and is treated as an unknown question type.
+    """
+    sentence_id: int | None = None  # The example shown (`extra.si`), if any.
+    seconds: float | None = None
+    """How long the question was on screen, used to set `request_time`.
+
+    Measured client-side as a duration (robust to clock skew); the server stores
+    `request_time = response_time - seconds`.
+    """
 
 
 @app.post(
@@ -1371,7 +1398,12 @@ def answer_question(
     request: CourseAnswerRequest,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> None:
-    """Record an answer to a repetition question."""
+    """Record an answer to a repetition question.
+
+    The question type (`qt`), the example sentence shown (`si`), and how long
+    the card was on screen (as `request_time`) are kept as provenance, so a
+    record stays interpretable as more question types are added.
+    """
     config: dict = _course_config_or_404(user_id, course_id)
     try:
         response: Response = Response(request.response)
@@ -1380,12 +1412,21 @@ def answer_question(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid response `{request.response}`.",
         ) from error
+    now: datetime = datetime.now(UTC)
+    extra: dict = {"qt": request.question_type}
+    if request.sentence_id is not None:
+        extra["si"] = request.sentence_id
+    request_time: datetime | None = (
+        now - timedelta(seconds=request.seconds)
+        if request.seconds is not None
+        else None
+    )
     record: postgres.LearnRecordRow = (
         request.word,
         response.value,
-        datetime.now(UTC),
-        None,
-        None,
+        now,
+        request_time,
+        extra,
     )
     postgres.save_learning(
         user_id,
@@ -1459,16 +1500,21 @@ def get_course_sentence(
     example is revealed when it arrives.
     """
     config: dict = _course_config_or_404(user_id, course_id)
-    result: tuple[str, str] | None = _course_sentence(
+    result: tuple[int, str, str] | None = _course_sentence(
         word,
         config["learning_language"],
         config.get("sentences"),
         config.get("base_languages") or [],
     )
     if result is None:
-        return Sentence(word=word, sentence=None, translation=None)
-    sentence_html, translation = result
-    return Sentence(word=word, sentence=sentence_html, translation=translation)
+        return Sentence(word=word, sentence=None)
+    sentence_id, sentence_html, translation = result
+    return Sentence(
+        word=word,
+        sentence=sentence_html,
+        translation=translation,
+        sentence_id=sentence_id,
+    )
 
 
 class NewQuestion(BaseModel):

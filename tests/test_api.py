@@ -4,6 +4,7 @@ import io
 import json
 import zipfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,6 +14,8 @@ from emmio import postgres
 from emmio.api import app as app_module
 from emmio.api.app import app
 from emmio.language import Language
+from emmio.learn.config import LearnConfig
+from emmio.learn.core import Learning
 from emmio.sentence.core import Sentence as ExampleSentence
 from emmio.sentence.core import SentenceAndTranslations
 
@@ -771,3 +774,69 @@ def test_course_sentence_requires_base_language_translation(
     assert body["translation"] == "The cat sleeps."
     assert "chat" not in body["sentence"]
     assert "____" in body["sentence"]
+    assert body["sentence_id"] == 1
+
+
+def test_course_answer_stores_question_provenance() -> None:
+    """An answer records the question type, example shown, and time taken."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+
+    response = client.post(
+        "/api/v1/me/courses/eo/answer",
+        json={
+            "word": "saluton",
+            "response": "y",
+            "question_type": "type_word",
+            "sentence_id": 42,
+            "seconds": 3.0,
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 204
+    records, _ = postgres.load_learning("alice", "eo")
+    question_id, _response, response_time, request_time, extra = records[-1]
+    assert question_id == "saluton"
+    assert extra == {"qt": "type_word", "si": 42}
+    # `request_time` is derived from `seconds`, so it precedes the answer time.
+    assert request_time is not None
+    assert request_time < response_time
+
+
+def test_course_answer_provenance_defaults() -> None:
+    """Without a sentence or timing, only the question type is recorded."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+
+    client.post(
+        "/api/v1/me/courses/eo/answer",
+        json={"word": "saluton", "response": "y"},
+        headers=_auth(token),
+    )
+
+    records, _ = postgres.load_learning("alice", "eo")
+    _question_id, _response, _response_time, request_time, extra = records[-1]
+    assert extra == {"qt": "type_word"}  # Default type, no example shown.
+    assert request_time is None
+
+
+def test_learning_model_round_trips_question_type() -> None:
+    """The `Learning` model surfaces `qt`, so the data export preserves it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+    client.post(
+        "/api/v1/me/courses/eo/answer",
+        json={"word": "saluton", "response": "y", "question_type": "type_word"},
+        headers=_auth(token),
+    )
+
+    config = postgres.get_learn_config("alice", "eo")
+    assert config is not None
+    learning = Learning.from_config(
+        Path(), LearnConfig(**config), "eo", "alice"
+    )
+    assert learning.process.records[-1].question_type == "type_word"

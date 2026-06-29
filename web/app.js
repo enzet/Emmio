@@ -908,10 +908,14 @@ async function runLearnSession(base) {
     const handledNew = new Set(); // New words decided this session.
     let current = null; // { word, accepted, source, checkLexicon, ... }.
     let answeredWrong = false; // Whether the word was revealed after "I don't know".
+    let presentedAt = 0; // When the current card was shown (for `request_time`).
     let language = null;
     let dictionaries = [];
     let reviewsDone = false; // No more due repetitions this session.
     let newExhausted = false; // `/new` has nothing more to offer.
+
+    // The only question type so far: meaning and example shown, type the word.
+    const QUESTION_TYPE = "type_word";
 
     // Prefetch a word's meaning; each dictionary resolves independently so a
     // slow one never holds up the fast ones. The server blanks the word out of
@@ -959,17 +963,21 @@ async function runLearnSession(base) {
         }
     }
     // The course `/sentence` blanks the target word and pairs the example with
-    // one of its translations, both shown as the recall prompt.
+    // one of its translations, both shown as the recall prompt. The example's
+    // id is remembered so it can be recorded as provenance with the answer.
     function attachSentence(item) {
+        item.sentenceId = null;
         item.sentence = api(
             `${base}/sentence?word=${encodeURIComponent(item.word)}`,
         )
             .then((response) => (response.ok ? response.json() : null))
-            .then((data) =>
-                data && data.sentence
-                    ? { html: data.sentence, translation: data.translation }
-                    : null,
-            );
+            .then((data) => {
+                if (data && data.sentence) {
+                    item.sentenceId = data.sentence_id ?? null;
+                    return { html: data.sentence, translation: data.translation };
+                }
+                return null;
+            });
     }
     function makeItem(card) {
         const item = {
@@ -1071,6 +1079,7 @@ async function runLearnSession(base) {
         question.textContent =
             current.source === "new" ? "New word — type it." : "Type the word.";
         status.textContent = "";
+        presentedAt = Date.now();
         renderMeaning(current);
         renderSentence();
         renderExternalLinks();
@@ -1157,7 +1166,9 @@ async function runLearnSession(base) {
 
     // Record an answer. "I don't know" first reveals the word (the meaning is
     // already shown); a second action (Continue) records the wrong answer.
-    async function record(response, toSkip = false) {
+    // The question type, the example shown, and the time taken go along as
+    // provenance.
+    async function record(response) {
         if (!current) return;
         const item = current;
         if (response === "n" && !answeredWrong) {
@@ -1173,7 +1184,13 @@ async function runLearnSession(base) {
         history.push({ word: item.word });
         await api(`${base}/answer`, {
             method: "POST",
-            body: { word: item.word, response, to_skip: toSkip },
+            body: {
+                word: item.word,
+                response,
+                question_type: QUESTION_TYPE,
+                sentence_id: item.sentenceId ?? null,
+                seconds: presentedAt ? (Date.now() - presentedAt) / 1000 : null,
+            },
         });
         await advance();
     }
@@ -1215,7 +1232,7 @@ async function runLearnSession(base) {
 
     for (const button of answers.querySelectorAll("button")) {
         button.addEventListener("click", () =>
-            record(button.dataset.response, button.dataset.skip === "true"),
+            record(button.dataset.response),
         );
     }
     continueButton.addEventListener("click", () => record("n"));
