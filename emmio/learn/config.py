@@ -66,6 +66,15 @@ class Scheme(BaseModel):
     show_question: list[dict] | None = None
     """How to show question."""
 
+    question_types: list[str] | None = None
+    """Which question types this course may use, e.g. `["know", "type_word"]`.
+
+    `None` means all supported types are allowed. The actual type per question
+    is then chosen from these by the word's knowledge level and by what data is
+    available (e.g. a short translation for multiple-choice). See the API's
+    `/question` endpoint.
+    """
+
     postpone_time: float | None = None
     """How long to postpone question, relative to the last request time."""
 

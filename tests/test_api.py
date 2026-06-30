@@ -3,7 +3,7 @@
 import io
 import json
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from emmio import postgres
 from emmio.api import app as app_module
 from emmio.api.app import app
+from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
@@ -840,3 +841,147 @@ def test_learning_model_round_trips_question_type() -> None:
         Path(), LearnConfig(**config), "eo", "alice"
     )
     assert learning.process.records[-1].question_type == "type_word"
+
+
+# Question types: server picks by config, knowledge level, and available data.
+
+
+class _FakeQuestionData:
+    """Stand-in data with no dictionaries (choice/connect then infeasible)."""
+
+    def get_dictionaries(
+        self,
+        usage_configs: object,  # noqa: ARG002
+    ) -> DictionaryCollection:
+        return DictionaryCollection([])
+
+
+def _add_due_word(course_id: str, word: str, responses: list[str]) -> None:
+    """Add a learning word whose records make it due now, in the past."""
+
+    base = datetime.now(UTC) - timedelta(hours=2)
+    records = [
+        (word, response, base + timedelta(minutes=index), None, None)
+        for index, response in enumerate(responses)
+    ]
+    postgres.save_learning("alice", course_id, "Esperanto", "eo", records, [])
+
+
+def test_question_is_none_when_nothing_due(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no due words, the endpoint offers no review question."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["type"] is None
+
+
+def test_question_uses_know_for_a_new_review_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A freshly-failed word (streak 0) is asked with the gentlest type."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+    _add_due_word("eo", "saluton", ["n"])
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "know"
+    assert body["words"] == ["saluton"]
+
+
+def test_question_types_config_restricts_the_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A course may limit itself to certain question types."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _add_due_word("eo", "saluton", ["n"])
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "type_word"
+    assert body["accepted"] == ["saluton"]
+
+
+def test_question_builds_a_choice_with_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Choice offers the right translation among distractors."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    short = {"a": "A", "b": "B", "c": "C", "d": "D"}
+
+    async def fake_short(
+        word: str,
+        language: object,  # noqa: ARG001
+        dictionaries: object,  # noqa: ARG001
+        base_languages: object,  # noqa: ARG001
+    ) -> str | None:
+        return short.get(word)
+
+    monkeypatch.setattr(app_module, "_short_translation", fake_short)
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme={"question_types": ["choice"]})
+    for word in ["a", "b", "c", "d"]:
+        _add_due_word("eo", word, ["n"])
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "choice"
+    assert len(body["options"]) == 4
+    assert body["answer"] in body["options"]
+    # The correct option is the target word's translation.
+    assert body["answer"] == short[body["words"][0]]
+
+
+def test_question_groups_words_into_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enough matchable low-knowledge words are grouped into one connect."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    short = {"a": "A", "b": "B", "c": "C", "d": "D"}
+
+    async def fake_short(
+        word: str,
+        language: object,  # noqa: ARG001
+        dictionaries: object,  # noqa: ARG001
+        base_languages: object,  # noqa: ARG001
+    ) -> str | None:
+        return short.get(word)
+
+    monkeypatch.setattr(app_module, "_short_translation", fake_short)
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")  # All types enabled.
+    for word in ["a", "b", "c", "d"]:
+        _add_due_word("eo", word, ["n"])
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "connect"
+    assert {pair["word"] for pair in body["pairs"]} == {"a", "b", "c", "d"}

@@ -87,6 +87,55 @@
                     </button>
                 </p>
             </section>
+
+            <!-- Know: see the word, self-assess, then the meaning is shown. -->
+            <section id="know-box" aria-labelledby="know-heading" hidden>
+                <h2 id="know-heading">Do you know this word?</h2>
+                <p id="know-word" class="word"></p>
+                <div id="know-answers">
+                    <button type="button" data-response="y" data-key="y">
+                        I know it <kbd>Y</kbd>
+                    </button>
+                    <button type="button" data-response="n" data-key="n">
+                        I don't <kbd>N</kbd>
+                    </button>
+                </div>
+                <div id="know-meaning" hidden></div>
+                <p id="know-continue-bar" hidden>
+                    <button type="button" id="know-continue" data-key="enter">
+                        Continue <kbd>Enter</kbd>
+                    </button>
+                </p>
+            </section>
+
+            <!-- Choice: pick the right translation among several. -->
+            <section id="choice-box" aria-labelledby="choice-heading" hidden>
+                <h2 id="choice-heading">Choose the translation</h2>
+                <p id="choice-word" class="word"></p>
+                <div id="choice-options"></div>
+                <p id="choice-continue-bar" hidden>
+                    <button type="button" id="choice-continue" data-key="enter">
+                        Continue <kbd>Enter</kbd>
+                    </button>
+                </p>
+            </section>
+
+            <!-- Connect: match several words with their translations. -->
+            <section id="connect-box" aria-labelledby="connect-heading" hidden>
+                <h2 id="connect-heading">Connect the words</h2>
+                <div id="connect-grid">
+                    <div id="connect-words" class="connect-column"></div>
+                    <div
+                        id="connect-translations"
+                        class="connect-column"
+                    ></div>
+                </div>
+                <p id="connect-continue-bar" hidden>
+                    <button type="button" id="connect-continue" data-key="enter">
+                        Continue <kbd>Enter</kbd>
+                    </button>
+                </p>
+            </section>
         </main>
         <footer>
             <p id="status" role="status"></p>

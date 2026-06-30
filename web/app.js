@@ -882,14 +882,17 @@ async function runSession(base, doneText) {
 // run a know/don't-know lexicon check (`check_lexicon`) before being taught.
 
 async function runLearnSession(base) {
-    const wordEl = document.getElementById("word");
-    const input = document.getElementById("answer-input");
     const status = document.getElementById("status");
-    const answers = document.getElementById("answers");
-    const translation = document.getElementById("translation");
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
+
+    // Type-the-word box.
+    const teachBox = document.getElementById("teach-box");
+    const wordEl = document.getElementById("word");
+    const input = document.getElementById("answer-input");
+    const answers = document.getElementById("answers");
     const question = document.getElementById("question");
+    const translation = document.getElementById("translation");
     const sentence = document.getElementById("sentence");
     const sentenceTranslation = document.getElementById("sentence-translation");
     const externalLinks = document.getElementById("external-links");
@@ -899,27 +902,69 @@ async function runLearnSession(base) {
     const kaikkiLink = document.getElementById("kaikki-link");
     const continueBar = document.getElementById("continue-bar");
     const continueButton = document.getElementById("continue");
-    const teachBox = document.getElementById("teach-box");
+
+    // Know box.
+    const knowBox = document.getElementById("know-box");
+    const knowWord = document.getElementById("know-word");
+    const knowAnswers = document.getElementById("know-answers");
+    const knowMeaning = document.getElementById("know-meaning");
+    const knowContinueBar = document.getElementById("know-continue-bar");
+    const knowContinue = document.getElementById("know-continue");
+
+    // Choice box.
+    const choiceBox = document.getElementById("choice-box");
+    const choiceWord = document.getElementById("choice-word");
+    const choiceOptions = document.getElementById("choice-options");
+    const choiceContinueBar = document.getElementById("choice-continue-bar");
+    const choiceContinue = document.getElementById("choice-continue");
+
+    // Connect box.
+    const connectBox = document.getElementById("connect-box");
+    const connectWords = document.getElementById("connect-words");
+    const connectTranslations = document.getElementById("connect-translations");
+    const connectContinueBar = document.getElementById("connect-continue-bar");
+    const connectContinue = document.getElementById("connect-continue");
+
+    // Ask box (new-word lexicon check).
     const askBox = document.getElementById("ask-box");
     const askWord = document.getElementById("ask-word");
 
-    const reviewQueue = []; // Prefetched due repetitions.
     const history = []; // Answered words (most recent last), for undo.
     const handledNew = new Set(); // New words decided this session.
-    let current = null; // { word, accepted, source, checkLexicon, ... }.
-    let answeredWrong = false; // Whether the word was revealed after "I don't know".
+    let current = null; // The current question/item (carries a `type`).
+    let answeredWrong = false; // type_word: word revealed after "I don't know".
     let presentedAt = 0; // When the current card was shown (for `request_time`).
     let language = null;
     let dictionaries = [];
-    let reviewsDone = false; // No more due repetitions this session.
     let newExhausted = false; // `/new` has nothing more to offer.
 
-    // The only question type so far: meaning and example shown, type the word.
-    const QUESTION_TYPE = "type_word";
+    // Show exactly one question box and hide the rest.
+    function showBox(name) {
+        teachBox.hidden = name !== "type";
+        knowBox.hidden = name !== "know";
+        choiceBox.hidden = name !== "choice";
+        connectBox.hidden = name !== "connect";
+        askBox.hidden = name !== "ask";
+    }
 
-    // Prefetch a word's meaning; each dictionary resolves independently so a
-    // slow one never holds up the fast ones. The server blanks the word out of
-    // the definitions, so the meaning is always shown as the recall prompt.
+    // Render dictionary entries (safe HTML fragments) into a container.
+    function appendDictionaries(container, entries) {
+        for (const entry of entries) {
+            const block = document.createElement("div");
+            block.className = "dictionary";
+            const name = document.createElement("div");
+            name.className = "dictionary-name";
+            name.textContent = entry.dictionary;
+            const body = document.createElement("div");
+            body.className = "dictionary-body";
+            body.innerHTML = entry.html; // Safe HTML fragment from the server.
+            block.append(name, body);
+            container.append(block);
+        }
+    }
+
+    // Prefetch a word's meaning (word blanked by the server) for type_word;
+    // each dictionary resolves independently so a slow one never blocks.
     function attachTranslation(item) {
         item.results = dictionaries.map(() => undefined);
         dictionaries.forEach(({ index }, slot) => {
@@ -934,20 +979,6 @@ async function runLearnSession(base) {
                 });
         });
     }
-    function appendDictionaries(entries) {
-        for (const entry of entries) {
-            const block = document.createElement("div");
-            block.className = "dictionary";
-            const name = document.createElement("div");
-            name.className = "dictionary-name";
-            name.textContent = entry.dictionary;
-            const body = document.createElement("div");
-            body.className = "dictionary-body";
-            body.innerHTML = entry.html; // Safe HTML fragment from the server.
-            block.append(name, body);
-            translation.append(block);
-        }
-    }
     function renderMeaning(item) {
         if (current !== item) return;
         translation.replaceChildren();
@@ -955,7 +986,7 @@ async function runLearnSession(base) {
         const groups = [];
         for (const result of results) if (result) groups.push(...result);
         if (groups.length) {
-            appendDictionaries(groups);
+            appendDictionaries(translation, groups);
         } else if (results.every((result) => result !== undefined)) {
             translation.textContent = "No translation found.";
         } else {
@@ -979,8 +1010,11 @@ async function runLearnSession(base) {
                 return null;
             });
     }
+    // Build a type_word item (the typed-recall card), kicking off its meaning
+    // and example prefetch.
     function makeItem(card) {
         const item = {
+            type: "type_word",
             word: card.word,
             accepted: card.accepted || [card.word],
             source: card.source || "review",
@@ -993,25 +1027,14 @@ async function runLearnSession(base) {
         return item;
     }
 
-    // Refill the due-repetition queue from `/next`, excluding what is already in
-    // hand so a batch never repeats a word.
-    async function fillReview() {
-        const BUFFER = 3;
-        const need = BUFFER - reviewQueue.length;
-        if (need <= 0) return;
-        const params = new URLSearchParams({ count: String(need) });
-        for (const item of [current, ...reviewQueue]) {
-            if (item && item.source === "review") {
-                params.append("exclude", item.word);
-            }
-        }
-        const response = await api(`${base}/next?${params}`);
-        if (!response.ok) return;
-        const batch = await response.json();
-        language = batch.language;
-        for (const card of batch.words) {
-            reviewQueue.push(makeItem({ ...card, source: "review" }));
-        }
+    // Get the next due review question from the server, which chooses its type
+    // (type_word / know / choice / connect). `null` when nothing is due.
+    async function fetchQuestion() {
+        const response = await api(`${base}/question`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.language) language = data.language;
+        return data.type ? data : null;
     }
 
     // Get one new word to add from `/new` (or null when none remains), skipping
@@ -1035,18 +1058,38 @@ async function runLearnSession(base) {
         });
     }
 
-    // Pick the next thing to present: due repetitions first, then new words
-    // (which may need a know/don't-know check before being taught).
+    // Present a server-chosen review question by its type.
+    function presentReview(q) {
+        if (q.type === "type_word") {
+            current = makeItem({ word: q.words[0], accepted: q.accepted });
+            renderTeach();
+        } else if (q.type === "know") {
+            current = { type: "know", word: q.words[0] };
+            renderKnow();
+        } else if (q.type === "choice") {
+            current = {
+                type: "choice",
+                word: q.words[0],
+                options: q.options,
+                answer: q.answer,
+            };
+            renderChoice();
+        } else if (q.type === "connect") {
+            current = { type: "connect", pairs: q.pairs };
+            renderConnect();
+        }
+    }
+
+    // Pick the next thing to present: a due review question first (its type
+    // chosen by the server), then a new word (taught as type_word, possibly
+    // after a know/don't-know lexicon check).
     async function advance() {
         answeredWrong = false;
-        if (reviewQueue.length === 0 && !reviewsDone) {
-            await fillReview();
-            if (reviewQueue.length === 0) reviewsDone = true;
-        }
-        if (reviewQueue.length > 0) {
-            current = reviewQueue.shift();
-            renderTeach();
-            if (!reviewsDone) void fillReview();
+        status.textContent = "Loading…";
+        const q = await fetchQuestion();
+        status.textContent = "";
+        if (q) {
+            presentReview(q);
             return;
         }
         const item = await fetchNew();
@@ -1063,8 +1106,7 @@ async function runLearnSession(base) {
     // Teaching: show the meaning (word blanked) and a translated example as the
     // prompt, blank the word's answer slot, and await typing.
     function renderTeach() {
-        askBox.hidden = true;
-        teachBox.hidden = false;
+        showBox("type");
         answeredWrong = false;
         continueBar.hidden = true;
         answers.hidden = false;
@@ -1089,16 +1131,14 @@ async function runLearnSession(base) {
     // New-word check: ask whether the user already knows it (recorded in the
     // course's `ask_lexicon`).
     function renderAsk() {
-        teachBox.hidden = true;
-        askBox.hidden = false;
+        showBox("ask");
         askWord.textContent = current.word;
         status.textContent = "";
         undoBar.hidden = history.length === 0;
     }
 
     function renderDone() {
-        teachBox.hidden = false;
-        askBox.hidden = true;
+        showBox("type");
         input.hidden = true;
         answers.hidden = true;
         continueBar.hidden = true;
@@ -1110,6 +1150,163 @@ async function runLearnSession(base) {
         translation.replaceChildren();
         status.textContent = "Nothing to learn right now.";
         undoBar.hidden = history.length === 0;
+    }
+
+    // Know: see the word, self-assess Know/Don't-know; either way the full
+    // meaning is then revealed before continuing.
+    function renderKnow() {
+        showBox("know");
+        status.textContent = "";
+        undoBar.hidden = history.length === 0;
+        if (history.length) {
+            undoWord.textContent = history[history.length - 1].word;
+        }
+        knowWord.textContent = current.word;
+        knowAnswers.hidden = false;
+        knowMeaning.hidden = true;
+        knowMeaning.replaceChildren();
+        knowContinueBar.hidden = true;
+        current.pendingResponse = null;
+        presentedAt = Date.now();
+    }
+    async function knowSelfAssess(knows) {
+        if (!current || current.type !== "know" || current.pendingResponse) {
+            return;
+        }
+        current.pendingResponse = knows ? "y" : "n";
+        knowAnswers.hidden = true;
+        await postAnswer(current.word, current.pendingResponse);
+        // Reveal the full meaning (word shown) so the user learns/confirms it.
+        const item = current;
+        knowMeaning.hidden = false;
+        knowMeaning.textContent = "Loading…";
+        const groups = [];
+        await Promise.all(
+            dictionaries.map(async ({ index }) => {
+                const response = await api(
+                    `${base}/translation?word=${encodeURIComponent(item.word)}` +
+                        `&index=${index}&hide_word=false`,
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.dictionaries) groups.push(...data.dictionaries);
+                }
+            }),
+        );
+        if (current !== item) return;
+        knowMeaning.replaceChildren();
+        if (groups.length) appendDictionaries(knowMeaning, groups);
+        else knowMeaning.textContent = "No translation found.";
+        knowContinueBar.hidden = false;
+        knowContinue.focus();
+    }
+
+    // Choice: pick the right translation among several.
+    function renderChoice() {
+        showBox("choice");
+        status.textContent = "";
+        undoBar.hidden = history.length === 0;
+        if (history.length) {
+            undoWord.textContent = history[history.length - 1].word;
+        }
+        choiceWord.textContent = current.word;
+        choiceContinueBar.hidden = true;
+        choiceOptions.replaceChildren();
+        current.answered = false;
+        current.options.forEach((option, index) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "option";
+            button.dataset.key = String(index + 1);
+            button.textContent = option;
+            button.addEventListener("click", () => chooseOption(option));
+            choiceOptions.append(button);
+        });
+        presentedAt = Date.now();
+    }
+    async function chooseOption(option) {
+        if (!current || current.type !== "choice" || current.answered) return;
+        current.answered = true;
+        for (const button of choiceOptions.querySelectorAll("button")) {
+            button.disabled = true;
+            if (button.textContent === current.answer) {
+                button.classList.add("correct");
+            } else if (button.textContent === option) {
+                button.classList.add("wrong");
+            }
+        }
+        await postAnswer(current.word, option === current.answer ? "y" : "n");
+        choiceContinueBar.hidden = false;
+        choiceContinue.focus();
+    }
+
+    // Connect: match each word (left) with its translation (right). A word is
+    // recorded right unless it was part of a wrong attempt.
+    function renderConnect() {
+        showBox("connect");
+        status.textContent = "";
+        undoBar.hidden = true; // Several answers at once; undo is per-record.
+        connectContinueBar.hidden = true;
+        connectWords.replaceChildren();
+        connectTranslations.replaceChildren();
+        current.selected = null;
+        current.matched = 0;
+        current.wrong = {};
+        for (const pair of current.pairs) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "connect-cell";
+            button.dataset.word = pair.word;
+            button.textContent = pair.word;
+            button.addEventListener("click", () => connectSelectWord(button));
+            connectWords.append(button);
+        }
+        const shuffled = current.pairs.map((pair) => pair.translation);
+        for (let i = shuffled.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        for (const text of shuffled) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "connect-cell";
+            button.dataset.translation = text;
+            button.textContent = text;
+            button.addEventListener("click", () =>
+                connectSelectTranslation(button, text),
+            );
+            connectTranslations.append(button);
+        }
+        presentedAt = Date.now();
+    }
+    function connectSelectWord(button) {
+        if (button.disabled) return;
+        if (current.selected) current.selected.classList.remove("selected");
+        current.selected = button;
+        button.classList.add("selected");
+    }
+    async function connectSelectTranslation(button, translation) {
+        if (button.disabled || !current || !current.selected) return;
+        const word = current.selected.dataset.word;
+        const pair = current.pairs.find((p) => p.word === word);
+        if (pair && pair.translation === translation) {
+            current.selected.disabled = true;
+            current.selected.classList.remove("selected");
+            current.selected.classList.add("matched");
+            button.disabled = true;
+            button.classList.add("matched");
+            current.selected = null;
+            current.matched += 1;
+            await postAnswer(word, current.wrong[word] ? "n" : "y");
+            if (current.matched === current.pairs.length) {
+                connectContinueBar.hidden = false;
+                connectContinue.focus();
+            }
+        } else {
+            current.wrong[word] = true;
+            button.classList.add("wrong-flash");
+            setTimeout(() => button.classList.remove("wrong-flash"), 350);
+        }
     }
 
     // Show the example sentence (word blanked) and one of its translations,
@@ -1164,38 +1361,42 @@ async function runLearnSession(base) {
         externalLinks.hidden = false;
     }
 
-    // Record an answer. "I don't know" first reveals the word (the meaning is
+    // Record one word's answer, carrying the current question's type and (for
+    // type_word) the example shown and the time taken as provenance.
+    async function postAnswer(word, response) {
+        if (current && current.source === "new") handledNew.add(word);
+        history.push({ word });
+        await api(`${base}/answer`, {
+            method: "POST",
+            body: {
+                word,
+                response,
+                question_type: current ? current.type : "type_word",
+                sentence_id: current ? current.sentenceId ?? null : null,
+                seconds: presentedAt ? (Date.now() - presentedAt) / 1000 : null,
+            },
+        });
+    }
+
+    // type_word answer. "I don't know" first reveals the word (the meaning is
     // already shown); a second action (Continue) records the wrong answer.
-    // The question type, the example shown, and the time taken go along as
-    // provenance.
-    async function record(response) {
-        if (!current) return;
-        const item = current;
+    async function recordTyped(response) {
+        if (!current || current.type !== "type_word") return;
         if (response === "n" && !answeredWrong) {
             answeredWrong = true;
-            wordEl.textContent = item.word;
+            wordEl.textContent = current.word;
             input.hidden = true;
             answers.hidden = true;
             continueBar.hidden = false;
             continueButton.focus();
             return;
         }
-        if (item.source === "new") handledNew.add(item.word);
-        history.push({ word: item.word });
-        await api(`${base}/answer`, {
-            method: "POST",
-            body: {
-                word: item.word,
-                response,
-                question_type: QUESTION_TYPE,
-                sentence_id: item.sentenceId ?? null,
-                seconds: presentedAt ? (Date.now() - presentedAt) / 1000 : null,
-            },
-        });
+        await postAnswer(current.word, response);
         await advance();
     }
 
-    // Remove the most recent answer and re-present that word to re-answer it.
+    // Remove the most recent answer and re-present that word as a type_word
+    // question to re-answer it.
     async function undo() {
         if (history.length === 0) return;
         const response = await api(`${base}/undo`, { method: "POST" });
@@ -1203,7 +1404,6 @@ async function runLearnSession(base) {
         const { word: undone } = await response.json();
         if (!undone) return;
         history.pop();
-        if (current) reviewQueue.unshift(current);
         current = makeItem({ word: undone, source: "review" });
         renderTeach();
     }
@@ -1230,12 +1430,23 @@ async function runLearnSession(base) {
         }
     }
 
+    // type_word: "I don't know" / "Skip" buttons and the reveal Continue.
     for (const button of answers.querySelectorAll("button")) {
         button.addEventListener("click", () =>
-            record(button.dataset.response),
+            recordTyped(button.dataset.response),
         );
     }
-    continueButton.addEventListener("click", () => record("n"));
+    continueButton.addEventListener("click", () => recordTyped("n"));
+    // know: self-assess, then Continue advances.
+    for (const button of knowAnswers.querySelectorAll("button")) {
+        button.addEventListener("click", () =>
+            knowSelfAssess(button.dataset.response === "y"),
+        );
+    }
+    knowContinue.addEventListener("click", advance);
+    // choice / connect: Continue advances once the question is answered.
+    choiceContinue.addEventListener("click", advance);
+    connectContinue.addEventListener("click", advance);
     document.getElementById("undo").addEventListener("click", undo);
     document
         .getElementById("ask-know")
@@ -1244,10 +1455,12 @@ async function runLearnSession(base) {
         .getElementById("ask-dont")
         .addEventListener("click", () => askAnswer(false));
 
-    // Auto-accept the instant the typed text matches an accepted form.
+    // type_word: auto-accept the instant the typed text matches an accepted form.
     input.addEventListener("input", () => {
-        if (!current || current.checkLexicon) return;
-        if ((current.accepted || []).includes(input.value)) void record("y");
+        if (!current || current.type !== "type_word") return;
+        if ((current.accepted || []).includes(input.value)) {
+            void recordTyped("y");
+        }
     });
 
     // Keyboard: while typing, only Escape (give up) is a shortcut — letters go
@@ -1257,7 +1470,7 @@ async function runLearnSession(base) {
         if (event.target === input) {
             if (event.key === "Escape") {
                 event.preventDefault();
-                void record("n");
+                void recordTyped("n");
             }
             return;
         }

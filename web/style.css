@@ -359,6 +359,64 @@ p.word {
     font-weight: 700;
     margin: 0.5rem 0;
 }
+/* Revealed meaning for the know question. */
+#know-meaning {
+    margin-top: 0.5rem;
+}
+/* Multiple-choice options, one per line, centered. */
+#choice-options {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+#choice-options button.option {
+    min-width: 12rem;
+    font-size: 110%;
+    padding: 0.4rem 0.8rem;
+}
+/* Connect: two columns of cells to match. */
+#connect-grid {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 0.5rem 0;
+}
+.connect-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 8rem;
+}
+.connect-cell {
+    padding: 0.4rem 0.8rem;
+    font-size: 110%;
+}
+/* Answer feedback shared by choice and connect. */
+button.correct,
+.connect-cell.matched {
+    background-color: #DFF5DF;
+    border-color: #5C5;
+    color: #060;
+}
+button.wrong {
+    background-color: #F8DEDE;
+    border-color: #D88;
+    color: #900;
+}
+.connect-cell.selected {
+    background-color: #E6EEFF;
+    border-color: #88A;
+}
+.connect-cell.matched {
+    opacity: 0.5;
+    cursor: default;
+}
+.connect-cell.wrong-flash {
+    background-color: #F8DEDE;
+    border-color: #D88;
+}
 /*
 form button {
     background-color: black;

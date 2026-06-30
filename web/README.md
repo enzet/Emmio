@@ -34,11 +34,19 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 
 `app.js` dispatches on `<body data-page="...">`, so each page is plain HTML that
 just includes the one script. Lexicon checking uses `runSession()` (a yes/no
-flow: next → reveal translation → answer). Learning uses `runLearnSession()`, a
-*production* flow: the meaning (the definition with the word blanked) and a
-translated example sentence are shown as the prompt, the word is blanked, and
-the user types it — auto-accepted the instant the entry matches the card's
-server-provided `accepted` forms; "I don't know" reveals the word.
+flow: next → reveal translation → answer). Learning uses `runLearnSession()`,
+which renders whichever review question type the server's `/question` endpoint
+chose:
+
+- **type the word** — meaning (word blanked) + a translated example shown; type
+  the word, auto-accepted on match against the server's `accepted`.
+- **know** — see the word, self-assess Know / Don't-know, then the meaning shows.
+- **choice** — pick the translation among options.
+- **connect** — match several words to their translations at once.
+
+New words still come from `/new` (taught as type-the-word, after the optional
+`ask_lexicon` check). Each answered word is recorded via `/answer` with its
+question type.
 
 ## Page flow
 

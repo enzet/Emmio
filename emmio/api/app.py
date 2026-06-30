@@ -794,6 +794,30 @@ def _course_sentence(
     )
 
 
+async def _short_translation(
+    word: str,
+    language: Language,
+    dictionaries: DictionaryCollection,
+    base_languages: list[Language],
+) -> str | None:
+    """Get a single-word translation of a word, for multiple-choice options.
+
+    Uses the dictionary's one-word definitions (the same source the listen
+    module's quiz uses), trying base languages in order. Returns `None` when no
+    short translation exists — such words simply can't be asked as choice or
+    connect questions.
+    """
+    items = await dictionaries.get_items(word, language)
+    for base_language in base_languages:
+        for item in items:
+            definitions: list[str] = item.get_one_word_definitions(
+                base_language
+            )
+            if definitions:
+                return definitions[0]
+    return None
+
+
 # Most words a single `/next` request may prefetch.
 _BATCH_MAX: int = 50
 
@@ -1362,11 +1386,39 @@ def get_next_questions(
     )
 
 
-# Question-type code stored in `learn_records.extra.qt`. A record without `qt`
-# predates this provenance and so has an unknown question type. `type_word` is
-# the only kind so far: the meaning and an example are shown and the user types
-# the word.
-QUESTION_TYPE_TYPE_WORD: str = "type_word"
+# Question-type codes stored in `learn_records.extra.qt`. A record without `qt`
+# predates this provenance and so has an unknown question type.
+QUESTION_TYPE_KNOW: str = "know"  # See the word, self-assess, reveal meaning.
+QUESTION_TYPE_CHOICE: str = "choice"  # Pick the translation among several.
+QUESTION_TYPE_CONNECT: str = "connect"  # Match several words to translations.
+QUESTION_TYPE_TYPE_WORD: str = "type_word"  # See the meaning, type the word.
+
+# Single-word question types from easiest (recognition) to hardest (production).
+# The chosen type rises with the word's run of correct answers, so a word is
+# recognized before it must be produced.
+_SINGLE_QUESTION_TYPES: tuple[str, ...] = (
+    QUESTION_TYPE_KNOW,
+    QUESTION_TYPE_CHOICE,
+    QUESTION_TYPE_TYPE_WORD,
+)
+# Correct-answer streak a word needs before a single-word type may be asked.
+_QUESTION_TYPE_MIN_STREAK: dict[str, int] = {
+    QUESTION_TYPE_KNOW: 0,
+    QUESTION_TYPE_CHOICE: 1,
+    QUESTION_TYPE_TYPE_WORD: 2,
+}
+_ALL_QUESTION_TYPES: tuple[str, ...] = (
+    QUESTION_TYPE_KNOW,
+    QUESTION_TYPE_CHOICE,
+    QUESTION_TYPE_CONNECT,
+    QUESTION_TYPE_TYPE_WORD,
+)
+
+# Multiple-choice and connect sizes.
+_CHOICE_OPTIONS: int = 4
+_CONNECT_SIZE: int = 4
+# Due words to consider when forming one question.
+_QUESTION_BATCH: int = 12
 
 
 class CourseAnswerRequest(BaseModel):
@@ -1377,8 +1429,7 @@ class CourseAnswerRequest(BaseModel):
     question_type: str = QUESTION_TYPE_TYPE_WORD
     """How the word was asked, stored as provenance (`extra.qt`).
 
-    Defaults to the typed-recall question (the only kind today). A record with
-    no `qt` predates this and is treated as an unknown question type.
+    A record with no `qt` predates this and is treated as an unknown type.
     """
     sentence_id: int | None = None  # The example shown (`extra.si`), if any.
     seconds: float | None = None
@@ -1438,6 +1489,168 @@ def answer_question(
     )
 
 
+class ConnectPair(BaseModel):
+    """One word and its short translation, for a connect (matching) question."""
+
+    word: str
+    translation: str
+
+
+class Question(BaseModel):
+    """A review question of one of several types.
+
+    Only the fields a given `type` needs are set. `type` is `None` when no
+    review question is currently due. The client grades the answer against the
+    provided data (the server's role is to supply the question and its key),
+    then records each covered word via `/answer` with this `type`.
+    """
+
+    type: str | None
+    language: str
+    words: list[str] = []  # The word(s) the question covers (for `/answer`).
+    accepted: list[str] | None = None  # `type_word`: answers that count right.
+    options: list[str] | None = None  # `choice`: the translations to pick from.
+    answer: str | None = None  # `choice`: the correct option.
+    pairs: list[ConnectPair] | None = None  # `connect`: words and translations.
+
+
+def _streak(learning: Learning, word: str) -> int:
+    """Get the word's run of correct answers (0 if new or last was wrong)."""
+    knowledge = learning.get_knowledge(word)
+    return knowledge.count_right_streak() if knowledge else 0
+
+
+def _single_question_type(
+    streak: int, enabled: set[str], *, choice_feasible: bool
+) -> str:
+    """Pick a single-word question type for a word by its knowledge.
+
+    The hardest enabled, feasible type the word has earned by its streak; if it
+    has earned none, the easiest enabled, feasible type. `type_word` is always
+    feasible, so a type is always returned.
+    """
+
+    def feasible(question_type: str) -> bool:
+        if question_type not in enabled:
+            return False
+        if question_type == QUESTION_TYPE_CHOICE:
+            return choice_feasible
+        return True  # `know` and `type_word` need no extra data.
+
+    earned: list[str] = [
+        question_type
+        for question_type in _SINGLE_QUESTION_TYPES
+        if feasible(question_type)
+        and streak >= _QUESTION_TYPE_MIN_STREAK[question_type]
+    ]
+    if earned:
+        return earned[-1]  # Hardest earned (the tuple is easiest-first).
+    feasible_types: list[str] = [
+        question_type
+        for question_type in _SINGLE_QUESTION_TYPES
+        if feasible(question_type)
+    ]
+    return feasible_types[0] if feasible_types else QUESTION_TYPE_TYPE_WORD
+
+
+@app.get("/api/v1/me/courses/{course_id}/question")
+async def get_question(
+    course_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    exclude: Annotated[list[str] | None, Query()] = None,
+) -> Question:
+    """Get the next due review question, of a type chosen for the words.
+
+    The type is decided by the course's configured `question_types`, by each
+    word's knowledge (recognition before production), and by what data exists
+    (a short translation is needed for `choice`/`connect`). New words are not
+    served here — they come from `/new`. `type` is `None` when nothing is due.
+    """
+    learning: Learning = _load_learning(user_id, course_id)
+    language: str = learning.learning_language.get_code()
+    due: list[str] = learning.get_next_questions(
+        _QUESTION_BATCH, set(exclude or [])
+    )
+    if not due:
+        return Question(type=None, language=language)
+
+    scheme = learning.config.scheme
+    configured: list[str] | None = (
+        scheme.question_types if scheme is not None else None
+    )
+    enabled: set[str] = set(configured or _ALL_QUESTION_TYPES)
+
+    # Short translations for the due words (deduplicated by translation so
+    # options and matches are unambiguous), used by `choice` and `connect` — so
+    # only looked up when one of those types is enabled.
+    translatable: dict[str, str] = {}
+    seen_translations: set[str] = set()
+    if enabled & {QUESTION_TYPE_CHOICE, QUESTION_TYPE_CONNECT}:
+        dictionaries: DictionaryCollection = get_data().get_dictionaries(
+            learning.config.dictionaries
+        )
+        language_object: Language = learning.learning_language
+        base_languages: list[Language] = learning.base_languages
+        for word in due:
+            translation: str | None = await _short_translation(
+                word, language_object, dictionaries, base_languages
+            )
+            if translation is not None and translation not in seen_translations:
+                translatable[word] = translation
+                seen_translations.add(translation)
+
+    # Connect: when enough low-knowledge due words can be matched, group them.
+    if QUESTION_TYPE_CONNECT in enabled:
+        matchable: list[str] = [
+            word
+            for word in due
+            if word in translatable and _streak(learning, word) <= 1
+        ]
+        if len(matchable) >= _CONNECT_SIZE:
+            chosen: list[str] = matchable[:_CONNECT_SIZE]
+            return Question(
+                type=QUESTION_TYPE_CONNECT,
+                language=language,
+                words=chosen,
+                pairs=[
+                    ConnectPair(word=word, translation=translatable[word])
+                    for word in chosen
+                ],
+            )
+
+    word = due[0]
+    choice_feasible: bool = (
+        word in translatable and len(seen_translations) >= _CHOICE_OPTIONS
+    )
+    question_type: str = _single_question_type(
+        _streak(learning, word), enabled, choice_feasible=choice_feasible
+    )
+    if question_type == QUESTION_TYPE_CHOICE:
+        correct: str = translatable[word]
+        distractors: list[str] = random.sample(
+            sorted(seen_translations - {correct}), _CHOICE_OPTIONS - 1
+        )
+        options: list[str] = [correct, *distractors]
+        random.shuffle(options)
+        return Question(
+            type=QUESTION_TYPE_CHOICE,
+            language=language,
+            words=[word],
+            options=options,
+            answer=correct,
+        )
+    if question_type == QUESTION_TYPE_KNOW:
+        return Question(
+            type=QUESTION_TYPE_KNOW, language=language, words=[word]
+        )
+    return Question(
+        type=QUESTION_TYPE_TYPE_WORD,
+        language=language,
+        words=[word],
+        accepted=[word],
+    )
+
+
 @app.post("/api/v1/me/courses/{course_id}/undo")
 def undo_course_answer(
     course_id: str, user_id: Annotated[str, Depends(get_current_user)]
@@ -1465,13 +1678,15 @@ async def get_course_translation(
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
     index: int | None = None,
+    hide_word: bool = True,  # noqa: FBT001, FBT002
 ) -> Translation:
     """Get a word's translation from the course's configured dictionaries.
 
-    The word is blanked out of the definitions, so the meaning serves as a
-    recall prompt without revealing the answer. ``index`` optionally restricts
-    the result to the single dictionary at that position (see
-    ``/dictionaries``), so the client can load each dictionary independently.
+    With ``hide_word`` (the default) the word is blanked out of the definitions,
+    so the meaning serves as a recall prompt without revealing the answer — used
+    by the type-the-word question. The know question passes ``hide_word=false``
+    to show the full meaning once the user has self-assessed. ``index``
+    optionally restricts the result to one dictionary (see ``/dictionaries``).
     """
     config: dict = _course_config_or_404(user_id, course_id)
     return Translation(
@@ -1481,7 +1696,7 @@ async def get_course_translation(
             config["learning_language"],
             config.get("dictionaries"),
             index=index,
-            hide_word=True,
+            hide_word=hide_word,
         ),
     )
 
