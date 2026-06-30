@@ -1,0 +1,19 @@
+[package]
+name = "freqlist"
+version = "0.1.0"
+edition = "2021"
+description = "Frequency list generator for OpenSubtitles (OPUS) monolingual dumps"
+license = "MIT"
+
+[[bin]]
+name = "freqlist"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+unicode-segmentation = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1

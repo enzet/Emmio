@@ -10,6 +10,7 @@ c/text
 cache
 out
 research
+rust/target/
 test
 tests/temp
 visualize/
