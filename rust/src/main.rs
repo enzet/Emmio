@@ -21,7 +21,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use flate2::read::MultiGzDecoder;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -48,6 +48,11 @@ struct Args {
     #[arg(short, long)]
     language: Option<String>,
 
+    /// Corpus type. `subtitles` additionally drops whole lines that are
+    /// bracketed annotations like `[door creaks]`.
+    #[arg(short = 't', long = "type", value_enum, default_value_t = CorpusType::Plain)]
+    corpus_type: CorpusType,
+
     /// Drop words occurring fewer than this many times.
     #[arg(long, default_value_t = 1)]
     min_count: u64,
@@ -69,6 +74,30 @@ struct Args {
     /// flagged as a proper noun (guards against noise from rare words).
     #[arg(long, default_value_t = 5)]
     proper_noun_min_count: u64,
+}
+
+/// Source format of the corpus, selecting format-specific line filtering.
+#[derive(Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+enum CorpusType {
+    /// Plain text; every line is treated as content.
+    #[default]
+    Plain,
+    /// Subtitles; bracketed annotation lines like `[door creaks]` are dropped.
+    Subtitles,
+}
+
+/// Whether a line should be skipped for the given corpus type.
+///
+/// In subtitle corpora a line that is wholly bracketed (`[applause]`,
+/// `[music playing]`) describes sound rather than speech and is not vocabulary.
+/// A line with only a leading speaker tag (`[John] Hello`) is kept, since it
+/// still contains dialogue.
+fn is_skipped_line(line: &str, corpus_type: CorpusType) -> bool {
+    if corpus_type != CorpusType::Subtitles {
+        return false;
+    }
+    let trimmed = line.trim();
+    trimmed.starts_with('[') && trimmed.ends_with(']')
 }
 
 /// Per-word counters accumulated over the corpus.
@@ -250,6 +279,9 @@ fn run(args: &Args) -> io::Result<()> {
     let mut lines: u64 = 0;
     for line in reader.lines() {
         let line = line?;
+        if is_skipped_line(&line, args.corpus_type) {
+            continue;
+        }
         // The first word of a line starts a sentence.
         let mut at_sentence_start = true;
         // `split_word_bounds` keeps punctuation segments (unlike `unicode_words`)
@@ -383,6 +415,18 @@ mod tests {
         assert_eq!(fold_case("İSTANBUL", Some("tr")), "istanbul");
         // Generic folding maps I→i instead, losing the distinction.
         assert_eq!(fold_case("IŞIK", None), "işik");
+    }
+
+    #[test]
+    fn subtitles_drop_bracketed_annotation_lines() {
+        use CorpusType::{Plain, Subtitles};
+        assert!(is_skipped_line("[door creaks]", Subtitles));
+        assert!(is_skipped_line("  [music playing]  ", Subtitles));
+        // A leading speaker tag is dialogue, not a pure annotation.
+        assert!(!is_skipped_line("[John] Hello there", Subtitles));
+        assert!(!is_skipped_line("Hello there", Subtitles));
+        // Plain corpora keep everything.
+        assert!(!is_skipped_line("[door creaks]", Plain));
     }
 
     #[test]
