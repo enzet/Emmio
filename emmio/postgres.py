@@ -456,6 +456,29 @@ def get_lexicon_answer_sequences(
     return result
 
 
+def get_last_lexicon_record_id(user_id: str) -> int | None:
+    """Get the id of the user's newest lexicon record.
+
+    A cheap change marker for caching derived data (e.g. the rate graph):
+    ids grow as answers are recorded and the newest record is the one an
+    undo removes, so the maximum changes whenever the history changes.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: the maximum record id, or `None` if there are no records
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT MAX(r.id) FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
 def _assemble_lexicon_config(
     language: str,
     selection: str | None,

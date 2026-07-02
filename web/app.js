@@ -294,6 +294,17 @@ async function initHome() {
     for (const language of courseOnly) {
         renderLanguageRow(language, null, coursesByLanguage.get(language));
     }
+    // Vocabulary-level history of the main lexicons, rendered server-side as
+    // SVG. Inlined rather than an `<img src>` because the endpoint needs the
+    // bearer token and inline SVG scales with the page CSS. 204 means there
+    // are not enough answers to plot yet.
+    const graphResponse = await api("/me/lexicons/graph");
+    if (graphResponse.status === 200) {
+        const figure = document.getElementById("lexicon-graph");
+        figure.innerHTML = await graphResponse.text();
+        figure.hidden = false;
+    }
+
     await setupCreateLexicon(
         "add-lexicon-form",
         "add-lexicon-language",

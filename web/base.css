@@ -277,6 +277,17 @@ svg.button-icon {
     margin-right: 0.3rem;
 }
 
+/* Vocabulary-level graph on the dashboard: server-rendered SVG, inlined so
+   its transparent background sits on the page theme. The `viewBox` lets it
+   scale down to the page width. */
+#lexicon-graph {
+    margin: 1rem 0;
+}
+#lexicon-graph svg {
+    max-width: 100%;
+    height: auto;
+}
+
 table {
     border-collapse: collapse;
 }

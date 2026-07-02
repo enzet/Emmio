@@ -46,11 +46,17 @@ class LexiconRangeData:
 class LexiconVisualizer:
     """Visualizer for lexicons."""
 
-    interface: Interface
-    """User interface for showing messages."""
+    interface: Interface | None = None
+    """User interface for showing messages.
 
-    output_path: Path
-    """Path to the output directory."""
+    Only needed by the methods that write files; `build_svg` works without it.
+    """
+
+    output_path: Path | None = None
+    """Path to the output directory.
+
+    Only needed by the methods that write files; `build_svg` works without it.
+    """
 
     plot_main: bool = True
     """Plot main line."""
@@ -91,6 +97,10 @@ class LexiconVisualizer:
         :param show_text: show labels on the current rate
         :param margin: do not show languages that never had rate over the margin
         """
+        if self.output_path is None or self.interface is None:
+            message = "Plotting requires `output_path` and `interface`."
+            raise ValueError(message)
+
         font: dict[str, float] = {"size": 8.0}
         mpl.rc("font", **font)
 
@@ -219,9 +229,46 @@ class LexiconVisualizer:
         :param colors: colors for each language
         :param background_color: background color
         """
+        if self.output_path is None or self.interface is None:
+            message = "Plotting requires `output_path` and `interface`."
+            raise ValueError(message)
+
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin
         )
+        svg: Drawing | None = self.build_svg(
+            x_min, x_max, lexicon_data, colors, background_color, grid_color
+        )
+        if svg is None:
+            return
+
+        svg.filename = (self.output_path / DEFAULT_LEXICON_GRAPH).as_posix()
+        with Path(svg.filename).open("w+", encoding="utf-8") as output_file:
+            svg.write(output_file)
+        self.interface.print(
+            "Graph saved to "
+            f"`{(self.output_path / DEFAULT_LEXICON_GRAPH).absolute()}`."
+        )
+
+    def build_svg(
+        self,
+        x_min: datetime | None,
+        x_max: datetime | None,
+        lexicon_data: list[LexiconRangeData],
+        colors: list[Color] | None,
+        background_color: Color | None,
+        grid_color: Color,
+    ) -> Drawing | None:
+        """Draw lexicon rate change through time as an SVG drawing.
+
+        :param x_min: minimum point in time, as from `construct_lexicon_data`
+        :param x_max: maximum point in time, as from `construct_lexicon_data`
+        :param lexicon_data: per-language rate ranges
+        :param colors: colors for each language
+        :param background_color: background color; `None` for transparent
+        :param grid_color: grid and axis label color
+        :return: the drawing, or `None` if there is nothing to plot
+        """
         data: list[tuple[list[datetime], list[float], Color, str]] = []
         for data_range in lexicon_data:
             language_name: str = data_range.language.get_self_name()
@@ -253,7 +300,7 @@ class LexiconVisualizer:
             y_max = 0.0
 
         if not x_min or not x_max:
-            return
+            return None
 
         graph: Graph = Graph(
             x_min,
@@ -265,11 +312,11 @@ class LexiconVisualizer:
             colors=colors,
         )
 
-        svg: Drawing = Drawing(
-            (self.output_path / DEFAULT_LEXICON_GRAPH).as_posix(),
-            graph.canvas.size,
-        )
-        graph.draw_background(svg)
+        svg: Drawing = Drawing(DEFAULT_LEXICON_GRAPH, graph.canvas.size)
+        # A `viewBox` lets the embedding page scale the graph with CSS.
+        svg.viewbox(0, 0, int(graph.canvas.size[0]), int(graph.canvas.size[1]))
+        if background_color is not None:
+            graph.draw_background(svg)
         graph.plot(svg, data)
 
         if self.plot_averages:
@@ -298,11 +345,7 @@ class LexiconVisualizer:
                         opacity=opacity,
                     )
         graph.draw_grid(svg)
-        graph.write(svg)
-        self.interface.print(
-            "Graph saved to "
-            f"`{(self.output_path / DEFAULT_LEXICON_GRAPH).absolute()}`."
-        )
+        return svg
 
     def graph_with_tikz(
         self,
@@ -318,6 +361,10 @@ class LexiconVisualizer:
         :param lexicons: mapping of languages to lexicons
         :param margin: do not show languages that never had rate over the margin
         """
+        if self.output_path is None or self.interface is None:
+            message = "Plotting requires `output_path` and `interface`."
+            raise ValueError(message)
+
         x_min, x_max, lexicon_data = self.construct_lexicon_data(
             lexicons, margin
         )
@@ -408,9 +455,30 @@ class LexiconVisualizer:
             dates += lexicon.dates
             responses += lexicon.responses
 
-        date_ranges, rates = compute_lexicon_rate(
-            sorted(zip(dates, responses, strict=False)), self.precision
+        return self.get_range_data(
+            language,
+            sorted(zip(dates, responses, strict=False)),
+            margin,
+            skip_first_point=skip_first_point,
         )
+
+    def get_range_data(
+        self,
+        language: Language,
+        sequence: list[tuple[datetime, int]],
+        margin: float | None,
+        *,
+        skip_first_point: bool = True,
+    ) -> LexiconRangeData | None:
+        """Get data for plotting lexicon rate change through time.
+
+        :param language: language
+        :param sequence: time-ordered (response time, response) pairs, where
+            the response is 1 for "know" and 0 for "don't know"
+        :param margin: do not show languages that never had rate over the margin
+        :param skip_first_point: skip first point in time
+        """
+        date_ranges, rates = compute_lexicon_rate(sequence, self.precision)
         if not rates or (margin is not None and max(rates) < margin):
             return None
 
@@ -456,14 +524,43 @@ class LexiconVisualizer:
         :param margin: do not show languages that never had rate over the margin
         :param skip_first_point: skip first point in time
         """
+        sequences: dict[Language, list[tuple[datetime, int]]] = {}
+        for language, language_lexicons in lexicons.items():
+            dates: list[datetime] = []
+            responses: list[int] = []
+            for lexicon in language_lexicons:
+                dates += lexicon.dates
+                responses += lexicon.responses
+            sequences[language] = sorted(zip(dates, responses, strict=False))
+
+        return self.construct_data_from_sequences(
+            sequences, margin, skip_first_point=skip_first_point
+        )
+
+    def construct_data_from_sequences(
+        self,
+        sequences: dict[Language, list[tuple[datetime, int]]],
+        margin: float | None,
+        *,
+        skip_first_point: bool = False,
+    ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
+        """Construct data for plotting lexicon rate change through time.
+
+        Unlike `construct_lexicon_data`, works on raw answer sequences, so it
+        does not need `Lexicon` objects (the web API reads the sequences
+        straight from the database).
+
+        :param sequences: mapping of languages to time-ordered (response time,
+            response) pairs, where the response is 1 for "know" and 0 for
+            "don't know"
+        :param margin: do not show languages that never had rate over the margin
+        :param skip_first_point: skip first point in time
+        """
         data: list[LexiconRangeData] = []
 
-        for language, language_lexicons in lexicons.items():
-            data_range = self.get_lexicon_range_data(
-                language,
-                language_lexicons,
-                margin,
-                skip_first_point=skip_first_point,
+        for language, sequence in sequences.items():
+            data_range = self.get_range_data(
+                language, sequence, margin, skip_first_point=skip_first_point
             )
             if data_range:
                 data.append(data_range)

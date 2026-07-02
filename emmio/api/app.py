@@ -22,8 +22,18 @@ from tempfile import mkdtemp
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
+from colour import Color
+from fastapi import (
+    Depends,
+    FastAPI,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import FileResponse
+from fastapi.responses import Response as HTTPResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -46,6 +56,7 @@ from emmio.lexicon.core import (
     compute_lexicon_rate,
     select_next_word,
 )
+from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -1284,6 +1295,66 @@ def get_my_languages(
         reverse=True,
     )
     return rates
+
+
+GRAPH_GRID_COLOR: Color = Color("#888888")
+"""Grid color legible on both the light and the dark page theme."""
+
+
+@app.get("/api/v1/me/lexicons/graph")
+def get_lexicons_graph(
+    request: Request, user_id: Annotated[str, Depends(get_current_user)]
+) -> HTTPResponse:
+    """Render the rate history of the user's main lexicons as an SVG graph.
+
+    The background is transparent so the graph can be inlined into a page and
+    inherit its theme. The `ETag` is derived from the newest lexicon record:
+    the history only changes when the user answers (or undoes) a lexicon
+    check, so a matching `If-None-Match` skips loading the records and
+    rendering entirely.
+
+    Responds 204 when there is not enough data to plot anything yet.
+    """
+    last_record_id: int | None = postgres.get_last_lexicon_record_id(user_id)
+    etag: str = f'"lexicon-graph-{last_record_id or 0}"'
+    if request.headers.get("if-none-match") == etag:
+        return HTTPResponse(
+            status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag}
+        )
+
+    sequences: dict[str, list[tuple[datetime, int]]] = (
+        postgres.get_lexicon_answer_sequences(user_id)
+    )
+    data: dict[Language, list[tuple[datetime, int]]] = {}
+    for language, lexicon_id, _, _ in postgres.get_main_lexicons(user_id):
+        sequence = sequences.get(lexicon_id)
+        if not sequence:
+            continue
+        try:
+            data[Language.from_code(language)] = sequence
+        except LanguageNotFoundError:
+            continue
+
+    visualizer: LexiconVisualizer = LexiconVisualizer(interactive=False)
+    x_min, x_max, lexicon_data = visualizer.construct_data_from_sequences(
+        data, margin=None
+    )
+    svg = visualizer.build_svg(
+        x_min,
+        x_max,
+        lexicon_data,
+        colors=None,
+        background_color=None,
+        grid_color=GRAPH_GRID_COLOR,
+    )
+    if svg is None:
+        return HTTPResponse(status_code=status.HTTP_204_NO_CONTENT)
+
+    return HTTPResponse(
+        content=svg.tostring(),
+        media_type="image/svg+xml",
+        headers={"ETag": etag, "Cache-Control": "private, no-cache"},
+    )
 
 
 @app.put(
