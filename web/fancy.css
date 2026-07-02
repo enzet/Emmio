@@ -1,0 +1,61 @@
+/* Emmio web interface: the "fancy" style.
+ *
+ * Decoration layered on top of `base.css`; every rule is scoped under
+ * `html[data-style="fancy"]` so the basic style is untouched until the user
+ * switches (Profile → Appearance). Loaded on every page after `base.css`, so
+ * equal-specificity rules here win.
+ *
+ * To retint the whole app, override the palette variables from `base.css`
+ * here (both blocks below) instead of restyling individual elements. */
+
+html[data-style="fancy"] {
+    /* Light-theme palette overrides, e.g.: --border: #C9BBAA; */
+}
+html[data-style="fancy"][data-theme="dark"] {
+    /* Dark-theme palette overrides. */
+}
+
+/* Dictionary entries in a display serif. */
+html[data-style="fancy"] .dictionary-body {
+    font-family: "Playfair", serif;
+}
+
+html[data-style="fancy"] button {
+    background-color: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    transition: transform 0.08s ease, background-color 0.08s ease,
+        box-shadow 0.08s ease;
+}
+
+html[data-style="fancy"] input.text {
+    border: 1px solid var(--input-bg);
+    border-radius: 3px;
+    background: var(--input-bg);
+    width: stretch;
+    padding: 0.3rem;
+}
+
+/* Ideas not enabled yet:
+
+html[data-style="fancy"] form button {
+    background-color: black;
+    color: white;
+    border: none;
+    display: block;
+    margin: 1rem auto;
+    width: 200px;
+    padding: 0.5rem 1rem;
+}
+html[data-style="fancy"] dt {
+    color: #AAA;
+    font-size: 80%;
+}
+html[data-style="fancy"] dd {
+    margin-left: 0;
+    margin-bottom: 0.5rem;
+}
+
+*/

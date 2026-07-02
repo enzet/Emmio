@@ -1,9 +1,62 @@
-/* Emmio web interface styles.
+/* Emmio web interface: base style.
  *
- * Intentionally empty for now — the markup is plain semantic HTML so the design
- * can be decided later. Add rules here; useful hooks already in the markup:
- * `.dictionary`, `.dictionary-name`, `.dictionary-body`, and the `id`s used by
- * each page (e.g. `#word`, `#answers`, `#translation`, `#stats`). */
+ * Structure, layout, and the color palette. This file alone is the "basic"
+ * style; `fancy.css` layers decoration on top when `<html data-style="fancy">`
+ * is set. Colors are custom properties so the dark theme (and the fancy style)
+ * only override variables. `theme.js` sets `data-style` and `data-theme` on
+ * `<html>` before first paint; the switchers live on the profile page.
+ *
+ * Useful hooks in the markup: `.dictionary`, `.dictionary-name`,
+ * `.dictionary-body`, and the `id`s used by each page (e.g. `#word`,
+ * `#answers`, `#translation`, `#stats`). */
+
+:root {
+    /* Native widgets (buttons, inputs, scrollbars) follow the theme. */
+    color-scheme: light;
+
+    --bg: white;
+    --fg: black;
+    --muted: #888;
+    --faint: #CCC;
+    --border: #DDD;
+    --surface: white; /* Buttons, cards. */
+    --surface-border: #0003;
+    --input-bg: #EEE;
+    --danger: red;
+    --press-bg: #0001; /* Pressed-button feedback. */
+    --press-shadow: #0002;
+    --correct-bg: #DFF5DF;
+    --correct-border: #5C5;
+    --correct-fg: #060;
+    --wrong-bg: #F8DEDE;
+    --wrong-border: #D88;
+    --wrong-fg: #900;
+    --selected-bg: #E6EEFF;
+    --selected-border: #88A;
+}
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #1B1B1F;
+    --fg: #E2E2E5;
+    --muted: #9A9AA0;
+    --faint: #55555C;
+    --border: #3A3A40;
+    --surface: #26262B;
+    --surface-border: #FFF3;
+    --input-bg: #2A2A30;
+    --danger: #FF7B72;
+    --press-bg: #FFF1;
+    --press-shadow: #0006;
+    --correct-bg: #1D3A22;
+    --correct-border: #3E7B4B;
+    --correct-fg: #7BD88F;
+    --wrong-bg: #46262A;
+    --wrong-border: #8C4A4F;
+    --wrong-fg: #F2A2A2;
+    --selected-bg: #24304C;
+    --selected-border: #667;
+}
 
 /* Auth pages (login, register): center the card in the viewport. */
 body[data-page="login"],
@@ -21,23 +74,22 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    background-color: var(--bg);
+    color: var(--fg);
 }
 
 /* Keep the status line and undo bar pinned to the bottom of the page. */
 footer {
     margin-top: auto;
-    /* padding-top: 1rem; */
-    /* border-top: 1px solid #DDD; */
     font-size: 85%;
-    /* color: #666; */
 }
 
 section[aria-labelledby="danger-heading"] {
-    color: red;
+    color: var(--danger);
 }
 
 main.card, main.login {
-    border: 1px solid #DDD;
+    border: 1px solid var(--border);
     border-radius: 10px;
     width: 250px;
     padding: 0.1rem 1rem;
@@ -51,7 +103,7 @@ nav {
 }
 header a, nav span {
     font-size: 85%;
-    color: black;
+    color: var(--fg);
     text-decoration: none;
     font-weight: 500;
 }
@@ -66,10 +118,6 @@ h1 img.logo {
     width: 50px;
 }
 
-/* Center the logo and section headers (the inline logo follows `text-align`). */
-h1 {
-    /* text-align: center; */
-}
 h1 {
     padding: 0;
     margin: 5px;
@@ -79,8 +127,8 @@ h2 {
     margin-bottom: 0;
 }
 
-button[data-key="n"] {
-    color: red;
+button[data-key="n"], button.danger {
+    color: var(--danger);
 }
 div#answers {
     display: flex;
@@ -106,7 +154,7 @@ p#sentence-translation {
     text-align: center;
     width: 500px;
     margin: 0 auto 0.5rem;
-    color: #888;
+    color: var(--muted);
     font-style: italic;
 }
 
@@ -115,7 +163,8 @@ label {
     font-size: 80%;
     padding-bottom: 0.1rem;
 }
-p {
+p#translation-button {
+    text-align: center;
 }
 
 p#external-links {
@@ -132,9 +181,6 @@ p.login-footer {
     text-align: center;
 }
 
-p#login-error {
-    /* font-size: 85%; */
-}
 p#word {
     font-size: 640%;
     text-align: center;
@@ -147,7 +193,7 @@ p#word {
     min-height: 1.2em;
 }
 
-button#show-translation{
+button#show-translation {
     margin: auto;
 }
 
@@ -182,6 +228,14 @@ span.dictionary-transcription {
 
 span.dictionary-part-of-speech {
     font-weight: bold;
+}
+
+.dictionary-link,
+.dictionary-descripiton,
+.dictionary-etymology,
+.dictionary-name,
+.dictionary-descriptors {
+    color: var(--faint);
 }
 
 .logo {
@@ -238,72 +292,41 @@ td a.language-code {
     letter-spacing: 0.05rem;
     text-decoration: none;
     display: inline-block;
-    border: 1.5px solid black;
+    border: 1.5px solid var(--fg);
     padding: 1px 3px;
     border-radius: 5px;
-    color: black;
+    color: var(--fg);
     min-width: 23px;
     text-align: center;
 }
 
 /* Render definition lists (profile details, lexicon/course stats) as a
-   two-column table: terms on the left, values on the right, with a rule under
-   each row. Padding (not column-gap) separates the columns so the row rule
-   runs unbroken across both. */
+   two-column table: terms on the left, values on the right. Padding (not
+   column-gap) separates the columns so a row rule would run unbroken across
+   both. */
 dl {
     display: grid;
     grid-template-columns: max-content 1fr;
-    /* max-width: 24rem; */
-    /* margin: 1rem auto; */
 }
 dt, dd {
     padding: 0.3rem 0.5rem;
-    /* border-bottom: 1px solid #DDD; */
 }
 dt {
     padding-left: 0;
-    /* color: #888; */
 }
 dd {
     padding-right: 0;
     margin: 0;
-    /* text-align: right; */
 }
 
-/*
-input.text {
-    border: 1px solid #EEE;
-    border-radius: 3px;
-    background: #EEE;
-    width: stretch;
-    padding: 0.3rem;
-}
-
-button {
-    background-color: white;
-    border: 1px solid #0003;
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
-    cursor: pointer;
-    transition: transform 0.08s ease, background-color 0.08s ease,
-        box-shadow 0.08s ease;
-}
 /* Visual confirmation when a button is pressed, whether via the mouse
    (:active) or via a keyboard shortcut (.pressed, added by app.js since a
    programmatic click does not trigger :active). */
 button:active,
 button.pressed {
     transform: scale(0.94);
-    background-color: #0001;
-    box-shadow: inset 0 1px 3px #0002;
-}
-button[data-key="n"] {
-    color: red;
-    /* border: 1px solid #F004; */
-}
-button.danger {
-    color: red;
-    /* border: 1px solid #F004; */
+    background-color: var(--press-bg);
+    box-shadow: inset 0 1px 3px var(--press-shadow);
 }
 kbd {
     padding-left: 3px;
@@ -311,23 +334,13 @@ kbd {
     opacity: 50%;
     font-size: 80%;
 }
-.dictionary-link,
-.dictionary-descripiton,
-.dictionary-etymology,
-.dictionary-name,
-.dictionary-descriptors {
-    color: #CCC;
-}
-.dictionary-body {
-    font-family: "Playfair", serif;
-}
 a.button {
     display: inline-block;
-    background-color: white;
-    border: 1px solid #0003;
+    background-color: var(--surface);
+    border: 1px solid var(--surface-border);
     border-radius: 5px;
     padding: 0.2rem 0.5rem;
-    color: black;
+    color: var(--fg);
     text-decoration: none;
     font-size: 85%;
 }
@@ -343,9 +356,9 @@ input#answer-input {
     margin: 0 auto 0.5rem;
     font-size: 200%;
     text-align: center;
-    border: 1px solid #EEE;
+    border: 1px solid var(--input-bg);
     border-radius: 3px;
-    background: #EEE;
+    background: var(--input-bg);
     padding: 0.3rem 0.6rem;
     width: stretch;
     max-width: 20rem;
@@ -395,44 +408,24 @@ p.word {
 /* Answer feedback shared by choice and connect. */
 button.correct,
 .connect-cell.matched {
-    background-color: #DFF5DF;
-    border-color: #5C5;
-    color: #060;
+    background-color: var(--correct-bg);
+    border-color: var(--correct-border);
+    color: var(--correct-fg);
 }
 button.wrong {
-    background-color: #F8DEDE;
-    border-color: #D88;
-    color: #900;
+    background-color: var(--wrong-bg);
+    border-color: var(--wrong-border);
+    color: var(--wrong-fg);
 }
 .connect-cell.selected {
-    background-color: #E6EEFF;
-    border-color: #88A;
+    background-color: var(--selected-bg);
+    border-color: var(--selected-border);
 }
 .connect-cell.matched {
     opacity: 0.5;
     cursor: default;
 }
 .connect-cell.wrong-flash {
-    background-color: #F8DEDE;
-    border-color: #D88;
+    background-color: var(--wrong-bg);
+    border-color: var(--wrong-border);
 }
-/*
-form button {
-    background-color: black;
-    color: white;
-    border: none;
-    display: block;
-    margin: 1rem auto;
-    width: 200px;
-    padding: 0.5rem 1rem;
-}
-dt {
-    color: #AAA;
-    font-size: 80%;
-}
-dd {
-    margin-left: 0;
-    margin-bottom: 0.5rem;
-}
-
-*/

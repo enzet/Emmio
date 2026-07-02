@@ -1618,6 +1618,19 @@ async function initProfile() {
         ["Email", me.email || "—"],
     ]);
 
+    // Appearance switchers: persist the choice and apply it immediately.
+    // `STYLE_KEY`, `THEME_KEY`, and `applyAppearance` come from theme.js.
+    for (const [select, key] of [
+        [document.getElementById("style-select"), STYLE_KEY],
+        [document.getElementById("theme-select"), THEME_KEY],
+    ]) {
+        select.value = localStorage.getItem(key) || select.options[0].value;
+        select.addEventListener("change", () => {
+            localStorage.setItem(key, select.value);
+            applyAppearance();
+        });
+    }
+
     // Download all of the user's data as a ZIP. The endpoint needs the bearer
     // token, so fetch it as a blob and trigger a download rather than linking.
     const exportStatus = document.getElementById("export-status");
