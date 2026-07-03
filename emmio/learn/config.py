@@ -112,6 +112,9 @@ class LearnConfig(BaseModel):
     audio: list[AudioUsageConfig] = []
     """Configurations for audio pronunciations."""
 
+    play_audio: bool = True
+    """Whether to play pronunciation audio during a session."""
+
     check_lexicon: bool = False
     """Whether to check lexicon for new questions.
 

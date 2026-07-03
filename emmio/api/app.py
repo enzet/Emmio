@@ -42,6 +42,8 @@ from starlette.background import BackgroundTask
 from emmio import postgres
 from emmio.api import auth
 from emmio.api.render import elements_to_html, to_html
+from emmio.audio.config import AudioUsageConfig
+from emmio.audio.transcode import to_browser_playable
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
@@ -614,9 +616,124 @@ def create_course(
         "scheme": {"new_question": new_question},
         "dictionaries": dictionaries,
         "sentences": sentences,
+        "audio": data.get_audio_config(request.language),
     }
     postgres.store_learn_config(user_id, course_id, config)
     return CreatedCourse(course_id=course_id)
+
+
+@app.delete(
+    "/api/v1/me/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_course(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Delete a course and all its answer history.
+
+    Irreversible: removes the course along with every record and session it
+    owns. Responds 404 when the user has no such course.
+    """
+    if not postgres.delete_course(user_id, course_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown course `{course_id}`.",
+        )
+
+
+class CourseSettings(BaseModel):
+    """A course's editable settings."""
+
+    name: str
+    learning_language: str
+    translation_languages: list[str]  # `base_languages`.
+    max_for_day: int  # New words introduced per day.
+    play_audio: bool  # Whether to play pronunciation audio in a session.
+
+
+class UpdateCourseRequest(BaseModel):
+    """Partial update to a course's settings; omitted fields are unchanged."""
+
+    name: str | None = None
+    translation_languages: list[str] | None = None
+    max_for_day: int | None = Field(default=None, ge=0)
+    play_audio: bool | None = None
+
+
+def _course_settings(config: dict) -> CourseSettings:
+    """Read a course's editable settings out of its flat config."""
+    return CourseSettings(
+        name=config["name"],
+        learning_language=config["learning_language"],
+        translation_languages=config.get("base_languages") or [],
+        max_for_day=config.get("max_for_day", 10),
+        play_audio=config.get("play_audio", True),
+    )
+
+
+@app.get("/api/v1/me/courses/{course_id}/settings")
+def get_course_settings(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> CourseSettings:
+    """Get a course's editable settings (to pre-fill an edit form)."""
+    return _course_settings(_course_config_or_404(user_id, course_id))
+
+
+@app.patch("/api/v1/me/courses/{course_id}/settings")
+def update_course_settings(
+    course_id: str,
+    request: UpdateCourseRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> CourseSettings:
+    """Update a course's settings; omitted fields keep their current value.
+
+    Changing the translation languages regenerates the derived translation and
+    audio config (dictionaries, sentences, audio) from the same builders course
+    creation uses. The course's `learning_language` is immutable and its answer
+    history is untouched (records carry their own provenance).
+    """
+    config: dict = _course_config_or_404(user_id, course_id)
+    data = get_data()
+
+    if request.name is not None:
+        name: str = request.name.strip()
+        if not name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Course name cannot be empty.",
+            )
+        config["name"] = name
+
+    if request.max_for_day is not None:
+        config["max_for_day"] = request.max_for_day
+
+    if request.play_audio is not None:
+        config["play_audio"] = request.play_audio
+
+    if request.translation_languages is not None:
+        targets: list[str] = [
+            target
+            for target in dict.fromkeys(request.translation_languages)
+            if _is_known_language(target)
+        ]
+        if not targets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one valid translation language is required.",
+            )
+        language: str = config["learning_language"]
+        with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
+            Language.from_code(language)
+        )
+        dictionaries, sentences = _translation_config(
+            language, targets, with_kaikki=with_kaikki
+        )
+        config["base_languages"] = targets
+        config["dictionaries"] = dictionaries
+        config["sentences"] = sentences
+        config["audio"] = data.get_audio_config(language)
+
+    postgres.store_learn_config(user_id, course_id, config)
+    return _course_settings(config)
 
 
 class NextWord(BaseModel):
@@ -1800,6 +1917,69 @@ def get_course_sentence(
         sentence=sentence_html,
         translation=translation,
         sentence_id=sentence_id,
+    )
+
+
+# Media types for the audio file extensions Emmio stores, so browsers get a
+# type they can play (Python's `mimetypes` maps `.ogg` to `application/ogg`).
+_AUDIO_MEDIA_TYPES: dict[str, str] = {
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+}
+
+
+@app.get("/api/v1/me/courses/{course_id}/audio")
+def get_course_audio(
+    course_id: str,
+    word: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> FileResponse:
+    """Stream a pronunciation recording for a word in the course's language.
+
+    Returns the first available recording across the course's configured audio
+    providers, in priority order (local directories first; Wikimedia Commons,
+    which downloads on demand, last). Responds 404 when the course has audio
+    playback disabled, no audio configured, or no recording is found.
+    """
+    config: dict = _course_config_or_404(user_id, course_id)
+    if not config.get("play_audio", True):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio playback is disabled for this course.",
+        )
+    audio_configs: list[dict] | None = config.get("audio")
+    if not audio_configs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No audio configured for this course.",
+        )
+    collection = get_data().get_audio_collection(
+        [AudioUsageConfig(**audio) for audio in audio_configs]
+    )
+    # Ask providers one at a time and stop at the first hit, so a local file
+    # short-circuits the on-demand Wikimedia download of a later provider.
+    path: Path | None = None
+    with log_duration(f"audio lookup for `{word}` ({course_id})", logger):
+        for provider in collection.audio_providers:
+            if paths := provider.get_paths(word):
+                path = paths[0]
+                break
+    if path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No audio for `{word}`.",
+        )
+    # Transcode Ogg Vorbis (and other formats Safari/iOS cannot play) to MP3,
+    # cached, so every browser gets a playable file.
+    with log_duration(f"audio transcode for `{word}` ({course_id})", logger):
+        path = to_browser_playable(
+            path, get_data().get_audio_data().path / "cache" / "browser"
+        )
+    return FileResponse(
+        path, media_type=_AUDIO_MEDIA_TYPES.get(path.suffix.lower())
     )
 
 

@@ -585,6 +585,7 @@ LEARN_CONFIG_KEYS: tuple[str, ...] = (
     "sentences",
     "dictionaries",
     "audio",
+    "play_audio",
     "check_lexicon",
     "ask_lexicon",
     "max_for_day",
@@ -681,6 +682,41 @@ def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
             ),
         )
     connection.commit()
+
+
+def delete_course(user_id: str, course_id: str) -> bool:
+    """Delete a single course and all its records and sessions.
+
+    The schema has no `ON DELETE CASCADE`, so child rows are removed in
+    dependency order inside one transaction; either all of it goes or none.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `fr`
+    :return: whether a course was deleted (`False` if none existed)
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT c.id FROM learn_courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s",
+            (user_id, course_id),
+        )
+        if not (row := cursor.fetchone()):
+            return False
+        course_db_id: int = int(row[0])
+
+        # Deepest first: records and sessions before the course row.
+        cursor.execute(
+            "DELETE FROM learn_records WHERE course_id = %s", (course_db_id,)
+        )
+        cursor.execute(
+            "DELETE FROM learn_sessions WHERE course_id = %s", (course_db_id,)
+        )
+        cursor.execute(
+            "DELETE FROM learn_courses WHERE id = %s", (course_db_id,)
+        )
+    connection.commit()
+    return True
 
 
 def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:

@@ -58,6 +58,14 @@ html[data-theme="dark"] {
     --selected-border: #667;
 }
 
+/* The logo is a black-filled SVG loaded via `<img>`, so its `fill` cannot be
+   restyled from here; invert it instead. 0.886 turns black into #E2E2E2,
+   matching `--fg` rather than pure white. */
+html[data-theme="dark"] img.logo,
+html[data-theme="dark"] img.logo-corner {
+    filter: invert(0.886);
+}
+
 /* Auth pages (login, register): center the card in the viewport. */
 body[data-page="login"],
 body[data-page="register"] {

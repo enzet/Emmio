@@ -26,6 +26,36 @@
                 <a id="learn-link" href="#">Learn this course</a>
             </p>
             <dl id="stats"></dl>
+
+            <section id="settings-section" hidden>
+                <h2>Settings</h2>
+                <form id="settings-form">
+                    <label for="setting-name">Name</label>
+                    <input id="setting-name" type="text" required />
+                    <label for="setting-targets">Translate into</label>
+                    <select
+                        id="setting-targets"
+                        class="translation-languages"
+                        multiple
+                        required
+                    ></select>
+                    <label for="setting-max">New words per day</label>
+                    <input id="setting-max" type="number" min="0" required />
+                    <label class="checkbox">
+                        <input id="setting-play-audio" type="checkbox" />
+                        Play pronunciation audio
+                    </label>
+                    <button type="submit">Save settings</button>
+                </form>
+                <p id="settings-status" role="status"></p>
+            </section>
+
+            <section id="danger" hidden>
+                <button id="delete-course" type="button" class="danger">
+                    Delete course
+                </button>
+                <p id="delete-status" role="status"></p>
+            </section>
         </main>
         <footer>
             <p id="status" role="status">Loading…</p>

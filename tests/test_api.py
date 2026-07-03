@@ -47,6 +47,10 @@ class _FakeData:
         # Every frequency-list language also has Tatoeba sentences here.
         return set(self._languages)
 
+    def get_audio_config(self, language: str) -> list[dict]:
+        # Only Wikimedia Commons here; no local providers in the fake.
+        return [{"id": "wikimedia_commons", "language": language}]
+
 
 @pytest.fixture
 def fake_languages(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict]:
@@ -305,6 +309,91 @@ def test_create_course_stores_learnable_config() -> None:
         {"id": "google_translate", "from_language": "uk", "to_language": "en"},
         {"id": "google_translate", "from_language": "uk", "to_language": "ru"},
     ]
+    assert config["audio"] == [{"id": "wikimedia_commons", "language": "uk"}]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_regenerates_translation_config() -> None:
+    """Editing translation targets rewrites dictionaries, sentences, audio."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={
+            "name": "My Ukrainian",
+            "translation_languages": ["en", "ru"],
+            "max_for_day": 25,
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "My Ukrainian"
+    assert body["translation_languages"] == ["en", "ru"]
+    assert body["max_for_day"] == 25
+
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["base_languages"] == ["en", "ru"]
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"},
+        {"id": "google_translate", "from_language": "uk", "to_language": "ru"},
+    ]
+    assert config["max_for_day"] == 25
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_partial_leaves_others() -> None:
+    """A partial update changes only the provided field."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={"max_for_day": 5, "play_audio": False},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["translation_languages"] == ["en"]
+    assert body["play_audio"] is False
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["base_languages"] == ["en"]  # Untouched.
+    assert config["max_for_day"] == 5
+    assert config["play_audio"] is False
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_delete_course_removes_it() -> None:
+    """Deleting a course removes it; a second delete is a 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    first = client.delete("/api/v1/me/courses/uk", headers=_auth(token))
+    assert first.status_code == 204
+    assert postgres.get_learn_config("alice", "uk") is None
+
+    second = client.delete("/api/v1/me/courses/uk", headers=_auth(token))
+    assert second.status_code == 404
 
 
 @pytest.mark.usefixtures("fake_languages")

@@ -252,7 +252,6 @@ async function initHome() {
         coursesCell.className = "courses-cell";
         for (const course of courseList) {
             const learn = document.createElement("a");
-            learn.className = "button";
             learn.href = `learn?course=${encodeURIComponent(
                 course.course_id,
             )}`;
@@ -948,6 +947,7 @@ async function runLearnSession(base) {
     let language = null;
     let dictionaries = [];
     let newExhausted = false; // `/new` has nothing more to offer.
+    let playAudio = true; // Course setting: play pronunciation audio.
 
     // Show exactly one question box and hide the rest.
     function showBox(name) {
@@ -1021,6 +1021,24 @@ async function runLearnSession(base) {
                 return null;
             });
     }
+    // Play a word's pronunciation from the course's audio providers. The audio
+    // endpoint needs the bearer token, so it's fetched as a blob through `api`
+    // (an <audio src> can't send the header) and played from an object URL.
+    // Best-effort: missing audio (404) or an autoplay refusal is ignored, and
+    // the previous URL is revoked so blobs don't leak.
+    let audioUrl = null;
+    async function playWordAudio(word) {
+        if (!playAudio) return;
+        const response = await api(
+            `${base}/audio?word=${encodeURIComponent(word)}`,
+        );
+        if (!response.ok) return;
+        const blob = await response.blob();
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        audioUrl = URL.createObjectURL(blob);
+        new Audio(audioUrl).play().catch(() => {});
+    }
+
     // Build a type_word item (the typed-recall card), kicking off its meaning
     // and example prefetch.
     function makeItem(card) {
@@ -1210,6 +1228,7 @@ async function runLearnSession(base) {
         else knowMeaning.textContent = "No translation found.";
         knowContinueBar.hidden = false;
         knowContinue.focus();
+        void playWordAudio(item.word);
     }
 
     // Choice: pick the right translation among several.
@@ -1249,6 +1268,7 @@ async function runLearnSession(base) {
         await postAnswer(current.word, option === current.answer ? "y" : "n");
         choiceContinueBar.hidden = false;
         choiceContinue.focus();
+        void playWordAudio(current.word);
     }
 
     // Connect: match each word (left) with its translation (right). A word is
@@ -1400,8 +1420,10 @@ async function runLearnSession(base) {
             answers.hidden = true;
             continueBar.hidden = false;
             continueButton.focus();
+            void playWordAudio(current.word); // Hear it once revealed.
             return;
         }
+        if (response === "y") void playWordAudio(current.word); // Got it right.
         await postAnswer(current.word, response);
         await advance();
     }
@@ -1502,8 +1524,14 @@ async function runLearnSession(base) {
     });
 
     status.textContent = "Loading…";
-    const dictionariesResponse = await api(`${base}/dictionaries`);
+    const [dictionariesResponse, settingsResponse] = await Promise.all([
+        api(`${base}/dictionaries`),
+        api(`${base}/settings`),
+    ]);
     if (dictionariesResponse.ok) dictionaries = await dictionariesResponse.json();
+    if (settingsResponse.ok) {
+        playAudio = (await settingsResponse.json()).play_audio;
+    }
     await advance();
 }
 
@@ -1606,6 +1634,104 @@ async function initCourse() {
         ["Actions (right/wrong)", s.actions],
     ];
     renderDefinitionList(stats, rows);
+
+    await setupCourseSettings(courseId);
+
+    // Delete: removes the course and all its history, then returns to the list.
+    const danger = document.getElementById("danger");
+    const deleteStatus = document.getElementById("delete-status");
+    danger.hidden = false;
+    document
+        .getElementById("delete-course")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    `Delete course "${courseId}" and all its history? This ` +
+                        "cannot be undone.",
+                )
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api(
+                `/me/courses/${encodeURIComponent(courseId)}`,
+                { method: "DELETE" },
+            );
+            if (result.ok) {
+                location.href = "courses";
+            } else {
+                deleteStatus.textContent = "Could not delete course.";
+            }
+        });
+}
+
+// Fill and wire the course settings form: name, translation targets (which
+// regenerate dictionaries/sentences/audio on save), and the daily new-word
+// limit. Pre-filled from the course's current settings.
+async function setupCourseSettings(courseId) {
+    const base = `/me/courses/${encodeURIComponent(courseId)}`;
+    const section = document.getElementById("settings-section");
+    const form = document.getElementById("settings-form");
+    const nameInput = document.getElementById("setting-name");
+    const targets = document.getElementById("setting-targets");
+    const maxInput = document.getElementById("setting-max");
+    const playAudioInput = document.getElementById("setting-play-audio");
+    const settingsStatus = document.getElementById("settings-status");
+
+    const [settingsResponse, targetResponse] = await Promise.all([
+        api(`${base}/settings`),
+        api("/translation-languages"),
+    ]);
+    if (!settingsResponse.ok) return;
+    const settings = await settingsResponse.json();
+
+    nameInput.value = settings.name;
+    maxInput.value = settings.max_for_day;
+    playAudioInput.checked = settings.play_audio;
+    const selected = new Set(settings.translation_languages);
+    (await targetResponse.json())
+        .map((entry) => ({
+            code: entry.language,
+            name: languageName(entry.language),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((entry) => {
+            const option = document.createElement("option");
+            option.value = entry.code;
+            option.textContent = entry.name;
+            option.selected = selected.has(entry.code);
+            targets.appendChild(option);
+        });
+    section.hidden = false;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const translationLanguages = Array.from(
+            targets.selectedOptions,
+            (option) => option.value,
+        );
+        if (translationLanguages.length === 0) {
+            settingsStatus.textContent =
+                "Pick at least one language to translate into.";
+            return;
+        }
+        settingsStatus.textContent = "Saving…";
+        const result = await api(`${base}/settings`, {
+            method: "PATCH",
+            body: {
+                name: nameInput.value.trim(),
+                translation_languages: translationLanguages,
+                max_for_day: Number(maxInput.value),
+                play_audio: playAudioInput.checked,
+            },
+        });
+        if (result.ok) {
+            settingsStatus.textContent = "Saved.";
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            settingsStatus.textContent = detail || "Could not save settings.";
+        }
+    });
 }
 
 // Profile page.

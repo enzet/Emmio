@@ -1,5 +1,6 @@
 """Data for audio files."""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
@@ -13,6 +14,9 @@ from emmio.audio.core import (
 )
 from emmio.core import ArtifactData
 from emmio.language import Language
+from emmio.util import log_duration
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,24 +26,36 @@ class AudioData(ArtifactData):
     path: Path
     """The directory managed by this class."""
 
+    provider_configs: dict[str, Any]
+    """Raw per-provider configuration, loaded lazily on first request."""
+
     audio_providers: dict[str, AudioProvider]
-    """Providers of audio files."""
+    """Cache of audio providers already built."""
 
     @classmethod
     def from_config(cls, path: Path) -> Self:
         """Create an audio data from a configuration.
 
+        Providers are built lazily (on first request), not here: constructing a
+        `DirectoryAudioProvider` recursively scans its whole directory, and the
+        audio tree is large while a session touches only a couple of providers.
+
         :param path: path to the configuration file
         :return: audio data
         """
-        config: dict[str, Any] = ArtifactData.read_config(path)
+        return cls(path, ArtifactData.read_config(path), {})
 
-        audio_providers: dict[str, AudioProvider] = {}
-        for id_, data in config.items():
-            audio_providers[id_] = DirectoryAudioProvider.from_config(
-                path, AudioConfig(**data)
-            )
-        return cls(path, audio_providers)
+    def get_language_provider_ids(self, language: str) -> list[str]:
+        """Get ids of configured directory audio providers for a language.
+
+        :param language: language code, e.g. `es`
+        :return: ids whose configuration declares that language
+        """
+        return [
+            id_
+            for id_, config in self.provider_configs.items()
+            if isinstance(config, dict) and config.get("language") == language
+        ]
 
     def get_audio_provider(
         self, usage_config: AudioUsageConfig
@@ -54,15 +70,31 @@ class AudioData(ArtifactData):
                 if usage_config.language is None:
                     msg = "`language` is required for Wikimedia Commons audio."
                     raise ValueError(msg)
-                return WikimediaCommonsAudioProvider(
-                    Language.from_code(usage_config.language),
-                    self.path / "cache",
-                )
+                # Cache per language: constructing the provider reads a JSON
+                # word cache from disk.
+                cache_key: str = f"wikimedia_commons:{usage_config.language}"
+                if cache_key not in self.audio_providers:
+                    self.audio_providers[cache_key] = (
+                        WikimediaCommonsAudioProvider(
+                            Language.from_code(usage_config.language),
+                            self.path / "cache",
+                        )
+                    )
+                return self.audio_providers[cache_key]
             case _:
                 if id_ in self.audio_providers:
                     return self.audio_providers[id_]
-                msg = f"Unknown audio provider: `{id_}`."
-                raise ValueError(msg)
+                config = self.provider_configs.get(id_)
+                if config is None:
+                    msg = f"Unknown audio provider: `{id_}`."
+                    raise ValueError(msg)
+                with log_duration(f"load audio provider `{id_}`", logger):
+                    self.audio_providers[id_] = (
+                        DirectoryAudioProvider.from_config(
+                            self.path, AudioConfig(**config)
+                        )
+                    )
+                return self.audio_providers[id_]
 
     def get_audio_collection(
         self, usage_configs: list[AudioUsageConfig]

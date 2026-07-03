@@ -138,6 +138,22 @@ class Data:
         """Get codes of languages with Tatoeba sentences available locally."""
         return self.get_sentences_data().get_supported_languages()
 
+    def get_audio_config(self, language: str) -> list[dict]:
+        """Build a course's audio usage config for a language.
+
+        Local directory providers for the language come first (preferred),
+        followed by Wikimedia Commons, which downloads recordings on demand.
+
+        :param language: language code, e.g. `es`
+        :return: a list of audio usage config dicts ready to store on a course
+        """
+        configs: list[dict] = [
+            {"id": id_}
+            for id_ in self.get_audio_data().get_language_provider_ids(language)
+        ]
+        configs.append({"id": "wikimedia_commons", "language": language})
+        return configs
+
     def get_dictionary(
         self, usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:
