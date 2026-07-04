@@ -286,6 +286,139 @@ def test_create_lexicon_configures_translations_and_sentences() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_regenerates_translation_config() -> None:
+    """Editing translation targets rewrites dictionaries and sentences."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"translation_languages": ["en", "ru"], "precision_per_week": 20},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["language"] == "uk"
+    assert body["translation_languages"] == ["en", "ru"]
+    assert body["precision_per_week"] == 20
+
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"},
+        {"id": "google_translate", "from_language": "uk", "to_language": "ru"},
+    ]
+    assert config["sentences"] == [
+        {
+            "id": "tatoeba",
+            "language": "uk",
+            "translation_languages": ["en", "ru"],
+        }
+    ]
+    assert config["precision_per_week"] == 20
+    # Identity is untouched.
+    assert config["selection"] == "frequency"
+    assert config["frequency_list"] == {"id": "uk_list"}
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_partial_leaves_others() -> None:
+    """A partial update changes only the provided field."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"precision_per_week": 10},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["translation_languages"] == ["en"]
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["dictionaries"] == [  # Untouched.
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"}
+    ]
+    assert config["precision_per_week"] == 10
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_backfills_missing_targets() -> None:
+    """A lexicon without translation config gets it backfilled on save.
+
+    Lexicons created before targets were auto-configured have no dictionaries
+    or sentences; their settings report no targets, and saving targets
+    generates the config the same way creation would.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.store_lexicon_config(
+        "alice",
+        "uk",
+        {
+            "language": "uk",
+            "selection": "frequency",
+            "frequency_list": {"id": "uk_list"},
+        },
+    )
+
+    settings = client.get(
+        "/api/v1/me/lexicons/uk/settings", headers=_auth(token)
+    )
+    assert settings.status_code == 200
+    assert settings.json()["translation_languages"] == []
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["translation_languages"] == ["en"]
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"}
+    ]
+    assert config["sentences"] == [
+        {"id": "tatoeba", "language": "uk", "translation_languages": ["en"]}
+    ]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_rejects_empty_targets() -> None:
+    """Clearing every translation target is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"translation_languages": ["xx"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
 def test_create_course_stores_learnable_config() -> None:
     """A created course draws new words from the language's frequency list."""
 

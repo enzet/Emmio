@@ -536,6 +536,112 @@ def create_lexicon(
     return CreatedLexicon(lexicon_id=lexicon_id)
 
 
+class LexiconSettings(BaseModel):
+    """A lexicon's editable settings.
+
+    `language` and `selection` are identity, immutable for the lexicon's life;
+    they are included read-only so the form can display them.
+    """
+
+    language: str
+    selection: str
+    translation_languages: list[str]
+    precision_per_week: int  # Weekly goal of new answers.
+
+
+class UpdateLexiconRequest(BaseModel):
+    """Partial update to a lexicon's settings; omitted fields are unchanged."""
+
+    translation_languages: list[str] | None = None
+    precision_per_week: int | None = Field(default=None, ge=0)
+
+
+def _lexicon_translation_languages(config: dict) -> list[str]:
+    """Derive a lexicon's translation targets from its stored config.
+
+    Unlike a course (`base_languages`), a lexicon does not store its targets
+    directly; they only exist inside the dictionary and sentence config they
+    generated, so they are read back from the Google Translate entries and the
+    Tatoeba `translation_languages`. A lexicon created before targets were
+    auto-configured yields an empty list — saving targets in the settings form
+    backfills its config.
+    """
+    targets: dict[str, None] = {}  # An ordered set.
+    for dictionary in config.get("dictionaries") or []:
+        if dictionary.get("id") == "google_translate" and (
+            target := dictionary.get("to_language")
+        ):
+            targets[target] = None
+    for sentences in config.get("sentences") or []:
+        for target in sentences.get("translation_languages") or []:
+            targets[target] = None
+    return list(targets)
+
+
+def _lexicon_settings(config: dict) -> LexiconSettings:
+    """Read a lexicon's editable settings out of its flat config."""
+    return LexiconSettings(
+        language=config["language"],
+        selection=config["selection"],
+        translation_languages=_lexicon_translation_languages(config),
+        precision_per_week=config.get("precision_per_week") or 0,
+    )
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/settings")
+def get_lexicon_settings(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> LexiconSettings:
+    """Get a lexicon's editable settings (to pre-fill an edit form)."""
+    return _lexicon_settings(_lexicon_config_or_404(user_id, lexicon_id))
+
+
+@app.patch("/api/v1/me/lexicons/{lexicon_id}/settings")
+def update_lexicon_settings(
+    lexicon_id: str,
+    request: UpdateLexiconRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> LexiconSettings:
+    """Update a lexicon's settings; omitted fields keep their current value.
+
+    Changing the translation languages regenerates the derived translation
+    config (dictionaries, sentences) from the same builders lexicon creation
+    uses — which is also how a lexicon created before targets were
+    auto-configured gets them backfilled. The lexicon's identity (language,
+    selection, frequency list) stays untouched, so the rate estimate and the
+    answer history keep their meaning.
+    """
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+
+    if request.precision_per_week is not None:
+        config["precision_per_week"] = request.precision_per_week
+
+    if request.translation_languages is not None:
+        targets: list[str] = [
+            target
+            for target in dict.fromkeys(request.translation_languages)
+            if _is_known_language(target)
+        ]
+        if not targets:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one valid translation language is required.",
+            )
+        language: str = config["language"]
+        with_kaikki: bool = (
+            "en" in targets
+            and get_data().dictionaries.has_kaikki(Language.from_code(language))
+        )
+        dictionaries, sentences = _translation_config(
+            language, targets, with_kaikki=with_kaikki
+        )
+        config["dictionaries"] = dictionaries
+        config["sentences"] = sentences
+
+    postgres.store_lexicon_config(user_id, lexicon_id, config)
+    return _lexicon_settings(config)
+
+
 class CreateCourseRequest(BaseModel):
     """Payload to create a learning course: language and translation targets."""
 

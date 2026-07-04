@@ -6,7 +6,7 @@ See https://en.wiktionary.org.
 import json
 import logging
 import re
-import sys
+import shutil
 from pathlib import Path
 from typing import Any, override
 
@@ -90,6 +90,10 @@ def check_link_type(link_type: str) -> bool:
     return all(not x or x in FORMS for x in link_type.split(" "))
 
 
+class DictionaryDownloadError(Exception):
+    """Downloading dictionary data from a remote service failed."""
+
+
 class EnglishWiktionaryKaikki(Dictionary):
     """English Wiktionary parsed by wikiextract.
 
@@ -114,10 +118,10 @@ class EnglishWiktionaryKaikki(Dictionary):
         """
 
         if not from_language.has_symbols():
-            logger.error(
-                "Language `%s` does not have symbols.", from_language.get_name()
+            msg: str = (
+                f"Language `{from_language.get_name()}` does not have symbols."
             )
-            sys.exit(1)
+            raise ValueError(msg)
 
         super().__init__("kaikki")
         self.path: Path = path
@@ -132,58 +136,96 @@ class EnglishWiktionaryKaikki(Dictionary):
         if self.cache_directory.exists():
             return
 
-        self.cache_directory.mkdir(parents=True)
         file_path: Path = (
             self.path
             / f"kaikki.org-dictionary-{self.from_language_name}-words.jsonl"
         )
         if not file_path.exists():
             logger.info("File `%s` does not exist.", file_path)
-            logger.info("Downloading `%s` Kaikki...", self.from_language_name)
-            url: str = (
-                f"https://kaikki.org/dictionary/{self.from_language_name}/"
-                f"words/kaikki.org-dictionary-"
-                f"{self.from_language_name.replace(' ', '')}-words.jsonl"
-            )
-            response: requests.Response = requests.get(
-                url, stream=True, timeout=5
-            )
-            try:
-                response.raise_for_status()
-            except requests.exceptions.HTTPError:
-                logger.exception(
-                    "Failed to download `%s` Kaikki from `%s`.",
-                    self.from_language_name,
-                    url,
-                )
-                # Remove created directory.
-                self.cache_directory.rmdir()
-                sys.exit(1)
-            with file_path.open("wb") as output_file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        output_file.write(chunk)
-
-        logger.info(
-            "Creating cache for `%s` Kaikki...", self.from_language.get_name()
-        )
-        with file_path.open(encoding="utf-8") as input_file:
-            for line in tqdm(input_file.readlines()):
-                item = json.loads(line)
-                word: str = item["word"]
-                if len(word) >= 1:
-                    if not self.from_language.is_word(word):
-                        continue
-                    (self.cache_directory / word[0].lower()).mkdir(
-                        parents=True, exist_ok=True
-                    )
-                    with self.get_cache_file_path(word).open(
-                        "a", encoding="utf-8"
-                    ) as output_file:
-                        output_file.write(line)
+            self.download_words(file_path)
+        self.create_cache(file_path)
 
         # Remove `.jsonl` file.
         file_path.unlink()
+
+    def download_words(self, file_path: Path) -> None:
+        """Download the JSONL words file from the Kaikki website.
+
+        The file is streamed to a `.part` file and renamed only once the
+        download completes, so an interrupted download is never mistaken for
+        the real file.
+
+        :param file_path: where to put the downloaded file
+        :raises DictionaryDownloadError: if the download fails for any reason
+        """
+        logger.info("Downloading `%s` Kaikki...", self.from_language_name)
+        url: str = (
+            f"https://kaikki.org/dictionary/{self.from_language_name}/"
+            f"words/kaikki.org-dictionary-"
+            f"{self.from_language_name.replace(' ', '')}-words.jsonl"
+        )
+        part_path: Path = file_path.with_name(file_path.name + ".part")
+        try:
+            response: requests.Response = requests.get(
+                url, stream=True, timeout=60
+            )
+            response.raise_for_status()
+            with part_path.open("wb") as output_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        output_file.write(chunk)
+        except (requests.RequestException, OSError) as error:
+            part_path.unlink(missing_ok=True)
+            msg: str = (
+                f"Failed to download `{self.from_language_name}` Kaikki "
+                f"from `{url}`."
+            )
+            raise DictionaryDownloadError(msg) from error
+        part_path.rename(file_path)
+
+    def create_cache(self, file_path: Path) -> None:
+        """Split the words file into per-prefix cache files.
+
+        Cache files are written to a `.part` directory that is renamed to the
+        cache directory only after every word is processed, so a failed or
+        interrupted run does not leave behind a directory that looks like a
+        valid (but empty or partial) cache.
+
+        :param file_path: the downloaded JSONL words file
+        """
+        logger.info(
+            "Creating cache for `%s` Kaikki...", self.from_language.get_name()
+        )
+        part_directory: Path = self.cache_directory.with_name(
+            self.cache_directory.name + ".part"
+        )
+        if part_directory.exists():
+            shutil.rmtree(part_directory)
+        part_directory.mkdir(parents=True)
+
+        try:
+            with file_path.open(encoding="utf-8") as input_file:
+                for line in tqdm(input_file):
+                    item = json.loads(line)
+                    word: str = item["word"]
+                    if len(word) >= 1:
+                        if not self.from_language.is_word(word):
+                            continue
+                        cache_file_path: Path = self.get_cache_file_path(
+                            word, part_directory
+                        )
+                        cache_file_path.parent.mkdir(
+                            parents=True, exist_ok=True
+                        )
+                        with cache_file_path.open(
+                            "a", encoding="utf-8"
+                        ) as output_file:
+                            output_file.write(line)
+        except BaseException:
+            shutil.rmtree(part_directory, ignore_errors=True)
+            raise
+
+        part_directory.rename(self.cache_directory)
 
     def __repr__(self) -> str:
         return f"English Wiktionary Kaikki [{len(self.items)}]"
@@ -192,15 +234,18 @@ class EnglishWiktionaryKaikki(Dictionary):
     def get_name(self) -> str:
         return "English Wiktionary Kaikki"
 
-    def get_cache_file_path(self, word: str) -> Path:
+    def get_cache_file_path(
+        self, word: str, directory: Path | None = None
+    ) -> Path:
         """Get path to cache file for a word.
 
         :param word: word to get cache file path for
+        :param directory: base directory (default: the cache directory)
         :return: path to cache file
         """
-        return (
-            self.cache_directory / word[0].lower() / f"{word[:2].lower()}.jsonl"
-        )
+        if directory is None:
+            directory = self.cache_directory
+        return directory / word[0].lower() / f"{word[:2].lower()}.jsonl"
 
     def process_item(
         self, item: dict[str, Any], dictionary_item: DictionaryItem

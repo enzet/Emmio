@@ -29,6 +29,30 @@
                 <button id="main-toggle" type="button" hidden></button>
             </p>
             <dl id="stats"></dl>
+
+            <section id="settings-section" hidden>
+                <h2>Settings</h2>
+                <form id="settings-form">
+                    <label for="setting-targets">Translate into</label>
+                    <select
+                        id="setting-targets"
+                        class="translation-languages"
+                        multiple
+                        required
+                    ></select>
+                    <label for="setting-precision">
+                        Weekly goal (answers per week)
+                    </label>
+                    <input
+                        id="setting-precision"
+                        type="number"
+                        min="0"
+                        required
+                    />
+                    <button type="submit">Save settings</button>
+                </form>
+                <p id="settings-status" role="status"></p>
+            </section>
         </main>
         <footer>
             <p id="status" role="status">Loading…</p>

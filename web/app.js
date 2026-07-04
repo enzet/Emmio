@@ -96,7 +96,12 @@ function renderDefinitionList(container, rows) {
 // Fill a `<select>` with one `<option>` per language, sorted by display name.
 // `entries` is a list of API rows carrying a `language` ISO code; `selectCode`
 // optionally preselects the matching option.
-function fillLanguageSelect(select, entries, selectCode) {
+function fillLanguageSelect(select, entries, selected) {
+    // `selected` preselects options: a single code or a Set of codes.
+    const isSelected =
+        selected instanceof Set
+            ? (code) => selected.has(code)
+            : (code) => code === selected;
     entries
         .map((entry) => ({
             code: entry.language,
@@ -107,7 +112,7 @@ function fillLanguageSelect(select, entries, selectCode) {
             const option = document.createElement("option");
             option.value = entry.code;
             option.textContent = entry.name;
-            if (entry.code === selectCode) option.selected = true;
+            if (isSelected(entry.code)) option.selected = true;
             select.appendChild(option);
         });
 }
@@ -549,6 +554,64 @@ async function initLexicon() {
         ["Weekly goal", s.precision_per_week],
     ];
     renderDefinitionList(stats, rows);
+
+    await setupLexiconSettings(lexiconId);
+}
+
+// Fill and wire the lexicon settings form: translation targets (which
+// regenerate the dictionary/sentence config on save — also backfilling
+// lexicons created before targets were auto-configured) and the weekly goal.
+// The lexicon's identity (language, selection, frequency list) is immutable
+// and not shown here. Pre-filled from the lexicon's current settings.
+async function setupLexiconSettings(lexiconId) {
+    const base = `/me/lexicons/${encodeURIComponent(lexiconId)}`;
+    const section = document.getElementById("settings-section");
+    const form = document.getElementById("settings-form");
+    const targets = document.getElementById("setting-targets");
+    const precisionInput = document.getElementById("setting-precision");
+    const settingsStatus = document.getElementById("settings-status");
+
+    const [settingsResponse, targetResponse] = await Promise.all([
+        api(`${base}/settings`),
+        api("/translation-languages"),
+    ]);
+    if (!settingsResponse.ok) return;
+    const settings = await settingsResponse.json();
+
+    precisionInput.value = settings.precision_per_week;
+    fillLanguageSelect(
+        targets,
+        await targetResponse.json(),
+        new Set(settings.translation_languages),
+    );
+    section.hidden = false;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const translationLanguages = Array.from(
+            targets.selectedOptions,
+            (option) => option.value,
+        );
+        if (translationLanguages.length === 0) {
+            settingsStatus.textContent =
+                "Pick at least one language to translate into.";
+            return;
+        }
+        settingsStatus.textContent = "Saving…";
+        const result = await api(`${base}/settings`, {
+            method: "PATCH",
+            body: {
+                translation_languages: translationLanguages,
+                precision_per_week: Number(precisionInput.value),
+            },
+        });
+        if (result.ok) {
+            settingsStatus.textContent = "Saved.";
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            settingsStatus.textContent = detail || "Could not save settings.";
+        }
+    });
 }
 
 // Session pages: lexicon checking and learning repetition share one flow.
@@ -858,22 +921,36 @@ async function runSession(base, doneText) {
 
     // Keyboard shortcuts: each button's `data-key` triggers a click (matches
     // the CLI), plus space to reveal the translation.
-    document.addEventListener("keydown", (event) => {
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
-        if (event.target.matches("input, textarea, select")) return;
+    function shortcutButton(event) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return null;
+        if (event.target.matches("input, textarea, select")) return null;
         const key = event.key === " " ? " " : event.key.toLowerCase();
         const button = document.querySelector(`button[data-key="${key}"]`);
         // Skip a hidden button (e.g. the reveal button once it has been
         // replaced by the "No translation found." notice).
-        if (button && !button.hidden) {
-            event.preventDefault();
-            // Briefly flash the pressed state so a keyboard shortcut gives the
-            // same visual feedback as a mouse click (a programmatic click does
-            // not trigger :active).
-            button.classList.add("pressed");
-            setTimeout(() => button.classList.remove("pressed"), 120);
-            button.click();
-        }
+        return button && !button.hidden ? button : null;
+    }
+    // Act on key *release*, not press: a held key auto-repeats keydown, which
+    // would rifle one answer (e.g. "yes") through every buffered word. keydown
+    // only suppresses the key's default and arms the key; keyup fires the click
+    // once, so each answer needs a deliberate press and release.
+    const armedKeys = new Set();
+    document.addEventListener("keydown", (event) => {
+        if (!shortcutButton(event)) return;
+        event.preventDefault();
+        armedKeys.add(event.code);
+    });
+    document.addEventListener("keyup", (event) => {
+        if (!armedKeys.delete(event.code)) return;
+        const button = shortcutButton(event);
+        if (!button) return;
+        event.preventDefault();
+        // Briefly flash the pressed state so a keyboard shortcut gives the same
+        // visual feedback as a mouse click (a programmatic click does not
+        // trigger :active).
+        button.classList.add("pressed");
+        setTimeout(() => button.classList.remove("pressed"), 120);
+        button.click();
     });
 
     status.textContent = "Loading…";
@@ -1498,29 +1575,54 @@ async function runLearnSession(base) {
 
     // Keyboard: while typing, only Escape (give up) is a shortcut — letters go
     // to the field; otherwise a visible button's `data-key` triggers it.
-    document.addEventListener("keydown", (event) => {
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
-        if (event.target === input) {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                void recordTyped("n");
-            }
-            return;
+    function shortcutButton(event) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return null;
+        if (event.target === input || event.target.matches("textarea, select")) {
+            return null;
         }
-        if (event.target.matches("textarea, select")) return;
         let key;
         if (event.key === " ") key = " ";
         else if (event.key === "Enter") key = "enter";
         else key = event.key.toLowerCase();
-        const button = [
-            ...document.querySelectorAll(`button[data-key="${key}"]`),
-        ].find((candidate) => !candidate.hidden && candidate.offsetParent);
-        if (button) {
+        return (
+            [...document.querySelectorAll(`button[data-key="${key}"]`)].find(
+                (candidate) => !candidate.hidden && candidate.offsetParent,
+            ) || null
+        );
+    }
+    function isTypingEscape(event) {
+        return (
+            event.target === input &&
+            event.key === "Escape" &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+        );
+    }
+    // Act on key *release*, so a held key can't rifle through several cards (see
+    // the lexicon session). keydown arms the key and suppresses its default;
+    // keyup fires it once. Arming only on a valid press means releasing the last
+    // letter of a typed word never triggers the next card's shortcut.
+    const armedKeys = new Set();
+    document.addEventListener("keydown", (event) => {
+        if (isTypingEscape(event) || shortcutButton(event)) {
             event.preventDefault();
-            button.classList.add("pressed");
-            setTimeout(() => button.classList.remove("pressed"), 120);
-            button.click();
+            armedKeys.add(event.code);
         }
+    });
+    document.addEventListener("keyup", (event) => {
+        if (!armedKeys.delete(event.code)) return;
+        if (isTypingEscape(event)) {
+            event.preventDefault();
+            void recordTyped("n");
+            return;
+        }
+        const button = shortcutButton(event);
+        if (!button) return;
+        event.preventDefault();
+        button.classList.add("pressed");
+        setTimeout(() => button.classList.remove("pressed"), 120);
+        button.click();
     });
 
     status.textContent = "Loading…";
@@ -1688,20 +1790,11 @@ async function setupCourseSettings(courseId) {
     nameInput.value = settings.name;
     maxInput.value = settings.max_for_day;
     playAudioInput.checked = settings.play_audio;
-    const selected = new Set(settings.translation_languages);
-    (await targetResponse.json())
-        .map((entry) => ({
-            code: entry.language,
-            name: languageName(entry.language),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .forEach((entry) => {
-            const option = document.createElement("option");
-            option.value = entry.code;
-            option.textContent = entry.name;
-            option.selected = selected.has(entry.code);
-            targets.appendChild(option);
-        });
+    fillLanguageSelect(
+        targets,
+        await targetResponse.json(),
+        new Set(settings.translation_languages),
+    );
     section.hidden = false;
 
     form.addEventListener("submit", async (event) => {

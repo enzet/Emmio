@@ -84,6 +84,7 @@ body {
     gap: 1rem;
     background-color: var(--bg);
     color: var(--fg);
+    font-size: 11pt;
 }
 
 /* Keep the status line and undo bar pinned to the bottom of the page. */
@@ -363,11 +364,8 @@ a.button {
     text-decoration: none;
     font-size: 85%;
 }
-/* Course links in the Languages table, wrapping with a little breathing room. */
-td.courses-cell {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
+td.courses-cell a {
+    padding-right: 0.5rem;
 }
 /* The learning typing field, centered under the blanked word. */
 input#answer-input {
@@ -447,4 +445,8 @@ button.wrong {
 .connect-cell.wrong-flash {
     background-color: var(--wrong-bg);
     border-color: var(--wrong-border);
+}
+
+#add-lexicon-form, #add-course-form {
+    line-height: 1.5;
 }
