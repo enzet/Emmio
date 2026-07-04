@@ -228,6 +228,36 @@ def get_me(user_id: Annotated[str, Depends(get_current_user)]) -> Profile:
     return Profile(user_id=user[0], name=user[1], email=user[2])
 
 
+class ChangePasswordRequest(BaseModel):
+    """Payload to change the authenticated user's password."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+@app.post("/api/v1/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    request: ChangePasswordRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> None:
+    """Change the authenticated user's password.
+
+    Requires the current password, so a stolen access token alone cannot lock
+    the owner out by changing it. The access token stays valid afterwards (a
+    stateless JWT cannot be re-signed here); token revocation waits on the
+    planned refresh-token work.
+    """
+    current_hash: str | None = postgres.get_password_hash(user_id)
+    if current_hash is None or not auth.verify_password(
+        request.current_password, current_hash
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Current password is incorrect.",
+        )
+    postgres.set_password(user_id, auth.hash_password(request.new_password))
+
+
 @app.delete("/api/v1/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_me(user_id: Annotated[str, Depends(get_current_user)]) -> None:
     """Delete the authenticated user and all their data.

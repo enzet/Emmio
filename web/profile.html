@@ -46,6 +46,39 @@
                 </p>
             </section>
 
+            <section aria-labelledby="password-heading">
+                <h2 id="password-heading">Change password</h2>
+                <form id="password-form">
+                    <p>
+                        <label for="current-password">Current password</label>
+                        <input
+                            id="current-password"
+                            class="text"
+                            name="current_password"
+                            type="password"
+                            autocomplete="current-password"
+                            required
+                        />
+                    </p>
+                    <p>
+                        <label for="new-password">
+                            New password (at least 8 characters)
+                        </label>
+                        <input
+                            id="new-password"
+                            class="text"
+                            name="new_password"
+                            type="password"
+                            autocomplete="new-password"
+                            minlength="8"
+                            required
+                        />
+                    </p>
+                    <button type="submit">Change password</button>
+                </form>
+                <p id="password-status" role="status"></p>
+            </section>
+
             <section aria-labelledby="export-heading">
                 <h2 id="export-heading">Export data</h2>
                 <p>

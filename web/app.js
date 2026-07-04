@@ -1884,6 +1884,35 @@ async function initProfile() {
             exportStatus.textContent = "Downloaded.";
         });
 
+    // Change password: verify the current one server-side, enforce the new
+    // one's minimum length, and clear the fields on success. The access token
+    // stays valid (a stateless JWT can't be re-signed), so no re-login.
+    const passwordStatus = document.getElementById("password-status");
+    document
+        .getElementById("password-form")
+        .addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            passwordStatus.textContent = "Saving…";
+            const result = await api("/me/password", {
+                method: "POST",
+                body: {
+                    current_password: data.get("current_password"),
+                    new_password: data.get("new_password"),
+                },
+            });
+            if (result.ok) {
+                event.target.reset();
+                passwordStatus.textContent = "Password changed.";
+            } else {
+                const { detail } = await result.json().catch(() => ({}));
+                passwordStatus.textContent =
+                    typeof detail === "string"
+                        ? detail
+                        : "Could not change password.";
+            }
+        });
+
     // Deleting the account is irreversible; confirm, then drop the now-useless
     // token and return to login.
     const deleteStatus = document.getElementById("delete-status");

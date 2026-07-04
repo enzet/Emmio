@@ -136,6 +136,73 @@ def test_login_with_wrong_password_fails() -> None:
     assert response.status_code == 401
 
 
+def test_change_password_lets_user_log_in_with_new_one() -> None:
+    """A changed password works for login; the old one stops working."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/password",
+        json={"current_password": "secret123", "new_password": "brandnew456"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 204
+
+    new_login = client.post(
+        "/api/v1/auth/login",
+        data={"username": "alice@example.com", "password": "brandnew456"},
+    )
+    assert new_login.status_code == 200
+    old_login = client.post(
+        "/api/v1/auth/login",
+        data={"username": "alice@example.com", "password": "secret123"},
+    )
+    assert old_login.status_code == 401
+
+
+def test_change_password_rejects_wrong_current() -> None:
+    """The wrong current password is rejected and the password is unchanged."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/password",
+        json={"current_password": "wrong", "new_password": "brandnew456"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 403
+
+    # The original password still works.
+    still = client.post(
+        "/api/v1/auth/login",
+        data={"username": "alice@example.com", "password": "secret123"},
+    )
+    assert still.status_code == 200
+
+
+def test_change_password_rejects_too_short() -> None:
+    """A new password below the minimum length is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/password",
+        json={"current_password": "secret123", "new_password": "short"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 422
+
+
+def test_change_password_requires_token() -> None:
+    """Changing a password without a token is rejected with 401."""
+
+    response = client.post(
+        "/api/v1/me/password",
+        json={"current_password": "a", "new_password": "brandnew456"},
+    )
+    assert response.status_code == 401
+
+
 def test_protected_route_requires_token() -> None:
     """Accessing `/me` without a token is rejected with 401."""
 

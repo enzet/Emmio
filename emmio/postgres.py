@@ -189,6 +189,42 @@ def get_credentials_by_email(email: str) -> tuple[str, str] | None:
         return None
 
 
+def get_password_hash(user_id: str) -> str | None:
+    """Get a user's stored password hash, or `None` if they have no password.
+
+    A CLI-only user (registered without credentials) has no hash. Used to
+    verify the current password before a password change.
+
+    :param user_id: user login, e.g. `john`
+    """
+    with get_connection().cursor() as cursor:
+        cursor.execute(
+            "SELECT hashed_password FROM users WHERE user_id = %s", (user_id,)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def set_password(user_id: str, hashed_password: str) -> None:
+    """Replace an existing user's password hash, keeping their email.
+
+    :param user_id: user login, e.g. `john`
+    :param hashed_password: already-hashed new password (never the plaintext)
+    :raises ValueError: if the user does not exist
+    """
+    connection: psycopg.Connection = get_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE users SET hashed_password = %s "
+            "WHERE user_id = %s RETURNING id",
+            (hashed_password, user_id),
+        )
+        if cursor.fetchone() is None:
+            message: str = f"Unknown user `{user_id}`."
+            raise ValueError(message)
+    connection.commit()
+
+
 def list_users() -> list[tuple[str, str]]:
     """Get all users as (login, display name) pairs, ordered by login."""
 
