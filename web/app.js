@@ -117,6 +117,13 @@ function fillLanguageSelect(select, entries, selected) {
         });
 }
 
+// Public landing page. Forward an already-signed-in visitor straight to the
+// dashboard, so returning users don't land on the marketing page.
+
+function initLanding() {
+    if (getToken()) location.href = "index";
+}
+
 // Login page.
 
 function initLogin() {
@@ -1951,7 +1958,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const page = document.body.dataset.page;
-    if (page === "login") initLogin();
+    if (page === "landing") initLanding();
+    else if (page === "login") initLogin();
     else if (page === "register") initRegister();
     else if (page === "home") initHome();
     else if (page === "lexicons") initLexicons();

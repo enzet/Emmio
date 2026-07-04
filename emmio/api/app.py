@@ -32,7 +32,7 @@ from fastapi import (
     Request,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.responses import Response as HTTPResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -2278,6 +2278,17 @@ app.mount("/doc", StaticFiles(directory=_DOC_DIR), name="doc")
 # browser's `fetch` calls to `/api/v1/...` need no CORS configuration. Mounted
 # last so it never shadows an API route.
 _WEB_DIR: Path = Path(__file__).resolve().parents[2] / "web"
+
+
+@app.get("/")
+async def root() -> RedirectResponse:
+    """Send the site root to the public landing page.
+
+    The landing page itself forwards already-authenticated visitors on to the
+    dashboard (it reads the token in the browser), so the server can redirect
+    unconditionally here.
+    """
+    return RedirectResponse(url="/app/landing")
 
 
 @app.get("/app/{page}")

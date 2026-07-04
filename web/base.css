@@ -104,6 +104,46 @@ main.card, main.login {
     padding: 0.1rem 1rem;
 }
 
+/* Public landing page: a slightly wider card with a centered call to action. */
+main.card.landing {
+    width: 320px;
+    text-align: center;
+    padding-bottom: 1rem;
+}
+.landing .tagline {
+    font-size: 105%;
+}
+.landing ul.features {
+    text-align: left;
+    margin: 1rem 0;
+    padding-left: 1.1rem;
+    color: var(--muted);
+}
+.landing ul.features li {
+    margin: 0.4rem 0;
+}
+.landing ul.features strong {
+    color: var(--fg);
+    font-weight: 600;
+}
+.landing .cta {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1.2rem;
+}
+.landing .cta a.button {
+    font-size: 100%;
+    padding: 0.4rem 0.9rem;
+}
+/* The primary call to action: a solid, high-contrast button (inverts per
+   theme without a new color variable). */
+a.button.primary {
+    background-color: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg);
+}
+
 nav {
     display: flex;
     align-items: baseline;
@@ -225,6 +265,8 @@ button#show-translation {
 
 .dictionary-etymology, .dictionary-descripiton {
     padding-left: 1rem;
+    max-height: 1.8em;
+    overflow-y: scroll;
 }
 
 .dictionary-definition, .dictionary-link {
