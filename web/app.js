@@ -81,6 +81,21 @@ function languageName(code) {
     }
 }
 
+// Approximate CEFR level for a lexicon rate, following the CEFR-to-rate
+// correspondence in research/metric.tex. The rate values for the C levels are
+// rough lower bounds, so these labels are only indicative. Rates below A1 or a
+// missing rate return an em dash.
+function cefrLevel(rate) {
+    if (rate === null || rate < 3.0) return "—";
+    if (rate < 3.6) return "A1";
+    if (rate < 4.3) return "A2";
+    if (rate < 4.6) return "B1";
+    if (rate < 5.1) return "B2";
+    if (rate < 5.6) return "C1";
+    if (rate < 7.6) return "C2";
+    return "Native";
+}
+
 // Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
 // Shared by the lexicon, course, and profile detail pages.
 function renderDefinitionList(container, rows) {
@@ -249,14 +264,22 @@ async function initHome() {
 
         const rateCell = document.createElement("td");
         rateCell.textContent =
-            entry && entry.rate !== null ? entry.rate.toFixed(1) : "—";
+            entry && entry.rate !== null ? entry.rate.toFixed(2) : "—";
+        rateCell.style.textAlign = "right";
+        rateCell.style.fontVariantNumeric = "tabular-nums";
         row.appendChild(rateCell);
+
+        // Approximate CEFR level derived from the rate (see metric.tex).
+        const cefrCell = document.createElement("td");
+        cefrCell.textContent = entry ? cefrLevel(entry.rate) : "—";
+        row.appendChild(cefrCell);
 
         // "Don't know" answers still wanted this week; blank when on target or
         // when the language has no lexicon.
         const remainingCell = document.createElement("td");
         remainingCell.textContent =
             entry && entry.weekly_remaining > 0 ? entry.weekly_remaining : "";
+        remainingCell.style.textAlign = "right";
         row.appendChild(remainingCell);
 
         // Courses to study for this language, each linking to its session.

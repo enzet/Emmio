@@ -37,7 +37,7 @@
 html[data-theme="dark"] {
     color-scheme: dark;
 
-    --bg: #1B1B1F;
+    --bg: #000000;
     --fg: #E2E2E5;
     --muted: #9A9AA0;
     --faint: #55555C;
@@ -100,24 +100,24 @@ section[aria-labelledby="danger-heading"] {
 main.card, main.login {
     border: 1px solid var(--border);
     border-radius: 10px;
-    width: 250px;
+    max-width: 250px;
     padding: 0.1rem 1rem;
 }
 
 /* Public landing page: a slightly wider card with a centered call to action. */
 main.card.landing {
-    width: 320px;
+    max-width: 600px;
     text-align: center;
-    padding-bottom: 1rem;
+    margin: auto;
+    border: none;
 }
-.landing .tagline {
-    font-size: 105%;
+.landing p {
+    text-align: left;
 }
 .landing ul.features {
     text-align: left;
-    margin: 1rem 0;
+    margin-bottom: 2rem;
     padding-left: 1.1rem;
-    color: var(--muted);
 }
 .landing ul.features li {
     margin: 0.4rem 0;
@@ -163,13 +163,16 @@ img.logo-corner {
     vertical-align: -2px;
 }
 
+main.landing h1 img.logo {
+    width: 100px;
+}
 h1 img.logo {
     width: 50px;
 }
 
 h1 {
     padding: 0;
-    margin: 5px;
+    margin-bottom: 1rem;
 }
 h2 {
     margin-top: 1rem;
@@ -265,8 +268,9 @@ button#show-translation {
 
 .dictionary-etymology, .dictionary-descripiton {
     padding-left: 1rem;
-    max-height: 1.8em;
-    overflow-y: scroll;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .dictionary-definition, .dictionary-link {
