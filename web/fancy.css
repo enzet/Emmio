@@ -55,6 +55,22 @@ html[data-style="fancy"] td, th {
     border: 1px solid var(--border);
 }
 
+html[data-style="fancy"] span.language-code {
+    text-transform: uppercase;
+    font-size: 70%;
+    font-weight: 500;
+    letter-spacing: 0.05rem;
+    text-decoration: none;
+    display: inline-block;
+    border: 1.5px solid var(--fg);
+    padding: 0.5px 1.5px;
+    border-radius: 5px;
+    background-color: var(--fg);
+    color: var(--bg);
+    min-width: 1.5em;
+    text-align: center;
+}
+
 /* Ideas not enabled yet:
 
 html[data-style="fancy"] form button {

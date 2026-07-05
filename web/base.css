@@ -351,19 +351,9 @@ table tr td, th {
     border: 1px inset;
 }
 
-td a.language-code {
-    text-transform: uppercase;
-    font-size: 80%;
-    font-weight: 500;
-    letter-spacing: 0.05rem;
-    text-decoration: none;
-    display: inline-block;
-    border: 1.5px solid var(--fg);
-    padding: 1px 3px;
-    border-radius: 5px;
-    color: var(--fg);
-    min-width: 23px;
-    text-align: center;
+span.language-code {
+    font-family: monospace;
+    margin-right: 0.5rem;
 }
 
 /* Render definition lists (profile details, lexicon/course stats) as a

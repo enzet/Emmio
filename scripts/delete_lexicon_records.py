@@ -150,8 +150,10 @@ def main() -> None:
     ]
     scope_params: tuple[str, str] = (arguments.user, arguments.lexicon)
 
-    connection = postgres.get_connection()
-    with connection.cursor() as cursor:
+    with (
+        postgres.db_connection() as connection,
+        connection.cursor() as cursor,
+    ):
         cursor.execute(_COUNT_RECORDS, predicate_params)
         if not (row := cursor.fetchone()):
             return
@@ -172,7 +174,6 @@ def main() -> None:
         cursor.execute(_DROP_EMPTY_WORDS, scope_params)
         dropped: int = cursor.rowcount
 
-    connection.commit()
     logger.info(
         "Done: deleted %d records, dropped %d now-empty words.",
         deleted,

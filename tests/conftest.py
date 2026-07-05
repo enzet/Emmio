@@ -27,7 +27,5 @@ CLEAN_STATEMENT: LiteralString = (
 def clean_database() -> None:
     """Empty the test database before every test."""
 
-    connection = postgres.get_connection()
-    with connection.cursor() as cursor:
+    with postgres.db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(CLEAN_STATEMENT)
-    connection.commit()

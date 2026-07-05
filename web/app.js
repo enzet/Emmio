@@ -250,6 +250,10 @@ async function initHome() {
         const row = document.createElement("tr");
 
         const nameCell = document.createElement("td");
+        const code = document.createElement("span");
+        code.className = "language-code";
+        code.textContent = language;
+        nameCell.appendChild(code);
         if (entry) {
             const link = document.createElement("a");
             link.href = `lexicon?lexicon=${encodeURIComponent(
@@ -258,7 +262,9 @@ async function initHome() {
             link.textContent = languageName(language);
             nameCell.appendChild(link);
         } else {
-            nameCell.textContent = languageName(language);
+            nameCell.appendChild(
+                document.createTextNode(languageName(language)),
+            );
         }
         row.appendChild(nameCell);
 

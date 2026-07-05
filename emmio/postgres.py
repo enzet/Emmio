@@ -10,10 +10,13 @@ The connection string is taken from the `EMMIO_DATABASE_URL` or
 """
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 
 import psycopg
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 DEFAULT_DSN: str = "postgresql:///emmio"
 
@@ -66,22 +69,53 @@ def split_lexicon_config(config: dict) -> tuple[str, dict | None, dict]:
     return selection, identity_list, mutable
 
 
-_connection: psycopg.Connection | None = None
+_pool: ConnectionPool | None = None
 
 
-def get_connection() -> psycopg.Connection:
-    """Get the global database connection, creating it on first use."""
+def _get_pool() -> ConnectionPool:
+    """Get the process-wide connection pool, opening it on first use.
 
-    global _connection  # noqa: PLW0603  # pylint: disable=global-statement
+    A single `psycopg.Connection` cannot be shared across threads safely, and
+    FastAPI runs synchronous endpoints in a threadpool, so concurrent requests
+    would corrupt each other's cursor and transaction state on one connection.
+    A pool hands each unit of work its own connection instead (see
+    `db_connection`), and bounds how many are open at once.
+    """
 
-    if _connection is None:
+    global _pool  # noqa: PLW0603  # pylint: disable=global-statement
+
+    if _pool is None:
         dsn: str = os.environ.get(
             "EMMIO_DATABASE_URL", os.environ.get("DATABASE_URL", DEFAULT_DSN)
         )
-        # Always read timestamps as UTC, regardless of the machine time zone,
-        # so that loaded data and JSON exports are deterministic.
-        _connection = psycopg.connect(dsn, options="-c timezone=UTC")
-    return _connection
+        _pool = ConnectionPool(
+            conninfo=dsn,
+            # Always read timestamps as UTC, regardless of the machine time
+            # zone, so that loaded data and JSON exports are deterministic.
+            kwargs={"options": "-c timezone=UTC"},
+            min_size=int(os.environ.get("EMMIO_DB_POOL_MIN", "1")),
+            max_size=int(os.environ.get("EMMIO_DB_POOL_MAX", "20")),
+            name="emmio",
+            open=True,
+        )
+    return _pool
+
+
+@contextmanager
+def db_connection() -> Iterator[psycopg.Connection]:
+    """Borrow a connection from the pool for one unit of work.
+
+    The connection is checked out on entry and returned to the pool on exit;
+    on a clean exit the open transaction is committed, and on an exception it
+    is rolled back. This replaces the previous per-call `.commit()`: callers
+    open a cursor inside the block and let the block boundary commit::
+
+        with db_connection() as connection, connection.cursor() as cursor:
+            cursor.execute(...)
+    """
+
+    with _get_pool().connection() as connection:
+        yield connection
 
 
 def ensure_user(user_id: str, name: str) -> None:
@@ -90,20 +124,18 @@ def ensure_user(user_id: str, name: str) -> None:
     :param user_id: stable string login, e.g. `john`
     :param name: display name
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "INSERT INTO users (user_id, name) VALUES (%s, %s) "
             "ON CONFLICT (user_id) DO NOTHING",
             (user_id, name),
         )
-    connection.commit()
 
 
 def user_exists(user_id: str) -> bool:
     """Check whether a user with the given login exists."""
 
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
         return cursor.fetchone() is not None
 
@@ -119,8 +151,7 @@ def register_user(
     :param hashed_password: already-hashed password (never the plaintext)
     :raises ValueError: if the login or email is already taken
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT 1 FROM users WHERE user_id = %s OR email = %s",
             (user_id, email),
@@ -135,7 +166,6 @@ def register_user(
             "VALUES (%s, %s, %s, %s)",
             (user_id, name, email, hashed_password),
         )
-    connection.commit()
 
 
 def set_credentials(user_id: str, email: str, hashed_password: str) -> None:
@@ -150,8 +180,7 @@ def set_credentials(user_id: str, email: str, hashed_password: str) -> None:
     :raises ValueError: if the user does not exist, or the email belongs to
         another user
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT 1 FROM users WHERE email = %s AND user_id <> %s",
             (email, user_id),
@@ -167,7 +196,6 @@ def set_credentials(user_id: str, email: str, hashed_password: str) -> None:
         if cursor.fetchone() is None:
             message = f"Unknown user `{user_id}`."
             raise ValueError(message)
-    connection.commit()
 
 
 def get_credentials_by_email(email: str) -> tuple[str, str] | None:
@@ -178,7 +206,7 @@ def get_credentials_by_email(email: str) -> tuple[str, str] | None:
 
     :param email: email address to look up
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT user_id, hashed_password FROM users "
             "WHERE email = %s AND hashed_password IS NOT NULL",
@@ -197,7 +225,7 @@ def get_password_hash(user_id: str) -> str | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT hashed_password FROM users WHERE user_id = %s", (user_id,)
         )
@@ -212,8 +240,7 @@ def set_password(user_id: str, hashed_password: str) -> None:
     :param hashed_password: already-hashed new password (never the plaintext)
     :raises ValueError: if the user does not exist
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "UPDATE users SET hashed_password = %s "
             "WHERE user_id = %s RETURNING id",
@@ -222,13 +249,12 @@ def set_password(user_id: str, hashed_password: str) -> None:
         if cursor.fetchone() is None:
             message: str = f"Unknown user `{user_id}`."
             raise ValueError(message)
-    connection.commit()
 
 
 def list_users() -> list[tuple[str, str]]:
     """Get all users as (login, display name) pairs, ordered by login."""
 
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute("SELECT user_id, name FROM users ORDER BY user_id")
         return [(row[0], row[1]) for row in cursor.fetchall()]
 
@@ -238,7 +264,7 @@ def get_user(user_id: str) -> tuple[str, str, str | None] | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT user_id, name, email FROM users WHERE user_id = %s",
             (user_id,),
@@ -257,7 +283,7 @@ def get_account(user_id: str) -> dict[str, object] | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT user_id, name, email, created_at "
             "FROM users WHERE user_id = %s",
@@ -283,8 +309,7 @@ def delete_user(user_id: str) -> bool:
     :param user_id: owning user login, e.g. `john`
     :return: whether a user was deleted (`False` if none existed)
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute("SELECT id FROM users WHERE user_id = %s", (user_id,))
         if not (row := cursor.fetchone()):
             return False
@@ -325,7 +350,6 @@ def delete_user(user_id: str) -> bool:
         )
 
         cursor.execute("DELETE FROM users WHERE id = %s", (user_db_id,))
-    connection.commit()
     return True
 
 
@@ -336,7 +360,7 @@ def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
     :return: (course id, name, learning language, distinct words studied,
         total answers) tuples, ordered by course id
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT c.course_id, c.name, c.learning_language, "
             "(SELECT count(DISTINCT r.question_id) FROM learn_records r "
@@ -362,7 +386,7 @@ def list_lexicons(
         checked, number of "don't know" answers in the last 7 days, whether
         it is the main lexicon for its language) tuples, ordered by lexicon id
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, "
             "(SELECT count(*) FROM lexicon_words w "
@@ -384,7 +408,7 @@ def list_lexicons(
 
 def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
     """Check whether a lexicon is the main one for its language."""
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.is_main FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s",
@@ -400,7 +424,7 @@ def get_main_lexicons(user_id: str) -> list[tuple[str, str, int, int]]:
     :return: (language, lexicon id, weekly precision goal, "don't know"
         answers in the last 7 days) tuples, ordered by language
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.language, l.lexicon_id, "
             "COALESCE((l.config->>'precision_per_week')::int, 0), "
@@ -424,8 +448,7 @@ def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
 
     :raises ValueError: if the lexicon does not exist
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.id, l.language "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -445,20 +468,17 @@ def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
         cursor.execute(
             "UPDATE lexicons SET is_main = true WHERE id = %s", (db_id,)
         )
-    connection.commit()
 
 
 def clear_main_lexicon(user_id: str, lexicon_id: str) -> None:
     """Clear a lexicon's main flag (its language then has no main)."""
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "UPDATE lexicons SET is_main = false FROM users u "
             "WHERE lexicons.user_id = u.id AND u.user_id = %s "
             "AND lexicons.lexicon_id = %s",
             (user_id, lexicon_id),
         )
-    connection.commit()
 
 
 def get_lexicon_answer_sequences(
@@ -474,7 +494,7 @@ def get_lexicon_answer_sequences(
         (response time, 1 for "know" / 0 for "don't know")
     """
     result: dict[str, list[tuple[datetime, int]]] = {}
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, r.response_time, r.response "
             "FROM lexicon_records r "
@@ -502,7 +522,7 @@ def get_last_lexicon_record_id(user_id: str) -> int | None:
     :param user_id: owning user login, e.g. `john`
     :return: the maximum record id, or `None` if there are no records
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT MAX(r.id) FROM lexicon_records r "
             "JOIN lexicon_words w ON w.id = r.word_id "
@@ -551,7 +571,7 @@ def get_lexicon_config(user_id: str, lexicon_id: str) -> dict | None:
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.language, l.selection, l.frequency_list, l.config "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -569,7 +589,7 @@ def get_lexicon_configs(user_id: str) -> dict[str, dict]:
     :param user_id: owning user login, e.g. `john`
     :return: mapping from lexicon identifier to its config dict
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, l.frequency_list, "
             "l.config FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -591,8 +611,7 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
     """
     selection, identity_list, mutable = split_lexicon_config(config)
     language: str = config["language"]
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO lexicons "
@@ -611,7 +630,6 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
                 Jsonb(mutable),
             ),
         )
-    connection.commit()
 
 
 LEARN_CONFIG_KEYS: tuple[str, ...] = (
@@ -660,7 +678,7 @@ def get_learn_config(user_id: str, course_id: str) -> dict | None:
     :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT c.name, c.learning_language, c.config "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
@@ -678,7 +696,7 @@ def get_learn_configs(user_id: str) -> dict[str, dict]:
     :param user_id: owning user login, e.g. `john`
     :return: mapping from course identifier to its config dict
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT c.course_id, c.name, c.learning_language, c.config "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
@@ -698,8 +716,7 @@ def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
     :param course_id: course identifier, e.g. `fr`
     :param config: flat learn config (the `LearnConfig` fields)
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO learn_courses "
@@ -717,7 +734,6 @@ def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
                 Jsonb(learn_config_jsonb(config)),
             ),
         )
-    connection.commit()
 
 
 def delete_course(user_id: str, course_id: str) -> bool:
@@ -730,8 +746,7 @@ def delete_course(user_id: str, course_id: str) -> bool:
     :param course_id: course identifier, e.g. `fr`
     :return: whether a course was deleted (`False` if none existed)
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT c.id FROM learn_courses c JOIN users u ON u.id = c.user_id "
             "WHERE u.user_id = %s AND c.course_id = %s",
@@ -751,7 +766,6 @@ def delete_course(user_id: str, course_id: str) -> bool:
         cursor.execute(
             "DELETE FROM learn_courses WHERE id = %s", (course_db_id,)
         )
-    connection.commit()
     return True
 
 
@@ -761,7 +775,7 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT w.word "
             "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
@@ -787,7 +801,7 @@ def get_lexicon_word_states(
     :return: mapping from word to its current response code (the value may be
         `None` when the word is recorded without a cached response)
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT w.word, w.response "
             "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
@@ -812,7 +826,7 @@ def get_last_lexicon_answers(
     """
     if not words:
         return {}
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (w.word) w.word, r.response, r.response_time "
             "FROM lexicon_records r "
@@ -837,7 +851,7 @@ def get_last_learn_answers(
     """
     if not questions:
         return {}
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (r.question_id) "
             "r.question_id, r.response, r.response_time "
@@ -865,7 +879,7 @@ def get_language_word_states(
     :param language: language code shared by the lexicons
     :return: mapping from word to its (response code, to_skip)
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (w.word) w.word, w.response, w.to_skip "
             "FROM lexicon_words w "
@@ -891,7 +905,7 @@ def get_recently_answered(
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :param recent_days: length of the window in days
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT w.word "
             "FROM lexicon_records r "
@@ -918,8 +932,7 @@ def delete_last_lexicon_record(user_id: str, lexicon_id: str) -> str | None:
     :return: the word whose answer was removed, or `None` if there is nothing
         to undo
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT r.id, w.id, w.word "
             "FROM lexicon_records r "
@@ -952,7 +965,6 @@ def delete_last_lexicon_record(user_id: str, lexicon_id: str) -> str | None:
             cursor.execute(
                 "DELETE FROM lexicon_words WHERE id = %s", (word_id,)
             )
-    connection.commit()
     return str(word)
 
 
@@ -1022,7 +1034,7 @@ def load_learning(
     :return: (records, sessions) in insertion order; empty lists if the
         course is not in the database
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT r.question_id, r.response, r.response_time, "
             "r.request_time, r.extra "
@@ -1061,8 +1073,7 @@ def delete_last_learn_record(user_id: str, course_id: str) -> str | None:
     :return: the word whose answer was removed, or `None` if there is nothing
         to undo
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT r.id, r.question_id "
             "FROM learn_records r "
@@ -1076,7 +1087,6 @@ def delete_last_learn_record(user_id: str, course_id: str) -> str | None:
             return None
         record_id, question_id = row
         cursor.execute("DELETE FROM learn_records WHERE id = %s", (record_id,))
-    connection.commit()
     return str(question_id)
 
 
@@ -1098,8 +1108,7 @@ def save_learning(
     :param records: new records, not yet stored in the database
     :param sessions: new sessions, not yet stored in the database
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         db_id: int = _get_course_db_id(
             cursor, user_db_id, course_id, name, language
@@ -1135,7 +1144,6 @@ def save_learning(
                 for (type_, start, end, actions) in sessions
             ],
         )
-    connection.commit()
 
 
 def load_lexicon(
@@ -1148,7 +1156,7 @@ def load_lexicon(
     :return: (records, sessions) in insertion order; empty lists if the
         lexicon is not in the database
     """
-    with get_connection().cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT w.word, r.response, r.response_time, r.extra "
             "FROM lexicon_records r "
@@ -1193,8 +1201,7 @@ def save_lexicon(
     :param records: new records, not yet stored in the database
     :param sessions: new sessions, not yet stored in the database
     """
-    connection: psycopg.Connection = get_connection()
-    with connection.cursor() as cursor:
+    with db_connection() as connection, connection.cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         db_id: int = _get_lexicon_db_id(
             cursor, user_db_id, lexicon_id, language
@@ -1231,14 +1238,13 @@ def save_lexicon(
             "VALUES (%s, %s, %s)",
             [(db_id, start, end) for (start, end) in sessions],
         )
-    connection.commit()
 
 
-def close_connection() -> None:
-    """Close the global connection if it is open."""
+def close_pool() -> None:
+    """Close the connection pool if it is open, freeing all its connections."""
 
-    global _connection  # noqa: PLW0603  # pylint: disable=global-statement
+    global _pool  # noqa: PLW0603  # pylint: disable=global-statement
 
-    if _connection is not None:
-        _connection.close()
-        _connection = None
+    if _pool is not None:
+        _pool.close()
+        _pool = None

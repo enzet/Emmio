@@ -22,6 +22,7 @@ dependencies = [
     "mpv~=1.0.7",
     "numpy~=2.2.3",
     "psycopg[binary]~=3.2",
+    "psycopg-pool~=3.2",
     "scipy~=1.15.0",
     "pyTelegramBotAPI~=4.26.0",
     "pydantic~=2.10.6",
