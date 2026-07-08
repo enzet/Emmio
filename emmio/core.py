@@ -68,6 +68,9 @@ class ArtifactData(ABC):
             logging.fatal("`%s` doesn't exist.", path.parent)
             raise FileExistsError
 
-        with (path / "config.json").open(encoding="utf-8") as config_file:
+        config_path: Path = path / "config.json"
+        if not config_path.exists():
+            return {}
+        with config_path.open(encoding="utf-8") as config_file:
             result: dict[str, Any] = json.load(config_file)
             return result

@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import shlex
 import sys
 from collections import defaultdict
 from collections.abc import Callable
@@ -11,10 +12,10 @@ from typing import Any
 
 from colour import Color
 
-from emmio import util
+from emmio import inventory, util
 from emmio.data import Data
 from emmio.graph import Visualizer
-from emmio.language import Language
+from emmio.language import Language, LanguageNotFoundError
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
@@ -341,10 +342,152 @@ class Emmio:
         text_parser.add_argument("--from-language")
         text_parser.add_argument("--to-language")
 
+        # Shared data artifact management.
+        data_parser = subparsers.add_parser(
+            "data", help="manage shared data artifacts"
+        )
+        data_subparsers = data_parser.add_subparsers(dest="data_command")
+        data_list_parser = data_subparsers.add_parser(
+            "list", help="show downloaded and available artifacts"
+        )
+        data_list_parser.add_argument(
+            "type",
+            nargs="?",
+            choices=["dictionaries", "sentences", "lists"],
+            help="only show artifacts of this type",
+        )
+        data_list_parser.add_argument(
+            "--language", help="filter by language code, e.g. `fr`"
+        )
+
+        data_download_parser = data_subparsers.add_parser(
+            "download", help="download an on-demand artifact now"
+        )
+        data_download_parser.add_argument(
+            "kind", choices=["kaikki", "tatoeba", "frequency_words"]
+        )
+        data_download_parser.add_argument(
+            "language", help="language code, e.g. `fr`"
+        )
+        data_download_parser.add_argument(
+            "--year",
+            type=int,
+            help=(
+                f"FrequencyWords release year (default "
+                f"{inventory.DEFAULT_FREQUENCY_WORDS_YEAR})"
+            ),
+        )
+
+        data_delete_parser = data_subparsers.add_parser(
+            "delete", help="delete an artifact from disk"
+        )
+        data_delete_parser.add_argument(
+            "kind", choices=["kaikki", "tatoeba", "frequency_words", "file"]
+        )
+        data_delete_parser.add_argument(
+            "target",
+            help="language code, or configuration identifier for `file`",
+        )
+        data_delete_parser.add_argument(
+            "--year", type=int, help="FrequencyWords release year"
+        )
+        data_delete_parser.add_argument(
+            "--type",
+            choices=list(inventory.ARTIFACT_TYPES),
+            help="artifact type, when a `file` identifier is ambiguous",
+        )
+
+        data_add_parser = data_subparsers.add_parser(
+            "add",
+            help="register an artifact configuration (without downloading)",
+        )
+        add_subparsers = data_add_parser.add_subparsers(dest="add_type")
+
+        add_list_parser = add_subparsers.add_parser(
+            "list", help="frequency list from a local file"
+        )
+        add_list_parser.add_argument("--id", required=True)
+        add_list_parser.add_argument(
+            "--language", required=True, help="language code, e.g. `eo`"
+        )
+        add_list_parser.add_argument(
+            "--path", required=True, help="file name inside `lists`"
+        )
+        add_list_parser.add_argument(
+            "--format", default="list", choices=["list", "csv", "json"]
+        )
+        add_list_parser.add_argument("--name")
+        add_list_parser.add_argument("--source")
+        add_list_parser.add_argument(
+            "--url", help="URL the file can be downloaded from"
+        )
+        add_list_parser.add_argument(
+            "--stripped",
+            action="store_true",
+            help="the list does not cover its whole corpus",
+        )
+
+        add_word_list_parser = add_subparsers.add_parser(
+            "word-list", help="word list from a local file"
+        )
+        add_word_list_parser.add_argument("--id", required=True)
+        add_word_list_parser.add_argument(
+            "--language", required=True, help="language code, e.g. `eo`"
+        )
+        add_word_list_parser.add_argument(
+            "--path", required=True, help="file name inside `lists`"
+        )
+        add_word_list_parser.add_argument("--name")
+        add_word_list_parser.add_argument(
+            "--source", help='origin of the list, e.g. "personal knowledge"'
+        )
+
+        add_dictionary_parser = add_subparsers.add_parser(
+            "dictionary", help="dictionary from a local file"
+        )
+        add_dictionary_parser.add_argument("--id", required=True)
+        add_dictionary_parser.add_argument(
+            "--path", required=True, help="file name inside `dictionaries`"
+        )
+        add_dictionary_parser.add_argument(
+            "--from",
+            dest="from_language",
+            required=True,
+            help="language of words being defined",
+        )
+        add_dictionary_parser.add_argument(
+            "--to",
+            dest="to_language",
+            required=True,
+            help="language of definitions",
+        )
+        add_dictionary_parser.add_argument("--name")
+
+        add_sentences_parser = add_subparsers.add_parser(
+            "sentences", help="sentence collection from a local file"
+        )
+        add_sentences_parser.add_argument("--id", required=True)
+        add_sentences_parser.add_argument(
+            "--path", required=True, help="file name inside `sentences`"
+        )
+        add_sentences_parser.add_argument(
+            "--languages",
+            required=True,
+            help="comma-separated language codes, e.g. `de,ru`",
+        )
+        add_sentences_parser.add_argument(
+            "--sentence-type",
+            default="simple_two_languages",
+            choices=["simple_one_language", "simple_two_languages"],
+        )
+        add_sentences_parser.add_argument("--name")
+
         arguments: argparse.Namespace
         if command:
             try:
-                arguments = parser.parse_args(command.split(" "))
+                # `shlex` keeps quoted arguments (e.g. `--name "Esperanto
+                # 2011"`) together.
+                arguments = parser.parse_args(shlex.split(command))
             except argparse.ArgumentError:
                 logger.exception("Error parsing command.")
                 return
@@ -511,6 +654,260 @@ class Emmio:
                 Language.from_code(arguments.from_language),
                 Language.from_code(arguments.to_language),
             ).annotate(arguments.input, arguments.output)
+
+        # Command `data`.
+        elif arguments.command == "data":
+            match arguments.data_command:
+                case "list":
+                    types: list[str] = (
+                        [arguments.type]
+                        if arguments.type
+                        else ["dictionaries", "sentences", "lists"]
+                    )
+                    for type_ in types:
+                        if len(types) > 1:
+                            self.interface.print(type_.capitalize())
+                        self.print_artifacts(type_, arguments.language)
+                case "download":
+                    self.download_artifact(arguments)
+                case "delete":
+                    self.delete_artifact(arguments)
+                case "add":
+                    if arguments.add_type:
+                        self.add_artifact(arguments)
+                    else:
+                        data_add_parser.print_help()
+                case _:
+                    data_parser.print_help()
+
+    def print_artifacts(self, type_: str, language: str | None) -> None:
+        """Print the inventory of shared data artifacts of one type.
+
+        Shows what is downloaded (with its size on disk) and what could be
+        downloaded, sorted largest first, with a total row at the bottom.
+
+        :param type_: artifact type: `dictionaries`, `sentences`, or `lists`
+        :param language: only show artifacts for this language code
+        """
+        artifacts: list[inventory.Artifact] = {
+            "dictionaries": inventory.dictionary_artifacts,
+            "sentences": inventory.sentence_artifacts,
+            "lists": inventory.list_artifacts,
+        }[type_](self.data.path)
+        if language:
+            artifacts = [x for x in artifacts if x.language == language]
+        if not artifacts:
+            self.interface.print("No artifacts found.")
+            return
+
+        def language_name(code: str | None) -> str:
+            if code is None:
+                return ""
+            try:
+                return Language.from_code(code).get_name()
+            except LanguageNotFoundError:
+                return code
+
+        # Lists come in several kinds (word list, frequency list, cropped
+        # frequency list), so their table gets an extra "Type" column.
+        with_list_type: bool = type_ == "lists"
+
+        def row(artifact: inventory.Artifact) -> list[InlineElement | str]:
+            values: list[InlineElement | str] = [
+                language_name(artifact.language),
+                artifact.name,
+            ]
+            if with_list_type:
+                values.append(artifact.list_type or "")
+            values += [
+                "downloaded" if artifact.downloaded else "available",
+                inventory.format_size(artifact.size),
+                artifact.path or "",
+            ]
+            return values
+
+        rows: list[list[InlineElement | str]] = [
+            row(artifact) for artifact in artifacts
+        ]
+        downloaded: list[inventory.Artifact] = [
+            x for x in artifacts if x.downloaded
+        ]
+        total_row: list[InlineElement | str] = ["Total", ""]
+        if with_list_type:
+            total_row.append("")
+        total_row += [
+            f"{len(downloaded)} of {len(artifacts)} downloaded",
+            inventory.format_size(
+                sum(artifact.size or 0 for artifact in downloaded)
+            ),
+            "",
+        ]
+        rows.append(total_row)
+        columns: list[InlineElement | str] = ["Language", "Name"]
+        if with_list_type:
+            columns.append("Type")
+        columns += ["Status", "Size", "Path"]
+        self.interface.print(Table(columns, rows))
+
+    def _artifact_language(self, code: str) -> Language | None:
+        """Parse a language code argument, printing an error if unknown."""
+        try:
+            return Language.from_code(code)
+        except LanguageNotFoundError:
+            self.interface.print(f"Unknown language code `{code}`.")
+            return None
+
+    def download_artifact(self, arguments: argparse.Namespace) -> None:
+        """Download an on-demand artifact (command `data download`)."""
+
+        language: Language | None = self._artifact_language(arguments.language)
+        if language is None:
+            return
+        path: Path
+        fetched: bool
+        try:
+            match arguments.kind:
+                case "kaikki":
+                    path, fetched = inventory.download_kaikki(
+                        self.data.path, language
+                    )
+                case "tatoeba":
+                    path, fetched = inventory.download_tatoeba(
+                        self.data.path, language
+                    )
+                case "frequency_words":
+                    path, fetched = inventory.download_frequency_words(
+                        self.data.path,
+                        language,
+                        arguments.year
+                        or inventory.DEFAULT_FREQUENCY_WORDS_YEAR,
+                    )
+                case _:
+                    return  # Unreachable: `argparse` restricts the choices.
+        except inventory.InventoryError as error:
+            self.interface.print(str(error))
+            return
+        size: str = inventory.format_size(inventory.tree_size(path))
+        location: Path = path.relative_to(self.data.path)
+        if fetched:
+            self.interface.print(f"Downloaded `{location}` ({size}).")
+        else:
+            self.interface.print(f"Already downloaded: `{location}` ({size}).")
+
+    def delete_artifact(self, arguments: argparse.Namespace) -> None:
+        """Delete an artifact from disk (command `data delete`)."""
+
+        removed: list[Path]
+        size: int
+        try:
+            if arguments.kind == "file":
+                removed, size = inventory.delete_configured(
+                    self.data.path, arguments.target, arguments.type
+                )
+                if not removed:
+                    self.interface.print(
+                        f"Removed configuration entry `{arguments.target}` "
+                        f"(its file was already absent)."
+                    )
+                    return
+            else:
+                language: Language | None = self._artifact_language(
+                    arguments.target
+                )
+                if language is None:
+                    return
+                match arguments.kind:
+                    case "kaikki":
+                        removed, size = inventory.delete_kaikki(
+                            self.data.path, language
+                        )
+                    case "tatoeba":
+                        removed, size = inventory.delete_tatoeba(
+                            self.data.path, language
+                        )
+                    case "frequency_words":
+                        removed, size = inventory.delete_frequency_words(
+                            self.data.path, language, arguments.year
+                        )
+                    case _:
+                        return  # Unreachable: `argparse` restricts choices.
+        except inventory.InventoryError as error:
+            self.interface.print(str(error))
+            return
+        locations: str = ", ".join(
+            f"`{path.relative_to(self.data.path)}`" for path in removed
+        )
+        self.interface.print(
+            f"Removed {locations} ({inventory.format_size(size)})."
+        )
+
+    def add_artifact(self, arguments: argparse.Namespace) -> None:
+        """Register an artifact configuration (command `data add`).
+
+        Only the configuration entry is written; the file it points at is
+        expected to be put in place separately.
+        """
+        type_: str
+        entry: dict
+        match arguments.add_type:
+            case "list":
+                type_ = "lists"
+                entry = {
+                    "type": "frequency_list",
+                    "language": arguments.language,
+                    "path": arguments.path,
+                    "file_format": arguments.format,
+                    "is_stripped": arguments.stripped,
+                }
+                if arguments.name:
+                    entry["name"] = arguments.name
+                if arguments.source:
+                    entry["source"] = arguments.source
+                if arguments.url:
+                    entry["url"] = arguments.url
+            case "word-list":
+                type_ = "lists"
+                entry = {
+                    "type": "word_list",
+                    "language": arguments.language,
+                    "path": arguments.path,
+                    "name": arguments.name or arguments.id,
+                    "source": arguments.source or "unknown",
+                }
+            case "dictionary":
+                type_ = "dictionaries"
+                entry = {
+                    "file_name": arguments.path,
+                    "name": arguments.name or arguments.id,
+                    "from_language": arguments.from_language,
+                    "to_language": arguments.to_language,
+                }
+            case "sentences":
+                type_ = "sentences"
+                entry = {
+                    "file_name": arguments.path,
+                    "type": arguments.sentence_type,
+                    "name": arguments.name or arguments.id,
+                    "languages": arguments.languages.split(","),
+                }
+            case _:
+                return  # Unreachable: `argparse` restricts the choices.
+
+        try:
+            file_path, exists = inventory.add_configured(
+                self.data.path, type_, arguments.id, entry
+            )
+        except inventory.InventoryError as error:
+            self.interface.print(str(error))
+            return
+        self.interface.print(
+            f"Added `{arguments.id}` to `{type_}/config.json`."
+        )
+        if not exists:
+            self.interface.print(
+                f"Note: `{file_path.relative_to(self.data.path)}` does not "
+                f"exist yet; put the file there to complete the artifact."
+            )
 
     async def stat_lexicon(self) -> None:
         """Print lexicon statistics."""

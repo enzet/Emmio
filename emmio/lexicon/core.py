@@ -1223,35 +1223,6 @@ class LexiconChecker:
         )
         return skip_in_future, response, None
 
-    async def binary_search(self, frequency_list: FrequencyList) -> None:
-        """Try to find position of the balanced word.
-
-        This is an experimental function. It's result has meaning only if it is
-        repeated many times and the average is computed.
-
-        Firstly, we try the random word of the frequency list. If it is known,
-        we try the word in the middle of the right half, else we try the word
-        in the middle of the left half.
-        """
-        left_border, right_border = 0, int((len(frequency_list) - 1) / 2)
-        while True:
-            index: int = int((left_border + right_border) / 2)
-            picked_word, occurrences = frequency_list.get_word_by_index(index)
-            _, response, _ = await self.ask(picked_word)
-            if not response:
-                break
-            if response == LexiconResponse.KNOW:
-                left_border = index
-            elif response == LexiconResponse.DONT:
-                right_border = index
-            else:
-                left_border += 2
-            not_known: int = 0
-            for i in range(index, len(frequency_list) - 1):
-                _, occurrences = frequency_list.get_word_by_index(i)
-                not_known += occurrences
-            self.lexicon.write()
-
     async def check(
         self,
         other_lexicons: list["Lexicon"],

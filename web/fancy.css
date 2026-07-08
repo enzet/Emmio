@@ -69,6 +69,7 @@ html[data-style="fancy"] span.language-code {
     color: var(--bg);
     min-width: 1.5em;
     text-align: center;
+    font-family: "SF Pro", sans-serif;
 }
 
 /* Ideas not enabled yet:
