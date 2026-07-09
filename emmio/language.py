@@ -270,6 +270,17 @@ ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
     "\u0531", "\u0556"
 )
 
+# Whole Unicode blocks, used as best-effort alphabets for languages written in
+# these scripts (the same technique as Arabic, Korean, and Japanese above).
+CYRILLIC_LETTERS: str = letter_range("\u0400", "\u04ff")  # Bulgarian, etc.
+DEVANAGARI_LETTERS: str = letter_range("\u0900", "\u097f")  # Hindi.
+BENGALI_LETTERS: str = letter_range("\u0980", "\u09ff")
+TAMIL_LETTERS: str = letter_range("\u0b80", "\u0bff")
+TELUGU_LETTERS: str = letter_range("\u0c00", "\u0c7f")
+MALAYALAM_LETTERS: str = letter_range("\u0d00", "\u0d7f")
+SINHALA_LETTERS: str = letter_range("\u0d80", "\u0dff")
+THAI_LETTERS: str = letter_range("\u0e00", "\u0e7f")
+
 LATIN_UPPER: str = letter_range("A", "Z")
 LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
 
@@ -459,6 +470,217 @@ class KnownLanguages:
         Color("#F9D849"),  # Yellow color of the Ukrainian flag.
         UK_UPPER.lower() + UK_UPPER + SKIPPERS + STRESS_MARK,
         self_name="українська",
+    )
+
+    # Languages below are defined best-effort (Unicode script blocks and
+    # standard diacritics, representative flag colors) to support lexicon
+    # creation for every language with downloadable FrequencyWords and Tatoeba
+    # artifacts; alphabets and colors can be refined later.
+    AFRIKAANS: Language = Language(
+        "af",
+        Color("#007A4D"),  # Green color of the South African flag.
+        LATIN_LETTERS + "ÁÄÉÈÊËÍÎÏÓÔÖÚÛÜÝáäéèêëíîïóôöúûüý",
+        self_name="Afrikaans",
+    )
+    ALBANIAN: Language = Language(
+        "sq",
+        Color("#E41E20"),  # Red color of the Albanian flag.
+        LATIN_LETTERS + "ÇËçë",
+        self_name="shqip",
+    )
+    BASQUE: Language = Language(
+        "eu",
+        Color("#D52B1E"),  # Red color of the Basque flag.
+        LATIN_LETTERS + "ÑÜÇñüç",
+        self_name="euskara",
+    )
+    BENGALI: Language = Language(
+        "bn",
+        Color("#006A4E"),  # Green color of the Bangladeshi flag.
+        BENGALI_LETTERS,
+        self_name="বাংলা",
+    )
+    BOSNIAN: Language = Language(
+        "bs",
+        Color("#002F6C"),  # Blue color of the Bosnian flag.
+        LATIN_LETTERS + "ČĆĐŠŽčćđšž",
+        self_name="bosanski",
+    )
+    BRETON: Language = Language(
+        "br",
+        Color("#000000"),  # Black stripes of the Breton flag.
+        LATIN_LETTERS + "ÂÊÎÔÛÜÙÑñâêîôûüù",
+        self_name="brezhoneg",
+    )
+    BULGARIAN: Language = Language(
+        "bg",
+        Color("#00966E"),  # Green color of the Bulgarian flag.
+        CYRILLIC_LETTERS,
+        self_name="български",
+    )
+    CATALAN: Language = Language(
+        "ca",
+        Color("#FCDD09"),  # Yellow color of the Catalan flag.
+        LATIN_LETTERS + "ÀÇÉÈÍÏÓÒÚÜ·àçéèíïóòúü",
+        self_name="català",
+    )
+    CROATIAN: Language = Language(
+        "hr",
+        Color("#D6001C"),  # Red color of the Croatian flag.
+        LATIN_LETTERS + "ČĆĐŠŽčćđšž",
+        self_name="hrvatski",
+    )
+    CZECH: Language = Language(
+        "cs",
+        Color("#11457E"),  # Blue color of the Czech flag.
+        LATIN_LETTERS + "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž",
+        self_name="čeština",
+    )
+    DANISH: Language = Language(
+        "da",
+        Color("#C60C30"),  # Red color of the Danish flag.
+        LATIN_LETTERS + "ÆØÅæøå",
+        self_name="dansk",
+    )
+    DUTCH: Language = Language(
+        "nl",
+        Color("#AE1C28"),  # Red color of the Dutch flag.
+        LATIN_LETTERS + "ÁÄÉËÍÏÓÖÚÜĲĳáäéëíïóöúü",
+        self_name="Nederlands",
+    )
+    ESTONIAN: Language = Language(
+        "et",
+        Color("#0072CE"),  # Blue color of the Estonian flag.
+        LATIN_LETTERS + "ŠŽÕÄÖÜšžõäöü",
+        self_name="eesti",
+    )
+    FINNISH: Language = Language(
+        "fi",
+        Color("#003580"),  # Blue color of the Finnish flag.
+        LATIN_LETTERS + "ÄÖÅäöåŠŽšž",
+        self_name="suomi",
+    )
+    GALICIAN: Language = Language(
+        "gl",
+        Color("#0066CC"),  # Blue color of the Galician flag.
+        LATIN_LETTERS + "ÁÉÍÓÚÜÑñáéíóúü",
+        self_name="galego",
+    )
+    HINDI: Language = Language(
+        "hi",
+        Color("#FF9933"),  # Saffron color of the Indian flag.
+        DEVANAGARI_LETTERS,
+        self_name="हिन्दी",
+    )
+    HUNGARIAN: Language = Language(
+        "hu",
+        Color("#CD2A3E"),  # Red color of the Hungarian flag.
+        LATIN_LETTERS + "ÁÉÍÓÖŐÚÜŰáéíóöőúüű",
+        self_name="magyar",
+    )
+    INDONESIAN: Language = Language(
+        "id",
+        Color("#CE1126"),  # Red color of the Indonesian flag.
+        LATIN_LETTERS,
+        self_name="bahasa Indonesia",
+    )
+    KAZAKH: Language = Language(
+        "kk",
+        Color("#00AFCA"),  # Sky-blue color of the Kazakh flag.
+        CYRILLIC_LETTERS,
+        self_name="қазақ тілі",
+    )
+    LITHUANIAN: Language = Language(
+        "lt",
+        Color("#FDB913"),  # Yellow color of the Lithuanian flag.
+        LATIN_LETTERS + "ĄČĘĖĮŠŲŪŽąčęėįšųūž",
+        self_name="lietuvių",
+    )
+    MACEDONIAN: Language = Language(
+        "mk",
+        Color("#D20000"),  # Red color of the Macedonian flag.
+        CYRILLIC_LETTERS,
+        self_name="македонски",
+    )
+    MALAYALAM: Language = Language(
+        "ml",
+        Color("#00843D"),  # Green representative color.
+        MALAYALAM_LETTERS,
+        self_name="മലയാളം",
+    )
+    ROMANIAN: Language = Language(
+        "ro",
+        Color("#002B7F"),  # Blue color of the Romanian flag.
+        LATIN_LETTERS + "ÂĂÎȘȚâăîșț",
+        self_name="română",
+    )
+    SERBIAN: Language = Language(
+        "sr",
+        Color("#C6363C"),  # Red color of the Serbian flag.
+        CYRILLIC_LETTERS,
+        self_name="српски",
+    )
+    SINHALA: Language = Language(
+        "si",
+        Color("#FFB700"),  # Golden color of the Sri Lankan flag.
+        SINHALA_LETTERS,
+        self_name="සිංහල",
+    )
+    SLOVAK: Language = Language(
+        "sk",
+        Color("#0B4EA2"),  # Blue color of the Slovak flag.
+        LATIN_LETTERS + "ÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž",
+        self_name="slovenčina",
+    )
+    SLOVENIAN: Language = Language(
+        "sl",
+        Color("#005DA4"),  # Blue color of the Slovenian flag.
+        LATIN_LETTERS + "ČŠŽčšž",
+        self_name="slovenščina",
+    )
+    TAGALOG: Language = Language(
+        "tl",
+        Color("#0038A8"),  # Blue color of the Philippine flag.
+        LATIN_LETTERS + "Ññ",
+        self_name="Tagalog",
+    )
+    TAMIL: Language = Language(
+        "ta",
+        Color("#C8102E"),  # Red representative color.
+        TAMIL_LETTERS,
+        self_name="தமிழ்",
+    )
+    TELUGU: Language = Language(
+        "te",
+        Color("#F5A800"),  # Golden representative color.
+        TELUGU_LETTERS,
+        self_name="తెలుగు",
+    )
+    THAI: Language = Language(
+        "th",
+        Color("#2D2A4A"),  # Blue color of the Thai flag.
+        THAI_LETTERS,
+        self_name="ไทย",
+    )
+    TURKISH: Language = Language(
+        "tr",
+        Color("#E30A17"),  # Red color of the Turkish flag.
+        LATIN_LETTERS + "ÇĞİıÖŞÜçğöşü",
+        self_name="Türkçe",
+    )
+    URDU: Language = Language(
+        "ur",
+        Color("#01411C"),  # Green color of the Pakistani flag.
+        ARABIC_LETTERS,
+        self_name="اردو",
+    )
+    VIETNAMESE: Language = Language(
+        "vi",
+        Color("#DA251D"),  # Red color of the Vietnamese flag.
+        LATIN_LETTERS
+        + "ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯư"
+        + letter_range("ạ", "ỹ"),
+        self_name="Tiếng Việt",
     )
 
 
