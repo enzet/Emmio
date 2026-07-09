@@ -70,6 +70,19 @@ function relativeTime(iso) {
     return new Date(iso).toLocaleDateString();
 }
 
+// Format a positive duration in milliseconds as a short countdown, using the
+// two largest non-zero units (e.g. "3d 4h", "5h 12m", "20m"). Returns "now"
+// for non-positive durations.
+function formatCountdown(ms) {
+    if (ms <= 0) return "now";
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+    if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    return `${Math.max(minutes, 1)}m`;
+}
+
 // Turn an ISO language code (e.g. `fr`) into a human name (`French`). Falls
 // back to the code itself for unknown or malformed codes.
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
@@ -81,19 +94,17 @@ function languageName(code) {
     }
 }
 
-// Approximate CEFR level for a lexicon rate, following the CEFR-to-rate
-// correspondence in research/metric.tex. The rate values for the C levels are
-// rough lower bounds, so these labels are only indicative. Rates below A1 or a
-// missing rate return an em dash.
-function cefrLevel(rate) {
-    if (rate === null || rate < 3.0) return "—";
-    if (rate < 3.6) return "A1";
-    if (rate < 4.3) return "A2";
-    if (rate < 4.6) return "B1";
-    if (rate < 5.1) return "B2";
-    if (rate < 5.6) return "C1";
-    if (rate < 7.6) return "C2";
-    return "Native";
+// Emmio-specific language level derived directly from the lexicon rate `r`:
+// each level spans one unit of `r`. Rates below A1 or a missing rate return an
+// em dash.
+function emmioLevel(rate) {
+    if (rate === null || rate < 2) return "—";
+    if (rate < 3) return "A1";
+    if (rate < 4) return "A2";
+    if (rate < 5) return "B1";
+    if (rate < 6) return "B2";
+    if (rate < 7) return "C1";
+    return "C2";
 }
 
 // Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
@@ -275,18 +286,34 @@ async function initHome() {
         rateCell.style.fontVariantNumeric = "tabular-nums";
         row.appendChild(rateCell);
 
-        // Approximate CEFR level derived from the rate (see metric.tex).
-        const cefrCell = document.createElement("td");
-        cefrCell.textContent = entry ? cefrLevel(entry.rate) : "—";
-        row.appendChild(cefrCell);
+        // Emmio-specific language level derived from the rate.
+        const levelCell = document.createElement("td");
+        levelCell.textContent = entry ? emmioLevel(entry.rate) : "—";
+        row.appendChild(levelCell);
 
-        // "Don't know" answers still wanted this week; blank when on target or
-        // when the language has no lexicon.
-        const remainingCell = document.createElement("td");
-        remainingCell.textContent =
-            entry && entry.weekly_remaining > 0 ? entry.weekly_remaining : "";
-        remainingCell.style.textAlign = "right";
-        row.appendChild(remainingCell);
+        // Lexicon column: when checks are still wanted this week, the number
+        // remaining and a "Check" button; otherwise the time until the next
+        // check becomes available (last "don't know" answer plus one week).
+        const lexiconCell = document.createElement("td");
+        if (entry && entry.weekly_remaining > 0) {
+            const remaining = document.createElement("span");
+            remaining.textContent = entry.weekly_remaining;
+            remaining.style.marginRight = "0.5em";
+            lexiconCell.appendChild(remaining);
+            const check = document.createElement("a");
+            check.className = "button";
+            check.href = `check?lexicon=${encodeURIComponent(
+                entry.lexicon_id,
+            )}`;
+            check.insertAdjacentHTML("afterbegin", BOOK_ICON);
+            check.appendChild(document.createTextNode("Check"));
+            lexiconCell.appendChild(check);
+        } else if (entry && entry.last_dont_know) {
+            const nextCheck =
+                new Date(entry.last_dont_know).getTime() + 7 * 86400000;
+            lexiconCell.textContent = formatCountdown(nextCheck - Date.now());
+        }
+        row.appendChild(lexiconCell);
 
         // Courses to study for this language, each linking to its session.
         const coursesCell = document.createElement("td");
@@ -300,19 +327,6 @@ async function initHome() {
             coursesCell.appendChild(learn);
         }
         row.appendChild(coursesCell);
-
-        const checkCell = document.createElement("td");
-        if (entry && entry.weekly_remaining > 0) {
-            const check = document.createElement("a");
-            check.className = "button";
-            check.href = `check?lexicon=${encodeURIComponent(
-                entry.lexicon_id,
-            )}`;
-            check.insertAdjacentHTML("afterbegin", BOOK_ICON);
-            check.appendChild(document.createTextNode("Check"));
-            checkCell.appendChild(check);
-        }
-        row.appendChild(checkCell);
 
         rows.appendChild(row);
     }

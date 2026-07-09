@@ -1550,6 +1550,7 @@ class LanguageRate(BaseModel):
     lexicon_id: str  # The main lexicon the rate comes from.
     rate: float | None  # Vocabulary rate, or None if not enough data.
     weekly_remaining: int  # Weekly precision goal minus this week's progress.
+    last_dont_know: datetime | None  # Time of the last "don't know" answer.
 
 
 @app.get("/api/v1/me/languages")
@@ -1567,13 +1568,19 @@ def get_my_languages(
         precision_per_week,
         dont_last_week,
     ) in postgres.get_main_lexicons(user_id):
-        _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
+        sequence = sequences.get(lexicon_id, [])
+        _, rate_values = compute_lexicon_rate(sequence)
+        last_dont_know = next(
+            (time for time, response in reversed(sequence) if response == 0),
+            None,
+        )
         rates.append(
             LanguageRate(
                 language=language,
                 lexicon_id=lexicon_id,
                 rate=rate_values[-1] if rate_values else None,
                 weekly_remaining=precision_per_week - dont_last_week,
+                last_dont_know=last_dont_know,
             )
         )
     rates.sort(

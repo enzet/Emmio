@@ -9,8 +9,13 @@ Usage:
 
     python scripts/export_json.py --user enzet --output /path/to/repo
 
+Artifacts are read from PostgreSQL (the source of truth), so lexicons and
+courses created through the web are included too. The local `config.json`, if
+present, is used only to keep historical file names; artifacts without one are
+written as `<id>.json`.
+
 The output directory gets `learn/` and `lexicon/` subdirectories with one
-JSON file per artifact, named after `file_name` in the user configuration.
+JSON file per artifact.
 """
 
 import argparse
@@ -19,6 +24,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from emmio import postgres
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
 from emmio.lexicon.config import LexiconConfig
@@ -53,23 +59,36 @@ def main() -> None:
     )
     arguments: argparse.Namespace = parser.parse_args()
 
+    # The local `config.json` (if present) only maps artifact ids to their
+    # historical file names, so exported files keep stable names and Git diffs
+    # stay clean. The artifacts themselves come from PostgreSQL, which is the
+    # source of truth and also holds artifacts created through the web that were
+    # never written to `config.json`.
     user_path: Path = arguments.data_dir / "users" / arguments.user
-    with (user_path / "config.json").open(encoding="utf-8") as config_file:
-        user_config: dict[str, Any] = json.load(config_file)
+    config_path: Path = user_path / "config.json"
+    if config_path.exists():
+        with config_path.open(encoding="utf-8") as config_file:
+            user_config: dict[str, Any] = json.load(config_file)
+    else:
+        user_config = {}
+
+    def file_name_for(section: str, artifact_id: str) -> str:
+        """Historical file name for an artifact id, or `<id>.json`."""
+        entry: dict = user_config.get(section, {}).get(artifact_id, {})
+        name: str = entry.get("file_name", f"{artifact_id}.json")
+        # Always export as JSON, even if the original file used YAML.
+        return str(Path(name).with_suffix(".json"))
 
     learn_path: Path = arguments.output / "learn"
     lexicon_path: Path = arguments.output / "lexicon"
     learn_path.mkdir(parents=True, exist_ok=True)
     lexicon_path.mkdir(parents=True, exist_ok=True)
 
-    for course_id, config in user_config.get("learn", {}).items():
+    for course_id, config in postgres.get_learn_configs(arguments.user).items():
         learning: Learning = Learning.from_config(
             learn_path, LearnConfig(**config), course_id, arguments.user
         )
-        # Export under the configured file name, but always as JSON, even if
-        # the original file was in the old YAML format.
-        file_name: str = str(Path(config["file_name"]).with_suffix(".json"))
-        (learn_path / file_name).write_text(
+        (learn_path / file_name_for("learn", course_id)).write_text(
             learning.dump_json() + "\n", encoding="utf-8"
         )
         logger.info(
@@ -78,11 +97,13 @@ def main() -> None:
             len(learning.process.records),
         )
 
-    for lexicon_id, config in user_config.get("lexicon", {}).items():
+    for lexicon_id, config in postgres.get_lexicon_configs(
+        arguments.user
+    ).items():
         lexicon: Lexicon = Lexicon.from_config(
             lexicon_path, lexicon_id, LexiconConfig(**config), arguments.user
         )
-        (lexicon_path / config["file_name"]).write_text(
+        (lexicon_path / file_name_for("lexicon", lexicon_id)).write_text(
             lexicon.dump_json() + "\n", encoding="utf-8"
         )
         logger.info(
