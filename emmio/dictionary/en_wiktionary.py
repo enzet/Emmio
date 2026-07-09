@@ -29,6 +29,25 @@ __email__ = "me@enzet.ru"
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+# Languages whose kaikki.org name differs from Emmio's `get_name()`, keyed by
+# ISO 639-1 code. Without these, the words-file URL would 404.
+_KAIKKI_NAME_OVERRIDES: dict[str, str] = {
+    "el": "Greek",  # Emmio: "Modern Greek".
+    "si": "Sinhalese",  # Emmio: "Sinhala".
+    "sl": "Slovene",  # Emmio: "Slovenian".
+}
+
+
+def kaikki_language_name(language: Language) -> str:
+    """Name of a language on kaikki.org, used in its words-file URL and cache.
+
+    kaikki.org names most languages as Emmio's `get_name()` does, but a few
+    differ; this is the single source of truth for the Kaikki name so the
+    download URL, the on-disk cache, and `has_kaikki` all agree.
+    """
+    return _KAIKKI_NAME_OVERRIDES.get(language.get_code(), language.get_name())
+
+
 PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
 FORMS: set[str] = set(CONFIG["forms"])
 PART_OF_SPEECH_MAP: dict[str, str] = {

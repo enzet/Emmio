@@ -70,3 +70,28 @@ def test_ukrainian() -> None:
 
     assert not KnownLanguages.UKRAINIAN.is_word("чоловiк")  # With ASCII "i".
     assert not KnownLanguages.UKRAINIAN.is_word("пыль")
+
+
+def test_turkish() -> None:
+    """Check that Turkish words are detected correctly."""
+
+    assert KnownLanguages.TURKISH.is_word("köşe")
+    assert KnownLanguages.TURKISH.is_word("ışık")  # With dotless letters.
+
+    assert not KnownLanguages.TURKISH.is_word("книга")
+
+
+def test_thai() -> None:
+    """Check that Thai words are detected correctly."""
+
+    assert KnownLanguages.THAI.is_word("สวัสดี")
+
+    assert not KnownLanguages.THAI.is_word("hello")
+
+
+def test_hindi() -> None:
+    """Check that Hindi words are detected correctly."""
+
+    assert KnownLanguages.HINDI.is_word("नमस्ते")
+
+    assert not KnownLanguages.HINDI.is_word("hello")

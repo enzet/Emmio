@@ -780,7 +780,7 @@ class Emmio:
                         self.data.path,
                         language,
                         arguments.year
-                        or inventory.DEFAULT_FREQUENCY_WORDS_YEAR,
+                        or inventory.frequency_words_year(language),
                     )
                 case _:
                     return  # Unreachable: `argparse` restricts the choices.

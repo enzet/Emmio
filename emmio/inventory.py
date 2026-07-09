@@ -21,6 +21,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from emmio.catalog import FREQUENCY_WORDS_YEARS
 from emmio.data import (
     CONFIGURATION_FILE_NAME,
     DICTIONARIES_DIRECTORY_NAME,
@@ -31,6 +32,7 @@ from emmio.dictionary.config import DictionaryConfig
 from emmio.dictionary.en_wiktionary import (
     DictionaryDownloadError,
     EnglishWiktionaryKaikki,
+    kaikki_language_name,
 )
 from emmio.language import KnownLanguages, Language
 from emmio.lists.config import FrequencyListConfig, WordListConfig
@@ -48,6 +50,18 @@ ARTIFACT_TYPES: tuple[str, str, str] = (
 
 DEFAULT_FREQUENCY_WORDS_YEAR: int = 2018
 """The most recent year the FrequencyWords project has lists for."""
+
+
+def frequency_words_year(language: Language) -> int:
+    """Best FrequencyWords release year for a language.
+
+    Uses the static catalog (e.g. Thai and Chinese only exist in 2016), falling
+    back to the most recent release for languages absent from it.
+    """
+    return FREQUENCY_WORDS_YEARS.get(
+        language.get_code(), DEFAULT_FREQUENCY_WORDS_YEAR
+    )
+
 
 # The config field naming the artifact's file, per artifact type.
 _FILE_FIELD: dict[str, str] = {
@@ -190,7 +204,7 @@ def dictionary_artifacts(base: Path) -> list[Artifact]:
                 "kaikki",
                 language.get_code(),
                 base,
-                directory / "cache" / "kaikki" / language.get_name(),
+                directory / "cache" / "kaikki" / kaikki_language_name(language),
             )
         )
     for id_, raw in sorted(_read_config(directory).items()):
@@ -312,13 +326,16 @@ def list_artifacts(base: Path) -> list[Artifact]:
             )
         )
     for language in KnownLanguages.get_languages():
-        if language.get_code() in covered:
+        code: str = language.get_code()
+        # Only offer a FrequencyWords download where the project actually has a
+        # list (e.g. Latin and Norwegian Bokmål have none).
+        if code in covered or code not in FREQUENCY_WORDS_YEARS:
             continue
         artifacts.append(
             Artifact(
                 name="FrequencyWords",
                 kind="frequency_words",
-                language=language.get_code(),
+                language=code,
                 downloaded=False,
                 size=None,
                 path=None,
@@ -344,14 +361,13 @@ def download_kaikki(base: Path, language: Language) -> tuple[Path, bool]:
     :param language: language of the words being defined
     """
     directory: Path = base / DICTIONARIES_DIRECTORY_NAME
-    cache: Path = directory / "cache" / "kaikki" / language.get_name()
+    name: str = kaikki_language_name(language)
+    cache: Path = directory / "cache" / "kaikki" / name
     if cache.exists():
         return cache, False
     directory.mkdir(parents=True, exist_ok=True)
     try:
-        EnglishWiktionaryKaikki(
-            directory, directory / "cache", language, language.get_name()
-        )
+        EnglishWiktionaryKaikki(directory, directory / "cache", language, name)
     except (ValueError, DictionaryDownloadError) as error:
         raise InventoryError(str(error)) from error
     return cache, True
@@ -446,7 +462,7 @@ def delete_kaikki(base: Path, language: Language) -> tuple[list[Path], int]:
         / DICTIONARIES_DIRECTORY_NAME
         / "cache"
         / "kaikki"
-        / language.get_name()
+        / kaikki_language_name(language)
     )
     if not cache.exists():
         message: str = (

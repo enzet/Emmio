@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
 
+from emmio.catalog import FREQUENCY_WORDS_YEARS
 from emmio.core import ArtifactData
 from emmio.language import Language
 from emmio.lists.config import (
@@ -133,6 +134,15 @@ class ListsData(ArtifactData):
             if year > best_year.get(language, 0):
                 best_year[language] = year
         for language, year in best_year.items():
+            languages.setdefault(
+                language,
+                {"id": "frequency_words", "language": language, "year": year},
+            )
+
+        # Languages whose FrequencyWords list is not downloaded yet but can be:
+        # offer them too (the file is fetched on first use). Downloaded and
+        # configured lists above still win.
+        for language, year in FREQUENCY_WORDS_YEARS.items():
             languages.setdefault(
                 language,
                 {"id": "frequency_words", "language": language, "year": year},

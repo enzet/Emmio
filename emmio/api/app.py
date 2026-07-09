@@ -47,6 +47,7 @@ from emmio.audio.transcode import to_browser_playable
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
+from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
@@ -460,9 +461,10 @@ def _translation_config(
     """Build a lexicon's `dictionaries` and `sentences` config.
 
     Dictionaries: a Kaikki (en.wiktionary) entry when `with_kaikki` is set
-    (English is a target and the language has a Kaikki cache), plus a Google
-    Translate entry into every target language. Sentences: Tatoeba examples in
-    the lexicon's language, translated into the target languages.
+    (English is a target and kaikki.org has the language; it is downloaded in
+    the background on first use), plus a Google Translate entry into every
+    target language. Sentences: Tatoeba examples in the lexicon's language,
+    translated into the target languages.
 
     :param language: the lexicon's language code
     :param targets: language codes to translate words and sentences into
@@ -474,7 +476,7 @@ def _translation_config(
             {
                 "id": "kaikki",
                 "from_language": language,
-                "name": Language.from_code(language).get_name(),
+                "name": kaikki_language_name(Language.from_code(language)),
             }
         )
     dictionaries.extend(
@@ -547,8 +549,11 @@ def create_lexicon(
         lexicon_id = f"{request.language}_{suffix}"
         suffix += 1
 
-    with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
-        Language.from_code(request.language)
+    with_kaikki: bool = (
+        "en" in targets
+        and data.dictionaries.can_download_kaikki(
+            Language.from_code(request.language)
+        )
     )
     dictionaries, sentences = _translation_config(
         request.language, targets, with_kaikki=with_kaikki
@@ -564,6 +569,24 @@ def create_lexicon(
     postgres.store_lexicon_config(user_id, lexicon_id, config)
     postgres.set_main_lexicon(user_id, lexicon_id)
     return CreatedLexicon(lexicon_id=lexicon_id)
+
+
+@app.delete(
+    "/api/v1/me/lexicons/{lexicon_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_lexicon(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Delete a lexicon and all its answer history.
+
+    Irreversible: removes the lexicon along with every word and record it owns.
+    Responds 404 when the user has no such lexicon.
+    """
+    if not postgres.delete_lexicon(user_id, lexicon_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown lexicon `{lexicon_id}`.",
+        )
 
 
 class LexiconSettings(BaseModel):
@@ -660,7 +683,9 @@ def update_lexicon_settings(
         language: str = config["language"]
         with_kaikki: bool = (
             "en" in targets
-            and get_data().dictionaries.has_kaikki(Language.from_code(language))
+            and get_data().dictionaries.can_download_kaikki(
+                Language.from_code(language)
+            )
         )
         dictionaries, sentences = _translation_config(
             language, targets, with_kaikki=with_kaikki
@@ -728,8 +753,11 @@ def create_course(
         course_id = f"{request.language}_{suffix}"
         suffix += 1
 
-    with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
-        Language.from_code(request.language)
+    with_kaikki: bool = (
+        "en" in targets
+        and data.dictionaries.can_download_kaikki(
+            Language.from_code(request.language)
+        )
     )
     dictionaries, sentences = _translation_config(
         request.language, targets, with_kaikki=with_kaikki
@@ -742,7 +770,9 @@ def create_course(
             {
                 "id": "kaikki",
                 "from_language": request.language,
-                "name": Language.from_code(request.language).get_name(),
+                "name": kaikki_language_name(
+                    Language.from_code(request.language)
+                ),
             }
         ]
     config: dict = {
@@ -857,8 +887,11 @@ def update_course_settings(
                 detail="At least one valid translation language is required.",
             )
         language: str = config["learning_language"]
-        with_kaikki: bool = "en" in targets and data.dictionaries.has_kaikki(
-            Language.from_code(language)
+        with_kaikki: bool = (
+            "en" in targets
+            and data.dictionaries.can_download_kaikki(
+                Language.from_code(language)
+            )
         )
         dictionaries, sentences = _translation_config(
             language, targets, with_kaikki=with_kaikki

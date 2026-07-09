@@ -27,9 +27,9 @@ client: TestClient = TestClient(app)
 
 
 class _FakeDictionaries:
-    """Stand-in for the dictionary inventory: no Kaikki caches available."""
+    """Stand-in for the dictionary inventory: no Kaikki available."""
 
-    def has_kaikki(self, language: object) -> bool:  # noqa: ARG002
+    def can_download_kaikki(self, language: object) -> bool:  # noqa: ARG002
         return False
 
 
@@ -322,6 +322,25 @@ def test_create_lexicon_sets_it_as_main() -> None:
     lexicon_id = response.json()["lexicon_id"]
     assert lexicon_id == "uk"
     assert postgres.is_main_lexicon("alice", "uk")
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_delete_lexicon_removes_it() -> None:
+    """Deleting a lexicon removes it; a second delete is a 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    first = client.delete("/api/v1/me/lexicons/uk", headers=_auth(token))
+    assert first.status_code == 204
+    assert postgres.get_lexicon_config("alice", "uk") is None
+
+    second = client.delete("/api/v1/me/lexicons/uk", headers=_auth(token))
+    assert second.status_code == 404
 
 
 @pytest.mark.usefixtures("fake_languages")

@@ -769,6 +769,44 @@ def delete_course(user_id: str, course_id: str) -> bool:
     return True
 
 
+def delete_lexicon(user_id: str, lexicon_id: str) -> bool:
+    """Delete a single lexicon and all its words, records, and sessions.
+
+    The schema has no `ON DELETE CASCADE`, so child rows are removed in
+    dependency order inside one transaction; either all of it goes or none.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: whether a lexicon was deleted (`False` if none existed)
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT l.id FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        if not (row := cursor.fetchone()):
+            return False
+        lexicon_db_id: int = int(row[0])
+
+        # Deepest first: records (via words) and sessions before the words and
+        # the lexicon row itself.
+        cursor.execute(
+            "DELETE FROM lexicon_records r USING lexicon_words w "
+            "WHERE r.word_id = w.id AND w.lexicon_id = %s",
+            (lexicon_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM lexicon_sessions WHERE lexicon_id = %s",
+            (lexicon_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM lexicon_words WHERE lexicon_id = %s", (lexicon_db_id,)
+        )
+        cursor.execute("DELETE FROM lexicons WHERE id = %s", (lexicon_db_id,))
+    return True
+
+
 def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
     """Get the set of words already recorded in a user's lexicon.
 

@@ -592,6 +592,33 @@ async function initLexicon() {
     renderDefinitionList(stats, rows);
 
     await setupLexiconSettings(lexiconId);
+
+    // Delete: removes the lexicon and all its history, then returns to the list.
+    const danger = document.getElementById("danger");
+    const deleteStatus = document.getElementById("delete-status");
+    danger.hidden = false;
+    document
+        .getElementById("delete-lexicon")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    `Delete lexicon "${lexiconId}" and all its history? This ` +
+                        "cannot be undone.",
+                )
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api(
+                `/me/lexicons/${encodeURIComponent(lexiconId)}`,
+                { method: "DELETE" },
+            );
+            if (result.ok) {
+                location.href = "lexicons";
+            } else {
+                deleteStatus.textContent = "Could not delete lexicon.";
+            }
+        });
 }
 
 // Fill and wire the lexicon settings form: translation targets (which
