@@ -1,0 +1,51 @@
+# XcodeGen spec for the Emmio iOS app.
+#
+# The `.xcodeproj` is generated from this file (and git-ignored), so the project
+# is reproducible and never causes merge conflicts. Regenerate after adding or
+# removing source files:
+#
+#     cd ios && xcodegen generate
+#
+# Then open `Emmio.xcodeproj`, or build from the command line (see README).
+
+name: Emmio
+options:
+  bundleIdPrefix: ru.enzet.emmio
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  EmmioKit:
+    path: EmmioKit
+
+targets:
+  Emmio:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - EmmioApp
+    dependencies:
+      - package: EmmioKit
+        product: EmmioKit
+    info:
+      path: Emmio-Info.plist
+      properties:
+        CFBundleDisplayName: Emmio
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # Allow plain-HTTP to localhost / .local hosts so the app can talk to a
+        # `uvicorn` dev server. A shipping build points at an HTTPS host and
+        # would drop this.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ru.enzet.emmio
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
