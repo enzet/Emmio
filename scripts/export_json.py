@@ -9,16 +9,15 @@ Usage:
 
     python scripts/export_json.py --user enzet --output /path/to/repo
 
-Artifacts are read from PostgreSQL (the source of truth), so lexicons and
-courses created through the web are included too. The local `config.json`, if
-present, is used only to keep historical file names; artifacts without one are
-written as `<id>.json`.
+Everything is read from PostgreSQL (the single source of truth), so lexicons
+and courses created through the web are included too; nothing is read from
+the data repository itself.
 
 The output directory gets `learn/` and `lexicon/` subdirectories with one
-JSON file per artifact, plus a `config.json` snapshot of the configurations
-in the historical format. The application no longer reads `learn`/`lexicon`
-sections from that file (they live in PostgreSQL); it is written so that
-configuration changes show up in the Git history alongside the records.
+`<id>.json` file per artifact, plus a `config.json` snapshot of the
+configurations in the historical format. The application never reads that
+file; it is written so that configuration changes show up in the Git history
+alongside the records.
 """
 
 import argparse
@@ -49,12 +48,6 @@ def main() -> None:
     )
     parser.add_argument("--user", required=True, help="user identifier")
     parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path.home() / ".emmio",
-        help="path to Emmio data directory",
-    )
-    parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -68,26 +61,6 @@ def main() -> None:
     if user_row is None:
         message: str = f"User `{arguments.user}` not found in the database."
         raise SystemExit(message)
-
-    # The local `config.json` (if present) only maps artifact ids to their
-    # historical file names, so exported files keep stable names and Git diffs
-    # stay clean. The artifacts themselves come from PostgreSQL, which is the
-    # source of truth and also holds artifacts created through the web that were
-    # never written to `config.json`.
-    user_path: Path = arguments.data_dir / "users" / arguments.user
-    config_path: Path = user_path / "config.json"
-    if config_path.exists():
-        with config_path.open(encoding="utf-8") as config_file:
-            user_config: dict[str, Any] = json.load(config_file)
-    else:
-        user_config = {}
-
-    def file_name_for(section: str, artifact_id: str) -> str:
-        """Historical file name for an artifact id, or `<id>.json`."""
-        entry: dict = user_config.get(section, {}).get(artifact_id, {})
-        name: str = entry.get("file_name", f"{artifact_id}.json")
-        # Always export as JSON, even if the original file used YAML.
-        return str(Path(name).with_suffix(".json"))
 
     learn_path: Path = arguments.output / "learn"
     lexicon_path: Path = arguments.output / "lexicon"
@@ -103,7 +76,7 @@ def main() -> None:
         learning: Learning = Learning.from_config(
             learn_path, LearnConfig(**config), course_id, arguments.user
         )
-        (learn_path / file_name_for("learn", course_id)).write_text(
+        (learn_path / f"{course_id}.json").write_text(
             learning.dump_json() + "\n", encoding="utf-8"
         )
         logger.info(
@@ -116,7 +89,7 @@ def main() -> None:
         lexicon: Lexicon = Lexicon.from_config(
             lexicon_path, lexicon_id, LexiconConfig(**config), arguments.user
         )
-        (lexicon_path / file_name_for("lexicon", lexicon_id)).write_text(
+        (lexicon_path / f"{lexicon_id}.json").write_text(
             lexicon.dump_json() + "\n", encoding="utf-8"
         )
         logger.info(
@@ -124,24 +97,21 @@ def main() -> None:
         )
 
     # Snapshot the configurations into `config.json` in the historical format,
-    # so they are versioned in Git next to the records. Keys the database does
-    # not own (`name`, `read`, `listen`, ...) are carried over from the local
-    # config; the `learn`/`lexicon` sections are rebuilt from PostgreSQL, each
-    # entry pointing at the file this export wrote.
-    snapshot: dict[str, Any] = (
-        dict(user_config) if user_config else {"listen": {}}
-    )
-    snapshot["name"] = user_row[1] or user_config.get("name", arguments.user)
-    snapshot["learn"] = {
-        course_id: {"file_name": file_name_for("learn", course_id), **config}
-        for course_id, config in learn_configs.items()
-    }
-    snapshot["lexicon"] = {
-        lexicon_id: {
-            "file_name": file_name_for("lexicon", lexicon_id),
-            **config,
-        }
-        for lexicon_id, config in lexicon_configs.items()
+    # so they are versioned in Git next to the records. The `learn`/`lexicon`
+    # sections point at the files this export wrote; sections without
+    # dedicated tables (`listen`, historical `read`) come from the user's
+    # `config` column.
+    snapshot: dict[str, Any] = {
+        "name": user_row[1] or arguments.user,
+        "learn": {
+            course_id: {"file_name": f"{course_id}.json", **config}
+            for course_id, config in learn_configs.items()
+        },
+        "lexicon": {
+            lexicon_id: {"file_name": f"{lexicon_id}.json", **config}
+            for lexicon_id, config in lexicon_configs.items()
+        },
+        **(postgres.get_user_config(arguments.user) or {}),
     }
     (arguments.output / "config.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, indent=4) + "\n",

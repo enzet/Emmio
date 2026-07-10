@@ -1,21 +1,26 @@
 -- Emmio PostgreSQL schema.
 --
 -- A course/lexicon is a stable identity per language; operational configuration
--- (frequency lists, dictionaries, sentence corpora) stays in the user
--- configuration file.
+-- (frequency lists, dictionaries, sentence corpora) lives in the `config`
+-- JSONB columns. The database is the single source of truth for all user
+-- configuration; `config.json` files are only written by exports for Git
+-- history, never read.
 
 -- Users.
 
 -- One row per user. `user_id` is the stable string login used by the CLI and
 -- the API (e.g. `enzet`); `id` is the internal integer key referenced by owned
 -- data. `email` and `hashed_password` are nullable: CLI-only and test users
--- need neither.
+-- need neither. `config` holds the user configuration sections that have no
+-- dedicated tables (currently `listen`, plus historical sections such as
+-- `read`), so that no configuration is read from `config.json` files.
 CREATE TABLE IF NOT EXISTS users (
     id              SERIAL PRIMARY KEY,
     user_id         TEXT NOT NULL UNIQUE,
     name            TEXT NOT NULL,
     email           TEXT UNIQUE,
     hashed_password TEXT,
+    config          JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

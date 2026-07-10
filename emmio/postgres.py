@@ -274,6 +274,46 @@ def get_user(user_id: str) -> tuple[str, str, str | None] | None:
         return None
 
 
+def get_users() -> list[tuple[str, str, dict]]:
+    """Get every user as a (login, display name, config) tuple.
+
+    `config` holds the user-level configuration sections that have no
+    dedicated tables (currently `listen`, plus historical sections such as
+    `read`).
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT user_id, name, config FROM users ORDER BY id")
+        return [(row[0], row[1], row[2] or {}) for row in cursor.fetchall()]
+
+
+def get_user_config(user_id: str) -> dict | None:
+    """Get a user's extra configuration sections, or `None` if no such user.
+
+    :param user_id: user login, e.g. `john`
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT config FROM users WHERE user_id = %s", (user_id,)
+        )
+        if row := cursor.fetchone():
+            return row[0] or {}
+        return None
+
+
+def store_user_config(user_id: str, config: dict) -> None:
+    """Replace a user's extra configuration sections.
+
+    :param user_id: user login, e.g. `john`
+    :param config: configuration sections without dedicated tables
+        (e.g. `listen`)
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE users SET config = %s WHERE user_id = %s",
+            (Jsonb(config), user_id),
+        )
+
+
 def get_account(user_id: str) -> dict[str, object] | None:
     """Get a user's account profile for a data export, or `None`.
 

@@ -19,7 +19,6 @@ from emmio.__main__ import main
 from emmio.learn.config import LearningConfigType
 from emmio.lexicon.config import LexiconConfigType
 from emmio.lexicon.core import AnswerType, LexiconResponse
-from emmio.user.config import UserConfigType
 
 DictionaryConfigType = dict[str, str | bool]
 ListConfigType = dict[str, str | bool]
@@ -92,9 +91,6 @@ def check_main(
         for subdirectory in "dictionaries", "texts", "users":
             assert Path(temp_directory, subdirectory).exists()
         assert Path(temp_directory, "users", temp_user_id).exists()
-        assert Path(
-            temp_directory, "users", temp_user_id, "config.json"
-        ).exists()
     finally:
         shutil.rmtree(temp_directory, ignore_errors=True)
 
@@ -230,7 +226,6 @@ def initialize(
     temp_user_directory.mkdir(parents=True, exist_ok=True)
     for subdirectory in "lexicon", "learn":
         (temp_user_directory / subdirectory).mkdir(parents=True, exist_ok=True)
-    temp_user_config: Path = temp_user_directory / "config.json"
 
     # Configurate dictionaries.
 
@@ -280,23 +275,12 @@ def initialize(
             ) as output_file:
                 output_file.write(content)
 
-    user_configuration: UserConfigType = {
-        "name": temp_user_name,
-        "learn": {},
-        "lexicon": {},
-        "read": {},
-        "listen": {},
-    }
-
     # The user must exist in the database before any data is stored for it.
+    # All user configuration lives in the database; no `config.json` is
+    # written.
     postgres.ensure_user(temp_user_id, temp_user_name)
 
     # Configurate lexicons.
-
-    if lexicons_configuration is not None:
-        user_configuration["lexicon"] = lexicons_configuration
-    with temp_user_config.open("w", encoding="utf-8") as output_file:
-        json.dump(user_configuration, output_file)
 
     if lexicons is not None and lexicons_configuration is not None:
         for file_name, lexicon_structure in lexicons.items():
@@ -310,11 +294,6 @@ def initialize(
                     )
 
     # Configurate learnings.
-
-    if learning_configuration is not None:
-        user_configuration["learn"] = learning_configuration
-    with temp_user_config.open("w", encoding="utf-8") as output_file:
-        json.dump(user_configuration, output_file)
 
     if learnings is not None and learning_configuration is not None:
         for file_name, learning_structure in learnings.items():

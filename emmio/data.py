@@ -10,14 +10,13 @@ This class manages Emmio data directory which is by default located in
 with artifacts and directory `users` with user data.
 """
 
-import json
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
-from emmio import ui
+from emmio import postgres, ui
 from emmio.audio.config import AudioUsageConfig
 from emmio.audio.core import AudioCollection, AudioProvider
 from emmio.audio.data import AudioData
@@ -102,13 +101,13 @@ class Data:
         if not users_path.exists():
             users_path.mkdir()
 
-        for user_path in users_path.iterdir():
-            with (user_path / CONFIGURATION_FILE_NAME).open(
-                encoding="utf-8"
-            ) as user_config_file:
-                user_data[user_path.name] = UserData.from_config(
-                    user_path.name, user_path, json.load(user_config_file)
-                )
+        # Users and their configuration come from the database (the single
+        # source of truth); the per-user directory only holds file-based data
+        # (listening) and may not exist for users created through the API.
+        for user_id, name, config in postgres.get_users():
+            user_data[user_id] = UserData.from_database(
+                user_id, users_path / user_id, name, config
+            )
         return cls(path, None, None, dictionaries, None, texts, user_data)
 
     def get_lists_data(self) -> ListsData:
