@@ -9,6 +9,7 @@ import pytest
 
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
     Lexicon,
     LexiconLog,
     LexiconResponse,
@@ -18,6 +19,7 @@ from emmio.lexicon.core import (
     estimate_rate_threshold,
     estimate_rate_with_sd,
     select_next_word,
+    stratum_of_rank,
 )
 from emmio.lists.config import (
     FrequencyListConfig,
@@ -78,6 +80,21 @@ def _ranked_frequency_list(size: int) -> FrequencyList:
     can be reasoned about directly in tests.
     """
     return _frequency_list({f"w{i}": size - i for i in range(size)})
+
+
+def test_stratum_of_rank_covers_and_orders_strata() -> None:
+    """Ranks map to valid, monotonic strata; the extremes hit both ends."""
+
+    size: int = 10_000
+    strata: list[int] = [
+        stratum_of_rank(rank, size) for rank in range(1, size + 1)
+    ]
+    assert strata[0] == 0
+    assert strata[-1] == DEFAULT_N_STRATA - 1
+    assert all(0 <= k < DEFAULT_N_STRATA for k in strata)
+    assert strata == sorted(strata)  # Higher rank never lowers the stratum.
+    # A single-word list degenerates to the first stratum.
+    assert stratum_of_rank(1, 1) == 0
 
 
 def test_select_next_word_top_walks_by_rank() -> None:

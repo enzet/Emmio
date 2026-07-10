@@ -53,6 +53,7 @@ from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
     RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
     Lexicon,
@@ -61,6 +62,7 @@ from emmio.lexicon.core import (
     compute_lexicon_rate,
     estimate_rate_with_sd,
     select_next_word,
+    stratum_of_rank,
 )
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
@@ -929,6 +931,16 @@ class WordCard(BaseModel):
     server concern rather than being reimplemented in the client.
     """
 
+    rank: int | None = None
+    """1-based position in the lexicon's frequency list (check page status).
+
+    Set for lexicon cards whose word is in the frequency list; `None` for
+    learning cards.
+    """
+
+    stratum: int | None = None
+    """0-based log-uniform stratum index of the word's rank (SFWR only)."""
+
 
 # Sentences containing a word to inspect when one example is enough. Keeping
 # this small avoids processing the hundreds a common word may appear in.
@@ -943,6 +955,12 @@ class NextWords(BaseModel):
 
     language: str  # ISO code of the words' language, e.g. `fr`.
     words: list[WordCard]
+    selection: str | None = None
+    """The lexicon's selection strategy (lexicon checks only)."""
+    list_size: int | None = None
+    """Number of words in the lexicon's frequency list (lexicon checks only)."""
+    strata: int | None = None
+    """Total number of strata, when `selection` is `stratified`."""
 
 
 # Short human labels for stored response codes, for the "last answer" hint.
@@ -1386,9 +1404,25 @@ def get_next_lexicon_words(
     if auto:
         postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
     answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
+    cards: list[WordCard] = _word_cards(
+        words, answers, _LEXICON_RESPONSE_LABELS
+    )
+    # Attach per-word strategy context for the check page's status panel: the
+    # word's frequency rank, and its stratum under the stratified strategy.
+    size: int = len(frequency_list)
+    for card in cards:
+        index: int = frequency_list.get_index(card.word)
+        if index < 0:
+            continue
+        card.rank = index + 1
+        if selection == "stratified":
+            card.stratum = stratum_of_rank(card.rank, size)
     return NextWords(
         language=language,
-        words=_word_cards(words, answers, _LEXICON_RESPONSE_LABELS),
+        words=cards,
+        selection=selection,
+        list_size=size,
+        strata=DEFAULT_N_STRATA if selection == "stratified" else None,
     )
 
 

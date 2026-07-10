@@ -736,6 +736,7 @@ async function runSession(base, doneText) {
 
     const queue = []; // Upcoming { word, lastResponse, lastTime, results }.
     const history = []; // Answered { word } (most recent last), for undo.
+    let refill = null; // The in-flight refill, so `/next` calls never overlap.
     let current = null; // The item on screen.
     let revealed = false; // Whether the current word's translation is shown.
     let language = null; // ISO code of the session's language (from `/next`).
@@ -746,6 +747,42 @@ async function runSession(base, doneText) {
     // request) is dropped, and the element is absent on non-check pages.
     const rateEstimate = document.getElementById("rate-estimate");
     let rateRequest = 0;
+
+    // Live session status (check page only; the elements are absent
+    // elsewhere): how many words were answered this session, split into
+    // know / don't know, plus the current word's strategy context — its
+    // frequency rank and, for the stratified strategy, its stratum.
+    const sessionCounts = document.getElementById("session-counts");
+    const wordInfo = document.getElementById("word-info");
+    const counts = { checked: 0, know: 0, dont: 0 };
+    let selection = null; // The lexicon's selection strategy (from `/next`).
+    let listSize = null; // Frequency list length (from `/next`).
+    let strataCount = null; // Total strata for `stratified` (from `/next`).
+
+    function renderSessionStatus() {
+        if (sessionCounts) {
+            sessionCounts.textContent =
+                `Checked: ${counts.checked} · ` +
+                `know: ${counts.know} · don't know: ${counts.dont}`;
+            sessionCounts.hidden = false;
+        }
+        if (!wordInfo) return;
+        if (!current || current.rank == null) {
+            wordInfo.hidden = true;
+            return;
+        }
+        const parts = [];
+        if (selection) parts.push(selection);
+        let place = `word #${current.rank.toLocaleString("en-US")}`;
+        if (listSize) place += ` of ${listSize.toLocaleString("en-US")}`;
+        parts.push(place);
+        if (current.stratum != null && strataCount) {
+            parts.push(`stratum ${current.stratum + 1}/${strataCount}`);
+        }
+        wordInfo.textContent = parts.join(" · ");
+        wordInfo.hidden = false;
+    }
+
     async function refreshRateEstimate() {
         if (!rateEstimate) return;
         const token = ++rateRequest;
@@ -839,8 +876,20 @@ async function runSession(base, doneText) {
     }
 
     // Refill the queue, skipping the current word and anything already queued
-    // so the server never hands back a duplicate.
-    async function fill() {
+    // so the server never hands back a duplicate. At most one refill runs at
+    // a time: selection can be deterministic on the server, so two `/next`
+    // requests racing over the same state would return the same words and
+    // queue duplicates.
+    function fill() {
+        if (!refill) {
+            refill = refillQueue().finally(() => {
+                refill = null;
+            });
+        }
+        return refill;
+    }
+
+    async function refillQueue() {
         const need = BUFFER_SIZE - queue.length;
         if (need <= 0) return;
         const params = new URLSearchParams({ count: String(need) });
@@ -851,11 +900,28 @@ async function runSession(base, doneText) {
         if (!response.ok) return;
         const batch = await response.json();
         language = batch.language;
+        if (batch.selection) {
+            selection = batch.selection;
+            listSize = batch.list_size;
+            strataCount = batch.strata;
+        }
         for (const card of batch.words) {
+            // A word already on screen, queued, or answered this session can
+            // still come back from a `/next` that raced with an answer being
+            // recorded; presenting it again would double-count it.
+            if (
+                (current && current.word === card.word) ||
+                queue.some((item) => item.word === card.word) ||
+                history.some((entry) => entry.word === card.word)
+            ) {
+                continue;
+            }
             const item = {
                 word: card.word,
                 lastResponse: card.last_response,
                 lastTime: card.last_time,
+                rank: card.rank,
+                stratum: card.stratum,
                 results: null,
                 sentence: null,
             };
@@ -878,6 +944,7 @@ async function runSession(base, doneText) {
         renderLastAnswer();
         renderSentence();
         renderExternalLinks();
+        renderSessionStatus();
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -970,6 +1037,10 @@ async function runSession(base, doneText) {
             word.replaceChildren(loadingDots());
             status.textContent = "";
             await fill();
+            // The awaited refill may have started before the last answer was
+            // recorded and had all its words dropped as duplicates; one more
+            // round trip reads the settled state.
+            if (queue.length === 0) await fill();
         }
         current = queue.shift() || null;
         render();
@@ -979,7 +1050,17 @@ async function runSession(base, doneText) {
     async function answer(response, toSkip = false) {
         if (!current) return;
         const answered = current.word;
-        history.push({ word: answered });
+        // Remember the response and strategy context so an undo can both
+        // rewind the session counters and re-present the word annotated.
+        history.push({
+            word: answered,
+            response,
+            rank: current.rank,
+            stratum: current.stratum,
+        });
+        counts.checked += 1;
+        if (response === "know") counts.know += 1;
+        else if (response === "dont") counts.dont += 1;
         await api(`${base}/answer`, {
             method: "POST",
             body: { word: answered, response, to_skip: toSkip },
@@ -996,9 +1077,18 @@ async function runSession(base, doneText) {
         if (!response.ok) return;
         const { word: undone } = await response.json();
         if (!undone) return;
-        history.pop();
+        const entry = history.pop();
+        counts.checked -= 1;
+        if (entry.response === "know") counts.know -= 1;
+        else if (entry.response === "dont") counts.dont -= 1;
         if (current) queue.unshift(current);
-        current = { word: undone, results: null, sentence: null };
+        current = {
+            word: undone,
+            rank: entry.rank,
+            stratum: entry.stratum,
+            results: null,
+            sentence: null,
+        };
         attachTranslation(current);
         attachSentence(current);
         void refreshRateEstimate();

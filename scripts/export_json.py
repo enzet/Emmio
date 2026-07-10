@@ -15,7 +15,10 @@ present, is used only to keep historical file names; artifacts without one are
 written as `<id>.json`.
 
 The output directory gets `learn/` and `lexicon/` subdirectories with one
-JSON file per artifact.
+JSON file per artifact, plus a `config.json` snapshot of the configurations
+in the historical format. The application no longer reads `learn`/`lexicon`
+sections from that file (they live in PostgreSQL); it is written so that
+configuration changes show up in the Git history alongside the records.
 """
 
 import argparse
@@ -59,6 +62,13 @@ def main() -> None:
     )
     arguments: argparse.Namespace = parser.parse_args()
 
+    user_row: tuple[str, str, str | None] | None = postgres.get_user(
+        arguments.user
+    )
+    if user_row is None:
+        message: str = f"User `{arguments.user}` not found in the database."
+        raise SystemExit(message)
+
     # The local `config.json` (if present) only maps artifact ids to their
     # historical file names, so exported files keep stable names and Git diffs
     # stay clean. The artifacts themselves come from PostgreSQL, which is the
@@ -84,7 +94,12 @@ def main() -> None:
     learn_path.mkdir(parents=True, exist_ok=True)
     lexicon_path.mkdir(parents=True, exist_ok=True)
 
-    for course_id, config in postgres.get_learn_configs(arguments.user).items():
+    learn_configs: dict[str, dict] = postgres.get_learn_configs(arguments.user)
+    lexicon_configs: dict[str, dict] = postgres.get_lexicon_configs(
+        arguments.user
+    )
+
+    for course_id, config in learn_configs.items():
         learning: Learning = Learning.from_config(
             learn_path, LearnConfig(**config), course_id, arguments.user
         )
@@ -97,9 +112,7 @@ def main() -> None:
             len(learning.process.records),
         )
 
-    for lexicon_id, config in postgres.get_lexicon_configs(
-        arguments.user
-    ).items():
+    for lexicon_id, config in lexicon_configs.items():
         lexicon: Lexicon = Lexicon.from_config(
             lexicon_path, lexicon_id, LexiconConfig(**config), arguments.user
         )
@@ -109,6 +122,36 @@ def main() -> None:
         logger.info(
             "Lexicon `%s`: %d records.", lexicon_id, len(lexicon.log.records)
         )
+
+    # Snapshot the configurations into `config.json` in the historical format,
+    # so they are versioned in Git next to the records. Keys the database does
+    # not own (`name`, `read`, `listen`, ...) are carried over from the local
+    # config; the `learn`/`lexicon` sections are rebuilt from PostgreSQL, each
+    # entry pointing at the file this export wrote.
+    snapshot: dict[str, Any] = (
+        dict(user_config) if user_config else {"listen": {}}
+    )
+    snapshot["name"] = user_row[1] or user_config.get("name", arguments.user)
+    snapshot["learn"] = {
+        course_id: {"file_name": file_name_for("learn", course_id), **config}
+        for course_id, config in learn_configs.items()
+    }
+    snapshot["lexicon"] = {
+        lexicon_id: {
+            "file_name": file_name_for("lexicon", lexicon_id),
+            **config,
+        }
+        for lexicon_id, config in lexicon_configs.items()
+    }
+    (arguments.output / "config.json").write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=4) + "\n",
+        encoding="utf-8",
+    )
+    logger.info(
+        "Configuration snapshot: %d courses, %d lexicons.",
+        len(learn_configs),
+        len(lexicon_configs),
+    )
 
     logger.info("Export finished: `%s`.", arguments.output)
 

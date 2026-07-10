@@ -441,11 +441,34 @@ def _select_threshold(
     return min(candidates, key=lambda rw: abs(rw[0] - i_star))[1]
 
 
+# Number of log-uniform strata used by the stratified (SFWR) strategy.
+DEFAULT_N_STRATA: int = 10
+
+
+def stratum_of_rank(
+    rank: int, size: int, n_strata: int = DEFAULT_N_STRATA
+) -> int:
+    """Map a 1-based frequency rank to its log-uniform stratum index.
+
+    The single place the stratum boundary formula lives: selection, estimation
+    and the API's per-word reporting all go through it.
+
+    :param rank: 1-based position in the frequency list
+    :param size: total number of words in the frequency list
+    :param n_strata: number of log-uniform strata K
+    :return: stratum index in [0, n_strata)
+    """
+    if size <= 1:
+        return 0
+    k: int = int(n_strata * math.log(rank) / math.log(size))
+    return min(max(k, 0), n_strata - 1)
+
+
 def _select_stratified(
     frequency_list: FrequencyList,
     states: WordStates,
     exclude: set[str],
-    n_strata: int = 10,
+    n_strata: int = DEFAULT_N_STRATA,
 ) -> str | None:
     """Pick the next word under the stratified strategy (SFWR).
 
@@ -460,7 +483,6 @@ def _select_stratified(
     if n <= 1:
         return words[0] if n == 1 and words[0] not in exclude else None
     total: int = frequency_list.get_all_occurrences()
-    log_n: float = math.log(n)
 
     p_total: list[float] = [0.0] * n_strata
     p_unknown: list[float] = [0.0] * n_strata
@@ -468,9 +490,7 @@ def _select_stratified(
     untested: list[list[tuple[int, str]]] = [[] for _ in range(n_strata)]
 
     for rank, word in enumerate(words, start=1):
-        k: int = min(
-            max(int(n_strata * math.log(rank) / log_n), 0), n_strata - 1
-        )
+        k: int = stratum_of_rank(rank, n, n_strata)
         p_i: float = frequency_list.get_occurrences(word) / total
         p_total[k] += p_i
         state: tuple[str | None, bool | None] | None = states.get(word)
@@ -723,7 +743,7 @@ def estimate_rate_stratified(
     tested: list[TestedWord],
     untested: list[UntestedWord],
     resolved: list[UntestedWord] | None = None,
-    n_strata: int = 10,
+    n_strata: int = DEFAULT_N_STRATA,
 ) -> tuple[float, float] | None:
     """Estimate the rate from a stratified sample (SFWR).
 
@@ -750,12 +770,9 @@ def estimate_rate_stratified(
     n: int = len(tested) + len(untested) + len(resolved)
     if n <= 1 or not tested:
         return None
-    log_n: float = math.log(n)
 
     def stratum_of(rank: int) -> int:
-        """Map a 1-based rank to a stratum index in [0, n_strata)."""
-        k: int = int(n_strata * math.log(rank) / log_n)
-        return min(max(k, 0), n_strata - 1)
+        return stratum_of_rank(rank, n, n_strata)
 
     p_total: list[float] = [0.0] * n_strata
     p_tested: list[float] = [0.0] * n_strata

@@ -93,8 +93,12 @@ footer {
     font-size: 85%;
 }
 
-/* Live strategy-aware "r = 7.23 ± 0.14" estimate on the check page. */
-#rate-estimate {
+/* Live status of the check session: answer counts, the strategy-aware
+   "r = 7.23 ± 0.14" estimate, and the current word's frequency rank. */
+#session-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 1.5rem;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
 }
