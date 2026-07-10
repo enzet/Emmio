@@ -2,6 +2,7 @@
 
 import io
 import json
+import math
 import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -268,6 +269,41 @@ def test_answer_with_invalid_response_is_rejected() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_rate_estimate_uses_fwr_for_frequency_lexicon() -> None:
+    """The rate estimate applies the estimator matching the strategy (FWR)."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    # The `frequency` strategy's estimator is the FWR sliding window; it
+    # needs only the answer log, not the frequency list.
+    postgres.store_lexicon_config(
+        "alice", "de", {"language": "de", "selection": "frequency"}
+    )
+
+    response = client.get(
+        "/api/v1/me/lexicons/de/rate-estimate", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    assert response.json() == {"rate": None, "sd": None, "method": "frequency"}
+
+    # 5 unknowns among 20 answers: theta = 1/4, so r = 2.
+    for index in range(20):
+        client.post(
+            "/api/v1/me/lexicons/de/answer",
+            json={
+                "word": f"wort{index}",
+                "response": "dont" if index % 4 == 3 else "know",
+            },
+            headers=_auth(token),
+        )
+
+    estimate = client.get(
+        "/api/v1/me/lexicons/de/rate-estimate", headers=_auth(token)
+    ).json()
+    assert estimate["method"] == "frequency"
+    assert estimate["rate"] == pytest.approx(2.0)
+    assert estimate["sd"] == pytest.approx(1.0 / (math.log(2) * math.sqrt(5)))
 
 
 def test_next_without_frequency_list_is_bad_request() -> None:

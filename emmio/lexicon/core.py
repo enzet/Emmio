@@ -1,5 +1,6 @@
 """Core functionality for lexicon."""
 
+import bisect
 import json
 import logging
 import math
@@ -10,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Self, cast, override
+from typing import Any, Literal, Self, cast, override
 
 import numpy as np
 from pydantic import BaseModel
@@ -384,6 +385,38 @@ def _select_logistic(
     return min(candidates, key=lambda rw: abs(rw[0] - target))[1]
 
 
+def _optimal_threshold(paired: list[tuple[int, int]]) -> int:
+    """Find the rank i* that minimises step-function misclassification.
+
+    Sweep a split point over the tested words sorted by rank: the first j
+    words are predicted known, the rest unknown; errors(j) = (unknown among
+    first j) + (known among rest). This is the decision-stump / OT boundary.
+
+    :param paired: tested (rank, label) pairs sorted by rank, 1 = unknown
+    :return: the boundary rank i*; words with rank above it are predicted
+        unknown
+    """
+    known_suffix: int = sum(1 for _, label in paired if label == 0)
+    unknown_prefix: int = 0
+    best_j: int = 0
+    best_err: int = known_suffix
+    for j in range(1, len(paired) + 1):
+        if paired[j - 1][1] == 1:
+            unknown_prefix += 1
+        else:
+            known_suffix -= 1
+        err: int = unknown_prefix + known_suffix
+        if err < best_err:
+            best_err = err
+            best_j = j
+
+    if best_j == 0:
+        return paired[0][0]
+    if best_j == len(paired):
+        return paired[-1][0]
+    return (paired[best_j - 1][0] + paired[best_j][0]) // 2
+
+
 def _select_threshold(
     frequency_list: FrequencyList, states: WordStates, exclude: set[str]
 ) -> str | None:
@@ -402,32 +435,9 @@ def _select_threshold(
         # No data yet: start at the most frequent candidate.
         return candidates[0][1]
 
-    paired: list[tuple[int, int]] = sorted(
-        zip(tested_ranks, tested_labels, strict=True)
+    i_star: int = _optimal_threshold(
+        sorted(zip(tested_ranks, tested_labels, strict=True))
     )
-    # Sweep a split point: the first j tested words are predicted known, the
-    # rest unknown. errors(j) = (unknown among first j) + (known among rest).
-    known_suffix: int = tested_labels.count(0)
-    unknown_prefix: int = 0
-    best_j: int = 0
-    best_err: int = known_suffix
-    for j in range(1, len(paired) + 1):
-        if paired[j - 1][1] == 1:
-            unknown_prefix += 1
-        else:
-            known_suffix -= 1
-        err: int = unknown_prefix + known_suffix
-        if err < best_err:
-            best_err = err
-            best_j = j
-
-    if best_j == 0:
-        i_star: int = paired[0][0]
-    elif best_j == len(paired):
-        i_star = paired[-1][0]
-    else:
-        i_star = (paired[best_j - 1][0] + paired[best_j][0]) // 2
-
     return min(candidates, key=lambda rw: abs(rw[0] - i_star))[1]
 
 
@@ -635,6 +645,341 @@ def rate(ratio: float) -> float | None:
     if not ratio:
         return None
     return -math.log2(ratio)
+
+
+TestedWord = tuple[int, float, int]
+"""A tested word: (frequency rank, frequency share p_i, label, 1 = unknown)."""
+
+UntestedWord = tuple[int, float]
+"""An untested word: (frequency rank, frequency share p_i)."""
+
+RateEstimator = Literal["frequency", "stratified", "threshold", "logistic"]
+"""Identifier of a rate estimator.
+
+It is named after the selection strategy whose logs it is designed for.
+"""
+
+RATE_ESTIMATOR_BY_SELECTION: dict[str, RateEstimator] = {
+    "frequency": "frequency",
+    "stratified": "stratified",
+    "threshold": "threshold",
+    "logistic": "logistic",
+    # The logistic estimator does not require frequency-weighted draws: every
+    # tested word enters θ̂ weighted by its true corpus frequency regardless
+    # of how it was drawn. It therefore also serves the logs collected by the
+    # non-frequency-weighted design strategies.
+    "top": "logistic",
+    "random": "logistic",
+}
+"""Which rate estimator each selection strategy's log must be fed to.
+
+The design-based sliding window (`frequency`) is unbiased only over
+frequency-weighted draws; a log collected under any other strategy needs the
+estimator matching how the data was collected.
+"""
+
+
+def estimate_rate_frequency(
+    sequence: list[int], precision: int = 100
+) -> tuple[float, float] | None:
+    """Estimate the rate from a frequency-weighted random sample (FWR).
+
+    The point estimate is the last sliding window of `compute_lexicon_rate`:
+    the stretch of the log ending at the latest "don't know" answer and
+    containing exactly `precision` of them, giving r̂ = -log₂(n₋ / m). While
+    the log has fewer than `precision` unknowns, the whole log is used
+    instead, so an estimate appears early and tightens as answers accumulate.
+
+    Each window is an inverse-binomial sample with n₋ failures, so
+    SD(r̂) ≈ 1 / (ln 2 · √n₋), independent of the learner's level.
+
+    :param sequence: chronological responses, 1 for "know", 0 for "don't"
+    :param precision: number of "don't know" answers per full window
+    :return: (r̂, SD), or None if there are not enough unknown answers
+    """
+    unknown_indices: list[int] = [
+        index for index, response in enumerate(sequence) if response == 0
+    ]
+    number_of_unknowns: int = len(unknown_indices)
+    if number_of_unknowns >= precision:
+        start: int = (
+            unknown_indices[-precision - 1] + 1
+            if number_of_unknowns > precision
+            else 0
+        )
+        window: int = unknown_indices[-1] - start + 1
+        n_minus: int = precision
+    elif number_of_unknowns >= MIN_N_UNKNOWN:
+        window = len(sequence)
+        n_minus = number_of_unknowns
+    else:
+        return None
+
+    theta: float = n_minus / window
+    return -math.log2(theta), 1.0 / (math.log(2) * math.sqrt(n_minus))
+
+
+def estimate_rate_stratified(
+    tested: list[TestedWord],
+    untested: list[UntestedWord],
+    resolved: list[UntestedWord] | None = None,
+    n_strata: int = 10,
+) -> tuple[float, float] | None:
+    """Estimate the rate from a stratified sample (SFWR).
+
+    The Horvitz—Thompson estimator θ̂ = Σ_k P_k · θ̂_k over K log-uniform
+    strata, where P_k is the stratum's total frequency mass and θ̂_k the
+    frequency-weighted unknown share among its tested words (mirroring the
+    interactive `check_stratified`). Every stratum carrying mass must have at
+    least one tested word; SFWR's forced coverage reaches that after roughly
+    one query per stratum.
+
+    Var(θ̂) = Σ_k P_k² · θ̃_k (1 - θ̃_k) / n_k, with n_k the tested count in
+    stratum k and θ̃_k the Laplace-smoothed unknown count share (so a stratum
+    answered uniformly so far still contributes uncertainty), mapped to
+    SD(r̂) = SD(θ̂) / (θ̂ ln 2) by the delta method.
+
+    :param tested: tested words as (rank, frequency share, 1 = unknown)
+    :param untested: untested words as (rank, frequency share)
+    :param resolved: words resolved as unlearnable (not a word, proper noun):
+        they count toward stratum mass but are never tested
+    :param n_strata: number of log-uniform strata K
+    :return: (r̂, SD), or None if some stratum has no tested words yet
+    """
+    resolved = resolved or []
+    n: int = len(tested) + len(untested) + len(resolved)
+    if n <= 1 or not tested:
+        return None
+    log_n: float = math.log(n)
+
+    def stratum_of(rank: int) -> int:
+        """Map a 1-based rank to a stratum index in [0, n_strata)."""
+        k: int = int(n_strata * math.log(rank) / log_n)
+        return min(max(k, 0), n_strata - 1)
+
+    p_total: list[float] = [0.0] * n_strata
+    p_tested: list[float] = [0.0] * n_strata
+    p_unknown: list[float] = [0.0] * n_strata
+    count: list[int] = [0] * n_strata
+    count_unknown: list[int] = [0] * n_strata
+
+    for rank, p_i, label in tested:
+        k = stratum_of(rank)
+        p_total[k] += p_i
+        p_tested[k] += p_i
+        count[k] += 1
+        if label == 1:
+            p_unknown[k] += p_i
+            count_unknown[k] += 1
+    for rank, p_i in untested:
+        p_total[stratum_of(rank)] += p_i
+    for rank, p_i in resolved:
+        p_total[stratum_of(rank)] += p_i
+
+    theta: float = 0.0
+    variance: float = 0.0
+    for k in range(n_strata):
+        if p_total[k] <= 0.0:
+            continue
+        if count[k] == 0 or p_tested[k] <= 0.0:
+            return None  # A rank decade carrying mass is still uncovered.
+        theta += p_total[k] * p_unknown[k] / p_tested[k]
+        smoothed: float = (count_unknown[k] + 1) / (count[k] + 2)
+        variance += p_total[k] ** 2 * smoothed * (1.0 - smoothed) / count[k]
+
+    if theta <= 0.0:
+        return None
+    return -math.log2(theta), math.sqrt(variance) / (theta * math.log(2))
+
+
+def estimate_rate_threshold(
+    tested: list[TestedWord],
+    untested: list[UntestedWord],
+    n_bootstrap: int = 200,
+) -> tuple[float, float] | None:
+    """Estimate the rate with the optimal frequency threshold (OT).
+
+    θ̂ = Σ_{tested unknown} p_i + Σ_{untested, rank > i*} p_i, where i* is
+    the misclassification-minimising boundary rank (see
+    `_optimal_threshold`), and r̂ = -log₂(θ̂). The SD is bootstrapped:
+    resampling the tested set moves the boundary, and only the untested tail
+    term varies with it (the tested contribution is an exact observation, as
+    in the logistic estimator).
+
+    :param tested: tested words as (rank, frequency share, 1 = unknown)
+    :param untested: untested words as (rank, frequency share)
+    :param n_bootstrap: number of bootstrap resamples for the SD
+    :return: (r̂, SD), or None if there is not enough data
+    """
+    n_unknown: int = sum(label for _, _, label in tested)
+    if len(tested) < MIN_SIZE_TESTED_RANKS or n_unknown < MIN_N_UNKNOWN:
+        return None
+
+    theta_s: float = sum(p_i for _, p_i, label in tested if label == 1)
+
+    # Suffix mass of untested words by rank, so the tail above any boundary
+    # is one binary search away.
+    by_rank: list[UntestedWord] = sorted(untested)
+    ranks: list[int] = [rank for rank, _ in by_rank]
+    suffix: list[float] = [0.0] * (len(by_rank) + 1)
+    for index in range(len(by_rank) - 1, -1, -1):
+        suffix[index] = suffix[index + 1] + by_rank[index][1]
+
+    def tail(i_star: int) -> float:
+        """Frequency mass of untested words with rank above the boundary."""
+        return suffix[bisect.bisect_right(ranks, i_star)]
+
+    paired: list[tuple[int, int]] = sorted(
+        (rank, label) for rank, _, label in tested
+    )
+    theta: float = theta_s + tail(_optimal_threshold(paired))
+    if theta <= 0.0:
+        return None
+    r_hat: float = -math.log2(theta)
+
+    rng = np.random.default_rng()
+    r_boots: list[float] = []
+    for _ in range(n_bootstrap):
+        indices = rng.integers(0, len(paired), size=len(paired))
+        boot: list[tuple[int, int]] = sorted(paired[i] for i in indices)
+        theta_boot: float = theta_s + tail(_optimal_threshold(boot))
+        if theta_boot > 0.0:
+            r_boots.append(-math.log2(theta_boot))
+
+    if len(r_boots) < MIN_R_BOOTS:
+        return None
+    return r_hat, float(np.std(r_boots, ddof=1))
+
+
+def estimate_rate_logistic(
+    tested: list[TestedWord],
+    untested: list[UntestedWord],
+    n_bootstrap: int = 100,
+) -> tuple[float, float] | None:
+    """Estimate the rate with the logistic model (LA).
+
+    θ̂ = Σ_{tested} p_i X_i + Σ_{untested} p_i · σ(a log rank + b) with
+    (a, b) fitted by maximum likelihood, and r̂ = -log₂(θ̂). The SD is
+    bootstrapped by refitting on resampled tested words; the tested
+    contribution is an exact observation and is held fixed (as in
+    `estimate_r_with_sd`). The untested sum is vectorised, so the bootstrap
+    stays fast even over large frequency lists.
+
+    :param tested: tested words as (rank, frequency share, 1 = unknown)
+    :param untested: untested words as (rank, frequency share)
+    :param n_bootstrap: number of bootstrap resamples for the SD
+    :return: (r̂, SD), or None if there is not enough data
+    """
+    tested_ranks: list[int] = [rank for rank, _, _ in tested]
+    tested_labels: list[int] = [label for _, _, label in tested]
+    n_unknown: int = sum(tested_labels)
+    if len(tested) < MIN_SIZE_TESTED_RANKS or n_unknown < MIN_N_UNKNOWN:
+        return None
+
+    theta_s: float = sum(p_i for _, p_i, label in tested if label == 1)
+
+    log_ranks: np.ndarray = np.log([rank for rank, _ in untested])
+    masses: np.ndarray = np.array([p_i for _, p_i in untested])
+
+    def theta_u(a: float, b: float) -> float:
+        """Model term: unknown mass predicted over the untested words."""
+        return float(np.dot(masses, expit(a * log_ranks + b)))
+
+    a, b, _ = _fit_logistic(tested_ranks, tested_labels)
+    theta: float = theta_s + theta_u(a, b)
+    if theta <= 0.0:
+        return None
+    r_hat: float = -math.log2(theta)
+
+    ranks_arr: np.ndarray = np.array(tested_ranks)
+    labels_arr: np.ndarray = np.array(tested_labels)
+    n: int = len(tested)
+    rng = np.random.default_rng()
+    r_boots: list[float] = []
+    for _ in range(n_bootstrap):
+        indices = rng.integers(0, n, size=n)
+        boot_labels: list[int] = cast("list[int]", labels_arr[indices].tolist())
+        if 0 not in boot_labels or 1 not in boot_labels:
+            continue
+        boot_ranks: list[int] = cast("list[int]", ranks_arr[indices].tolist())
+        try:
+            a_b, b_b, _ = _fit_logistic(boot_ranks, boot_labels)
+        except (ValueError, RuntimeError):
+            continue
+        theta_boot: float = theta_s + theta_u(a_b, b_b)
+        if theta_boot > 0.0:
+            r_boots.append(-math.log2(theta_boot))
+
+    if len(r_boots) < MIN_R_BOOTS:
+        return None
+    return r_hat, float(np.std(r_boots, ddof=1))
+
+
+def estimate_rate_with_sd(
+    selection: str,
+    frequency_list: FrequencyList | None = None,
+    states: WordStates | None = None,
+    sequence: list[int] | None = None,
+    precision: int = 100,
+) -> tuple[float, float] | None:
+    """Estimate the rate with the estimator matching the selection strategy.
+
+    Dispatches by `RATE_ESTIMATOR_BY_SELECTION`: a log is only meaningful to
+    the estimator designed for the strategy it was collected under. The
+    frequency estimator needs just the chronological answer sequence; the
+    model-based estimators need the frequency list and the per-word states to
+    place every word by rank.
+
+    :param selection: the lexicon's stored selection strategy
+    :param frequency_list: source of ranks and frequency shares, required by
+        every estimator except the frequency one
+    :param states: per-word latest state, as
+        `postgres.get_language_word_states` returns
+    :param sequence: chronological responses (1 "know" / 0 "don't"), required
+        by the frequency estimator
+    :param precision: number of "don't know" answers per frequency estimator
+        window
+    :return: (r̂, SD), or None if there is not enough data
+    :raises NotImplementedError: for strategies without a rate estimator
+    """
+    method: RateEstimator | None = RATE_ESTIMATOR_BY_SELECTION.get(selection)
+    if method is None:
+        message = f"No rate estimator for selection `{selection}`."
+        raise NotImplementedError(message)
+
+    if method == "frequency":
+        return estimate_rate_frequency(sequence or [], precision)
+
+    if frequency_list is None:
+        message = "Model-based rate estimators need a frequency list."
+        raise ValueError(message)
+
+    know: str = LexiconResponse.KNOW.to_code()
+    dont: str = LexiconResponse.DONT.to_code()
+    total: int = frequency_list.get_all_occurrences()
+    tested: list[TestedWord] = []
+    untested: list[UntestedWord] = []
+    resolved: list[UntestedWord] = []
+    for rank, word in enumerate(frequency_list.get_words(), start=1):
+        p_i: float = frequency_list.get_occurrences(word) / total
+        state: tuple[str | None, bool | None] | None = (states or {}).get(word)
+        if state is None:
+            untested.append((rank, p_i))
+        elif state[0] == know:
+            tested.append((rank, p_i, 0))
+        elif state[0] == dont:
+            tested.append((rank, p_i, 1))
+        else:
+            # Resolved as not learnable (e.g. not a word, proper noun):
+            # neither tested nor a candidate, but its frequency mass still
+            # counts toward stratum totals.
+            resolved.append((rank, p_i))
+
+    if method == "stratified":
+        return estimate_rate_stratified(tested, untested, resolved)
+    if method == "threshold":
+        return estimate_rate_threshold(tested, untested)
+    return estimate_rate_logistic(tested, untested)
 
 
 class LexiconLog(BaseModel):
@@ -1739,7 +2084,7 @@ class LexiconChecker:
 
         def stratum_of(rank: int) -> int:
             """Map a 1-based rank to a stratum index in [0, n_strata)."""
-            k = int(n_strata * math.log(rank) / math.log(n))
+            k: int = int(n_strata * math.log(rank) / math.log(n))
             return min(max(k, 0), n_strata - 1)
 
         while True:

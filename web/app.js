@@ -119,6 +119,23 @@ function renderDefinitionList(container, rows) {
     }
 }
 
+// A small animated "loading" indicator: three dots pulsing in sequence (styled
+// by `.dots` in base.css). Returns a fresh element each call, so it can be
+// dropped into the word, sentence, or translation slot while it loads. The
+// dots themselves are decorative; the wrapper announces "Loading" to readers.
+function loadingDots() {
+    const dots = document.createElement("span");
+    dots.className = "dots";
+    dots.setAttribute("role", "status");
+    dots.setAttribute("aria-label", "Loading");
+    for (let i = 0; i < 3; i += 1) {
+        const dot = document.createElement("span");
+        dot.setAttribute("aria-hidden", "true");
+        dots.append(dot);
+    }
+    return dots;
+}
+
 // Fill a `<select>` with one `<option>` per language, sorted by display name.
 // `entries` is a list of API rows carrying a `language` ISO code; `selectCode`
 // optionally preselects the matching option.
@@ -723,6 +740,29 @@ async function runSession(base, doneText) {
     let revealed = false; // Whether the current word's translation is shown.
     let language = null; // ISO code of the session's language (from `/next`).
 
+    // Live "r = 7.23 ± 0.14" estimate, computed server-side by the estimator
+    // matching the lexicon's selection strategy and refreshed after every
+    // answer. Fire-and-forget: a stale response (superseded by a later
+    // request) is dropped, and the element is absent on non-check pages.
+    const rateEstimate = document.getElementById("rate-estimate");
+    let rateRequest = 0;
+    async function refreshRateEstimate() {
+        if (!rateEstimate) return;
+        const token = ++rateRequest;
+        const response = await api(`${base}/rate-estimate`);
+        if (token !== rateRequest || !response.ok) return;
+        const estimate = await response.json();
+        if (token !== rateRequest) return;
+        if (estimate.rate === null) {
+            rateEstimate.hidden = true;
+            return;
+        }
+        rateEstimate.textContent =
+            `r = ${estimate.rate.toFixed(2)} ± ${estimate.sd.toFixed(2)}`;
+        rateEstimate.title = `${estimate.method[0].toUpperCase()}${estimate.method.slice(1)} estimate`;
+        rateEstimate.hidden = false;
+    }
+
     // The lexicon/course's dictionaries, loaded once. Each is fetched
     // separately per word so a slow one (e.g. Google Translate over the
     // network) never holds up the fast ones; loaded on demand below.
@@ -887,13 +927,14 @@ async function runSession(base, doneText) {
     // resolves, then the sentence or "No sentence." Results are ignored if we
     // have since moved to another word.
     function renderSentence() {
-        sentence.replaceChildren();
+        // Keep the sentence box present (fixed height in CSS) so the layout
+        // never jumps; fill it with dots, the sentence, or a dash.
+        sentence.hidden = false;
         if (!current || !current.sentence) {
-            sentence.hidden = true;
+            sentence.replaceChildren();
             return;
         }
-        sentence.hidden = false;
-        sentence.textContent = "···";
+        sentence.replaceChildren(loadingDots());
         const item = current;
         // The server returns a safe HTML fragment (text escaped, word in <b>).
         item.sentence.then((html) => {
@@ -923,7 +964,13 @@ async function runSession(base, doneText) {
     // Move to the next queued word, topping the queue back up in the
     // background so the wait is hidden behind the user's reading time.
     async function advance() {
-        if (queue.length === 0) await fill();
+        if (queue.length === 0) {
+            // No word prefetched yet (first load, or the buffer ran dry): show
+            // the dots in the word slot while `/next` is in flight.
+            word.replaceChildren(loadingDots());
+            status.textContent = "";
+            await fill();
+        }
         current = queue.shift() || null;
         render();
         void fill();
@@ -937,6 +984,7 @@ async function runSession(base, doneText) {
             method: "POST",
             body: { word: answered, response, to_skip: toSkip },
         });
+        void refreshRateEstimate();
         await advance();
     }
 
@@ -953,6 +1001,7 @@ async function runSession(base, doneText) {
         current = { word: undone, results: null, sentence: null };
         attachTranslation(current);
         attachSentence(current);
+        void refreshRateEstimate();
         render();
     }
 
@@ -982,7 +1031,7 @@ async function runSession(base, doneText) {
         } else if (results.every((result) => result !== undefined)) {
             translation.textContent = "No translation found.";
         } else {
-            translation.textContent = "Loading…";
+            translation.replaceChildren(loadingDots());
         }
     }
 
@@ -1030,7 +1079,8 @@ async function runSession(base, doneText) {
         button.click();
     });
 
-    status.textContent = "Loading…";
+    word.replaceChildren(loadingDots());
+    void refreshRateEstimate();
     // Load the dictionary list first so the per-word prefetch knows which
     // dictionaries to request; an empty list just means no translations.
     const dictionariesResponse = await api(`${base}/dictionaries`);

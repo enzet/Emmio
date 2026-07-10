@@ -93,6 +93,12 @@ footer {
     font-size: 85%;
 }
 
+/* Live strategy-aware "r = 7.23 ± 0.14" estimate on the check page. */
+#rate-estimate {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
 section[aria-labelledby="danger-heading"] {
     color: var(--danger);
 }
@@ -190,16 +196,50 @@ div#answers {
 p#sentence, p#question {
     text-align: center;
 }
+
+/* Animated loading indicator: three dots pulsing in sequence, reused wherever
+   the word, sentence, or translation is still loading. Sized in fixed `rem` so
+   it stays small even inside the 640%-font word slot; `--muted` colour. */
+.dots {
+    display: inline-flex;
+    gap: 0.35rem;
+    vertical-align: middle;
+}
+.dots span {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: dot-pulse 1.2s infinite ease-in-out both;
+}
+.dots span:nth-child(2) { animation-delay: 0.15s; }
+.dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot-pulse {
+    0%, 80%, 100% { opacity: 0.25; }
+    40% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dots span { animation: none; opacity: 0.5; }
+}
 p#sentence {
     width: 500px;
     /* Reserve exactly three lines so the layout does not jump as the sentence
-       loads, is absent, or wraps. `em` tracks this element's font size. */
+       loads, is absent, or wraps. `em` tracks this element's font size. Centre
+       the content so the loading dots sit mid-box, like the sentence text. */
     line-height: 1.2;
     height: 3.6em;
     margin: auto;
 }
 p#question {
     font-size: 85%;
+    /* Reserve two lines so the layout never jumps between the empty state, the
+       plain question, and the taller "Last answer was …" variant that can wrap
+       to a second line. Centre so a single line sits mid-box. */
+    line-height: 1.2;
+    height: 2.4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 /* The example sentence's translation, shown muted under the blanked sentence. */
 p#sentence-translation {
@@ -239,10 +279,15 @@ p#word {
     font-weight: 700;
     margin: 0;
     padding-bottom: 0.5rem;
-    /* Reserve one line so the layout does not jump while the word loads or is
-       empty. `em` tracks this element's font size, so it stays one line tall. */
+    /* Always render at a fixed one-line height so the layout never jumps
+       between the loading dots, a word, and the empty done state. `em` tracks
+       this element's font size, so the box stays one line tall. Centre the
+       content so the small dots sit mid-line, like the word does. */
     line-height: 1.2;
-    min-height: 1.2em;
+    height: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 button#show-translation {

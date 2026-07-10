@@ -53,10 +53,13 @@ from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import (
+    RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
     Lexicon,
     LexiconResponse,
+    RateEstimator,
     compute_lexicon_rate,
+    estimate_rate_with_sd,
     select_next_word,
 )
 from emmio.lexicon.visualizer import LexiconVisualizer
@@ -1414,6 +1417,77 @@ def answer_lexicon_word(
         {"sk": True} if request.to_skip else None,
     )
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
+
+
+class RateEstimate(BaseModel):
+    """Strategy-aware estimate of the vocabulary rate and its error."""
+
+    rate: float | None
+    """Estimated rate, or `None` if not enough data yet."""
+
+    sd: float | None
+    """Standard deviation of the estimate."""
+
+    method: RateEstimator
+    """Estimator used.
+
+    Possible values: `frequency`, `stratified`, `threshold` or `logistic`.
+    """
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/rate-estimate")
+def get_lexicon_rate_estimate(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> RateEstimate:
+    """Estimate the lexicon's vocabulary rate with its standard deviation.
+
+    Unlike the plain `rate` field of the stats endpoints (which applies the
+    frequency-weighted sliding window to every log), this dispatches to the
+    estimator matching the lexicon's selection strategy — the window estimate
+    is unbiased only over frequency-weighted draws. Refreshed by the check
+    page after every answer.
+    """
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    selection: str = config["selection"]
+    method: RateEstimator | None = RATE_ESTIMATOR_BY_SELECTION.get(selection)
+    if method is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"No rate estimator for selection `{selection}`.",
+        )
+
+    if method == "frequency":
+        estimate: tuple[float, float] | None = estimate_rate_with_sd(
+            selection,
+            sequence=postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
+        )
+    else:
+        # The model-based estimators place every word by frequency rank, so
+        # they need the lexicon's frequency list and the same per-word states
+        # that drive word selection.
+        if config["frequency_list"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Lexicon `{lexicon_id}` has no frequency list configured."
+                ),
+            )
+        frequency_list = get_data().get_frequency_list(
+            ListUsageConfig(**config["frequency_list"])
+        )
+        if frequency_list is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Configured frequency list could not be loaded.",
+            )
+        states: dict[str, tuple[str | None, bool | None]] = (
+            postgres.get_language_word_states(user_id, config["language"])
+        )
+        estimate = estimate_rate_with_sd(selection, frequency_list, states)
+
+    if estimate is None:
+        return RateEstimate(rate=None, sd=None, method=method)
+    return RateEstimate(rate=estimate[0], sd=estimate[1], method=method)
 
 
 @app.post("/api/v1/me/lexicons/{lexicon_id}/undo")

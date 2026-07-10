@@ -512,6 +512,30 @@ def get_lexicon_answer_sequences(
     return result
 
 
+def get_lexicon_answer_sequence(user_id: str, lexicon_id: str) -> list[int]:
+    """Get one lexicon's chronological know / don't-know answers.
+
+    The single-lexicon variant of `get_lexicon_answer_sequences`, without the
+    response times: just what a rate estimator needs after every answer.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: time-ordered list of 1 for "know" / 0 for "don't know"
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT r.response FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "AND r.response IN ('K', 'D') "
+            "ORDER BY r.id",
+            (user_id, lexicon_id),
+        )
+        return [1 if row[0] == "K" else 0 for row in cursor.fetchall()]
+
+
 def get_last_lexicon_record_id(user_id: str) -> int | None:
     """Get the id of the user's newest lexicon record.
 
