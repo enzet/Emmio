@@ -473,6 +473,9 @@ p.word {
     font-weight: 700;
     margin: 0.5rem 0;
 }
+p#word.top {
+    color: green;
+}
 /* Revealed meaning for the know question. */
 #know-meaning {
     margin-top: 0.5rem;

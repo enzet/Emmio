@@ -361,6 +361,24 @@ def test_create_lexicon_sets_it_as_main() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_keeps_existing_main() -> None:
+    """A second lexicon for a language does not take over the main flag."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+    second = client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    assert second.status_code == 201
+    assert postgres.is_main_lexicon("alice", "uk")
+    assert not postgres.is_main_lexicon("alice", second.json()["lexicon_id"])
+
+
+@pytest.mark.usefixtures("fake_languages")
 def test_delete_lexicon_removes_it() -> None:
     """Deleting a lexicon removes it; a second delete is a 404."""
 

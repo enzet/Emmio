@@ -507,12 +507,14 @@ def create_lexicon(
     request: CreateLexiconRequest,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> CreatedLexicon:
-    """Create a lexicon for a language and make it the language's main one.
+    """Create a lexicon for a language.
 
     The lexicon samples words by the requested strategy from the language's
     frequency list, shows usage examples from Tatoeba, and translates words into
     the requested target languages. Its id is the language code, suffixed if one
-    already exists. It is set as main so it shows up on the home page at once.
+    already exists. If the language has no main lexicon yet, the new one is set
+    as main so it shows up on the home page at once; an existing main lexicon
+    keeps its status.
     """
     if request.selection not in _VALID_SELECTIONS:
         raise HTTPException(
@@ -572,7 +574,8 @@ def create_lexicon(
         "sentences": sentences,
     }
     postgres.store_lexicon_config(user_id, lexicon_id, config)
-    postgres.set_main_lexicon(user_id, lexicon_id)
+    if not postgres.has_main_lexicon(user_id, request.language):
+        postgres.set_main_lexicon(user_id, lexicon_id)
     return CreatedLexicon(lexicon_id=lexicon_id)
 
 

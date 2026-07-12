@@ -945,6 +945,10 @@ async function runSession(base, doneText) {
         renderSentence();
         renderExternalLinks();
         renderSessionStatus();
+        word.classList.toggle(
+            "top",
+            Boolean(current) && current.rank != null && current.rank <= 10000,
+        );
         if (current) {
             word.textContent = current.word;
             status.textContent = "";

@@ -479,6 +479,17 @@ def get_main_lexicons(user_id: str) -> list[tuple[str, str, int, int]]:
         return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
 
 
+def has_main_lexicon(user_id: str, language: str) -> bool:
+    """Check whether the user already has a main lexicon for a language."""
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT 1 FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.language = %s AND l.is_main",
+            (user_id, language),
+        )
+        return cursor.fetchone() is not None
+
+
 def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
     """Make a lexicon the main one for its language.
 
