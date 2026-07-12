@@ -1,4 +1,5 @@
-// The authenticated home: the user's courses, each opening a review session.
+// The authenticated home: the user's courses, each opening a learning
+// session, plus a sheet to create a new one.
 
 import EmmioKit
 import SwiftUI
@@ -9,6 +10,7 @@ struct CourseListView: View {
     @State private var courses: [CourseSummary] = []
     @State private var error: String?
     @State private var isLoading = false
+    @State private var isCreating = false
 
     var body: some View {
         List {
@@ -32,7 +34,7 @@ struct CourseListView: View {
                 ContentUnavailableView(
                     "No courses",
                     systemImage: "book",
-                    description: Text("Create a course in the web app first.")
+                    description: Text("Tap + to create your first course.")
                 )
             }
         }
@@ -41,9 +43,15 @@ struct CourseListView: View {
             LearnView(course: course)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button("Log Out") { Task { await model.logOut() } }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Add Course", systemImage: "plus") { isCreating = true }
+            }
+        }
+        .sheet(isPresented: $isCreating) {
+            CreateCourseView { _ in await load() }
         }
         .task { await load() }
         .refreshable { await load() }

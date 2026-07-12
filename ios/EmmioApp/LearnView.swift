@@ -1,27 +1,61 @@
 // The learning session for one course.
 //
-// Driven by `.../question`, which chooses each question's type server-side
-// (know / choice / connect / type_word) and returns its grading key. This view
-// fetches a question, renders the matching card, lets the card grade the answer
-// client-side (mirroring `web/app.js`) and record it via `.../answer`, then
-// advances. `type == nil` ends the session. Undo re-presents the freed word as
-// a type_word card.
+// Due reviews come first, driven by `.../question`, which chooses each
+// question's type server-side (know / choice / connect / type_word) and
+// returns its grading key. This view fetches a question, renders the matching
+// card, lets the card grade the answer client-side (mirroring `web/app.js`)
+// and record it via `.../answer`, then advances. Undo re-presents the freed
+// word as a type_word card.
 //
-// Not yet handled (see README): new-word intake (`/new`), example sentences,
-// and pronunciation audio.
+// When nothing is due (`type == nil`), new words are drawn from `.../new`:
+// each is taught as a type_word card, possibly after a know/don't-know check
+// recorded in the course's ask lexicon ("know" skips the word, "don't know"
+// admits it). The session ends when `/new` also has nothing left.
+//
+// type_word cards also show a blanked example sentence with its translation
+// (`.../sentence`, the example's id recorded with the answer), and the word's
+// pronunciation (`.../audio`) plays best-effort once the answer is known:
+// on the know reveal, the choice pick, and a typed word's success or reveal.
 
+import AVFoundation
 import EmmioKit
 import SwiftUI
+
+/// Plays pronunciation recordings, retaining the `AVAudioPlayer` (playback
+/// stops when the player is released) and cutting off the previous word's.
+@MainActor
+final class AudioPlayer {
+    private var player: AVAudioPlayer?
+
+    init() {
+        // Pronunciation should sound even with the ring/silent switch off
+        // (the default `.soloAmbient` category is muted by it).
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+    }
+
+    func play(_ data: Data) {
+        player?.stop()
+        player = try? AVAudioPlayer(data: data)
+        player?.play()
+    }
+}
 
 /// The parent-owned operations a question card performs: record an answer, look
 /// up a word's meaning, and advance to the next question. Bundled so cards take
 /// one value instead of several closures.
 struct LearnActions {
-    /// Record one word's answer (updates undo history, then POSTs).
-    let record: (String, LearnResponse, QuestionType, Double) async -> Void
+    /// Record one word's answer (updates undo history, then POSTs). The `Int?`
+    /// is the id of the example sentence shown, stored as provenance.
+    let record: (String, LearnResponse, QuestionType, Int?, Double) async -> Void
     /// A word's meaning as plain text (`hideWord` blanks the word out); `""`
     /// when none is found.
     let meaning: (String, Bool) async -> String
+    /// An example sentence for a word (blanked, with a translation), or `nil`
+    /// when the course has none.
+    let sentence: (String) async -> Sentence?
+    /// Play the word's pronunciation, if any. Fire-and-forget: returns at
+    /// once, and missing audio is silently ignored.
+    let playAudio: (String) -> Void
     /// Fetch and present the next question (or finish).
     let advance: () async -> Void
 }
@@ -38,10 +72,28 @@ struct LearnView: View {
         case failed(String)
     }
 
+    /// A new word awaiting its know/don't-know pre-check (`check_lexicon`
+    /// from `/new`), presented as an `AskCard` instead of a question card.
+    private struct NewWordCheck {
+        let word: String
+        let accepted: [String]
+        let lexiconId: String
+    }
+
     @State private var phase: Phase = .loading
     @State private var question: Question?
+    @State private var check: NewWordCheck?
+    /// Whether the presented question teaches a new word from `/new` (rather
+    /// than reviewing a due one).
+    @State private var isNewWord = false
+    /// New words already decided this session (answered or admitted), excluded
+    /// from `/new` because the stateless server would return them again.
+    @State private var handledNew: Set<String> = []
+    /// `/new` returned no word; stop asking for the rest of the session.
+    @State private var newExhausted = false
     @State private var language = ""
     @State private var history: [String] = []
+    @State private var audioPlayer = AudioPlayer()
     /// Bumped per presented question so each card gets a fresh identity (and so
     /// its local state — typed text, selection — resets between questions).
     @State private var seq = 0
@@ -61,10 +113,17 @@ struct LearnView: View {
                 ContentUnavailableView(
                     "All caught up",
                     systemImage: "checkmark.circle",
-                    description: Text("Nothing due right now.")
+                    description: Text(
+                        "No reviews due and no new words right now."
+                    )
                 )
             case .active:
-                if let question, let kind = question.kind {
+                if let check {
+                    AskCard(word: check.word) { knows in
+                        await decide(check, knows: knows)
+                    }
+                    .id(seq)
+                } else if let question, let kind = question.kind {
                     card(for: question, kind: kind).id(seq)
                 }
             }
@@ -79,7 +138,12 @@ struct LearnView: View {
         .padding()
         .navigationTitle(course.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await advance() }
+        .task {
+            // `/question` refines this per question; `/new` sends no language,
+            // so start from the course's.
+            language = course.learningLanguage
+            await advance()
+        }
     }
 
     @ViewBuilder
@@ -92,16 +156,20 @@ struct LearnView: View {
         case .connect:
             ConnectCard(question: question, actions: actions)
         case .typeWord:
-            TypeWordCard(question: question, actions: actions)
+            TypeWordCard(
+                question: question, actions: actions, isNew: isNewWord
+            )
         }
     }
 
     private var actions: LearnActions {
         LearnActions(
-            record: { word, response, type, seconds in
-                await record(word, response, type, seconds)
+            record: { word, response, type, sentenceId, seconds in
+                await record(word, response, type, sentenceId, seconds)
             },
             meaning: { word, hideWord in await meaning(word, hideWord: hideWord) },
+            sentence: { word in await sentence(for: word) },
+            playAudio: { word in playAudio(word) },
             advance: { await advance() }
         )
     }
@@ -110,13 +178,15 @@ struct LearnView: View {
 
     private func record(
         _ word: String, _ response: LearnResponse,
-        _ type: QuestionType, _ seconds: Double
+        _ type: QuestionType, _ sentenceId: Int?, _ seconds: Double
     ) async {
         history.append(word)
+        if isNewWord { handledNew.insert(word) }
         do {
             try await model.client.answer(
                 courseId: course.courseId, word: word,
-                response: response, questionType: type, seconds: seconds
+                response: response, questionType: type,
+                sentenceId: sentenceId, seconds: seconds
             )
         } catch {
             phase = .failed(friendlyMessage(for: error))
@@ -133,13 +203,33 @@ struct LearnView: View {
             .joined(separator: "\n\n")
     }
 
+    private func sentence(for word: String) async -> Sentence? {
+        guard let sentence = try? await model.client.sentence(
+            courseId: course.courseId, word: word
+        ), sentence.sentence != nil else { return nil }
+        return sentence
+    }
+
+    /// Fetch and play the word's pronunciation, ignoring failures (no
+    /// recording, audio disabled for the course, or a network error).
+    private func playAudio(_ word: String) {
+        Task {
+            guard let data = ((try? await model.client.audio(
+                courseId: course.courseId, word: word
+            )) ?? nil) else { return }
+            audioPlayer.play(data)
+        }
+    }
+
     private func advance() async {
         phase = .loading
+        check = nil
+        isNewWord = false
         do {
             let next = try await model.client.question(courseId: course.courseId)
             if next.kind == nil {
                 question = nil
-                phase = .done
+                await advanceToNew()
             } else {
                 question = next
                 language = next.language
@@ -151,12 +241,82 @@ struct LearnView: View {
         }
     }
 
+    /// Present the next new word from `/new` — its lexicon check first when
+    /// one is requested — or finish the session when none remains.
+    private func advanceToNew() async {
+        if !newExhausted {
+            let new: NewQuestion
+            do {
+                new = try await model.client.newWord(
+                    courseId: course.courseId,
+                    exclude: handledNew.sorted()
+                )
+            } catch {
+                phase = .failed(friendlyMessage(for: error))
+                return
+            }
+            if let word = new.word {
+                if let lexiconId = new.checkLexicon {
+                    check = NewWordCheck(
+                        word: word,
+                        accepted: new.accepted ?? [word],
+                        lexiconId: lexiconId
+                    )
+                    seq += 1
+                    phase = .active
+                } else {
+                    teach(word: word, accepted: new.accepted ?? [word])
+                }
+                return
+            }
+            newExhausted = true
+        }
+        phase = .done
+    }
+
+    /// Present a new word as a type_word card to learn it now.
+    private func teach(word: String, accepted: [String]) {
+        check = nil
+        isNewWord = true
+        question = Question(
+            type: QuestionType.typeWord.rawValue,
+            language: language,
+            words: [word],
+            accepted: accepted
+        )
+        seq += 1
+        phase = .active
+    }
+
+    /// Resolve a new word's know/don't-know check: record the answer in the
+    /// ask lexicon, then skip the word ("know") or teach it ("don't know").
+    private func decide(_ check: NewWordCheck, knows: Bool) async {
+        handledNew.insert(check.word)
+        do {
+            try await model.client.answerLexicon(
+                lexiconId: check.lexiconId,
+                word: check.word,
+                response: knows ? .know : .dont
+            )
+        } catch {
+            phase = .failed(friendlyMessage(for: error))
+            return
+        }
+        if knows {
+            await advance()
+        } else {
+            teach(word: check.word, accepted: check.accepted)
+        }
+    }
+
     private func undo() async {
         do {
             guard let word = try await model.client.undo(
                 courseId: course.courseId
             ) else { return }
             if !history.isEmpty { history.removeLast() }
+            check = nil
+            isNewWord = false
             question = .typeWord(word: word, language: language)
             seq += 1
             phase = .active
@@ -217,9 +377,10 @@ private struct KnowCard: View {
         guard !busy else { return }
         busy = true
         revealed = true
+        actions.playAudio(word)
         Task {
             await actions.record(
-                word, response, .know, Date().timeIntervalSince(presentedAt)
+                word, response, .know, nil, Date().timeIntervalSince(presentedAt)
             )
             meaning = await actions.meaning(word, false)
         }
@@ -266,10 +427,12 @@ private struct ChoiceCard: View {
         guard !answered else { return }
         answered = true
         picked = option
+        actions.playAudio(word)
         let response: LearnResponse = option == answer ? .right : .wrong
         Task {
             await actions.record(
-                word, response, .choice, Date().timeIntervalSince(presentedAt)
+                word, response, .choice, nil,
+                Date().timeIntervalSince(presentedAt)
             )
         }
     }
@@ -283,14 +446,17 @@ private struct ChoiceCard: View {
     }
 }
 
-/// Production: read the meaning, type the word.
+/// Production: read the meaning, type the word. With `isNew` the card teaches
+/// a word drawn from `/new` rather than reviewing a due one.
 private struct TypeWordCard: View {
     let question: Question
     let actions: LearnActions
+    var isNew = false
 
     @State private var typed = ""
     @State private var revealed = false  // After "I don't know".
     @State private var prompt = ""
+    @State private var sentence: Sentence?
     @State private var busy = false
     @State private var presentedAt = Date()
 
@@ -299,12 +465,23 @@ private struct TypeWordCard: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Type the word").font(.headline)
+            Text(isNew ? "New word — type it" : "Type the word")
+                .font(.headline)
             if !prompt.isEmpty {
                 ScrollView {
                     Text(prompt).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 180)
+            }
+            if let sentence, let html = sentence.sentence {
+                VStack(spacing: 4) {
+                    Text(HTMLText.plain(from: html))
+                    if let translation = sentence.translation {
+                        Text(translation).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.callout)
+                .multilineTextAlignment(.center)
             }
             Text(revealed
                 ? word : String(repeating: "_", count: word.count))
@@ -329,6 +506,7 @@ private struct TypeWordCard: View {
                 HStack(spacing: 16) {
                     Button("I don't know", role: .destructive) {
                         revealed = true
+                        actions.playAudio(word)  // Hear it once revealed.
                     }
                     .buttonStyle(.bordered)
                     Button("Skip") { finish(.skip) }
@@ -340,18 +518,57 @@ private struct TypeWordCard: View {
         .onAppear {
             presentedAt = Date()
             Task { prompt = await actions.meaning(word, true) }
+            Task { sentence = await actions.sentence(word) }
         }
     }
 
     private func finish(_ response: LearnResponse) {
         guard !busy else { return }
         busy = true
+        if response == .right { actions.playAudio(word) }  // Got it right.
         Task {
             await actions.record(
-                word, response, .typeWord, Date().timeIntervalSince(presentedAt)
+                word, response, .typeWord, sentence?.sentenceId,
+                Date().timeIntervalSince(presentedAt)
             )
             await actions.advance()
         }
+    }
+}
+
+/// The new-word pre-check: does the user already know this word? The answer
+/// is recorded in the course's ask lexicon; "know" skips the word, "don't
+/// know" admits it to learning.
+private struct AskCard: View {
+    let word: String
+    /// Handle the user's choice (`true` = knows the word already).
+    let onAnswer: (Bool) async -> Void
+
+    @State private var busy = false
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("New word — do you know it?").font(.headline)
+            Text(word)
+                .font(.system(size: 40, weight: .bold))
+                .multilineTextAlignment(.center)
+            Spacer()
+
+            HStack(spacing: 16) {
+                Button("I don't", role: .destructive) { choose(false) }
+                    .buttonStyle(.bordered).controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                Button("I know it") { choose(true) }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func choose(_ knows: Bool) {
+        guard !busy else { return }
+        busy = true
+        Task { await onAnswer(knows) }
     }
 }
 
@@ -431,7 +648,7 @@ private struct ConnectCard: View {
             let response: LearnResponse = wrong.contains(word) ? .wrong : .right
             let seconds = Date().timeIntervalSince(presentedAt)
             selected = nil
-            Task { await actions.record(word, response, .connect, seconds) }
+            Task { await actions.record(word, response, .connect, nil, seconds) }
         } else {
             wrong.insert(word)
         }

@@ -1,9 +1,10 @@
 // The Emmio API client used by the iOS app.
 //
 // A thin async wrapper over the routes in `emmio/api/app.py`, holding just the
-// calls the recognition learning loop needs: log in, list courses, pull the
-// next due words, reveal a word's translation, and record an answer. It is an
-// `actor` so the bearer token is mutated safely from concurrent callers, and it
+// calls the learning loop needs: log in, list courses, pull the next due
+// words, draw new words to add (with their lexicon pre-check), reveal a word's
+// translation, example sentence and pronunciation, and record an answer. It is
+// an `actor` so the bearer token is mutated safely from concurrent callers, and it
 // takes its transport through the `HTTPFetching` protocol so tests can drive it
 // with canned responses instead of the network.
 
@@ -94,6 +95,42 @@ public actor EmmioClient {
         )
     }
 
+    /// List languages a new course (or lexicon) can be created for — those
+    /// with a frequency list to draw words from and Tatoeba sentences for
+    /// examples. ISO codes, sorted.
+    public func lexiconLanguages() async throws -> [String] {
+        try await send(
+            request(for: "/api/v1/lexicon-languages"), as: [LanguageOption].self
+        ).map(\.language)
+    }
+
+    /// List languages words and sentences can be translated into. ISO codes.
+    public func translationLanguages() async throws -> [String] {
+        try await send(
+            request(for: "/api/v1/translation-languages"),
+            as: [LanguageOption].self
+        ).map(\.language)
+    }
+
+    /// Create a learning course for a language, returning its id.
+    ///
+    /// The server assembles the configuration (frequency list, dictionaries,
+    /// sentences, audio) from its shared data; the id is the language code,
+    /// suffixed when one already exists.
+    public func createCourse(
+        language: String, translationLanguages: [String]
+    ) async throws -> String {
+        let body: [String: Any] = [
+            "language": language,
+            "translation_languages": translationLanguages,
+        ]
+        var request = self.request(for: "/api/v1/me/courses")
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(request, as: CreatedCourse.self).courseId
+    }
+
     /// Pull the next words due for repetition in a course, soonest-due first.
     ///
     /// - Parameters:
@@ -120,6 +157,38 @@ public actor EmmioClient {
         return try await send(request(for: path, query: items), as: Question.self)
     }
 
+    /// Get the next new word to add to the course, from its question lists.
+    ///
+    /// `word` on the result is `nil` when none remains. `exclude` lists words
+    /// already decided this session (answered or admitted), which the stateless
+    /// server would otherwise return again.
+    public func newWord(
+        courseId: String, exclude: [String] = []
+    ) async throws -> NewQuestion {
+        let items = exclude.map { URLQueryItem(name: "exclude", value: $0) }
+        let path = "/api/v1/me/courses/\(escape(courseId))/new"
+        return try await send(
+            request(for: path, query: items), as: NewQuestion.self
+        )
+    }
+
+    /// Record a know/don't-know answer for a word in a lexicon — the new-word
+    /// pre-check named by `NewQuestion.checkLexicon`.
+    public func answerLexicon(
+        lexiconId: String, word: String, response: LexiconAnswer
+    ) async throws {
+        let body: [String: Any] = [
+            "word": word,
+            "response": response.rawValue,
+        ]
+        let path = "/api/v1/me/lexicons/\(escape(lexiconId))/answer"
+        var request = self.request(for: path)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        try await sendNoContent(request)
+    }
+
     /// Undo the most recent answer, returning the word freed up (or `nil`).
     public func undo(courseId: String) async throws -> String? {
         var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))/undo")
@@ -144,17 +213,44 @@ public actor EmmioClient {
         )
     }
 
+    /// Get one example sentence for a word (blanked, with a translation).
+    ///
+    /// `sentence` on the result is `nil` when no translated example exists. A
+    /// slow lookup: fetch it after the card is presented, not before.
+    public func sentence(
+        courseId: String, word: String
+    ) async throws -> Sentence {
+        let items = [URLQueryItem(name: "word", value: word)]
+        let path = "/api/v1/me/courses/\(escape(courseId))/sentence"
+        return try await send(request(for: path, query: items), as: Sentence.self)
+    }
+
+    /// Fetch a pronunciation recording for a word, or `nil` when there is
+    /// none — no recording found, no audio configured, or playback disabled
+    /// for the course (all reported by the server as 404).
+    public func audio(courseId: String, word: String) async throws -> Data? {
+        let items = [URLQueryItem(name: "word", value: word)]
+        let path = "/api/v1/me/courses/\(escape(courseId))/audio"
+        do {
+            return try await perform(request(for: path, query: items))
+        } catch EmmioError.http(404, _) {
+            return nil
+        }
+    }
+
     /// Record an answer to a review question.
     ///
     /// - Parameters:
     ///   - response: right / wrong / skip.
     ///   - questionType: how the word was asked, stored as provenance (`qt`).
+    ///   - sentenceId: the example sentence shown, stored as provenance.
     ///   - seconds: how long the card was on screen, stored as provenance.
     public func answer(
         courseId: String,
         word: String,
         response: LearnResponse,
         questionType: QuestionType = .know,
+        sentenceId: Int? = nil,
         seconds: Double? = nil
     ) async throws {
         var body: [String: Any] = [
@@ -162,6 +258,7 @@ public actor EmmioClient {
             "response": response.rawValue,
             "question_type": questionType.rawValue,
         ]
+        if let sentenceId { body["sentence_id"] = sentenceId }
         if let seconds { body["seconds"] = seconds }
 
         var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))/answer")

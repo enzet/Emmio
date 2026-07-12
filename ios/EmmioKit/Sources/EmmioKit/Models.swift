@@ -50,6 +50,20 @@ public struct NextWords: Codable, Sendable {
     public let words: [WordCard]
 }
 
+/// One language offered by `/lexicon-languages` (languages a course or
+/// lexicon can be created for) or `/translation-languages` (targets words can
+/// be translated into).
+public struct LanguageOption: Codable, Sendable {
+    /// ISO code, e.g. `fr`.
+    public let language: String
+}
+
+/// The identifier assigned to a freshly created course, from
+/// `POST /me/courses`.
+public struct CreatedCourse: Codable, Sendable {
+    public let courseId: String
+}
+
 /// One dictionary's rendering of a word, as an HTML fragment.
 public struct DictionaryTranslation: Codable, Sendable {
     /// Dictionary name.
@@ -62,6 +76,21 @@ public struct DictionaryTranslation: Codable, Sendable {
 public struct Translation: Codable, Sendable {
     public let word: String
     public let dictionaries: [DictionaryTranslation]
+}
+
+/// An example sentence for a word, from `.../sentence`.
+///
+/// A recall prompt: the word is blanked out and the sentence comes with one of
+/// its translations into a base language. `sentence` is `nil` when no
+/// translated example exists for the word.
+public struct Sentence: Codable, Sendable {
+    public let word: String
+    /// The sentence as a safe HTML fragment, the word blanked, or `nil`.
+    public let sentence: String?
+    /// A translation of the sentence, or `nil`.
+    public let translation: String?
+    /// The example's id, recorded with the answer as provenance.
+    public let sentenceId: Int?
 }
 
 /// A user's answer to a repetition question: the `Response` codes the API
@@ -158,4 +187,28 @@ public struct Question: Codable, Sendable {
 /// The word an undo freed up (or `nil`), from `.../undo`.
 public struct NextWord: Codable, Sendable {
     public let word: String?
+}
+
+/// The next new word to add to a course, from `.../new`.
+///
+/// `word` is `nil` when none remains: the daily limit is reached, the course's
+/// question lists are exhausted, or the server gave up early on a long run of
+/// dictionary checks.
+public struct NewQuestion: Codable, Sendable {
+    public let word: String?
+    /// Typed answers that count as correct.
+    public let accepted: [String]?
+    /// Lexicon to ask know/don't-know in *before* learning this word, or `nil`
+    /// to learn it directly. The client posts the answer to that lexicon:
+    /// "know" skips the word, "don't know" admits it to learning.
+    public let checkLexicon: String?
+    /// New words still allowed today (the course's `max_for_day`).
+    public let remainingToday: Int
+}
+
+/// A user's answer to a lexicon know/don't-know check: the `LexiconResponse`
+/// values the API accepts. See `emmio/lexicon/core.py`.
+public enum LexiconAnswer: String, Sendable {
+    case know
+    case dont
 }

@@ -1,9 +1,10 @@
 # Emmio iOS
 
 A native iOS client for Emmio, sharing the FastAPI backend in
-[`emmio/api/app.py`](../emmio/api/app.py) with the web frontend: log in, pick a
-course, and run a **spaced-repetition learning session** with all four question
-types the server serves.
+[`emmio/api/app.py`](../emmio/api/app.py) with the web frontend: log in, create
+or pick a course, and run a **spaced-repetition learning session** with all
+four question types the server serves — with example sentences and
+pronunciation audio — plus new-word intake once nothing is due.
 
 ## Layout
 
@@ -24,7 +25,8 @@ ios/
     ├── AppModel.swift          token/server persistence, auth state
     ├── LoginView.swift
     ├── CourseListView.swift
-    └── LearnView.swift         the learning session (four question types)
+    ├── CreateCourseView.swift  the "add a course" sheet
+    └── LearnView.swift         the learning session (questions + new words)
 ```
 
 The split is deliberate: `EmmioKit` is pure Foundation, so all networking and
@@ -45,9 +47,20 @@ grades the answer client-side (mirroring `web/app.js`), and records it:
 | `connect` | Match words ↔ translations | per pair | `y`, or `n` if that word had a wrong attempt |
 
 Supporting routes: `.../translation?hide_word=…` for the revealed meaning /
-typed-recall prompt, `.../answer` (carries `question_type` + `seconds`), and
-`.../undo` (re-presents the freed word as a `type_word` card). A `type == null`
-question ends the session.
+typed-recall prompt, `.../sentence` for a blanked example sentence with its
+translation on `type_word` cards (the example's id is recorded with the
+answer), `.../audio` for best-effort pronunciation playback once the answer is
+known (a 404 — no recording, or audio disabled for the course — is silently
+ignored), `.../answer` (carries `question_type`, `sentence_id` + `seconds`),
+and `.../undo` (re-presents the freed word as a `type_word` card).
+
+When `/question` returns `type == null` (nothing due), the session switches to
+**new-word intake** via `GET .../new`, mirroring `web/app.js`: each word is
+taught as a `type_word` card, preceded — when the response carries
+`check_lexicon` — by a know/don't-know check posted to that lexicon's
+`/answer` ("know" skips the word, "don't know" admits it). Decided words are
+passed back as `exclude` (the route is stateless), and the session ends when
+`/new` returns no word (daily limit reached or lists exhausted).
 
 ## Running it
 
@@ -57,9 +70,10 @@ question ends the session.
 uvicorn emmio.api.app:app --reload
 ```
 
-That serves the API on `http://localhost:8000`. Create a course in the web app
-first (`/app/courses`) — this iOS version reviews existing courses but does not
-create them or add new words yet.
+That serves the API on `http://localhost:8000`. Courses are created in the app
+itself (the + button on the course list, mirroring the web form: a language
+from `/lexicon-languages`, translation targets from `/translation-languages`,
+posted to `/me/courses`) or in the web app — the two share every course.
 
 The default server URL is `http://localhost:8000`, editable on the login screen;
 the simulator shares your Mac's network, so localhost just works. (For a
@@ -97,10 +111,8 @@ cd ios/EmmioKit && swift test     # builds EmmioKit and runs the unit tests
 
 ## Not yet here (intentionally)
 
-- Adding new words to a course (`/new`, including the know/don't-know lexicon
-  check), and course/lexicon creation.
-- Example sentences on the cards (`/sentence`) and external lookup links.
-- Pronunciation audio playback (`/audio`).
+- Lexicon creation and course deletion/settings.
+- External lookup links (Google, Yandex, Wiktionary, Kaikki).
 - Lexicons (checking, rate graph) and the dashboard.
 - Token in the **Keychain** (currently `UserDefaults`) and token refresh.
 - Offline queueing of answers.
