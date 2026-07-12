@@ -473,8 +473,18 @@ def _select_stratified(
     """Pick the next word under the stratified strategy (SFWR).
 
     Divide the list into log-uniform strata, then query the stratum with the
-    highest variance contribution P_k² · θ_k (1 − θ_k), taking its
-    highest-frequency untested word.
+    highest marginal variance reduction P_k² · θ̃_k (1 − θ̃_k) / (n_k (n_k +
+    1)), where θ̃_k is the Laplace-smoothed unknown share among the stratum's
+    n_k tested words. An untested stratum has infinite marginal value, so
+    every stratum carrying mass is surveyed (unlocking the estimator, which
+    requires full coverage) before any stratum is refined. Within the chosen
+    stratum the word is drawn uniformly at random: θ̂_k weights tested words
+    by frequency already, and a deterministic highest-frequency pick would
+    sample each stratum from its most-known edge, biasing θ̂_k downward.
+
+    The allocation rule mirrors the SFWR algorithm box in
+    `research/metric.tex`; see its "Design of the allocation rule" paragraph
+    for why each part is load-bearing.
     """
     know: str = LexiconResponse.KNOW.to_code()
     dont: str = LexiconResponse.DONT.to_code()
@@ -485,41 +495,49 @@ def _select_stratified(
     total: int = frequency_list.get_all_occurrences()
 
     p_total: list[float] = [0.0] * n_strata
-    p_unknown: list[float] = [0.0] * n_strata
-    p_tested: list[float] = [0.0] * n_strata
-    untested: list[list[tuple[int, str]]] = [[] for _ in range(n_strata)]
+    count: list[int] = [0] * n_strata
+    count_unknown: list[int] = [0] * n_strata
+    untested: list[list[str]] = [[] for _ in range(n_strata)]
 
     for rank, word in enumerate(words, start=1):
         k: int = stratum_of_rank(rank, n, n_strata)
-        p_i: float = frequency_list.get_occurrences(word) / total
-        p_total[k] += p_i
+        p_total[k] += frequency_list.get_occurrences(word) / total
         state: tuple[str | None, bool | None] | None = states.get(word)
         if state is None:
             if word not in exclude:
-                untested[k].append((rank, word))
+                untested[k].append(word)
         elif state[0] in (know, dont):
-            p_tested[k] += p_i
+            count[k] += 1
             if state[0] == dont:
-                p_unknown[k] += p_i
+                count_unknown[k] += 1
 
-    theta_k: list[float] = [
-        p_unknown[k] / p_tested[k] if p_tested[k] > 0.0 else 0.5
-        for k in range(n_strata)
+    # Coverage first: an untested stratum scores infinity, the heaviest one
+    # winning.
+    uncovered: list[int] = [
+        k for k in range(n_strata) if untested[k] and count[k] == 0
     ]
+    if uncovered:
+        return random.choice(untested[max(uncovered, key=lambda k: p_total[k])])
 
     best_k: int | None = None
     best_score: float = -1.0
     for k in range(n_strata):
         if not untested[k]:
             continue
-        score: float = p_total[k] ** 2 * theta_k[k] * (1.0 - theta_k[k])
+        smoothed: float = (count_unknown[k] + 1) / (count[k] + 2)
+        score: float = (
+            p_total[k] ** 2
+            * smoothed
+            * (1.0 - smoothed)
+            / (count[k] * (count[k] + 1))
+        )
         if score > best_score:
             best_score = score
             best_k = k
 
     if best_k is None:
         return None
-    return min(untested[best_k], key=lambda rw: rw[0])[1]
+    return random.choice(untested[best_k])
 
 
 def compute_lexicon_rate(
@@ -2072,13 +2090,18 @@ class LexiconChecker:
 
         Implements SFWR: divides the frequency list into K log-uniform strata
         B_k = {i : N^((k-1)/K) <= rank < N^(k/K)} and samples adaptively,
-        always querying the stratum with the highest current variance
-        contribution P_k^2 * theta_k * (1 - theta_k).
+        always querying the stratum with the highest marginal variance
+        reduction P_k^2 * theta~_k (1 - theta~_k) / (n_k (n_k + 1)), where
+        theta~_k is the Laplace-smoothed unknown share among the stratum's
+        n_k tested words; an untested stratum has infinite marginal value, so
+        all strata are surveyed before any is refined. Within the chosen
+        stratum the word is drawn uniformly at random. The selection logic
+        mirrors `_select_stratified` (and the algorithm box in
+        `research/metric.tex`) — keep them in sync.
 
-        Within each stratum theta_k is estimated as the frequency-weighted
-        proportion of unknown words among tested words; strata with no tested
-        words use a 0.5 prior.  The combined estimator is the
-        Horvitz-Thompson estimate theta = sum_k P_k * theta_k.
+        The combined estimator is the Horvitz-Thompson estimate
+        theta = sum_k P_k * theta_k, with theta_k the frequency-weighted
+        unknown share among tested words.
 
         :param other_lexicons: other user lexicons of the same language
         :param frequency_list: frequency list used for word selection
@@ -2108,6 +2131,8 @@ class LexiconChecker:
             stratum_p_total: list[float] = [0.0] * n_strata
             stratum_p_unknown: list[float] = [0.0] * n_strata
             stratum_p_tested: list[float] = [0.0] * n_strata
+            stratum_count: list[int] = [0] * n_strata
+            stratum_count_unknown: list[int] = [0] * n_strata
             untested_by_stratum: list[list[tuple[int, str]]] = [
                 [] for _ in range(n_strata)
             ]
@@ -2120,8 +2145,10 @@ class LexiconChecker:
                     known: LexiconResponse | None = self.lexicon.get(word)
                     if known in (LexiconResponse.KNOW, LexiconResponse.DONT):
                         stratum_p_tested[k] += p_i
+                        stratum_count[k] += 1
                         if known == LexiconResponse.DONT:
                             stratum_p_unknown[k] += p_i
+                            stratum_count_unknown[k] += 1
                 else:
                     untested_by_stratum[k].append((rank, word))
 
@@ -2146,26 +2173,42 @@ class LexiconChecker:
                     " ".join(f"{theta_k[k]:.2f}" for k in range(n_strata)),
                 )
 
-            # Pick stratum with max variance contribution among those with
-            # untested words.
+            # Coverage first: an untested stratum has infinite marginal
+            # value, the heaviest one winning.
             best_k: int | None = None
-            best_score: float = -1.0
-            for k in range(n_strata):
-                if not untested_by_stratum[k]:
-                    continue
-                score: float = (
-                    stratum_p_total[k] ** 2 * theta_k[k] * (1.0 - theta_k[k])
-                )
-                if score > best_score:
-                    best_score = score
-                    best_k = k
+            uncovered: list[int] = [
+                k
+                for k in range(n_strata)
+                if untested_by_stratum[k] and stratum_count[k] == 0
+            ]
+            if uncovered:
+                best_k = max(uncovered, key=lambda k: stratum_p_total[k])
+            else:
+                # Pick the stratum whose next query reduces the estimator's
+                # variance the most (greedy Neyman allocation).
+                best_score: float = -1.0
+                for k in range(n_strata):
+                    if not untested_by_stratum[k]:
+                        continue
+                    smoothed: float = (stratum_count_unknown[k] + 1) / (
+                        stratum_count[k] + 2
+                    )
+                    score: float = (
+                        stratum_p_total[k] ** 2
+                        * smoothed
+                        * (1.0 - smoothed)
+                        / (stratum_count[k] * (stratum_count[k] + 1))
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_k = k
 
             if best_k is None:
                 break  # All words tested.
 
-            # Within the stratum, pick the highest-frequency untested word.
-            picked_rank, picked_word = min(
-                untested_by_stratum[best_k], key=lambda rw: rw[0]
+            # Within the stratum, draw an untested word uniformly at random.
+            picked_rank, picked_word = random.choice(
+                untested_by_stratum[best_k]
             )
             logger.info("stratum %d, picked rank %d", best_k, picked_rank)
 

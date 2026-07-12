@@ -1,6 +1,7 @@
 """Tests for lexicon."""
 
 import math
+import random
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconLog,
     LexiconResponse,
+    _select_stratified,
     estimate_rate_frequency,
     estimate_rate_logistic,
     estimate_rate_stratified,
@@ -119,6 +121,64 @@ def test_select_next_word_threshold_targets_the_boundary() -> None:
 
     word = select_next_word(frequency_list, set(), "threshold", states)
     assert word in {"w9", "w10"}
+
+
+def test_select_stratified_covers_untested_strata_first() -> None:
+    """SFWR surveys every stratum before refining any.
+
+    An untested stratum has infinite marginal value, so it is queried even
+    when a tested stratum is maximally mixed (which would win under a
+    non-marginal score).
+    """
+    # 16 words, 2 strata: ranks 1-3 (w0-w2) and 4-16 (w3-w15).
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    states: dict[str, tuple[str | None, bool | None]] = {
+        "w0": ("K", None),
+        "w1": ("D", None),
+    }
+
+    word = _select_stratified(frequency_list, states, set(), n_strata=2)
+    assert word in {f"w{i}" for i in range(3, 16)}
+
+
+def test_select_stratified_prefers_marginal_variance_reduction() -> None:
+    """SFWR refines the stratum whose next query reduces variance the most.
+
+    A lightly tested all-known stratum (Laplace-smoothed uncertainty, n=1)
+    beats a heavily tested mixed one (n=4): the raw score would freeze the
+    former at zero and dwell in the latter forever.
+    """
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    states: dict[str, tuple[str | None, bool | None]] = {
+        "w0": ("K", None),  # Stratum 0: n=1, all known.
+        "w3": ("K", None),  # Stratum 1: n=4, mixed.
+        "w4": ("D", None),
+        "w5": ("K", None),
+        "w6": ("D", None),
+    }
+
+    word = _select_stratified(frequency_list, states, set(), n_strata=2)
+    assert word in {"w1", "w2"}
+
+
+def test_select_stratified_draws_within_stratum_at_random() -> None:
+    """SFWR draws uniformly within the stratum, not a front-sweep.
+
+    The deterministic highest-frequency pick would return the same word every
+    time, sampling the stratum from its most-known edge.
+    """
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    states: dict[str, tuple[str | None, bool | None]] = {
+        "w0": ("K", None),
+        "w4": ("D", None),
+    }
+
+    random.seed(0)
+    picks: set[str | None] = {
+        _select_stratified(frequency_list, states, set(), n_strata=2)
+        for _ in range(30)
+    }
+    assert len(picks) > 1
 
 
 def test_select_next_word_model_strategies_skip_answered() -> None:

@@ -150,10 +150,7 @@ def main() -> None:
     ]
     scope_params: tuple[str, str] = (arguments.user, arguments.lexicon)
 
-    with (
-        postgres.db_connection() as connection,
-        connection.cursor() as cursor,
-    ):
+    with postgres.db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(_COUNT_RECORDS, predicate_params)
         if not (row := cursor.fetchone()):
             return
