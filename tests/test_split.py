@@ -34,7 +34,9 @@ def test_french() -> None:
     """Test French sentence splitting."""
 
     assert split_sentence("n'importe quel", KnownLanguages.FRENCH) == [
-        ("n'importe", SentenceElement.WORD),
+        ("n", SentenceElement.WORD),
+        ("'", SentenceElement.SYMBOL),
+        ("importe", SentenceElement.WORD),
         (" ", SentenceElement.SYMBOL),
         ("quel", SentenceElement.WORD),
     ]

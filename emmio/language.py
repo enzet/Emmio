@@ -361,8 +361,7 @@ class KnownLanguages:
         Color("#4193C3"),  # Blue color of the Francophonie flag.
         LATIN_LETTERS
         + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœ"
-        + "".join(LATIN_LIGATURES.keys())
-        + SKIPPERS,
+        + "".join(LATIN_LIGATURES.keys()),
         self_name="français",
     )
     GERMAN: Language = Language(
