@@ -38,6 +38,12 @@ html[data-style="fancy"] input.text {
     padding: 0.3rem;
 }
 
+html[data-style="fancy"] select {
+    border: 1px solid var(--input-bg);
+    border-radius: 3px;
+    background: var(--input-bg);
+}
+
 html[data-style="fancy"] p, ul {
     margin-block-start: 0.5em;
     margin-block-end: 0.5em;

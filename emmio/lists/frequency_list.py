@@ -1,12 +1,14 @@
 """Frequency list."""
 
+import bisect
 import json
 import logging
 import random
 import sys
 from dataclasses import dataclass, field
+from itertools import accumulate
 from pathlib import Path
-from typing import Self, override
+from typing import Any, Self, override
 
 import urllib3
 
@@ -50,6 +52,21 @@ class FrequencyList(List):
     _sorted_keys: list[str] = field(default_factory=list)
     """List of words sorted by their number of occurrences."""
 
+    _rank_index: dict[str, int] | None = field(default=None, repr=False)
+    """Mapping from word to its index in `_sorted_keys`, built on demand."""
+
+    _cumulative: list[int] | None = field(default=None, repr=False)
+    """Cumulative occurrence counts over `_sorted_keys`, built on demand."""
+
+    derived: dict[Any, Any] = field(default_factory=dict, repr=False)
+    """Cross-module memoization of structures derived from this list.
+
+    Other modules cache expensive rank-indexed structures here (e.g. stratum
+    frequency masses, per-rank probability arrays) keyed by their own tuples.
+    Cleared whenever the list mutates; safe because loaded lists are shared
+    and long-lived (see `ListsData.get_frequency_list`).
+    """
+
     @classmethod
     def from_config(cls, path: Path, config: FrequencyListConfig) -> Self:
         """Load frequency list from file or URL.
@@ -82,6 +99,28 @@ class FrequencyList(List):
     def __len__(self) -> int:
         return len(self.data)
 
+    def _invalidate_derived(self) -> None:
+        """Drop structures computed from the (now stale) word order."""
+        self._rank_index = None
+        self._cumulative = None
+        self.derived.clear()
+
+    def _get_rank_index(self) -> dict[str, int]:
+        """Get the word-to-index mapping, building it on first use."""
+        if self._rank_index is None:
+            self._rank_index = {
+                word: index for index, word in enumerate(self._sorted_keys)
+            }
+        return self._rank_index
+
+    def _get_cumulative(self) -> list[int]:
+        """Get cumulative occurrence counts, building them on first use."""
+        if self._cumulative is None:
+            self._cumulative = list(
+                accumulate(self.data[word] for word in self._sorted_keys)
+            )
+        return self._cumulative
+
     def add(self, word: str, occurrences: int = 1) -> None:
         """Add word and its occurrences in some text."""
         if not self.data:
@@ -93,6 +132,7 @@ class FrequencyList(List):
         self._sorted_keys = sorted(
             self.data.keys(), key=lambda word: -self.data[word]
         )
+        self._invalidate_derived()
 
     def ignore_proper_nouns(self) -> None:
         """Make frequency list case-insensitive."""
@@ -105,6 +145,7 @@ class FrequencyList(List):
         self._sorted_keys = sorted(
             self.data.keys(), key=lambda word: -self.data[word]
         )
+        self._invalidate_derived()
 
     def has(self, word: str) -> bool:
         """Check whether frequency list contains word."""
@@ -122,9 +163,7 @@ class FrequencyList(List):
         The most popular word in the text has index 1. If word is not in
         frequency list, return -1.
         """
-        if word in self._sorted_keys:
-            return self._sorted_keys.index(word)
-        return -1
+        return self._get_rank_index().get(word, -1)
 
     def get_all_occurrences(self) -> int:
         """Get number of all words in the text."""
@@ -139,7 +178,7 @@ class FrequencyList(List):
 
         :return: word, number of its occurrences in text
         """
-        word: str = random.choice(list(self.data.keys()))
+        word: str = random.choice(self._sorted_keys)
         return word, self.data[word]
 
     def get_word_by_occurrences(self, occurrences: int) -> tuple[str, int]:
@@ -169,18 +208,16 @@ class FrequencyList(List):
         """
         number: int = random.randint(0, self._occurrences)
 
-        index: int = 0
-        for word in self._sorted_keys:
-            index += self.data[word]
-            if index >= number:
-                return word, self.data[word]
-
-        msg = (
-            "Unable to get word from a frequency list. Total occurrences "
-            f"number is {self._occurrences}. Number is {number}. Last index "
-            "is {index}."
-        )
-        raise OverflowError(msg)
+        cumulative: list[int] = self._get_cumulative()
+        index: int = bisect.bisect_left(cumulative, number)
+        if index >= len(self._sorted_keys):
+            msg = (
+                "Unable to get word from a frequency list. Total occurrences "
+                f"number is {self._occurrences}. Number is {number}."
+            )
+            raise OverflowError(msg)
+        word: str = self._sorted_keys[index]
+        return word, self.data[word]
 
     def get_index(self, word: str) -> int:
         """Get index of the word in the frequency list.
@@ -188,9 +225,18 @@ class FrequencyList(List):
         :return: index of the word in the frequency list or -1 if the word is
             not in the frequency list
         """
-        if word in self._sorted_keys:
-            return self._sorted_keys.index(word)
-        return -1
+        return self._get_rank_index().get(word, -1)
+
+    def get_range_occurrences(self, start: int, end: int) -> int:
+        """Sum occurrences of the words with indices in `[start, end)`.
+
+        Indices refer to the frequency-sorted order, 0 = most frequent.
+        """
+        if start >= end:
+            return 0
+        cumulative: list[int] = self._get_cumulative()
+        upper: int = cumulative[min(end, len(cumulative)) - 1]
+        return upper - (cumulative[start - 1] if start > 0 else 0)
 
     @override
     def get_name(self) -> str | None:

@@ -18,6 +18,8 @@ from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
+from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
+from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import Sentence as ExampleSentence
 from emmio.sentence.core import SentenceAndTranslations
 
@@ -37,12 +39,20 @@ class _FakeDictionaries:
 class _FakeData:
     """Stand-in for the shared data, with a fixed frequency-list inventory."""
 
-    def __init__(self, languages: dict[str, dict]) -> None:
+    def __init__(
+        self,
+        languages: dict[str, dict],
+        frequency_lists: dict[str, FrequencyList] | None = None,
+    ) -> None:
         self._languages = languages
+        self._frequency_lists = frequency_lists or {}
         self.dictionaries = _FakeDictionaries()
 
     def get_frequency_list_languages(self) -> dict[str, dict]:
         return self._languages
+
+    def get_frequency_list(self, usage_config: Any) -> FrequencyList | None:
+        return self._frequency_lists.get(usage_config.id)
 
     def get_sentence_languages(self) -> set[str]:
         # Every frequency-list language also has Tatoeba sentences here.
@@ -64,6 +74,40 @@ def fake_languages(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict]:
     fake: Any = _FakeData(languages)
     monkeypatch.setattr(app_module, "get_data", lambda: fake)
     return languages
+
+
+_UK_LETTERS: str = "абвгде"
+
+_UK_WORDS: list[str] = [
+    first + second for first in _UK_LETTERS for second in _UK_LETTERS
+][:30]
+"""Fake Ukrainian words by descending frequency: `аа` is rank 1.
+
+All-Cyrillic on purpose: a word outside the language's alphabet would be
+auto-answered as not-a-word instead of being presented.
+"""
+
+
+@pytest.fixture
+def fake_uk_list(monkeypatch: pytest.MonkeyPatch) -> FrequencyList:
+    """Serve an in-memory Ukrainian frequency list of `_UK_WORDS`."""
+    frequency_list: FrequencyList = FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="uk",
+            path="unused",
+            is_stripped=False,
+        ),
+        data={
+            word: len(_UK_WORDS) - index for index, word in enumerate(_UK_WORDS)
+        },
+    )
+    fake: Any = _FakeData(
+        {"uk": {"id": "uk_list"}}, {"uk_list": frequency_list}
+    )
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    return frequency_list
 
 
 def _register_and_login(
@@ -1347,3 +1391,212 @@ def test_question_groups_words_into_connect(
     body = response.json()
     assert body["type"] == "connect"
     assert {pair["word"] for pair in body["pairs"]} == {"a", "b", "c", "d"}
+
+
+def _create_uk_lexicon(token: str, selection: str) -> None:
+    """Create a Ukrainian lexicon with the given selection strategy."""
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "selection": selection},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    assert response.json()["lexicon_id"] == "uk"
+
+
+def _next_words(token: str, session_id: str | None = None) -> list[str]:
+    """Fetch the next lexicon words to present."""
+    params: dict[str, str] = {}
+    if session_id is not None:
+        params["session_id"] = session_id
+    response = client.get(
+        "/api/v1/me/lexicons/uk/next", params=params, headers=_auth(token)
+    )
+    assert response.status_code == 200
+    return [card["word"] for card in response.json()["words"]]
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_session_records_a_session_row() -> None:
+    """A checking session groups answers and writes one session row."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+
+    opened = client.post(
+        "/api/v1/me/lexicons/uk/sessions", headers=_auth(token)
+    )
+    assert opened.status_code == 201
+    session_id: str = opened.json()["session_id"]
+
+    assert _next_words(token, session_id) == [_UK_WORDS[0]]
+    answer = client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={
+            "word": _UK_WORDS[0],
+            "response": "know",
+            "session_id": session_id,
+        },
+        headers=_auth(token),
+    )
+    assert answer.status_code == 204
+    # The session's working memory already knows the word was answered.
+    assert _next_words(token, session_id) == [_UK_WORDS[1]]
+
+    closed = client.post(
+        f"/api/v1/me/lexicons/uk/sessions/{session_id}/close",
+        headers=_auth(token),
+    )
+    assert closed.status_code == 204
+    _records, sessions = postgres.load_lexicon("alice", "uk")
+    assert len(sessions) == 1
+    # Closing again is a safe no-op.
+    client.post(
+        f"/api/v1/me/lexicons/uk/sessions/{session_id}/close",
+        headers=_auth(token),
+    )
+    assert len(postgres.load_lexicon("alice", "uk")[1]) == 1
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_session_without_answers_leaves_no_row() -> None:
+    """Opening and closing without answering writes no session row."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+
+    session_id = client.post(
+        "/api/v1/me/lexicons/uk/sessions", headers=_auth(token)
+    ).json()["session_id"]
+    client.post(
+        f"/api/v1/me/lexicons/uk/sessions/{session_id}/close",
+        headers=_auth(token),
+    )
+
+    assert postgres.load_lexicon("alice", "uk")[1] == []
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_session_unknown_id_reopens_transparently() -> None:
+    """An identifier the server does not know still serves words."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+
+    assert _next_words(token, "unknown-session") == [_UK_WORDS[0]]
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_session_detects_out_of_band_answers() -> None:
+    """Answers bypassing the session are noticed via the freshness stamp."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+    session_id = client.post(
+        "/api/v1/me/lexicons/uk/sessions", headers=_auth(token)
+    ).json()["session_id"]
+    assert _next_words(token, session_id) == [_UK_WORDS[0]]
+
+    # The first word gets answered outside the session (another device).
+    postgres.save_lexicon(
+        "alice", "uk", "uk", [(_UK_WORDS[0], "K", datetime.now(UTC), None)], []
+    )
+
+    assert _next_words(token, session_id) == [_UK_WORDS[1]]
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_session_serves_stratified_draws() -> None:
+    """A stratified session draws untested words and never repeats answers."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+    session_id = client.post(
+        "/api/v1/me/lexicons/uk/sessions", headers=_auth(token)
+    ).json()["session_id"]
+
+    seen: set[str] = set()
+    for _ in range(10):
+        words = _next_words(token, session_id)
+        assert len(words) == 1
+        word = words[0]
+        assert word in _UK_WORDS
+        assert word not in seen
+        seen.add(word)
+        assert (
+            client.post(
+                "/api/v1/me/lexicons/uk/answer",
+                json={
+                    "word": word,
+                    "response": "dont",
+                    "session_id": session_id,
+                },
+                headers=_auth(token),
+            ).status_code
+            == 204
+        )
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_course_session_groups_answers_into_a_row() -> None:
+    """A learning session groups answers into one `learn_sessions` row."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+    opened = client.post(
+        "/api/v1/me/courses/uk/sessions",
+        json={"type": "repeat"},
+        headers=_auth(token),
+    )
+    assert opened.status_code == 201
+    session_id: str = opened.json()["session_id"]
+
+    for word, response_code in (("хата", "y"), ("вода", "n")):
+        answer = client.post(
+            "/api/v1/me/courses/uk/answer",
+            json={
+                "word": word,
+                "response": response_code,
+                "session_id": session_id,
+            },
+            headers=_auth(token),
+        )
+        assert answer.status_code == 204
+
+    closed = client.post(
+        f"/api/v1/me/courses/uk/sessions/{session_id}/close",
+        headers=_auth(token),
+    )
+    assert closed.status_code == 204
+
+    records, sessions = postgres.load_learning("alice", "uk")
+    assert len(records) == 2
+    assert len(sessions) == 1
+    session_type, start, end, actions = sessions[0]
+    assert session_type == "repeat"
+    assert actions == 2
+    assert end
+    assert start <= end
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_course_answer_updates_cached_schedule() -> None:
+    """An answer through the cached course updates its stats in place."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+    client.post(
+        "/api/v1/me/courses/uk/answer",
+        json={"word": "хата", "response": "n"},
+        headers=_auth(token),
+    )
+
+    stats = client.get(
+        "/api/v1/me/courses/uk/stats", headers=_auth(token)
+    ).json()
+    assert stats["answers"] == 1
+    assert stats["actions"] == 1

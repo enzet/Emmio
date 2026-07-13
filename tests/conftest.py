@@ -12,9 +12,13 @@ import pytest
 
 os.environ["EMMIO_DATABASE_URL"] = "postgresql:///emmio_test"
 
-# The import has to happen after the environment variable is set, so that the
-# lazily created global connection uses the test database.
+# The imports have to happen after the environment variable is set, so that
+# the lazily created global connection uses the test database.
 from emmio import postgres  # pylint: disable=wrong-import-position
+from emmio.api.sessions import (  # pylint: disable=wrong-import-position
+    LEARNING_REGISTRY,
+    LEXICON_SESSIONS,
+)
 
 CLEAN_STATEMENT: LiteralString = (
     "TRUNCATE users, learn_records, learn_sessions, learn_courses, "
@@ -29,3 +33,15 @@ def clean_database() -> None:
 
     with postgres.db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(CLEAN_STATEMENT)
+
+
+@pytest.fixture(autouse=True)
+def clean_registries() -> None:
+    """Drop server-side session working memory before every test.
+
+    The registries cache per-user state across requests; with the database
+    truncated between tests, a stale cache would leak one test's state into
+    the next.
+    """
+    LEXICON_SESSIONS.reset()
+    LEARNING_REGISTRY.reset()

@@ -1033,6 +1033,53 @@ def get_recently_answered(
         return {row[0] for row in cursor.fetchall()}
 
 
+def count_lexicon_records(user_id: str, language: str) -> int:
+    """Count lexicon records across a user's same-language lexicons.
+
+    A cheap freshness stamp for session working memory: every write path
+    (answer, propagation, undo) changes the count, so a cached selector can
+    detect out-of-band changes with one query. Scoped to the language, not
+    the lexicon, mirroring `get_language_word_states`.
+
+    :param user_id: owning user login, e.g. `john`
+    :param language: language code shared by the lexicons
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.language = %s",
+            (user_id, language),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+
+def count_learn_records(user_id: str, course_id: str) -> int:
+    """Count learning records of a user's course.
+
+    The freshness stamp for a cached `Learning` instance: every write path
+    (answer, undo) changes the count.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `fr`
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) "
+            "FROM learn_records r "
+            "JOIN learn_courses c ON c.id = r.course_id "
+            "JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s",
+            (user_id, course_id),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+
 def delete_last_lexicon_record(user_id: str, lexicon_id: str) -> str | None:
     """Delete the most recent answer in a lexicon and return its word.
 

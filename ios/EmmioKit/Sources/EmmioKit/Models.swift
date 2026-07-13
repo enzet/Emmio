@@ -64,6 +64,13 @@ public struct CreatedCourse: Codable, Sendable {
     public let courseId: String
 }
 
+/// The identifier of a freshly opened session, from
+/// `POST .../sessions`. The identifier is a hint, not a lock: the server
+/// transparently reopens a session it no longer remembers.
+public struct OpenedSession: Codable, Sendable {
+    public let sessionId: String
+}
+
 /// One dictionary's rendering of a word, as an HTML fragment.
 public struct DictionaryTranslation: Codable, Sendable {
     /// Dictionary name.

@@ -95,3 +95,66 @@ def test_read_csv() -> None:
                 csv_delimiter=";",
             ),
         )
+
+
+def _make_list(data: dict[str, int]) -> FrequencyList:
+    """Build an in-memory frequency list."""
+    return FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            path="unused",
+            file_format=FrequencyListFileFormat.LIST,
+            language="en",
+            is_stripped=False,
+        ),
+        data=data,
+    )
+
+
+def test_get_index_uses_rank_order() -> None:
+    """Word lookup follows frequency order and misses return -1."""
+
+    frequency_list: FrequencyList = _make_list({"a": 30, "b": 20, "c": 10})
+    assert [frequency_list.get_index(word) for word in "abc"] == [0, 1, 2]
+    assert frequency_list.get_index("missing") == -1
+
+
+def test_get_range_occurrences_sums_by_rank() -> None:
+    """Range sums match direct summation over the sorted order."""
+
+    frequency_list: FrequencyList = _make_list(
+        {f"w{i}": 100 - i for i in range(10)}
+    )
+    counts: list[int] = [100 - i for i in range(10)]
+    assert frequency_list.get_range_occurrences(0, 10) == sum(counts)
+    assert frequency_list.get_range_occurrences(2, 5) == sum(counts[2:5])
+    assert frequency_list.get_range_occurrences(5, 5) == 0
+    assert frequency_list.get_range_occurrences(8, 99) == sum(counts[8:])
+
+
+def test_add_invalidates_derived_caches() -> None:
+    """Mutating the list drops the rank index and cumulative sums."""
+
+    frequency_list: FrequencyList = _make_list({"a": 30, "b": 20})
+    assert frequency_list.get_index("b") == 1  # Builds the caches.
+    frequency_list.derived["probe"] = True
+
+    frequency_list.add("c", 40)  # Now the most frequent word.
+
+    assert frequency_list.get_index("c") == 0
+    assert frequency_list.get_index("b") == 2
+    assert "probe" not in frequency_list.derived
+    assert frequency_list.get_range_occurrences(0, 3) == 90
+
+
+def test_random_word_by_frequency_is_valid() -> None:
+    """Frequency-weighted draws return real words with their counts."""
+
+    frequency_list: FrequencyList = _make_list({"a": 98, "b": 1, "c": 1})
+    counter: dict[str, int] = {}
+    for _ in range(200):
+        word, occurrences = frequency_list.get_random_word_by_frequency()
+        assert frequency_list.get_occurrences(word) == occurrences
+        counter[word] = counter.get(word, 0) + 1
+    # The dominant word must dominate the draws.
+    assert counter["a"] > 150

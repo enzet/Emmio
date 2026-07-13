@@ -16,6 +16,8 @@ import logging
 import os
 import random
 import shutil
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import mkdtemp
@@ -42,6 +44,12 @@ from starlette.background import BackgroundTask
 from emmio import postgres
 from emmio.api import auth
 from emmio.api.render import elements_to_html, to_html
+from emmio.api.sessions import (
+    LEARNING_REGISTRY,
+    LEXICON_SESSIONS,
+    LearningEntry,
+    LexiconCheckSession,
+)
 from emmio.audio.config import AudioUsageConfig
 from emmio.audio.transcode import to_browser_playable
 from emmio.data import Data
@@ -49,7 +57,6 @@ from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
 from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
-from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import (
@@ -66,6 +73,7 @@ from emmio.lexicon.core import (
 )
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
+from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import Sentence as ExampleSentence
 from emmio.sentence.core import SentenceAndTranslations, SentenceElement
@@ -102,7 +110,20 @@ def _configure_logging() -> None:
 
 _configure_logging()
 
-app: FastAPI = FastAPI(title="Emmio API", version="0.1")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+    """Flush session working memory on shutdown.
+
+    Answers are persisted per request, so only open session rows (start/end
+    bookkeeping) are at stake here.
+    """
+    yield
+    LEXICON_SESSIONS.flush()
+    LEARNING_REGISTRY.flush()
+
+
+app: FastAPI = FastAPI(title="Emmio API", version="0.1", lifespan=_lifespan)
 
 # Tells clients (and `/docs`) where to obtain a token, and extracts the bearer
 # token from the `Authorization` header on protected routes.
@@ -272,6 +293,8 @@ def delete_me(user_id: Annotated[str, Depends(get_current_user)]) -> None:
     answer it owns. The caller's token becomes useless once the user is gone.
     """
     postgres.delete_user(user_id)
+    LEXICON_SESSIONS.invalidate_user(user_id)
+    LEARNING_REGISTRY.invalidate_user(user_id)
 
 
 @app.get("/api/v1/me/export")
@@ -595,6 +618,7 @@ def delete_lexicon(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown lexicon `{lexicon_id}`.",
         )
+    LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
 
 
 class LexiconSettings(BaseModel):
@@ -702,6 +726,8 @@ def update_lexicon_settings(
         config["sentences"] = sentences
 
     postgres.store_lexicon_config(user_id, lexicon_id, config)
+    # The open session (if any) was built on the old settings.
+    LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
     return _lexicon_settings(config)
 
 
@@ -812,6 +838,7 @@ def delete_course(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown course `{course_id}`.",
         )
+    LEARNING_REGISTRY.invalidate(user_id, course_id)
 
 
 class CourseSettings(BaseModel):
@@ -910,6 +937,8 @@ def update_course_settings(
         config["audio"] = data.get_audio_config(language)
 
     postgres.store_learn_config(user_id, course_id, config)
+    # The cached instance (if any) was built on the old settings.
+    LEARNING_REGISTRY.invalidate(user_id, course_id)
     return _course_settings(config)
 
 
@@ -1176,6 +1205,12 @@ class AnswerRequest(BaseModel):
     word: str
     response: str  # A `LexiconResponse` value, e.g. `know` or `dont`.
     to_skip: bool = False  # Skip this word in future checks.
+    session_id: str | None = None
+    """Open checking session to fold the answer into, if the client has one.
+
+    The answer is persisted either way; the identifier only keeps the
+    session's working memory and action count in step.
+    """
 
 
 _data: Data | None = None
@@ -1332,23 +1367,8 @@ def _skip_decision(
     return None  # Seen but stale: re-ask to refresh the estimate.
 
 
-@app.get("/api/v1/me/lexicons/{lexicon_id}/next")
-def get_next_lexicon_words(
-    lexicon_id: str,
-    user_id: Annotated[str, Depends(get_current_user)],
-    count: int = 1,
-    exclude: Annotated[list[str] | None, Query()] = None,
-) -> NextWords:
-    """Get the next words to check in the authenticated user's lexicon.
-
-    Words are drawn by the lexicon's frequency strategy. Every drawn word that
-    is not presented is *recorded* with the answer it can be given automatically
-    (already known/skipped/foreign/recently answered) rather than excluded, so
-    the records stay a faithful frequency-weighted sample and the rate is
-    computed correctly. `count` requests how many words to present; `exclude`
-    lists words already queued on the client.
-    """
-    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+def _frequency_list_or_error(config: dict, lexicon_id: str) -> FrequencyList:
+    """Resolve a lexicon's configured frequency list or raise an HTTP error."""
     if config["frequency_list"] is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1362,35 +1382,36 @@ def get_next_lexicon_words(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Configured frequency list could not be loaded.",
         )
-    language: str = config["language"]
-    selection: str = config["selection"]
-    symbols: str | None = Language.from_code(language).get_symbols()
-    states: dict[str, tuple[str | None, bool | None]] = (
-        postgres.get_language_word_states(user_id, language)
-    )
-    recent: set[str] = postgres.get_recently_answered(user_id, lexicon_id)
+    return frequency_list
 
-    limit: int = max(1, min(count, _BATCH_MAX))
-    drawn: set[str] = set(exclude or [])
-    # "top" walks the list in rank order and never re-asks an answered word, so
-    # exclude everything already recorded; sampling strategies re-sample, so
-    # they rely on `_skip_decision` instead.
-    if selection == "top":
-        drawn |= postgres.get_answered_words(user_id, lexicon_id)
+
+def _draw_batch(
+    pick: Callable[[set[str]], str | None],
+    drawn: set[str],
+    limit: int,
+    states: dict[str, tuple[str | None, bool | None]],
+    recent: set[str],
+    symbols: str | None,
+    now: datetime,
+) -> tuple[list[str], list[postgres.LexiconRecordRow]]:
+    """Draw words to present, auto-answering the skippable ones.
+
+    Every drawn word that is not presented is *recorded* with the answer it
+    can be given automatically (already known/skipped/foreign/recently
+    answered) rather than excluded, so the records stay a faithful sample and
+    the rate is computed correctly.
+
+    :param pick: the strategy's draw, given the words to exclude
+    :param drawn: words to exclude from draws, grown as words are drawn
+    :param limit: how many words to present
+    :return: (words to present, auto-answer record rows to persist)
+    """
     words: list[str] = []
     auto: list[postgres.LexiconRecordRow] = []
-    now: datetime = datetime.now(UTC)
     for _ in range(_DRAW_BUDGET):
         if len(words) >= limit:
             break
-        try:
-            candidate: str | None = select_next_word(
-                frequency_list, drawn, selection, states
-            )
-        except NotImplementedError as error:
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
-            ) from error
+        candidate: str | None = pick(drawn)
         if candidate is None:
             break
         drawn.add(candidate)
@@ -1403,9 +1424,157 @@ def get_next_lexicon_words(
         if to_skip is not None:
             extra["sk"] = to_skip
         auto.append((candidate, response, now, extra))
+    return words, auto
 
-    if auto:
-        postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
+
+class OpenedSession(BaseModel):
+    """Identifier of a freshly opened session."""
+
+    session_id: str
+
+
+@app.post(
+    "/api/v1/me/lexicons/{lexicon_id}/sessions",
+    status_code=status.HTTP_201_CREATED,
+)
+def open_lexicon_session(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> OpenedSession:
+    """Open a checking session on the lexicon.
+
+    The session holds the strategy's working memory between requests, so
+    draws stay cheap on large frequency lists, and it is written to the
+    lexicon's session log when closed. Pass its identifier to `/next` and
+    `/answer`; an unknown or expired identifier reopens the session
+    transparently, so the client never has to handle a lost one.
+    """
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    frequency_list: FrequencyList = _frequency_list_or_error(config, lexicon_id)
+    try:
+        session = LEXICON_SESSIONS.open(
+            user_id,
+            lexicon_id,
+            config["language"],
+            config["selection"],
+            frequency_list,
+        )
+    except NotImplementedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
+        ) from error
+    return OpenedSession(session_id=session.session_id)
+
+
+@app.post(
+    "/api/v1/me/lexicons/{lexicon_id}/sessions/{session_id}/close",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def close_lexicon_session(
+    lexicon_id: str,
+    session_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> None:
+    """Close the checking session, writing its log row.
+
+    Idempotent: closing an unknown or already-closed session is a no-op, so
+    client retries are safe. A session that is never closed is finalized when
+    it expires or the server shuts down.
+    """
+    _lexicon_config_or_404(user_id, lexicon_id)
+    LEXICON_SESSIONS.close(user_id, lexicon_id, session_id)
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/next")
+def get_next_lexicon_words(
+    lexicon_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    count: int = 1,
+    exclude: Annotated[list[str] | None, Query()] = None,
+    session_id: str | None = None,
+) -> NextWords:
+    """Get the next words to check in the authenticated user's lexicon.
+
+    Words are drawn by the lexicon's strategy. Every drawn word that is not
+    presented is *recorded* with the answer it can be given automatically
+    (already known/skipped/foreign/recently answered) rather than excluded, so
+    the records stay a faithful frequency-weighted sample and the rate is
+    computed correctly. `count` requests how many words to present; `exclude`
+    lists words already queued on the client.
+
+    With a `session_id` (from opening a checking session) the draw comes from
+    the session's working memory, so it stays cheap on large lists; an unknown
+    or expired identifier transparently reopens the session. Without one, the
+    selection state is rebuilt from the database on every request.
+    """
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    frequency_list: FrequencyList = _frequency_list_or_error(config, lexicon_id)
+    language: str = config["language"]
+    selection: str = config["selection"]
+    symbols: str | None = Language.from_code(language).get_symbols()
+
+    limit: int = max(1, min(count, _BATCH_MAX))
+    drawn: set[str] = set(exclude or [])
+    now: datetime = datetime.now(UTC)
+
+    try:
+        if session_id is not None:
+            # Session path: draw from the session's working memory instead of
+            # rebuilding selection state from the database.
+            session: LexiconCheckSession = LEXICON_SESSIONS.acquire(
+                user_id,
+                lexicon_id,
+                session_id,
+                language,
+                selection,
+                frequency_list,
+            )
+            with session.lock:
+                words, auto = _draw_batch(
+                    session.selector.next_word,
+                    drawn,
+                    limit,
+                    session.states,
+                    session.recent,
+                    symbols,
+                    now,
+                )
+                if auto:
+                    postgres.save_lexicon(
+                        user_id, lexicon_id, language, auto, []
+                    )
+                    for word, code, _when, extra in auto:
+                        session.note_auto(
+                            word, code, to_skip=(extra or {}).get("sk")
+                        )
+        else:
+            states: dict[str, tuple[str | None, bool | None]] = (
+                postgres.get_language_word_states(user_id, language)
+            )
+            recent: set[str] = postgres.get_recently_answered(
+                user_id, lexicon_id
+            )
+            # "top" walks the list in rank order and never re-asks an answered
+            # word, so exclude everything already recorded; sampling
+            # strategies re-sample, so they rely on `_skip_decision` instead.
+            if selection == "top":
+                drawn |= postgres.get_answered_words(user_id, lexicon_id)
+            words, auto = _draw_batch(
+                lambda pool: select_next_word(
+                    frequency_list, pool, selection, states
+                ),
+                drawn,
+                limit,
+                states,
+                recent,
+                symbols,
+                now,
+            )
+            if auto:
+                postgres.save_lexicon(user_id, lexicon_id, language, auto, [])
+    except NotImplementedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(error)
+        ) from error
     answers = postgres.get_last_lexicon_answers(user_id, lexicon_id, words)
     cards: list[WordCard] = _word_cards(
         words, answers, _LEXICON_RESPONSE_LABELS
@@ -1447,13 +1616,24 @@ def answer_lexicon_word(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid response `{request.response}`.",
         ) from error
+    now: datetime = datetime.now(UTC)
     record: postgres.LexiconRecordRow = (
         request.word,
         response.to_code(),
-        datetime.now(UTC),
+        now,
         {"sk": True} if request.to_skip else None,
     )
     postgres.save_lexicon(user_id, lexicon_id, config["language"], [record], [])
+    if request.session_id is not None:
+        LEXICON_SESSIONS.note_answer(
+            user_id,
+            lexicon_id,
+            request.session_id,
+            request.word,
+            response.to_code(),
+            to_skip=True if request.to_skip else None,
+            when=now,
+        )
 
 
 class RateEstimate(BaseModel):
@@ -1789,14 +1969,16 @@ def clear_lexicon_main(
 # served; adding new words needs the interactive `Teacher` and is not yet here.
 
 
-def _load_learning(user_id: str, course_id: str) -> Learning:
-    """Load a user's course (records included) from the database."""
+def _learning_entry(user_id: str, course_id: str) -> LearningEntry:
+    """Get the user's course from the per-process cache.
 
+    Replaying every record of a course on each request does not scale; the
+    registry caches the loaded `Learning` and reloads it only when its
+    freshness stamp shows records arrived through another path (undo, CLI).
+    Use the entry's lock around any access to the instance.
+    """
     config: dict = _course_config_or_404(user_id, course_id)
-    # The path is vestigial (records live in the database); any value works.
-    return Learning.from_config(
-        Path(), LearnConfig(**config), course_id, user_id
-    )
+    return LEARNING_REGISTRY.entry(user_id, course_id, config)
 
 
 class CourseStats(BaseModel):
@@ -1822,18 +2004,20 @@ def get_course_stats(
     Loads the course's records to compute the repetition schedule, so it is
     heavier than the list endpoint; intended for a single-course view.
     """
-    learning: Learning = _load_learning(user_id, course_id)
-    return CourseStats(
-        course_id=course_id,
-        name=learning.config.name,
-        learning_language=learning.learning_language.get_code(),
-        learning=learning.count_questions_to_learn(),
-        to_repeat=learning.count_questions_to_repeat(),
-        to_add=learning.count_questions_to_add(),
-        added_today=learning.count_questions_added_today(),
-        answers=len(learning.get_records()),
-        actions=learning.get_actions(),
-    )
+    entry: LearningEntry = _learning_entry(user_id, course_id)
+    with entry.lock:
+        learning: Learning = entry.learning
+        return CourseStats(
+            course_id=course_id,
+            name=learning.config.name,
+            learning_language=learning.learning_language.get_code(),
+            learning=learning.count_questions_to_learn(),
+            to_repeat=learning.count_questions_to_repeat(),
+            to_add=learning.count_questions_to_add(),
+            added_today=learning.count_questions_added_today(),
+            answers=len(learning.get_records()),
+            actions=learning.get_actions(),
+        )
 
 
 @app.get("/api/v1/me/courses/{course_id}/next")
@@ -1848,13 +2032,15 @@ def get_next_questions(
     `count` lets the client prefetch a queue; `exclude` lists words already
     queued so the batch has no duplicates.
     """
-    learning: Learning = _load_learning(user_id, course_id)
-    questions: list[str] = learning.get_next_questions(
-        max(1, min(count, _BATCH_MAX)), set(exclude or [])
-    )
+    entry: LearningEntry = _learning_entry(user_id, course_id)
+    with entry.lock:
+        language: str = entry.learning.learning_language.get_code()
+        questions: list[str] = entry.learning.get_next_questions(
+            max(1, min(count, _BATCH_MAX)), set(exclude or [])
+        )
     answers = postgres.get_last_learn_answers(user_id, course_id, questions)
     return NextWords(
-        language=learning.learning_language.get_code(),
+        language=language,
         words=_word_cards(
             questions, answers, _LEARN_RESPONSE_LABELS, typed=True
         ),
@@ -1907,6 +2093,12 @@ class CourseAnswerRequest(BaseModel):
     A record with no `qt` predates this and is treated as an unknown type.
     """
     sentence_id: int | None = None  # The example shown (`extra.si`), if any.
+    session_id: str | None = None
+    """Open learning session to count the answer into, if the client has one.
+
+    The answer is persisted either way; the identifier only groups answers
+    into a `learn_sessions` row.
+    """
     seconds: float | None = None
     """How long the question was on screen, used to set `request_time`.
 
@@ -1928,9 +2120,11 @@ def answer_question(
 
     The question type (`qt`), the example sentence shown (`si`), and how long
     the card was on screen (as `request_time`) are kept as provenance, so a
-    record stays interpretable as more question types are added.
+    record stays interpretable as more question types are added. The answer
+    goes through the cached `Learning` instance, so the repetition schedule
+    updates in place; with a `session_id` it also counts into the open
+    learning session's `learn_sessions` row.
     """
-    config: dict = _course_config_or_404(user_id, course_id)
     try:
         response: Response = Response(request.response)
     except ValueError as error:
@@ -1939,29 +2133,82 @@ def answer_question(
             detail=f"Invalid response `{request.response}`.",
         ) from error
     now: datetime = datetime.now(UTC)
-    extra: dict = {"qt": request.question_type}
-    if request.sentence_id is not None:
-        extra["si"] = request.sentence_id
     request_time: datetime | None = (
         now - timedelta(seconds=request.seconds)
         if request.seconds is not None
         else None
     )
-    record: postgres.LearnRecordRow = (
-        request.word,
-        response.value,
-        now,
-        request_time,
-        extra,
-    )
-    postgres.save_learning(
+    entry: LearningEntry = _learning_entry(user_id, course_id)
+    with entry.lock:
+        entry.learning.register(
+            response,
+            request.sentence_id or 0,
+            request.word,
+            time=now,
+            request_time=request_time,
+            question_type=request.question_type,
+        )
+        entry.learning.write()
+        entry.stamp += 1
+        if (
+            entry.session is not None
+            and request.session_id == entry.session.session_id
+        ):
+            entry.session.actions += 1
+            entry.session.last_action = now
+
+
+class OpenCourseSessionRequest(BaseModel):
+    """Payload to open a learning session."""
+
+    type: str = "repeat_and_learn_new"
+    """Session type stored in the log (mirrors the CLI teacher's types)."""
+
+
+@app.post(
+    "/api/v1/me/courses/{course_id}/sessions",
+    status_code=status.HTTP_201_CREATED,
+)
+def open_course_session(
+    course_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    request: OpenCourseSessionRequest | None = None,
+) -> OpenedSession:
+    """Open a learning session on the course.
+
+    Answers carrying the returned identifier are grouped into one
+    `learn_sessions` row (start, end, action count) when the session closes —
+    the same bookkeeping the CLI teacher does. Opening also warms the cached
+    course, so the first question arrives without replaying the records.
+    """
+    config: dict = _course_config_or_404(user_id, course_id)
+    session = LEARNING_REGISTRY.open_session(
         user_id,
         course_id,
-        config["name"],
-        config["learning_language"],
-        [record],
-        [],
+        config,
+        request.type if request is not None else "repeat_and_learn_new",
     )
+    return OpenedSession(session_id=session.session_id)
+
+
+@app.post(
+    "/api/v1/me/courses/{course_id}/sessions/{session_id}/close",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def close_course_session(
+    course_id: str,
+    session_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> None:
+    """Close the learning session, writing its log row.
+
+    Idempotent: closing an unknown or already-closed session is a no-op, so
+    client retries are safe. A session that is never closed is finalized when
+    it expires or the server shuts down; a session without answers leaves no
+    row.
+    """
+    _course_config_or_404(user_id, course_id)
+    LEARNING_REGISTRY.close_session(user_id, course_id, session_id)
 
 
 class ConnectPair(BaseModel):
@@ -2041,11 +2288,18 @@ async def get_question(
     (a short translation is needed for `choice`/`connect`). New words are not
     served here — they come from `/new`. `type` is `None` when nothing is due.
     """
-    learning: Learning = _load_learning(user_id, course_id)
-    language: str = learning.learning_language.get_code()
-    due: list[str] = learning.get_next_questions(
-        _QUESTION_BATCH, set(exclude or [])
-    )
+    entry: LearningEntry = _learning_entry(user_id, course_id)
+    with entry.lock:
+        learning: Learning = entry.learning
+        language: str = learning.learning_language.get_code()
+        due: list[str] = learning.get_next_questions(
+            _QUESTION_BATCH, set(exclude or [])
+        )
+        # Snapshot the streaks under the lock: the translation lookups below
+        # await, and the instance may take answers meanwhile.
+        streaks: dict[str, int] = {
+            word: _streak(learning, word) for word in due
+        }
     if not due:
         return Question(type=None, language=language)
 
@@ -2077,9 +2331,7 @@ async def get_question(
     # Connect: when enough low-knowledge due words can be matched, group them.
     if QUESTION_TYPE_CONNECT in enabled:
         matchable: list[str] = [
-            word
-            for word in due
-            if word in translatable and _streak(learning, word) <= 1
+            word for word in due if word in translatable and streaks[word] <= 1
         ]
         if len(matchable) >= _CONNECT_SIZE:
             chosen: list[str] = matchable[:_CONNECT_SIZE]
@@ -2098,7 +2350,7 @@ async def get_question(
         word in translatable and len(seen_translations) >= _CHOICE_OPTIONS
     )
     question_type: str = _single_question_type(
-        _streak(learning, word), enabled, choice_feasible=choice_feasible
+        streaks[word], enabled, choice_feasible=choice_feasible
     )
     if question_type == QUESTION_TYPE_CHOICE:
         correct: str = translatable[word]
@@ -2135,7 +2387,11 @@ def undo_course_answer(
     Lets a mis-clicked repetition answer be corrected by re-answering.
     """
     _course_config_or_404(user_id, course_id)
-    return NextWord(word=postgres.delete_last_learn_record(user_id, course_id))
+    word: str | None = postgres.delete_last_learn_record(user_id, course_id)
+    # The delete bypassed the cached instance; drop it so the next request
+    # reloads from ground truth.
+    LEARNING_REGISTRY.invalidate(user_id, course_id)
+    return NextWord(word=word)
 
 
 @app.get("/api/v1/me/courses/{course_id}/dictionaries")
@@ -2337,9 +2593,11 @@ async def get_new_question_word(
     time. Returns `word=None` when the daily limit is reached, the course has no
     new-question scheme, or the lists are exhausted.
     """
-    learning: Learning = _load_learning(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, course_id)
+    with entry.lock:
+        learning: Learning = entry.learning
+        remaining: int = learning.count_questions_to_add()
     scheme = learning.config.scheme
-    remaining: int = learning.count_questions_to_add()
     if (
         remaining <= 0
         or scheme is None

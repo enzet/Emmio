@@ -244,6 +244,8 @@ public actor EmmioClient {
     ///   - response: right / wrong / skip.
     ///   - questionType: how the word was asked, stored as provenance (`qt`).
     ///   - sentenceId: the example sentence shown, stored as provenance.
+    ///   - sessionId: the open learning session, so the answer counts into
+    ///     its log row; the answer is recorded either way.
     ///   - seconds: how long the card was on screen, stored as provenance.
     public func answer(
         courseId: String,
@@ -251,6 +253,7 @@ public actor EmmioClient {
         response: LearnResponse,
         questionType: QuestionType = .know,
         sentenceId: Int? = nil,
+        sessionId: String? = nil,
         seconds: Double? = nil
     ) async throws {
         var body: [String: Any] = [
@@ -259,12 +262,42 @@ public actor EmmioClient {
             "question_type": questionType.rawValue,
         ]
         if let sentenceId { body["sentence_id"] = sentenceId }
+        if let sessionId { body["session_id"] = sessionId }
         if let seconds { body["seconds"] = seconds }
 
         var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))/answer")
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        try await sendNoContent(request)
+    }
+
+    /// Open a learning session on a course: answers carrying the returned
+    /// identifier are grouped into one session log row when it closes. Also
+    /// warms the server's cached course, making the first question fast.
+    public func openCourseSession(
+        courseId: String, type: String = "repeat_and_learn_new"
+    ) async throws -> String {
+        let path = "/api/v1/me/courses/\(escape(courseId))/sessions"
+        var request = self.request(for: path)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["type": type]
+        )
+        return try await send(request, as: OpenedSession.self).sessionId
+    }
+
+    /// Close a learning session, writing its log row. Idempotent: closing an
+    /// unknown or already-closed session is a safe no-op, and a session that
+    /// is never closed is finalized by the server when it expires.
+    public func closeCourseSession(
+        courseId: String, sessionId: String
+    ) async throws {
+        let path = "/api/v1/me/courses/\(escape(courseId))/sessions/"
+            + "\(escape(sessionId))/close"
+        var request = self.request(for: path)
+        request.httpMethod = "POST"
         try await sendNoContent(request)
     }
 

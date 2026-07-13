@@ -409,6 +409,7 @@ class Learning(UserArtifact):
         question_id: str,
         time: datetime | None = None,
         request_time: datetime | None = None,
+        question_type: str | None = None,
     ) -> None:
         """Register user response.
 
@@ -418,6 +419,7 @@ class Learning(UserArtifact):
         :param time: a moment in time what the user answer was registered
         :param request_time: a moment in time when the question was presented
             to the user
+        :param question_type: type of the question that was answered
         """
         if time is None:
             time = datetime.now(UTC)
@@ -426,6 +428,7 @@ class Learning(UserArtifact):
             question_id=question_id,
             response=response,
             sentence_id=sentence_id,
+            question_type=question_type,
             time=time,
             request_time=request_time,
         )

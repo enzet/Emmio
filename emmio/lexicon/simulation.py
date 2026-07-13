@@ -35,12 +35,13 @@ from emmio.lexicon.core import (
     LexiconResponse,
     TestedWord,
     UntestedWord,
+    WordSelector,
     WordStates,
+    create_selector,
     estimate_rate_frequency,
     estimate_rate_logistic,
     estimate_rate_stratified,
     estimate_rate_threshold,
-    select_next_word,
 )
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
@@ -259,13 +260,13 @@ def run_method(
 ) -> MethodTrajectory:
     """Drive one checking method over a fake learner.
 
-    Words are selected by the production `select_next_word` and answered
-    from the knowledge profile; at every checkpoint the estimator
-    matching the method is run on the log collected so far. The
-    ``frequency`` method samples with replacement (as FWR prescribes)
-    and feeds the chronological sequence to its estimator; the
-    model-based methods never repeat a word since answered words leave
-    the candidate pool.
+    Words are selected by the production selector (the same working
+    memory a checking session holds) and answered from the knowledge
+    profile; at every checkpoint the estimator matching the method is
+    run on the log collected so far. The ``frequency`` method samples
+    with replacement (as FWR prescribes) and feeds the chronological
+    sequence to its estimator; the model-based methods never repeat a
+    word since answered words leave the candidate pool.
 
     :param method: one of `METHODS`
     :param frequency_list: the fake language
@@ -282,16 +283,17 @@ def run_method(
     sequence: list[int] = []
     checkpoints: list[int] = []
     estimates: list[tuple[float, float] | None] = []
+    selector: WordSelector = create_selector(frequency_list, method)
 
     for query in tqdm(range(1, max_queries + 1), desc=method):
-        word: str | None = select_next_word(
-            frequency_list, set(), method, states
-        )
+        word: str | None = selector.next_word()
         if word is None:
             break
         label: int = knowledge[word]
+        code: str = dont if label == 1 else know
         sequence.append(0 if label == 1 else 1)
-        states[word] = (dont if label == 1 else know, None)
+        states[word] = (code, None)
+        selector.record(word, code)
 
         if query % step != 0 and query != max_queries:
             continue

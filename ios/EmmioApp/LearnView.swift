@@ -94,6 +94,10 @@ struct LearnView: View {
     @State private var language = ""
     @State private var history: [String] = []
     @State private var audioPlayer = AudioPlayer()
+    /// The open learning session on the server, grouping this screen's
+    /// answers into one log row. `nil` when opening failed — answers are
+    /// still recorded, just not grouped.
+    @State private var sessionId: String?
     /// Bumped per presented question so each card gets a fresh identity (and so
     /// its local state — typed text, selection — resets between questions).
     @State private var seq = 0
@@ -142,7 +146,20 @@ struct LearnView: View {
             // `/question` refines this per question; `/new` sends no language,
             // so start from the course's.
             language = course.learningLanguage
+            sessionId = try? await model.client.openCourseSession(
+                courseId: course.courseId
+            )
             await advance()
+        }
+        .onDisappear {
+            guard let sessionId else { return }
+            let client = model.client
+            let courseId = course.courseId
+            Task {
+                try? await client.closeCourseSession(
+                    courseId: courseId, sessionId: sessionId
+                )
+            }
         }
     }
 
@@ -186,7 +203,8 @@ struct LearnView: View {
             try await model.client.answer(
                 courseId: course.courseId, word: word,
                 response: response, questionType: type,
-                sentenceId: sentenceId, seconds: seconds
+                sentenceId: sentenceId, sessionId: sessionId,
+                seconds: seconds
             )
         } catch {
             phase = .failed(friendlyMessage(for: error))

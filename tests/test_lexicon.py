@@ -14,7 +14,11 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconLog,
     LexiconResponse,
-    _select_stratified,
+    LogisticSelector,
+    StratifiedSelector,
+    TopSelector,
+    _predict,
+    create_selector,
     estimate_rate_frequency,
     estimate_rate_logistic,
     estimate_rate_stratified,
@@ -137,7 +141,7 @@ def test_select_stratified_covers_untested_strata_first() -> None:
         "w1": ("D", None),
     }
 
-    word = _select_stratified(frequency_list, states, set(), n_strata=2)
+    word = StratifiedSelector(frequency_list, states, n_strata=2).next_word()
     assert word in {f"w{i}" for i in range(3, 16)}
 
 
@@ -157,7 +161,7 @@ def test_select_stratified_prefers_marginal_variance_reduction() -> None:
         "w6": ("D", None),
     }
 
-    word = _select_stratified(frequency_list, states, set(), n_strata=2)
+    word = StratifiedSelector(frequency_list, states, n_strata=2).next_word()
     assert word in {"w1", "w2"}
 
 
@@ -175,7 +179,7 @@ def test_select_stratified_draws_within_stratum_at_random() -> None:
 
     random.seed(0)
     picks: set[str | None] = {
-        _select_stratified(frequency_list, states, set(), n_strata=2)
+        StratifiedSelector(frequency_list, states, n_strata=2).next_word()
         for _ in range(30)
     }
     assert len(picks) > 1
@@ -443,3 +447,138 @@ def test_estimate_rate_dispatches_by_selection() -> None:
 
     with pytest.raises(NotImplementedError):
         estimate_rate_with_sd("arbitrary", sequence=sequence)
+
+
+def test_selectors_incremental_matches_rebuilt() -> None:
+    """Recording answers one by one equals rebuilding from scratch.
+
+    The selector is a session's working memory; its draws must match what a
+    stateless caller would get from the same ground truth. `top` and
+    `threshold` are deterministic, so words must be equal; for `stratified`
+    the draw within the stratum is random, so the chosen stratum must be
+    equal. Random-driven paths are seeded identically on both sides.
+    """
+    size: int = 64
+    frequency_list: FrequencyList = _ranked_frequency_list(size)
+
+    def code(word: str) -> str:
+        # Words in the top half of the list (by rank) are known.
+        return "K" if int(word[1:]) < size // 2 else "D"
+
+    for strategy in ("top", "threshold", "stratified"):
+        incremental = create_selector(frequency_list, strategy, {})
+        states: dict[str, tuple[str | None, bool | None]] = {}
+        answered: set[str] = set()
+        for step in range(20):
+            random.seed(step)
+            picked: str | None = incremental.next_word()
+            assert picked is not None
+            fresh = create_selector(
+                frequency_list, strategy, dict(states), set(answered)
+            )
+            random.seed(step)
+            expected: str | None = fresh.next_word()
+            assert expected is not None
+            if strategy == "stratified":
+                rank = frequency_list.get_index(picked) + 1
+                expected_rank = frequency_list.get_index(expected) + 1
+                assert stratum_of_rank(rank, size) == stratum_of_rank(
+                    expected_rank, size
+                ), f"{strategy}, step {step}"
+            else:
+                assert picked == expected, f"{strategy}, step {step}"
+            states[picked] = (code(picked), None)
+            answered.add(picked)
+            incremental.record(picked, code(picked))
+
+
+def test_logistic_selector_explore_matches_rebuilt() -> None:
+    """Before the model is fittable, LA explores identically to a rebuild."""
+    frequency_list: FrequencyList = _ranked_frequency_list(64)
+    incremental = LogisticSelector(frequency_list, {})
+    states: dict[str, tuple[str | None, bool | None]] = {}
+    for step in range(10):
+        # Seeding must happen after construction: the runtime type checker
+        # (beartype) samples container arguments randomly during calls.
+        fresh = LogisticSelector(frequency_list, dict(states))
+        random.seed(step)
+        picked: str | None = incremental.next_word()
+        assert picked is not None
+        random.seed(step)
+        expected = fresh.next_word()
+        assert picked == expected, f"step {step}"
+        # Alternate known/unknown so the model stays unfittable (few unknown).
+        code = "K" if step % 3 else "D"
+        states[picked] = (code, None)
+        incremental.record(picked, code)
+
+
+def test_logistic_selector_exploits_the_highest_score() -> None:
+    """With a fitted model, LA picks the argmax of p_i² · π (1 − π)."""
+    size: int = 40
+    frequency_list: FrequencyList = _ranked_frequency_list(size)
+    # Enough data to fit: low ranks known, high ranks unknown.
+    states: dict[str, tuple[str | None, bool | None]] = {
+        f"w{i}": ("K" if i < 10 else "D", None)
+        for i in list(range(10)) + list(range(30, 38))
+    }
+    selector = LogisticSelector(frequency_list, states)
+    picked: str | None = selector.next_word()
+    assert picked is not None
+
+    params = selector.fit()
+    assert params is not None
+    a, b, c = params
+    total: int = frequency_list.get_all_occurrences()
+    best_word: str | None = None
+    best_score: float = -1.0
+    for rank, word in enumerate(frequency_list.get_words(), start=1):
+        if word in states:
+            continue
+        p_i: float = frequency_list.get_occurrences(word) / total
+        pi_i: float = _predict(a, b, c, rank)
+        score: float = p_i**2 * pi_i * (1.0 - pi_i)
+        if score > best_score:
+            best_score = score
+            best_word = word
+    assert picked == best_word
+
+
+def test_stratified_selector_never_repeats_or_leaks_excluded() -> None:
+    """SFWR draws are always untested and respect per-draw exclusion."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(32)
+    selector = StratifiedSelector(frequency_list, {}, n_strata=2)
+    seen: set[str] = set()
+    for _ in range(32):
+        word: str | None = selector.next_word(exclude=seen)
+        if word is None:
+            break
+        assert word not in seen
+        seen.add(word)
+        selector.record(word, "D")
+    assert len(seen) == 32  # Exhausts the list exactly once.
+    assert selector.next_word() is None
+
+
+def test_selector_record_handles_word_transitions() -> None:
+    """Re-answering a word (know → don't know) retallies, not double-counts."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    selector = StratifiedSelector(frequency_list, {}, n_strata=2)
+    selector.record("w0", "K")
+    selector.record("w0", "D")
+    selector.record("w0", "D")  # Same answer again: no-op.
+    theta_k: list[float] = selector.theta_by_stratum()
+    assert theta_k[0] == 1.0  # The only tested word in stratum 0 is unknown.
+
+
+def test_top_selector_draws_sibling_answered_words_once() -> None:
+    """`top` re-draws words answered elsewhere until they are recorded here."""
+    frequency_list: FrequencyList = _ranked_frequency_list(4)
+    selector = TopSelector(frequency_list, {"w0"})
+    assert selector.next_word() == "w1"
+    # `w1` was answered in a sibling lexicon: the caller records the
+    # propagated answer, and the selector moves on.
+    selector.record("w1", "K")
+    assert selector.next_word() == "w2"
