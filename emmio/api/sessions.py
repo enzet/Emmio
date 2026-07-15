@@ -113,12 +113,19 @@ class LexiconSessionRegistry:
         states: WordStates = postgres.get_language_word_states(
             user_id, language
         )
-        recent: set[str] = postgres.get_recently_answered(user_id, lexicon_id)
+        recent: set[str] = postgres.get_recently_answered(user_id, language)
         answered: set[str] | None = None
         if selection == "top":
             answered = postgres.get_answered_words(user_id, lexicon_id)
+        # The language-wide states above only drive skip decisions; the
+        # selector's statistics are seeded from this lexicon's own records, so
+        # a fresh lexicon runs its own coverage pass and sibling answers enter
+        # one draw at a time via propagation, keeping the sample design valid.
         selector: WordSelector = create_selector(
-            frequency_list, selection, states, answered
+            frequency_list,
+            selection,
+            postgres.get_lexicon_selector_states(user_id, lexicon_id),
+            answered,
         )
         return selector, states, recent, stamp
 

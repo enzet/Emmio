@@ -463,7 +463,10 @@ class _SampledSelector(WordSelector):
         self, frequency_list: FrequencyList, draw: Callable[[], tuple[str, int]]
     ) -> None:
         self._frequency_list: FrequencyList = frequency_list
+        """Source of candidate words."""
+
         self._draw: Callable[[], tuple[str, int]] = draw
+        """One random draw from the list: (word, occurrences)."""
 
     @override
     def next_word(self, exclude: set[str] | None = None) -> str | None:
@@ -496,8 +499,13 @@ class TopSelector(WordSelector):
         self, frequency_list: FrequencyList, answered: set[str]
     ) -> None:
         self._words: list[str] = frequency_list.get_words()
+        """All list words, most frequent first (index = rank - 1)."""
+
         self._answered: set[str] = answered
+        """Words this lexicon already recorded: never drawn again."""
+
         self._cursor: int = 0
+        """First index that may still be unanswered."""
 
     @override
     def next_word(self, exclude: set[str] | None = None) -> str | None:
@@ -521,18 +529,35 @@ class TopSelector(WordSelector):
 class _RankedSelector(WordSelector):
     """Base of the model-based strategies, tracking word states by rank.
 
-    A word answered `KNOW`/`DONT` (anywhere in the same language) is tested;
-    a word answered otherwise (e.g. not-a-word, proper noun) is resolved and
-    so is neither tested nor a candidate; a word without a state is a
-    candidate. Subclasses keep their sufficient statistics up to date through
-    the `_on_state_change` hook.
+    Every word with a state falls into one of two groups, split by its
+    response code alone — how the answer arrived (a direct user answer, an
+    answer propagated from a sibling lexicon, or an automatic assumption) is
+    invisible to the selector:
+
+    - *tested*: labeled "know" or "don't know", either answered by the user
+      in this lexicon or propagated from a sibling when this lexicon drew
+      the word — these are the strategies' data points;
+    - *resolved*: any other state — not-a-word (user-answered, assumed from
+      the alphabet or a dictionary, or propagated), an ambiguous response,
+      or a record without one; excluded from the statistics and never drawn
+      again.
+
+    A word without a state is a *candidate*: drawable. Subclasses keep their
+    sufficient statistics up to date through the `_on_state_change` hook.
     """
 
     def __init__(self, frequency_list: FrequencyList) -> None:
         self._frequency_list: FrequencyList = frequency_list
+        """Source of candidate words and their ranks."""
+
         self._words: list[str] = frequency_list.get_words()
+        """All list words, most frequent first (index = rank - 1)."""
+
         self._n: int = len(self._words)
+        """Number of words in the frequency list."""
+
         self._codes: dict[str, str | None] = {}
+        """Latest response code per word with a state; absent = candidate."""
 
     def _ingest(self, states: WordStates) -> None:
         """Replay the initial per-word states through `record`."""
@@ -608,6 +633,7 @@ class ThresholdSelector(_RankedSelector):
     ) -> None:
         super().__init__(frequency_list)
         self._tested: list[tuple[int, int]] = []
+        """Tested words as sorted (rank, label) pairs; label 1 = unknown."""
         self._ingest(states)
 
     @override
@@ -637,14 +663,27 @@ class LogisticSelector(_RankedSelector):
         self, frequency_list: FrequencyList, states: WordStates
     ) -> None:
         super().__init__(frequency_list)
+
         self._squared_shares: np.ndarray = _squared_shares_by_rank(
             frequency_list
         )
+        """p_i² of every word, indexed by rank - 1 (the score numerator)."""
+
         self._log_rank_values: np.ndarray = _log_ranks(frequency_list)
+        """ln(rank) of every word, the model's predictor."""
+
         self._candidate: np.ndarray = np.ones(self._n, dtype=bool)
+        """Mask over ranks: True until the word gets any state."""
+
         self._labels_by_rank: dict[int, int] = {}
+        """Tested words: rank to label (1 = unknown)."""
+
         self._params: tuple[float, float, float] | None = None
+        """Last fitted (a, b, c), or None while the tested set is too small."""
+
         self._dirty: bool = True
+        """Whether an answer arrived since the last fit."""
+
         self._ingest(states)
 
     @override
@@ -736,17 +775,36 @@ class StratifiedSelector(_RankedSelector):
         n_strata: int = DEFAULT_N_STRATA,
     ) -> None:
         super().__init__(frequency_list)
+
         self._n_strata: int = n_strata
+        """Number of log-uniform strata K."""
+
         self._bounds: list[tuple[int, int]] = _stratum_bounds(
             frequency_list, n_strata
         )
+        """Per-stratum `[lo, hi)` 1-based rank ranges."""
+
         self._p_total: list[float] = _stratum_masses(frequency_list, n_strata)
+        """P_k: each stratum's total frequency mass."""
+
         self._shares: np.ndarray = _shares_by_rank(frequency_list)
+        """Frequency share p_i of every word, indexed by rank - 1."""
+
         self._count: list[int] = [0] * n_strata
+        """n_k: tested words per stratum."""
+
         self._count_unknown: list[int] = [0] * n_strata
+        """u_k: tested words labeled "don't know" per stratum."""
+
         self._states_count: list[int] = [0] * n_strata
+        """Words with any state per stratum: tested plus resolved."""
+
         self._p_tested: list[float] = [0.0] * n_strata
+        """Frequency mass of the tested words per stratum."""
+
         self._p_unknown: list[float] = [0.0] * n_strata
+        """Frequency mass of the tested "don't know" words per stratum."""
+
         self._ingest(states)
 
     @override

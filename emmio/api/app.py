@@ -1550,8 +1550,9 @@ def get_next_lexicon_words(
             states: dict[str, tuple[str | None, bool | None]] = (
                 postgres.get_language_word_states(user_id, language)
             )
-            recent: set[str] = postgres.get_recently_answered(
-                user_id, lexicon_id
+            recent: set[str] = postgres.get_recently_answered(user_id, language)
+            selector_states: dict[str, tuple[str | None, bool | None]] = (
+                postgres.get_lexicon_selector_states(user_id, lexicon_id)
             )
             # "top" walks the list in rank order and never re-asks an answered
             # word, so exclude everything already recorded; sampling
@@ -1560,7 +1561,7 @@ def get_next_lexicon_words(
                 drawn |= postgres.get_answered_words(user_id, lexicon_id)
             words, auto = _draw_batch(
                 lambda pool: select_next_word(
-                    frequency_list, pool, selection, states
+                    frequency_list, pool, selection, selector_states
                 ),
                 drawn,
                 limit,
@@ -1680,8 +1681,10 @@ def get_lexicon_rate_estimate(
         )
     else:
         # The model-based estimators place every word by frequency rank, so
-        # they need the lexicon's frequency list and the same per-word states
-        # that drive word selection.
+        # they need the lexicon's frequency list and the same lexicon-scoped
+        # states that seed word selection: the estimate must reflect this
+        # lexicon's own sample, not answers collected under sibling lexicons'
+        # strategies.
         if config["frequency_list"] is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1698,7 +1701,7 @@ def get_lexicon_rate_estimate(
                 detail="Configured frequency list could not be loaded.",
             )
         states: dict[str, tuple[str | None, bool | None]] = (
-            postgres.get_language_word_states(user_id, config["language"])
+            postgres.get_lexicon_selector_states(user_id, lexicon_id)
         )
         estimate = estimate_rate_with_sd(selection, frequency_list, states)
 

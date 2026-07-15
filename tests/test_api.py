@@ -14,10 +14,12 @@ from fastapi.testclient import TestClient
 from emmio import postgres
 from emmio.api import app as app_module
 from emmio.api.app import app
+from emmio.api.sessions import LEXICON_SESSIONS
 from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
+from emmio.lexicon.core import StratifiedSelector
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -1404,13 +1406,17 @@ def _create_uk_lexicon(token: str, selection: str) -> None:
     assert response.json()["lexicon_id"] == "uk"
 
 
-def _next_words(token: str, session_id: str | None = None) -> list[str]:
+def _next_words(
+    token: str, session_id: str | None = None, lexicon_id: str = "uk"
+) -> list[str]:
     """Fetch the next lexicon words to present."""
     params: dict[str, str] = {}
     if session_id is not None:
         params["session_id"] = session_id
     response = client.get(
-        "/api/v1/me/lexicons/uk/next", params=params, headers=_auth(token)
+        f"/api/v1/me/lexicons/{lexicon_id}/next",
+        params=params,
+        headers=_auth(token),
     )
     assert response.status_code == 200
     return [card["word"] for card in response.json()["words"]]
@@ -1535,6 +1541,99 @@ def test_lexicon_session_serves_stratified_draws() -> None:
             ).status_code
             == 204
         )
+
+
+def _create_second_uk_lexicon(token: str) -> str:
+    """Create a second stratified Ukrainian lexicon and return its id."""
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "selection": "stratified"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    return str(response.json()["lexicon_id"])
+
+
+def test_lexicon_session_selector_ignores_sibling_answers(
+    fake_uk_list: FrequencyList,
+) -> None:
+    """A fresh lexicon's selector is seeded from its own records only.
+
+    Sibling answers drive skip decisions, but must not enter the selector's
+    statistics: ingested answers count as the strategy's own draws, so
+    bulk-ingesting them would let a fresh lexicon skip its coverage pass.
+    """
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+    second_id: str = _create_second_uk_lexicon(token)
+    sibling: list[str] = _UK_WORDS[10:15]
+    postgres.save_lexicon(
+        "alice",
+        "uk",
+        "uk",
+        [(word, "K", datetime.now(UTC), None) for word in sibling],
+        [],
+    )
+
+    session = LEXICON_SESSIONS.open(
+        "alice", second_id, "uk", "stratified", fake_uk_list
+    )
+
+    # Sibling answers still drive the skip decisions...
+    assert sibling[0] in session.states
+    # ...but the selector has no tested words in any stratum: every stratum
+    # reports maximum uncertainty, so the coverage pass is still owed.
+    assert isinstance(session.selector, StratifiedSelector)
+    assert session.selector.theta_by_stratum() == [0.5] * 10
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_fresh_lexicon_runs_coverage_and_propagates_sibling_answers() -> None:
+    """A fresh lexicon surveys sibling-answered strata via propagation.
+
+    Words ranked 11-15 form the heaviest-mass stratum of the fake list, all
+    answered in the sibling lexicon. The fresh lexicon's coverage pass must
+    still draw that stratum: the drawn word is auto-answered from the recent
+    sibling answer (never presented), which records the propagation in the
+    fresh lexicon and marks the stratum tested.
+    """
+    token: str = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+    second_id: str = _create_second_uk_lexicon(token)
+    sibling: set[str] = set(_UK_WORDS[10:15])
+    postgres.save_lexicon(
+        "alice",
+        "uk",
+        "uk",
+        [(word, "K", datetime.now(UTC), None) for word in sibling],
+        [],
+    )
+    session_id: str = client.post(
+        f"/api/v1/me/lexicons/{second_id}/sessions", headers=_auth(token)
+    ).json()["session_id"]
+
+    for _ in range(3):
+        words = _next_words(token, session_id, lexicon_id=second_id)
+        assert len(words) == 1
+        word = words[0]
+        # Recently answered in the sibling: propagated, never re-asked.
+        assert word not in sibling
+        assert (
+            client.post(
+                f"/api/v1/me/lexicons/{second_id}/answer",
+                json={
+                    "word": word,
+                    "response": "not_a_word",
+                    "session_id": session_id,
+                },
+                headers=_auth(token),
+            ).status_code
+            == 204
+        )
+
+    # Covering the sibling-answered stratum propagated an answer into this
+    # lexicon instead of treating the stratum as already surveyed.
+    assert postgres.get_answered_words("alice", second_id) & sibling
 
 
 @pytest.mark.usefixtures("fake_languages")

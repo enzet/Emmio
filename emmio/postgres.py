@@ -1005,17 +1005,36 @@ def get_language_word_states(
         return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
 
 
+def get_lexicon_selector_states(
+    user_id: str, lexicon_id: str
+) -> dict[str, tuple[str | None, bool | None]]:
+    """Get every word's state in one lexicon.
+
+    :return: mapping from word to its (response code, `to_skip`)
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word, w.response, w.to_skip "
+            "FROM lexicon_words w "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s",
+            (user_id, lexicon_id),
+        )
+        return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+
 def get_recently_answered(
-    user_id: str, lexicon_id: str, recent_days: int = 30
+    user_id: str, language: str, recent_days: int = 30
 ) -> set[str]:
-    """Get words the user *answered* in a lexicon within the last days.
+    """Get words the user *answered* in a language within the last days.
 
     Only real user answers count (auto/propagated records are ignored), so a
     word keeps being re-affirmed by propagation until the user actually
     re-answers it after the window. Drives the "propagate time" decision.
 
     :param user_id: owning user login, e.g. `john`
-    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param language: language code shared by the lexicons
     :param recent_days: length of the window in days
     """
     with db_connection() as connection, connection.cursor() as cursor:
@@ -1025,10 +1044,10 @@ def get_recently_answered(
             "JOIN lexicon_words w ON w.id = r.word_id "
             "JOIN lexicons l ON l.id = w.lexicon_id "
             "JOIN users u ON u.id = l.user_id "
-            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "WHERE u.user_id = %s AND l.language = %s "
             "AND r.response_time >= now() - make_interval(days => %s) "
             "AND (r.extra IS NULL OR NOT (r.extra ? 'at'))",
-            (user_id, lexicon_id, recent_days),
+            (user_id, language, recent_days),
         )
         return {row[0] for row in cursor.fetchall()}
 
