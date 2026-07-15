@@ -605,6 +605,111 @@ def test_update_lexicon_settings_rejects_empty_targets() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_sets_and_clears_name() -> None:
+    """The display name is stored trimmed and a blank name clears it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"name": "  Ukrainian books  "},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Ukrainian books"
+    lexicons = client.get("/api/v1/me/lexicons", headers=_auth(token)).json()
+    assert lexicons[0]["name"] == "Ukrainian books"
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"name": "  "},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] is None
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_renames_identifier() -> None:
+    """Renaming moves the lexicon and its history to the new identifier."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+    client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={"word": "кіт", "response": "know"},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"lexicon_id": "uk_books"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["lexicon_id"] == "uk_books"
+    # History followed the rename; the old identifier is gone.
+    assert "кіт" in postgres.get_answered_words("alice", "uk_books")
+    assert postgres.get_lexicon_config("alice", "uk") is None
+    old = client.get("/api/v1/me/lexicons/uk/settings", headers=_auth(token))
+    assert old.status_code == 404
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_rejects_taken_identifier() -> None:
+    """Renaming to another lexicon's identifier is a conflict."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    for _ in range(2):  # `uk` and `uk_2`.
+        client.post(
+            "/api/v1/me/lexicons",
+            json={"language": "uk", "translation_languages": ["en"]},
+            headers=_auth(token),
+        )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk_2/settings",
+        json={"lexicon_id": "uk"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 409
+    assert postgres.get_lexicon_config("alice", "uk_2") is not None
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_lexicon_settings_rejects_malformed_identifier() -> None:
+    """An identifier that is not a slug is rejected by validation."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "translation_languages": ["en"]},
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/lexicons/uk/settings",
+        json={"lexicon_id": "Ukrainian books!"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.usefixtures("fake_languages")
 def test_create_course_stores_learnable_config() -> None:
     """A created course draws new words from the language's frequency list."""
 

@@ -107,6 +107,13 @@ section[aria-labelledby="danger-heading"] {
     color: var(--danger);
 }
 
+/* Secondary explanation under a form field. */
+.hint {
+    color: var(--muted);
+    font-size: 0.85em;
+    margin-top: 0.2rem;
+}
+
 main.card, main.login {
     border: 1px solid var(--border);
     border-radius: 10px;

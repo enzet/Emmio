@@ -155,6 +155,7 @@ class LexiconSummary(BaseModel):
     lexicon_id: str
     language: str
     selection: str | None
+    name: str | None  # Display name; the identifier is used when not set.
     words: int  # Number of words checked so far.
     dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
@@ -364,6 +365,7 @@ def get_my_lexicons(
         words,
         dont_last_week,
         is_main,
+        name,
     ) in postgres.list_lexicons(user_id):
         _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
         summaries.append(
@@ -371,6 +373,7 @@ def get_my_lexicons(
                 lexicon_id=lexicon_id,
                 language=language,
                 selection=selection,
+                name=name,
                 words=words,
                 dont_last_week=dont_last_week,
                 rate=rate_values[-1] if rate_values else None,
@@ -621,6 +624,10 @@ def delete_lexicon(
     LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
 
 
+LEXICON_ID_PATTERN: str = r"^[a-z0-9][a-z0-9_-]{0,63}$"
+"""Shape of a lexicon identifier; it appears in URLs, so keep it a slug."""
+
+
 class LexiconSettings(BaseModel):
     """A lexicon's editable settings.
 
@@ -628,8 +635,10 @@ class LexiconSettings(BaseModel):
     they are included read-only so the form can display them.
     """
 
+    lexicon_id: str
     language: str
     selection: str
+    name: str | None  # Display name; the identifier is used when not set.
     translation_languages: list[str]
     precision_per_week: int  # Weekly goal of new answers.
 
@@ -637,6 +646,8 @@ class LexiconSettings(BaseModel):
 class UpdateLexiconRequest(BaseModel):
     """Partial update to a lexicon's settings; omitted fields are unchanged."""
 
+    lexicon_id: str | None = Field(default=None, pattern=LEXICON_ID_PATTERN)
+    name: str | None = None  # An empty (or blank) name clears it.
     translation_languages: list[str] | None = None
     precision_per_week: int | None = Field(default=None, ge=0)
 
@@ -663,11 +674,13 @@ def _lexicon_translation_languages(config: dict) -> list[str]:
     return list(targets)
 
 
-def _lexicon_settings(config: dict) -> LexiconSettings:
+def _lexicon_settings(lexicon_id: str, config: dict) -> LexiconSettings:
     """Read a lexicon's editable settings out of its flat config."""
     return LexiconSettings(
+        lexicon_id=lexicon_id,
         language=config["language"],
         selection=config["selection"],
+        name=config.get("name"),
         translation_languages=_lexicon_translation_languages(config),
         precision_per_week=config.get("precision_per_week") or 0,
     )
@@ -678,7 +691,9 @@ def get_lexicon_settings(
     lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
 ) -> LexiconSettings:
     """Get a lexicon's editable settings (to pre-fill an edit form)."""
-    return _lexicon_settings(_lexicon_config_or_404(user_id, lexicon_id))
+    return _lexicon_settings(
+        lexicon_id, _lexicon_config_or_404(user_id, lexicon_id)
+    )
 
 
 @app.patch("/api/v1/me/lexicons/{lexicon_id}/settings")
@@ -695,8 +710,19 @@ def update_lexicon_settings(
     auto-configured gets them backfilled. The lexicon's identity (language,
     selection, frequency list) stays untouched, so the rate estimate and the
     answer history keep their meaning.
+
+    Renaming the identifier (`lexicon_id`) moves the lexicon and all its
+    history to the new id (words and records follow automatically); the old
+    id — and any URL containing it — stops working. Responds 409 when the new
+    id is already taken.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+
+    if request.name is not None:
+        if name := request.name.strip():
+            config["name"] = name
+        else:
+            config.pop("name", None)
 
     if request.precision_per_week is not None:
         config["precision_per_week"] = request.precision_per_week
@@ -725,10 +751,22 @@ def update_lexicon_settings(
         config["dictionaries"] = dictionaries
         config["sentences"] = sentences
 
-    postgres.store_lexicon_config(user_id, lexicon_id, config)
+    new_id: str = lexicon_id
+    if request.lexicon_id is not None and request.lexicon_id != lexicon_id:
+        try:
+            postgres.rename_lexicon(user_id, lexicon_id, request.lexicon_id)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Lexicon `{request.lexicon_id}` already exists.",
+            ) from error
+        LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
+        new_id = request.lexicon_id
+
+    postgres.store_lexicon_config(user_id, new_id, config)
     # The open session (if any) was built on the old settings.
-    LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
-    return _lexicon_settings(config)
+    LEXICON_SESSIONS.invalidate(user_id, new_id)
+    return _lexicon_settings(new_id, config)
 
 
 class CreateCourseRequest(BaseModel):

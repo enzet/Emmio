@@ -33,6 +33,26 @@
             <section id="settings-section" hidden>
                 <h2>Settings</h2>
                 <form id="settings-form">
+                    <label for="setting-name">Name (optional)</label>
+                    <input
+                        id="setting-name"
+                        type="text"
+                        maxlength="100"
+                        placeholder="e.g. German (books)"
+                    />
+                    <label for="setting-id">Identifier</label>
+                    <input
+                        id="setting-id"
+                        type="text"
+                        pattern="[a-z0-9][a-z0-9_\-]{0,63}"
+                        maxlength="64"
+                        required
+                        title="Lowercase letters, digits, `_`, and `-`."
+                    />
+                    <p class="hint">
+                        The identifier is used in links; changing it changes
+                        this page's address.
+                    </p>
                     <label for="setting-targets">Translate into</label>
                     <select
                         id="setting-targets"

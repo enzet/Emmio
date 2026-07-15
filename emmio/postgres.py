@@ -57,6 +57,8 @@ def split_lexicon_config(config: dict) -> tuple[str, dict | None, dict]:
 
     identity_list: dict | None = frequency_list if is_sampling else None
     mutable: dict = {}
+    if config.get("name"):
+        mutable["name"] = config["name"]
     if config.get("dictionaries"):
         mutable["dictionaries"] = config["dictionaries"]
     if config.get("sentences"):
@@ -418,13 +420,14 @@ def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
 
 def list_lexicons(
     user_id: str,
-) -> list[tuple[str, str, str | None, int, int, bool]]:
+) -> list[tuple[str, str, str | None, int, int, bool, str | None]]:
     """Get a user's lexicons with short info.
 
     :param user_id: owning user login, e.g. `john`
     :return: (lexicon id, language, selection strategy, number of words
         checked, number of "don't know" answers in the last 7 days, whether
-        it is the main lexicon for its language) tuples, ordered by lexicon id
+        it is the main lexicon for its language, display name) tuples,
+        ordered by lexicon id
     """
     with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
@@ -435,15 +438,42 @@ def list_lexicons(
             "JOIN lexicon_words w2 ON w2.id = r.word_id "
             "WHERE w2.lexicon_id = l.id AND r.response = 'D' "
             "AND r.response_time >= now() - interval '7 days'), "
-            "l.is_main "
+            "l.is_main, l.config->>'name' "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
         )
         return [
-            (row[0], row[1], row[2], row[3], row[4], row[5])
+            (row[0], row[1], row[2], row[3], row[4], row[5], row[6])
             for row in cursor.fetchall()
         ]
+
+
+def rename_lexicon(user_id: str, lexicon_id: str, new_lexicon_id: str) -> bool:
+    """Change a lexicon's string identifier.
+
+    Words, records, and sessions reference the lexicon's surrogate key, so
+    they follow the rename untouched.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: current lexicon identifier, e.g. `fr`
+    :param new_lexicon_id: identifier to rename to, e.g. `fr_books`
+    :return: whether the lexicon existed
+    :raises ValueError: if the user already has a lexicon with the new
+        identifier
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        try:
+            cursor.execute(
+                "UPDATE lexicons l SET lexicon_id = %s FROM users u "
+                "WHERE l.user_id = u.id AND u.user_id = %s "
+                "AND l.lexicon_id = %s",
+                (new_lexicon_id, user_id, lexicon_id),
+            )
+        except psycopg.errors.UniqueViolation as error:
+            message: str = f"Lexicon `{new_lexicon_id}` already exists."
+            raise ValueError(message) from error
+        return cursor.rowcount > 0
 
 
 def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
@@ -630,6 +660,7 @@ def _assemble_lexicon_config(
     return {
         "language": language,
         "selection": selection or "unknown",
+        "name": config.get("name"),
         "frequency_list": frequency_list,
         "dictionaries": config.get("dictionaries"),
         "sentences": config.get("sentences"),

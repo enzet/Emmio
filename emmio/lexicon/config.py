@@ -70,6 +70,9 @@ class LexiconConfig(BaseModel):
     selection: LexiconSelection
     """How words was picked."""
 
+    name: str | None = None
+    """Human-readable display name; the identifier is used when not set."""
+
     frequency_list: ListUsageConfig | None = None
     """Frequency list used to check lexicon."""
 

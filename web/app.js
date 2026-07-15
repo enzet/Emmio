@@ -544,7 +544,9 @@ async function initLexicons() {
         )}`;
         // A leading star marks the main lexicon for its language.
         link.textContent =
-            (lexicon.is_main ? "★ " : "") + lexicon.lexicon_id;
+            (lexicon.is_main ? "★ " : "") +
+            (lexicon.name || lexicon.lexicon_id);
+        if (lexicon.name) link.title = lexicon.lexicon_id;
         idCell.appendChild(link);
         row.appendChild(idCell);
 
@@ -652,15 +654,19 @@ async function initLexicon() {
         });
 }
 
-// Fill and wire the lexicon settings form: translation targets (which
-// regenerate the dictionary/sentence config on save — also backfilling
-// lexicons created before targets were auto-configured) and the weekly goal.
-// The lexicon's identity (language, selection, frequency list) is immutable
-// and not shown here. Pre-filled from the lexicon's current settings.
+// Fill and wire the lexicon settings form: display name, identifier (renaming
+// moves the lexicon's URL, so the page redirects after a rename), translation
+// targets (which regenerate the dictionary/sentence config on save — also
+// backfilling lexicons created before targets were auto-configured), and the
+// weekly goal. The lexicon's identity (language, selection, frequency list)
+// is immutable and not shown here. Pre-filled from the lexicon's current
+// settings.
 async function setupLexiconSettings(lexiconId) {
     const base = `/me/lexicons/${encodeURIComponent(lexiconId)}`;
     const section = document.getElementById("settings-section");
     const form = document.getElementById("settings-form");
+    const nameInput = document.getElementById("setting-name");
+    const idInput = document.getElementById("setting-id");
     const targets = document.getElementById("setting-targets");
     const precisionInput = document.getElementById("setting-precision");
     const settingsStatus = document.getElementById("settings-status");
@@ -672,6 +678,11 @@ async function setupLexiconSettings(lexiconId) {
     if (!settingsResponse.ok) return;
     const settings = await settingsResponse.json();
 
+    nameInput.value = settings.name || "";
+    idInput.value = settings.lexicon_id;
+    if (settings.name) {
+        document.getElementById("lexicon-heading").textContent = settings.name;
+    }
     precisionInput.value = settings.precision_per_week;
     fillLanguageSelect(
         targets,
@@ -695,11 +706,23 @@ async function setupLexiconSettings(lexiconId) {
         const result = await api(`${base}/settings`, {
             method: "PATCH",
             body: {
+                name: nameInput.value,
+                lexicon_id: idInput.value,
                 translation_languages: translationLanguages,
                 precision_per_week: Number(precisionInput.value),
             },
         });
         if (result.ok) {
+            const saved = await result.json();
+            if (saved.lexicon_id !== lexiconId) {
+                // The identifier is the page address: follow the rename.
+                location.href = `lexicon?lexicon=${encodeURIComponent(
+                    saved.lexicon_id,
+                )}`;
+                return;
+            }
+            document.getElementById("lexicon-heading").textContent =
+                saved.name || `Lexicon: ${saved.lexicon_id}`;
             settingsStatus.textContent = "Saved.";
         } else {
             const { detail } = await result.json().catch(() => ({}));
