@@ -27,7 +27,6 @@ from pathlib import Path
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
 from scipy.special import expit  # pylint: disable=no-name-in-module
 from tqdm import tqdm
 
@@ -43,6 +42,17 @@ from emmio.lexicon.core import (
     estimate_rate_stratified,
     estimate_rate_threshold,
 )
+from emmio.lexicon.plotting import (
+    BASELINE_COLOR,
+    INK_COLOR,
+    METHOD_COLORS,
+    MUTED_COLOR,
+    SECONDARY_INK_COLOR,
+    SURFACE_COLOR,
+    label_line_ends,
+    style_axis,
+    trajectory_values,
+)
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
 from emmio.ui import InlineElement, Interface, Table, TerminalInterface
@@ -57,25 +67,6 @@ METHODS: tuple[str, ...] = ("frequency", "stratified", "threshold", "logistic")
 
 KNOWLEDGE_MODELS: tuple[str, ...] = ("uniform", "logistic", "step")
 """Supported shapes of the fake learner's knowledge over frequency rank."""
-
-METHOD_COLORS: dict[str, str] = {
-    "frequency": "#2a78d6",
-    "stratified": "#1baf7a",
-    "threshold": "#eda100",
-    "logistic": "#008300",
-}
-"""Categorical color per method.
-
-The color follows the method, so plotting a subset of methods never
-repaints the survivors; the hues and their order are CVD-validated.
-"""
-
-SURFACE_COLOR: str = "#fcfcfb"
-INK_COLOR: str = "#0b0b0b"
-SECONDARY_INK_COLOR: str = "#52514e"
-MUTED_COLOR: str = "#898781"
-GRID_COLOR: str = "#e1e0d9"
-BASELINE_COLOR: str = "#c3c2b7"
 
 
 def make_frequency_list(
@@ -420,19 +411,6 @@ def _print_report(
         )
 
 
-def _style_axis(axis: Axes) -> None:
-    """Apply the recessive chart chrome to an axis."""
-    axis.set_facecolor(SURFACE_COLOR)
-    for side in ("top", "right"):
-        axis.spines[side].set_visible(False)
-    for side in ("bottom", "left"):
-        axis.spines[side].set_color(BASELINE_COLOR)
-    axis.tick_params(colors=MUTED_COLOR, labelsize=9)
-    axis.grid(axis="y", color=GRID_COLOR, linewidth=0.8)
-    axis.set_axisbelow(True)
-    axis.set_xlabel("queries", color=MUTED_COLOR, fontsize=9)
-
-
 def plot_trajectories(
     methods: list[str],
     trajectories: dict[str, list[MethodTrajectory]],
@@ -459,7 +437,7 @@ def plot_trajectories(
         1, 2, figsize=(11.0, 4.5), facecolor=SURFACE_COLOR
     )
     for axis in (axis_rate, axis_error):
-        _style_axis(axis)
+        style_axis(axis)
     axis_rate.set_title(
         "Rate estimate r̂ (thin: single trials, bold: mean)",
         color=INK_COLOR,
@@ -498,12 +476,12 @@ def plot_trajectories(
     for method in methods:
         color: str = METHOD_COLORS[method]
         for trajectory in trajectories[method]:
-            values: list[float] = [
-                estimate[0] if estimate else math.nan
-                for estimate in trajectory.estimates
-            ]
             axis_rate.plot(
-                checkpoints, values, color=color, linewidth=0.8, alpha=0.3
+                checkpoints,
+                trajectory_values(trajectory.estimates),
+                color=color,
+                linewidth=0.8,
+                alpha=0.3,
             )
         means: list[float] = [
             stat.mean if stat.mean is not None else math.nan
@@ -525,22 +503,7 @@ def plot_trajectories(
             checkpoints, errors, color=color, linewidth=2.0, label=method
         )
 
-    # Direct labels at line ends, nudged apart if they would collide.
-    y_low, y_high = axis_rate.get_ylim()
-    gap: float = 0.05 * (y_high - y_low)
-    last: float | None = None
-    for method, value in sorted(label_ends, key=lambda item: item[1]):
-        position: float = value if last is None else max(value, last + gap)
-        last = position
-        axis_rate.annotate(
-            method,
-            (checkpoints[-1], position),
-            textcoords="offset points",
-            xytext=(6, 0),
-            color=SECONDARY_INK_COLOR,
-            fontsize=9,
-            va="center",
-        )
+    label_line_ends(axis_rate, label_ends, float(checkpoints[-1]))
     axis_rate.set_xlim(right=checkpoints[-1] * 1.18)
 
     axis_error.set_ylim(bottom=0.0)

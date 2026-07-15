@@ -50,7 +50,7 @@ frequency). For each word, you need to indicate
      <kbd>-</kbd>).
 
 Press <kbd>q</kbd> to finish.
- 
+
 After completion, the algorithm provides a non-negative number called _rate_,
 that indicates your vocabulary level. A score of 0 means you don’t know any
 words in the language, while infinity means you know every word in the
@@ -88,9 +88,39 @@ In order to run lexicon checking, simply execute `lexicon` command or
 `lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language
 code.
 
-  * `frequency list id` is an identifier of [full frequency file](#frequency). 
+  * `frequency list id` is an identifier of [full frequency file](#frequency).
     **Important**: for Lexicon you can use only full (not stripped) frequency
     list.
+
+### Visualizing the Checking Process
+
+Two command-line tools draw how the rate estimate r̂ evolves as answers
+accumulate, in a shared visual style.
+
+To replay the recorded checking process of a real lexicon, run
+
+```shell
+python -m emmio.lexicon.replay --user $USER_ID --lexicon $LEXICON_ID
+```
+
+It reads the lexicon's answer log from the database, re-runs the production
+rate estimator after every answer, and saves a plot of the estimate
+trajectory with its ±1 standard deviation band (by default to
+`${USER_ID}_${LEXICON_ID}.png`, override with `--plot`). Ticks along the bottom
+mark the "don't know" answers. The frequency list configured for the lexicon is
+loaded from the Emmio data directory (`EMMIO_DATA_DIR`, default `~/.emmio`).
+
+To compare how fast the checking methods converge on a synthetic language,
+run
+
+```shell
+python -m emmio.lexicon.simulation --rate 3 --trials 5 --plot $OUTPUT_PNG_FILE
+```
+
+It builds a fake Zipfian language, draws random knowledge profiles with a
+chosen true rate, drives every checking method through the production
+selection and estimation code, and reports (and optionally plots) how fast
+each converges.
 
 ## Data Directory Structure
 

@@ -617,6 +617,32 @@ def get_lexicon_answer_sequence(user_id: str, lexicon_id: str) -> list[int]:
         return [1 if row[0] == "K" else 0 for row in cursor.fetchall()]
 
 
+def get_lexicon_record_log(
+    user_id: str, lexicon_id: str
+) -> list[tuple[str, str]]:
+    """Get one lexicon's chronological (word, response code) log.
+
+    Unlike `get_lexicon_answer_sequence`, keeps every response (including
+    "not a word" resolutions) and the word itself, so the checking process
+    can be replayed step by step.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: time-ordered list of (word, response code) pairs
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word, r.response FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "ORDER BY r.id",
+            (user_id, lexicon_id),
+        )
+        return [(word, response) for word, response in cursor.fetchall()]
+
+
 def get_last_lexicon_record_id(user_id: str) -> int | None:
     """Get the id of the user's newest lexicon record.
 
