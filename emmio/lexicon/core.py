@@ -1,6 +1,7 @@
 """Core functionality for lexicon."""
 
 import bisect
+import functools
 import json
 import logging
 import math
@@ -372,32 +373,39 @@ def _log_ranks(frequency_list: FrequencyList) -> np.ndarray:
     return frequency_list.derived[key]
 
 
-def _stratum_bounds(
-    frequency_list: FrequencyList, n_strata: int
-) -> list[tuple[int, int]]:
-    """Get per-stratum rank ranges, memoized on the list.
+@functools.cache
+def _stratum_bounds_of_size(size: int, n_strata: int) -> list[tuple[int, int]]:
+    """Get per-stratum rank ranges for a list of `size` words.
 
     :return: `[lo, hi)` 1-based rank ranges, one per stratum; consistent with
         `stratum_of_rank` by construction (its value is nondecreasing in rank,
         so each stratum is one contiguous range, found by bisection)
     """
+    bounds: list[tuple[int, int]] = []
+    lo: int = 1
+    for k in range(n_strata):
+        hi: int = (
+            bisect.bisect_right(
+                range(1, size + 1),
+                k,
+                key=lambda rank: stratum_of_rank(rank, size, n_strata),
+            )
+            + 1
+        )
+        bounds.append((lo, hi))
+        lo = hi
+    return bounds
+
+
+def _stratum_bounds(
+    frequency_list: FrequencyList, n_strata: int
+) -> list[tuple[int, int]]:
+    """Get per-stratum rank ranges, memoized on the list."""
     key: tuple[str, int] = ("stratum_bounds", n_strata)
     if key not in frequency_list.derived:
-        n: int = len(frequency_list)
-        bounds: list[tuple[int, int]] = []
-        lo: int = 1
-        for k in range(n_strata):
-            hi: int = (
-                bisect.bisect_right(
-                    range(1, n + 1),
-                    k,
-                    key=lambda rank: stratum_of_rank(rank, n, n_strata),
-                )
-                + 1
-            )
-            bounds.append((lo, hi))
-            lo = hi
-        frequency_list.derived[key] = bounds
+        frequency_list.derived[key] = _stratum_bounds_of_size(
+            len(frequency_list), n_strata
+        )
     return frequency_list.derived[key]
 
 
@@ -776,9 +784,12 @@ class StratifiedSelector(_RankedSelector):
     """Working memory of the stratified strategy (SFWR).
 
     Divide the list into log-uniform strata, then query the stratum with the
-    highest marginal variance reduction P_k² · θ̃_k (1 − θ̃_k) / (n_k (n_k +
-    1)), where θ̃_k is the Laplace-smoothed unknown share among the stratum's
-    n_k tested words. An untested stratum has infinite marginal value, so
+    highest marginal variance reduction P_k² · θ̃_k (1 − θ̃_k) · N_k /
+    ((N_k − 1) n_k (n_k + 1)), where θ̃_k is the Laplace-smoothed unknown
+    share among the stratum's n_k tested words and N_k its population of
+    testable words — the greedy step of Neyman allocation under the
+    finite-population-corrected variance (`estimate_rate_stratified`). An
+    untested stratum has infinite marginal value, so
     every stratum carrying mass is surveyed (unlocking the estimator, which
     requires full coverage) before any stratum is refined. Within the chosen
     stratum the word is drawn uniformly at random: θ̂_k weights tested words
@@ -889,11 +900,19 @@ class StratifiedSelector(_RankedSelector):
             smoothed: float = (self._count_unknown[k] + 1) / (
                 self._count[k] + 2
             )
+            # Marginal reduction of the finite-population-corrected variance:
+            # V(n) ∝ (N - n) / ((N - 1) n), so one more sample gains
+            # N / ((N - 1) n (n + 1)). The stratum's population N excludes
+            # resolved (unlearnable) words; an available stratum has an
+            # untested word, so N ≥ n + 1 ≥ 2 here.
+            lo, hi = self._bounds[k]
+            population: int = (hi - lo) - self._states_count[k] + self._count[k]
             score: float = (
                 self._p_total[k] ** 2
                 * smoothed
                 * (1.0 - smoothed)
-                / (self._count[k] * (self._count[k] + 1))
+                * population
+                / ((population - 1) * self._count[k] * (self._count[k] + 1))
             )
             if score > best_score:
                 best_score = score
@@ -1237,10 +1256,16 @@ def estimate_rate_stratified(
     least one tested word; SFWR's forced coverage reaches that after roughly
     one query per stratum.
 
-    Var(θ̂) = Σ_k P_k² · θ̃_k (1 - θ̃_k) / n_k, with n_k the tested count in
-    stratum k and θ̃_k the Laplace-smoothed unknown count share (so a stratum
-    answered uniformly so far still contributes uncertainty), mapped to
-    SD(r̂) = SD(θ̂) / (θ̂ ln 2) by the delta method.
+    Var(θ̂) = Σ_k P_k² · θ̃_k (1 - θ̃_k) / n_k · (N_k - n_k) / (N_k - 1),
+    with n_k the tested count in stratum k, θ̃_k the Laplace-smoothed unknown
+    count share (so a stratum answered uniformly so far still contributes
+    uncertainty), and N_k the stratum's population of testable words (its
+    rank range minus the resolved words). The last factor is the finite
+    population correction: sampling is without replacement, so a fully
+    tested stratum is a census and contributes no uncertainty — without it
+    the smoothing floor of the small head strata, exhausted early, freezes
+    the SD forever. The result is mapped to SD(r̂) = SD(θ̂) / (θ̂ ln 2) by
+    the delta method.
 
     :param tested: tested words as (rank, frequency share, 1 = unknown)
     :param untested: untested words as (rank, frequency share)
@@ -1253,15 +1278,20 @@ def estimate_rate_stratified(
     n: int = len(tested) + len(untested) + len(resolved)
 
     p_total: list[float] = [0.0] * n_strata
+    n_resolved: list[int] = [0] * n_strata
     if n > 1:
         for rank, p_i, _ in tested:
             p_total[stratum_of_rank(rank, n, n_strata)] += p_i
         for rank, p_i in untested:
             p_total[stratum_of_rank(rank, n, n_strata)] += p_i
         for rank, p_i in resolved:
-            p_total[stratum_of_rank(rank, n, n_strata)] += p_i
+            k: int = stratum_of_rank(rank, n, n_strata)
+            p_total[k] += p_i
+            n_resolved[k] += 1
 
-    return _estimate_rate_stratified_masses(tested, p_total, n, n_strata)
+    return _estimate_rate_stratified_masses(
+        tested, p_total, n, n_strata, n_resolved
+    )
 
 
 def _estimate_rate_stratified_masses(
@@ -1269,6 +1299,7 @@ def _estimate_rate_stratified_masses(
     p_total: list[float],
     size: int,
     n_strata: int = DEFAULT_N_STRATA,
+    n_resolved: list[int] | None = None,
 ) -> tuple[float, float] | None:
     """Estimate the rate from a stratified sample given stratum masses.
 
@@ -1281,6 +1312,8 @@ def _estimate_rate_stratified_masses(
         untested and resolved words
     :param size: total number of words in the frequency list
     :param n_strata: number of log-uniform strata K
+    :param n_resolved: per-stratum count of words resolved as unlearnable;
+        they shrink the finite population the stratum's sample is drawn from
     :return: (r̂, SD), or None if some stratum has no tested words yet
     """
     if size <= 1 or not tested:
@@ -1299,6 +1332,8 @@ def _estimate_rate_stratified_masses(
             p_unknown[k] += p_i
             count_unknown[k] += 1
 
+    bounds: list[tuple[int, int]] = _stratum_bounds_of_size(size, n_strata)
+
     theta: float = 0.0
     variance: float = 0.0
     for k in range(n_strata):
@@ -1308,7 +1343,21 @@ def _estimate_rate_stratified_masses(
             return None  # A rank decade carrying mass is still uncovered.
         theta += p_total[k] * p_unknown[k] / p_tested[k]
         smoothed: float = (count_unknown[k] + 1) / (count[k] + 2)
-        variance += p_total[k] ** 2 * smoothed * (1.0 - smoothed) / count[k]
+        # Finite population correction: the sample is drawn without
+        # replacement from the stratum's testable words, so an exhausted
+        # stratum is a census with no sampling uncertainty left.
+        lo, hi = bounds[k]
+        population: int = (hi - lo) - (n_resolved[k] if n_resolved else 0)
+        if population <= count[k] or population <= 1:
+            continue
+        variance += (
+            p_total[k] ** 2
+            * smoothed
+            * (1.0 - smoothed)
+            / count[k]
+            * (population - count[k])
+            / (population - 1)
+        )
 
     if theta <= 0.0:
         return None
@@ -1559,8 +1608,14 @@ def estimate_rate_with_sd(
             resolved.append((index + 1, p_i))
 
     if method == RateEstimator.STRATIFIED:
+        n_resolved: list[int] = [0] * DEFAULT_N_STRATA
+        for rank, _ in resolved:
+            n_resolved[stratum_of_rank(rank, size, DEFAULT_N_STRATA)] += 1
         return _estimate_rate_stratified_masses(
-            tested, _stratum_masses(frequency_list, DEFAULT_N_STRATA), size
+            tested,
+            _stratum_masses(frequency_list, DEFAULT_N_STRATA),
+            size,
+            n_resolved=n_resolved,
         )
 
     # Tested and resolved words: everything that is not untested.

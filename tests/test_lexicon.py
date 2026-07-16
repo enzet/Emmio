@@ -411,6 +411,55 @@ def test_estimate_rate_stratified_requires_full_coverage() -> None:
     assert estimate_rate_stratified(tested, untested, n_strata=2) is None
 
 
+def test_estimate_rate_stratified_census_has_zero_sd() -> None:
+    """SFWR: a fully tested list is a census, with no sampling uncertainty.
+
+    Without the finite population correction the Laplace-smoothed variance
+    never reaches zero, freezing the SD once small strata are exhausted.
+    """
+
+    tested: list[tuple[int, float, int]] = [
+        (1, 0.4, 0),
+        (2, 0.3, 1),
+        (3, 0.2, 0),
+        (4, 0.1, 1),
+    ]
+
+    estimate = estimate_rate_stratified(tested, [], n_strata=2)
+    assert estimate is not None
+    rate_value, sd = estimate
+    assert rate_value == pytest.approx(-math.log2(0.4))
+    assert sd == 0.0
+
+
+def test_estimate_rate_stratified_resolved_words_shrink_population() -> None:
+    """SFWR: resolved words are untestable, so they never carry uncertainty.
+
+    A stratum whose every learnable word is tested is a census even when
+    resolved (unlearnable) words remain in its rank range.
+    """
+
+    tested: list[tuple[int, float, int]] = [
+        (1, 0.4, 0),
+        (2, 0.3, 1),
+        (3, 0.2, 0),
+    ]
+    resolved: list[tuple[int, float]] = [(4, 0.1)]
+
+    estimate = estimate_rate_stratified(
+        tested, [], resolved=resolved, n_strata=2
+    )
+    assert estimate is not None
+    _, sd = estimate
+    assert sd == 0.0
+
+    # The same stratum with an untested word instead is not a census.
+    estimate = estimate_rate_stratified(tested, [(4, 0.1)], n_strata=2)
+    assert estimate is not None
+    _, sd = estimate
+    assert sd > 0.0
+
+
 def test_estimate_rate_logistic_recovers_step_knowledge() -> None:
     """LA fits the logistic model and integrates it over untested words."""
 
