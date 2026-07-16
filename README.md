@@ -1,6 +1,6 @@
 <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_white.svg">
-    <img src="https://raw.githubusercontent.com/enzet/Emmio/master/doc/header_black.svg" alt="Emmio logo" height="80">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enzet/Emmio/main/doc/header_white.svg">
+    <img src="https://raw.githubusercontent.com/enzet/Emmio/main/doc/header_black.svg" alt="Emmio logo" height="80">
 </picture>
 
 **Emmio** is an experimental project focused on language learning. It provides
@@ -14,13 +14,24 @@ The project manages four kinds of artifacts:
   - [frequency and word lists](#frequency-and-word-lists),
   - [audio for words and sentences](#audio).
 
+Emmio is primarily a terminal application, but it also includes an
+experimental web interface and an iOS application built on top of a JSON API
+(see [Other Interfaces](#other-interfaces)).
+
 ## Installation
 
-Requires **Python 3.12** or later.
+Requires **Python 3.12** or later and a **PostgreSQL** server: learning and
+lexicon records are stored in a PostgreSQL database (see `scripts/schema.sql`
+for the table definitions). The connection string is taken from the
+`EMMIO_DATABASE_URL` or `DATABASE_URL` environment variable and defaults to
+`postgresql:///emmio`.
 
 ```shell
 pip install git+https://github.com/enzet/emmio
 ```
+
+Audio playback additionally requires the [mpv](https://mpv.io) player to be
+installed on the system.
 
 ## Get Started
 
@@ -33,6 +44,31 @@ emmio
 You can specify a data directory with the `--data` option and a username with
 the `--user` option. If not specified, the data directory defaults to
 `~/.emmio` and the username defaults to your current system username.
+
+## Learning
+
+```
+> learn
+```
+
+The learning process is based on spaced repetition with increasing intervals.
+Emmio picks new words from the word lists configured for the learning process
+(optionally checking them against your lexicons and dictionaries first), shows
+translations of the word with the word itself hidden, and asks you to type the
+word in the learning language.
+
+  - If the answer is correct, the word is scheduled for repetition: after the
+    first correct answer it comes back in about 5 minutes, after the second in
+    a day, and each subsequent correct answer doubles the interval.
+  - If the answer is wrong, type `n` — the word and its translations are
+    shown, and repetition starts over with short intervals.
+  - Press <kbd>Enter</kbd> on empty input to see an example sentence with the
+    word (press again for more sentences).
+  - Type `p` to postpone the question, `/skip` to exclude the word from the
+    learning process entirely, or `/stop` to finish the session.
+
+Learning processes are configured in the user configuration file
+(`users/<user name>/config.json`).
 
 ## Lexicon
 
@@ -84,18 +120,16 @@ arbitrary text.
 Framework of Reference for Languages. Please, don't take it as a strict
 definition.
 
-In order to run lexicon checking, simply execute `lexicon` command or
-`lexicon <language>` command, where `<language>` is 2-letters ISO 639-1 language
-code.
-
-  * `frequency list id` is an identifier of [full frequency file](#frequency).
-    **Important**: for Lexicon you can use only full (not stripped) frequency
-    list.
+Lexicon checking is run with the `lexicon` command or `lexicon <language>`,
+where `<language>` is a 2-letter ISO 639-1 language code. **Important**: a
+lexicon needs a full (not stripped)
+[frequency list](#frequency-and-word-lists).
 
 ### Visualizing the Checking Process
 
-Two command-line tools draw how the rate estimate r̂ evolves as answers
-accumulate, in a shared visual style.
+Two command-line tools compute how the rate estimate r̂ evolves as answers
+accumulate and write the trajectories to CSV files; a third draws those CSV
+files in a shared visual style.
 
 To replay the recorded checking process of a real lexicon, run
 
@@ -104,23 +138,36 @@ python -m emmio.lexicon.replay --user $USER_ID --lexicon $LEXICON_ID
 ```
 
 It reads the lexicon's answer log from the database, re-runs the production
-rate estimator after every answer, and saves a plot of the estimate
-trajectory with its ±1 standard deviation band (by default to
-`${USER_ID}_${LEXICON_ID}.png`, override with `--plot`). Ticks along the bottom
-mark the "don't know" answers. The frequency list configured for the lexicon is
-loaded from the Emmio data directory (`EMMIO_DATA_DIR`, default `~/.emmio`).
+rate estimator after every answer, and writes the estimate trajectory to a
+CSV file (by default `${USER_ID}_${LEXICON_ID}.csv`, override with `--csv`).
+The frequency list configured for the lexicon is loaded from the Emmio data
+directory (`EMMIO_DATA_DIR`, default `~/.emmio`).
 
 To compare how fast the checking methods converge on a synthetic language,
 run
 
 ```shell
-python -m emmio.lexicon.simulation --rate 3 --trials 5 --plot $OUTPUT_PNG_FILE
+python -m emmio.lexicon.simulation --rate 3 --trials 5
 ```
 
 It builds a fake Zipfian language, draws random knowledge profiles with a
 chosen true rate, drives every checking method through the production
-selection and estimation code, and reports (and optionally plots) how fast
-each converges.
+selection and estimation code, reports how fast each converges, and writes
+the per-trial trajectories to a CSV file (by default `simulation.csv`,
+override with `--csv`).
+
+To visualize a CSV file written by either tool, run
+
+```shell
+python -m emmio.lexicon.visualize replay ${USER_ID}_${LEXICON_ID}.csv
+python -m emmio.lexicon.visualize simulation simulation.csv
+```
+
+The replay plot shows the estimate trajectory with its ±1 standard deviation
+band and ticks along the bottom marking the "don't know" answers; the
+simulation plot shows per-trial and mean trajectories with the RMSE against
+the realized rates. The output image file defaults to the CSV file with a
+`.png` suffix, override with `--plot`.
 
 ## Data Directory Structure
 
@@ -180,22 +227,48 @@ Wiktionary project contains
 [frequency lists](https://en.wiktionary.org/wiki/Wiktionary:Frequency_lists) for
 different languages.
 
-# Contributing
+## Audio
+
+Audio artifacts are word pronunciations, played during learning. Artifacts are
+controlled by configuration file `audio/config.json`.
+
+Emmio supports:
+  - audio files stored in local directories,
+  - pronunciations from
+    [Wikimedia Commons](https://commons.wikimedia.org).
+
+## Other Interfaces
+
+Besides the terminal application, the repository contains experimental
+clients built on top of a FastAPI backend:
+
+  - **API** ([emmio/api/](emmio/api/)) — a JSON API with token-based
+    authentication. Install its dependencies with `pip install -e .[api]` and
+    run it with `uvicorn emmio.api.app:app --reload`.
+  - **Web** ([web/](web/)) — a minimal JavaScript client served by the API at
+    `http://localhost:8000/app/`; see [web/README.md](web/README.md).
+  - **iOS** ([ios/](ios/)) — a SwiftUI application; see `ios/run.sh` for
+    building and running it in the simulator.
+
+## Contributing
 
 Before contributing, please follow these steps:
   1. Install development dependencies with `pip install -e .[dev]`.
   2. Enable Git hooks with `git config core.hooksPath .githooks`.
 
-## Before Committing
+### Before Committing
 
-Before committing, please run
+The pre-commit hook checks formatting and linting with
+[Ruff](https://docs.astral.sh/ruff/), types with
+[ty](https://github.com/astral-sh/ty), and runs the tests with pytest. To run
+the same checks manually:
 
 ```shell
-black .
-isort emmio/ tests/
+ruff format emmio/ tests/
+ruff check emmio/ tests/
+ty check emmio/ tests/
+pytest
 ```
-
-to format the code and sort the imports.
 
 For commit messages we use 50/72 rule and each commit should start with a verb
 in the present tense. We also use Markdown for commit message formatting.

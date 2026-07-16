@@ -15,6 +15,11 @@ Run as::
 Every method within a trial is checked against the same drawn lexicon,
 and errors are measured against the realized rate of that lexicon (which
 differs slightly from the target because labels are random).
+
+Besides the printed report, per-trial trajectories are written to a CSV
+file (``--csv``, default ``simulation.csv``); visualize it with::
+
+    python -m emmio.lexicon.visualize simulation simulation.csv
 """
 
 import argparse
@@ -26,13 +31,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from matplotlib import pyplot as plt
 from scipy.special import expit  # pylint: disable=no-name-in-module
 from tqdm import tqdm
 
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
-    RATE_ESTIMATOR_BY_SELECTION,
     LexiconResponse,
     TestedWord,
     UntestedWord,
@@ -43,17 +46,6 @@ from emmio.lexicon.core import (
     estimate_rate_logistic,
     estimate_rate_stratified,
     estimate_rate_threshold,
-)
-from emmio.lexicon.plotting import (
-    BASELINE_COLOR,
-    INK_COLOR,
-    METHOD_COLORS,
-    MUTED_COLOR,
-    SECONDARY_INK_COLOR,
-    SURFACE_COLOR,
-    label_line_ends,
-    style_axis,
-    trajectory_values,
 )
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
@@ -329,7 +321,7 @@ class CheckpointStats:
     """Number of trials where the estimator had an answer."""
 
 
-def _aggregate(
+def aggregate_trajectories(
     methods: list[LexiconSelection],
     trajectories: dict[LexiconSelection, list[MethodTrajectory]],
     true_rates: list[float],
@@ -379,8 +371,8 @@ def _print_report(
     """
     checkpoints: list[int] = trajectories[methods[0]][0].checkpoints
     n_trials: int = len(true_rates)
-    stats: dict[LexiconSelection, list[CheckpointStats]] = _aggregate(
-        methods, trajectories, true_rates
+    stats: dict[LexiconSelection, list[CheckpointStats]] = (
+        aggregate_trajectories(methods, trajectories, true_rates)
     )
 
     rows: list[list[InlineElement | str]] = []
@@ -416,109 +408,6 @@ def _print_report(
         interface.print(
             f"  {method}: " + (f"{at} queries" if at else "not reached")
         )
-
-
-def plot_trajectories(
-    methods: list[LexiconSelection],
-    trajectories: dict[LexiconSelection, list[MethodTrajectory]],
-    true_rates: list[float],
-    tolerance: float,
-    path: Path,
-) -> None:
-    """Draw the convergence process and save it to an image file.
-
-    Left panel: every trial's estimate trajectory (thin) and the
-    per-method mean (bold), against the mean realized rate (dashed).
-    Right panel: RMSE against the realized rates, drawn only at
-    checkpoints where every trial has an estimate. Methods keep their
-    colors and are direct-labeled at their line ends; a method whose
-    estimator never had an answer appears in the legend only.
-    """
-    checkpoints: list[int] = trajectories[methods[0]][0].checkpoints
-    n_trials: int = len(true_rates)
-    stats: dict[LexiconSelection, list[CheckpointStats]] = _aggregate(
-        methods, trajectories, true_rates
-    )
-
-    figure, (axis_rate, axis_error) = plt.subplots(
-        1, 2, figsize=(11.0, 4.5), facecolor=SURFACE_COLOR
-    )
-    for axis in (axis_rate, axis_error):
-        style_axis(axis)
-    axis_rate.set_title(
-        "Rate estimate r̂ (thin: single trials, bold: mean)",
-        color=INK_COLOR,
-        fontsize=11,
-        loc="left",
-    )
-    axis_error.set_title(
-        "RMSE vs realized r", color=INK_COLOR, fontsize=11, loc="left"
-    )
-
-    mean_true: float = sum(true_rates) / len(true_rates)
-    axis_rate.axhline(
-        mean_true, color=BASELINE_COLOR, linestyle="--", linewidth=1.0
-    )
-    axis_rate.annotate(
-        "true r",
-        (checkpoints[0], mean_true),
-        textcoords="offset points",
-        xytext=(0, 4),
-        color=MUTED_COLOR,
-        fontsize=8,
-    )
-    axis_error.axhline(
-        tolerance, color=BASELINE_COLOR, linestyle="--", linewidth=1.0
-    )
-    axis_error.annotate(
-        "tolerance",
-        (checkpoints[0], tolerance),
-        textcoords="offset points",
-        xytext=(0, 4),
-        color=MUTED_COLOR,
-        fontsize=8,
-    )
-
-    label_ends: list[tuple[str, float]] = []
-    for method in methods:
-        color: str = METHOD_COLORS[RATE_ESTIMATOR_BY_SELECTION[method]]
-        for trajectory in trajectories[method]:
-            axis_rate.plot(
-                checkpoints,
-                trajectory_values(trajectory.estimates),
-                color=color,
-                linewidth=0.8,
-                alpha=0.3,
-            )
-        means: list[float] = [
-            stat.mean if stat.mean is not None else math.nan
-            for stat in stats[method]
-        ]
-        axis_rate.plot(checkpoints, means, color=color, linewidth=2.0)
-        finite: list[float] = [
-            value for value in means if not math.isnan(value)
-        ]
-        if finite:
-            label_ends.append((method, finite[-1]))
-        errors: list[float] = [
-            stat.rmse
-            if stat.rmse is not None and stat.count == n_trials
-            else math.nan
-            for stat in stats[method]
-        ]
-        axis_error.plot(
-            checkpoints, errors, color=color, linewidth=2.0, label=method
-        )
-
-    label_line_ends(axis_rate, label_ends, float(checkpoints[-1]))
-    axis_rate.set_xlim(right=checkpoints[-1] * 1.18)
-
-    axis_error.set_ylim(bottom=0.0)
-    axis_error.legend(frameon=False, fontsize=9, labelcolor=SECONDARY_INK_COLOR)
-
-    figure.tight_layout()
-    figure.savefig(path, dpi=150, facecolor=SURFACE_COLOR)
-    plt.close(figure)
 
 
 def main(arguments: list[str] | None = None) -> None:
@@ -586,14 +475,8 @@ def main(arguments: list[str] | None = None) -> None:
     parser.add_argument(
         "--csv",
         type=Path,
-        default=None,
-        help="also write per-trial trajectories to this CSV file",
-    )
-    parser.add_argument(
-        "--plot",
-        type=Path,
-        default=None,
-        help="also render the convergence process to this image file",
+        default=Path("simulation.csv"),
+        help="write per-trial trajectories to this CSV file",
     )
     options: argparse.Namespace = parser.parse_args(arguments)
     interface: Interface = TerminalInterface(use_input=False)
@@ -648,41 +531,23 @@ def main(arguments: list[str] | None = None) -> None:
         interface, options.methods, trajectories, true_rates, options.tolerance
     )
 
-    if options.csv is not None:
-        with options.csv.open("w", encoding="utf-8", newline="") as output:
-            writer = csv.writer(output)
-            writer.writerow(
-                ["method", "trial", "queries", "r_hat", "sd", "r_true"]
-            )
-            for method in options.methods:
-                for trial, trajectory in enumerate(trajectories[method]):
-                    for queries, estimate in zip(
-                        trajectory.checkpoints,
-                        trajectory.estimates,
-                        strict=True,
-                    ):
-                        r_hat, sd = estimate if estimate else ("", "")
-                        writer.writerow(
-                            [
-                                method,
-                                trial,
-                                queries,
-                                r_hat,
-                                sd,
-                                true_rates[trial],
-                            ]
-                        )
-        interface.print(f"Trajectories written to `{options.csv}`.")
-
-    if options.plot is not None:
-        plot_trajectories(
-            options.methods,
-            trajectories,
-            true_rates,
-            options.tolerance,
-            options.plot,
-        )
-        interface.print(f"Plot written to `{options.plot}`.")
+    with options.csv.open("w", encoding="utf-8", newline="") as output:
+        writer = csv.writer(output)
+        writer.writerow(["method", "trial", "queries", "r_hat", "sd", "r_true"])
+        for method in options.methods:
+            for trial, trajectory in enumerate(trajectories[method]):
+                for queries, estimate in zip(
+                    trajectory.checkpoints, trajectory.estimates, strict=True
+                ):
+                    r_hat, sd = estimate if estimate else ("", "")
+                    writer.writerow(
+                        [method, trial, queries, r_hat, sd, true_rates[trial]]
+                    )
+    interface.print(f"Trajectories written to `{options.csv}`.")
+    interface.print(
+        "Visualize with `python -m emmio.lexicon.visualize simulation "
+        f"{options.csv}`."
+    )
 
 
 if __name__ == "__main__":

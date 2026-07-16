@@ -2,8 +2,10 @@
 
 Fetch the chronological answer log of one user's lexicon from the
 database, re-run the production rate estimator after every answer (the
-same `estimate_rate_with_sd` path the API uses), and draw the estimate
-trajectory r̂ with its ±1 SD band, styled like the simulation plots.
+same `estimate_rate_with_sd` path the API uses), and write the estimate
+trajectory r̂ with its SD to a CSV file; visualize it with::
+
+    python -m emmio.lexicon.visualize replay john_fr_1.csv
 
 Run as::
 
@@ -15,28 +17,18 @@ from PostgreSQL.
 """
 
 import argparse
+import csv
 import os
 from pathlib import Path
 
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from emmio.data import Data
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
-    RATE_ESTIMATOR_BY_SELECTION,
     LexiconResponse,
     WordStates,
     estimate_rate_with_sd,
-)
-from emmio.lexicon.plotting import (
-    INK_COLOR,
-    METHOD_COLORS,
-    MUTED_COLOR,
-    SURFACE_COLOR,
-    label_line_ends,
-    plot_estimates,
-    style_axis,
 )
 from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
@@ -50,7 +42,7 @@ def replay(
     frequency_list: FrequencyList | None,
     step: int = 1,
     precision: int = 100,
-) -> tuple[list[int], list[tuple[float, float] | None], list[int]]:
+) -> tuple[list[int], list[tuple[float, float] | None]]:
     """Re-run the production rate estimator over a recorded log.
 
     Answers are fed to the estimator in their recorded order; at every
@@ -65,8 +57,7 @@ def replay(
     :param step: checkpoint spacing in answers
     :param precision: number of "don't know" answers per frequency
         estimator window
-    :return: (checkpoint query numbers, per-checkpoint estimates, query
-        numbers of "don't know" answers)
+    :return: (checkpoint query numbers, per-checkpoint estimates)
     """
     know: str = LexiconResponse.KNOW.to_code()
     dont: str = LexiconResponse.DONT.to_code()
@@ -74,7 +65,6 @@ def replay(
     sequence: list[int] = []
     checkpoints: list[int] = []
     estimates: list[tuple[float, float] | None] = []
-    dont_steps: list[int] = []
 
     for number, (word, code) in tqdm(enumerate(records, start=1)):
         states[word] = (code, None)
@@ -82,7 +72,6 @@ def replay(
             sequence.append(1)
         elif code == dont:
             sequence.append(0)
-            dont_steps.append(number)
         if number % step != 0 and number != len(records):
             continue
         checkpoints.append(number)
@@ -92,80 +81,50 @@ def replay(
             )
         )
 
-    return checkpoints, estimates, dont_steps
+    return checkpoints, estimates
 
 
-def plot_replay(
+def write_replay_csv(
+    path: Path,
+    records: list[tuple[str, str]],
     checkpoints: list[int],
     estimates: list[tuple[float, float] | None],
-    dont_steps: list[int],
     selection: LexiconSelection,
-    title: str,
-    path: Path,
 ) -> None:
-    """Draw the replayed estimate trajectory and save it to an image file.
+    """Write the replayed trajectory to a CSV file, one row per answer.
 
-    The r̂ line with its ±1 SD band in the method's color, ticks along
-    the bottom marking the "don't know" answers, and the last estimate
-    direct-labeled at the line end.
+    Columns: ``queries`` (1-based answer number), ``response`` (the
+    recorded response code), ``checkpoint`` (1 where the estimator ran),
+    ``r_hat`` and ``sd`` (empty where the estimator had no answer or the
+    row is not a checkpoint), and ``selection`` (the lexicon's selection
+    strategy, constant).
 
+    :param path: output CSV file
+    :param records: chronological (word, response code) pairs
     :param checkpoints: query numbers of the checkpoints
     :param estimates: per-checkpoint (r̂, SD), or None where the
         estimator had no answer
-    :param dont_steps: query numbers of "don't know" answers
-    :param selection: the lexicon's selection strategy, for the color
-    :param title: chart title
-    :param path: output image file
+    :param selection: the lexicon's stored selection strategy
     """
-    figure, axis = plt.subplots(figsize=(9.0, 4.5), facecolor=SURFACE_COLOR)
-    style_axis(axis)
-    axis.set_title(title, color=INK_COLOR, fontsize=11, loc="left")
-
-    color: str = METHOD_COLORS[RATE_ESTIMATOR_BY_SELECTION[selection]]
-    plot_estimates(axis, checkpoints, estimates, color)
-
-    # Ticks along the bottom mark the "don't know" answers.
-    y_low, y_high = axis.get_ylim()
-    tick_height: float = 0.04 * (y_high - y_low)
-    if dont_steps:
-        axis.vlines(
-            dont_steps,
-            y_low,
-            y_low + tick_height,
-            color=MUTED_COLOR,
-            linewidth=1.0,
-        )
-        axis.annotate(
-            "don't know answers",
-            (checkpoints[-1], y_low + tick_height / 2.0),
-            textcoords="offset points",
-            xytext=(6, 0),
-            color=MUTED_COLOR,
-            fontsize=8,
-            va="center",
-        )
-    axis.set_ylim(y_low, y_high)
-    axis.set_xlim(0, checkpoints[-1] * 1.18)
-
-    last: tuple[float, float] | None = next(
-        (estimate for estimate in reversed(estimates) if estimate is not None),
-        None,
+    estimate_by_query: dict[int, tuple[float, float] | None] = dict(
+        zip(checkpoints, estimates, strict=True)
     )
-    if last is not None:
-        r_hat, sd = last
-        label_line_ends(
-            axis,
-            [(f"r̂ = {r_hat:.2f} ± {sd:.2f}", r_hat)],
-            float(checkpoints[-1]),
+    with path.open("w", encoding="utf-8", newline="") as output:
+        writer = csv.writer(output)
+        writer.writerow(
+            ["queries", "response", "checkpoint", "r_hat", "sd", "selection"]
         )
-
-    figure.tight_layout()
-    figure.savefig(path, dpi=150, facecolor=SURFACE_COLOR)
-    plt.close(figure)
+        for number, (_, code) in enumerate(records, start=1):
+            is_checkpoint: bool = number in estimate_by_query
+            estimate: tuple[float, float] | None = estimate_by_query.get(number)
+            r_hat, sd = estimate if estimate else ("", "")
+            writer.writerow(
+                [number, code, int(is_checkpoint), r_hat, sd, selection]
+            )
 
 
 def main(arguments: list[str] | None = None) -> None:
-    """Replay a lexicon's checking process and plot the estimates."""
+    """Replay a lexicon's checking process and write the estimates."""
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=(__doc__ or "").split("\n\n")[0]
     )
@@ -189,10 +148,10 @@ def main(arguments: list[str] | None = None) -> None:
         help="full-window unknown count for the frequency estimator",
     )
     parser.add_argument(
-        "--plot",
+        "--csv",
         type=Path,
         default=None,
-        help="output image file (default `<user>_<lexicon>.png`)",
+        help="output CSV file (default `<user>_<lexicon>.csv`)",
     )
     options: argparse.Namespace = parser.parse_args(arguments)
     interface: Interface = TerminalInterface(use_input=False)
@@ -231,7 +190,7 @@ def main(arguments: list[str] | None = None) -> None:
                 f"list and are invisible to the estimator."
             )
 
-    checkpoints, estimates, dont_steps = replay(
+    checkpoints, estimates = replay(
         records, selection, frequency_list, options.step, options.precision
     )
 
@@ -245,20 +204,15 @@ def main(arguments: list[str] | None = None) -> None:
         interface.print(f"Last estimate: r̂ = {last[0]:.3f} ± {last[1]:.3f}.")
 
     path: Path = (
-        options.plot
-        if options.plot is not None
-        else Path(f"{options.user}_{options.lexicon}.png")
+        options.csv
+        if options.csv is not None
+        else Path(f"{options.user}_{options.lexicon}.csv")
     )
-    plot_replay(
-        checkpoints,
-        estimates,
-        dont_steps,
-        selection,
-        f"Rate estimate r̂ ± SD — user `{options.user}`, "
-        f"lexicon `{options.lexicon}` ({selection})",
-        path,
+    write_replay_csv(path, records, checkpoints, estimates, selection)
+    interface.print(f"Trajectory written to `{path}`.")
+    interface.print(
+        f"Visualize with `python -m emmio.lexicon.visualize replay {path}`."
     )
-    interface.print(f"Plot written to `{path}`.")
 
 
 if __name__ == "__main__":

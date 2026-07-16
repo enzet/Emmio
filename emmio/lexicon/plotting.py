@@ -1,9 +1,10 @@
 """Shared Matplotlib styling for rate estimate trajectory plots.
 
-The simulation (`emmio.lexicon.simulation`) and the real-log replay
-(`emmio.lexicon.replay`) draw the same kind of picture — a rate estimate
-trajectory over queries — and share their chart chrome here so both
-render in one visual style.
+The visualizer (`emmio.lexicon.visualize`) draws the same kind of
+picture — a rate estimate trajectory over queries — from the CSV files
+of both the simulation (`emmio.lexicon.simulation`) and the real-log
+replay (`emmio.lexicon.replay`); the chart chrome lives here so every
+plot renders in one visual style.
 """
 
 import math
