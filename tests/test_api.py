@@ -353,6 +353,43 @@ def test_rate_estimate_uses_fwr_for_frequency_lexicon() -> None:
     assert estimate["sd"] == pytest.approx(1.0 / (math.log(2) * math.sqrt(5)))
 
 
+def test_rate_trajectory_replays_the_answer_history() -> None:
+    """The trajectory replays the estimator over every recorded answer."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.store_lexicon_config(
+        "alice", "de", {"language": "de", "selection": "frequency"}
+    )
+
+    # 5 unknowns among 20 answers: theta = 1/4, so r = 2 (see the rate
+    # estimate test above).
+    for index in range(20):
+        client.post(
+            "/api/v1/me/lexicons/de/answer",
+            json={
+                "word": f"wort{index}",
+                "response": "dont" if index % 4 == 3 else "know",
+            },
+            headers=_auth(token),
+        )
+
+    response = client.get(
+        "/api/v1/me/lexicons/de/rate-trajectory", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    trajectory = response.json()
+    assert trajectory["method"] == "frequency"
+    assert trajectory["total"] == 20
+    # 20 answers is under the checkpoint cap, so every answer is one.
+    assert [point["queries"] for point in trajectory["checkpoints"]] == list(
+        range(1, 21)
+    )
+    # The final checkpoint agrees with the live `rate-estimate` value.
+    last = trajectory["checkpoints"][-1]
+    assert last["rate"] == pytest.approx(2.0)
+    assert last["sd"] == pytest.approx(1.0 / (math.log(2) * math.sqrt(5)))
+
+
 def test_next_without_frequency_list_is_bad_request() -> None:
     """A lexicon with no configured frequency list returns 400 for `next`."""
 

@@ -731,6 +731,270 @@ async function setupLexiconSettings(lexiconId) {
     });
 }
 
+// Convergence chart of the rate estimate (check page): an inline SVG in the
+// footer seeded with the whole answer history from `/rate-trajectory` and
+// grown live from the per-answer `/rate-estimate` values, so the reader sees
+// the estimate stabilize as the session goes. Every color comes from CSS
+// variables in `base.css`, so the chart follows the theme; the series color
+// follows the estimator (`data-method` on the figure).
+function createTrajectoryChart(figure, svg, tooltip) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const MARGIN = { top: 10, right: 110, bottom: 20, left: 40 };
+
+    let seed = null; // { method, total, checkpoints } from the API.
+    let checkedAtSeed = 0; // Session answers already included in the seed.
+    const live = new Map(); // Answer number -> { rate, sd }, this session.
+    let points = []; // Merged { q, rate, sd } to plot, oldest first.
+    let scale = null; // Last render's scales, for the hover layer.
+
+    // The hover layer is created once and re-appended after every rebuild
+    // (setting `innerHTML` wipes the SVG).
+    const crosshair = document.createElementNS(SVG_NS, "line");
+    crosshair.setAttribute("class", "crosshair");
+    const focusDot = document.createElementNS(SVG_NS, "circle");
+    focusDot.setAttribute("class", "focus-dot");
+    focusDot.setAttribute("r", "4");
+
+    function hideHover() {
+        crosshair.style.visibility = "hidden";
+        focusDot.style.visibility = "hidden";
+        tooltip.hidden = true;
+    }
+
+    // The x position of this session's `checked`-th answer: the seed may
+    // already contain answers given before it finished loading.
+    function answerNumber(checked) {
+        return seed.total + checked - checkedAtSeed;
+    }
+
+    function merge() {
+        points = seed.checkpoints.map((point) => ({
+            q: point.queries,
+            rate: point.rate,
+            sd: point.sd,
+        }));
+        for (const [q, estimate] of [...live.entries()].sort(
+            (a, b) => a[0] - b[0],
+        )) {
+            points.push({ q, rate: estimate.rate, sd: estimate.sd });
+        }
+    }
+
+    // The gridline/tick spacing covering `span` with about `count` steps,
+    // snapped to a clean 1/2/5 × 10^k value.
+    function niceStep(span, count) {
+        const raw = span / count;
+        const power = 10 ** Math.floor(Math.log10(raw));
+        for (const multiple of [1, 2, 5]) {
+            if (raw <= multiple * power) return multiple * power;
+        }
+        return 10 * power;
+    }
+
+    function tickLabel(value) {
+        return Number.isInteger(value)
+            ? value.toLocaleString("en-US")
+            : String(Number(value.toFixed(2)));
+    }
+
+    function render() {
+        if (!seed) return;
+        const known = points.filter((point) => point.rate !== null);
+        if (known.length < 2) {
+            figure.hidden = true;
+            return;
+        }
+        figure.hidden = false;
+        const width = svg.clientWidth;
+        const height = svg.clientHeight;
+        if (!width || !height) return;
+        svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+        const maxQ = points[points.length - 1].q;
+        let yMin = Infinity;
+        let yMax = -Infinity;
+        for (const point of known) {
+            yMin = Math.min(yMin, point.rate - (point.sd || 0));
+            yMax = Math.max(yMax, point.rate + (point.sd || 0));
+        }
+        if (yMin === yMax) {
+            yMin -= 0.5;
+            yMax += 0.5;
+        }
+        const pad = (yMax - yMin) * 0.08;
+        yMin -= pad;
+        yMax += pad;
+
+        const plot = {
+            left: MARGIN.left,
+            right: width - MARGIN.right,
+            top: MARGIN.top,
+            bottom: height - MARGIN.bottom,
+        };
+        const x = (q) =>
+            plot.left + (q / maxQ) * (plot.right - plot.left);
+        const y = (value) =>
+            plot.bottom -
+            ((value - yMin) / (yMax - yMin)) * (plot.bottom - plot.top);
+        scale = { x, y, plot };
+
+        const parts = [];
+
+        // Horizontal hairline gridlines with their rate labels.
+        const yStep = niceStep(yMax - yMin, 3);
+        for (
+            let index = Math.ceil(yMin / yStep);
+            index * yStep <= yMax + yStep * 1e-6;
+            index += 1
+        ) {
+            const value = index * yStep;
+            const line = y(value);
+            parts.push(
+                `<line class="grid" x1="${plot.left}" y1="${line}"` +
+                    ` x2="${plot.right}" y2="${line}"/>`,
+                `<text class="tick-label" x="${plot.left - 6}" y="${line}"` +
+                    ` text-anchor="end" dominant-baseline="middle">` +
+                    `${tickLabel(value)}</text>`,
+            );
+        }
+
+        // The baseline and a few answer-count ticks along it.
+        parts.push(
+            `<line class="grid" x1="${plot.left}" y1="${plot.bottom}"` +
+                ` x2="${plot.right}" y2="${plot.bottom}"/>`,
+        );
+        const xStep = Math.max(1, niceStep(maxQ, 4));
+        for (let value = 0; value <= maxQ; value += xStep) {
+            parts.push(
+                `<text class="tick-label" x="${x(value)}"` +
+                    ` y="${height - 4}" text-anchor="middle">` +
+                    `${tickLabel(value)}</text>`,
+            );
+        }
+
+        // The r̂ line with its ±SD band, split where the estimator had no
+        // answer.
+        const runs = [];
+        let run = [];
+        for (const point of points) {
+            if (point.rate === null) {
+                if (run.length) runs.push(run);
+                run = [];
+            } else {
+                run.push(point);
+            }
+        }
+        if (run.length) runs.push(run);
+        for (const segment of runs) {
+            if (segment.length < 2) continue;
+            const upper = segment
+                .map((p) => `${x(p.q)},${y(p.rate + (p.sd || 0))}`)
+                .join(" L ");
+            const lower = segment
+                .slice()
+                .reverse()
+                .map((p) => `${x(p.q)},${y(p.rate - (p.sd || 0))}`)
+                .join(" L ");
+            parts.push(`<path class="band" d="M ${upper} L ${lower} Z"/>`);
+            const line = segment
+                .map((p) => `${x(p.q)},${y(p.rate)}`)
+                .join(" L ");
+            parts.push(`<path class="line" d="M ${line}"/>`);
+        }
+
+        // The last estimate, direct-labeled at the line end.
+        const last = known[known.length - 1];
+        const labelY = Math.min(
+            Math.max(y(last.rate), plot.top + 8),
+            plot.bottom - 4,
+        );
+        parts.push(
+            `<text class="end-label" x="${x(last.q) + 8}" y="${labelY}"` +
+                ` dominant-baseline="middle">r̂ = ${last.rate.toFixed(2)}` +
+                ` ± ${(last.sd || 0).toFixed(2)}</text>`,
+        );
+
+        svg.innerHTML = parts.join("");
+        svg.append(crosshair, focusDot);
+        hideHover();
+    }
+
+    // Crosshair and tooltip: the whole SVG is the hit target, the reader
+    // aims at an x position and the nearest estimate answers.
+    svg.addEventListener("pointermove", (event) => {
+        if (!scale) return;
+        const known = points.filter((point) => point.rate !== null);
+        if (!known.length) return;
+        const px = event.clientX - svg.getBoundingClientRect().left;
+        let nearest = known[0];
+        for (const point of known) {
+            if (Math.abs(scale.x(point.q) - px) <
+                Math.abs(scale.x(nearest.q) - px)) {
+                nearest = point;
+            }
+        }
+        const cx = scale.x(nearest.q);
+        const cy = scale.y(nearest.rate);
+        crosshair.setAttribute("x1", cx);
+        crosshair.setAttribute("x2", cx);
+        crosshair.setAttribute("y1", scale.plot.top);
+        crosshair.setAttribute("y2", scale.plot.bottom);
+        crosshair.style.visibility = "visible";
+        focusDot.setAttribute("cx", cx);
+        focusDot.setAttribute("cy", cy);
+        focusDot.style.visibility = "visible";
+        tooltip.textContent =
+            `r̂ = ${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
+            ` · ${nearest.q.toLocaleString("en-US")} answers`;
+        tooltip.hidden = false;
+        tooltip.style.left = `${Math.max(
+            0,
+            Math.min(cx + 10, figure.clientWidth - tooltip.offsetWidth - 4),
+        )}px`;
+        tooltip.style.top = `${Math.max(0, cy - tooltip.offsetHeight - 8)}px`;
+    });
+    svg.addEventListener("pointerleave", hideHover);
+    window.addEventListener("resize", render);
+
+    return {
+        // Seed the chart with the replayed history. `checkedNow` is how many
+        // answers this session had already recorded when the seed was
+        // requested, so live points continue where the seed ends.
+        setSeed(data, checkedNow) {
+            seed = data;
+            checkedAtSeed = checkedNow;
+            figure.dataset.method = data.method;
+            merge();
+            render();
+        },
+        // A fresh estimate for the state after `checked` session answers.
+        // Points beyond it are stale (an undo happened since they were
+        // plotted).
+        noteEstimate(checked, rate, sd) {
+            if (!seed) return;
+            const q = answerNumber(checked);
+            for (const key of [...live.keys()]) {
+                if (key > q) live.delete(key);
+            }
+            if (checked > checkedAtSeed && rate !== null) {
+                live.set(q, { rate, sd });
+            }
+            merge();
+            render();
+        },
+        // An undo: drop the live points past the rewound position.
+        noteUndo(checked) {
+            if (!seed) return;
+            const q = answerNumber(checked);
+            for (const key of [...live.keys()]) {
+                if (key > q) live.delete(key);
+            }
+            merge();
+            render();
+        },
+    };
+}
+
 // Session pages: lexicon checking and learning repetition share one flow.
 // Rather than fetch one word per answer, the client keeps a small queue of
 // upcoming words (each with its translation already loading) plus a history
@@ -771,6 +1035,27 @@ async function runSession(base, doneText) {
     const rateEstimate = document.getElementById("rate-estimate");
     let rateRequest = 0;
 
+    // The estimate convergence chart (check page only; the figure is absent
+    // elsewhere): seeded with the replayed history, grown per answer.
+    const trajectoryFigure = document.getElementById("trajectory");
+    const chart = trajectoryFigure
+        ? createTrajectoryChart(
+              trajectoryFigure,
+              document.getElementById("trajectory-svg"),
+              document.getElementById("trajectory-tooltip"),
+          )
+        : null;
+
+    // Seed the chart with the whole history's estimate trajectory. A lexicon
+    // whose strategy has no estimator (or no frequency list) just keeps the
+    // chart hidden.
+    async function loadTrajectory() {
+        if (!chart) return;
+        const response = await api(`${base}/rate-trajectory`);
+        if (!response.ok) return;
+        chart.setSeed(await response.json(), counts.checked);
+    }
+
     // Live session status (check page only; the elements are absent
     // elsewhere): how many words were answered this session, split into
     // know / don't know, plus the current word's strategy context — its
@@ -809,10 +1094,13 @@ async function runSession(base, doneText) {
     async function refreshRateEstimate() {
         if (!rateEstimate) return;
         const token = ++rateRequest;
+        // How many session answers this estimate covers, for the chart.
+        const checked = counts.checked;
         const response = await api(`${base}/rate-estimate`);
         if (token !== rateRequest || !response.ok) return;
         const estimate = await response.json();
         if (token !== rateRequest) return;
+        chart?.noteEstimate(checked, estimate.rate, estimate.sd);
         if (estimate.rate === null) {
             rateEstimate.hidden = true;
             return;
@@ -1108,6 +1396,7 @@ async function runSession(base, doneText) {
         counts.checked -= 1;
         if (entry.response === "know") counts.know -= 1;
         else if (entry.response === "dont") counts.dont -= 1;
+        chart?.noteUndo(counts.checked);
         if (current) queue.unshift(current);
         current = {
             word: undone,
@@ -1198,6 +1487,7 @@ async function runSession(base, doneText) {
 
     word.replaceChildren(loadingDots());
     void refreshRateEstimate();
+    void loadTrajectory();
     // Load the dictionary list first so the per-word prefetch knows which
     // dictionaries to request; an empty list just means no translations.
     const dictionariesResponse = await api(`${base}/dictionaries`);

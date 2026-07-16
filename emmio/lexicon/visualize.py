@@ -26,10 +26,7 @@ from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import RATE_ESTIMATOR_BY_SELECTION, LexiconResponse
 from emmio.lexicon.plotting import (
     BASELINE_COLOR,
-    INK_COLOR,
     METHOD_COLORS,
-    MUTED_COLOR,
-    SECONDARY_INK_COLOR,
     SURFACE_COLOR,
     label_line_ends,
     plot_estimates,
@@ -158,13 +155,10 @@ def plot_simulation(
         style_axis(axis)
     axis_rate.set_title(
         "Rate estimate r̂ (thin: single trials, bold: mean)",
-        color=INK_COLOR,
         fontsize=11,
         loc="left",
     )
-    axis_error.set_title(
-        "RMSE vs realized r", color=INK_COLOR, fontsize=11, loc="left"
-    )
+    axis_error.set_title("RMSE vs realized r", fontsize=11, loc="left")
 
     mean_true: float = sum(true_rates) / len(true_rates)
     axis_rate.axhline(
@@ -175,7 +169,6 @@ def plot_simulation(
         (checkpoints[0], mean_true),
         textcoords="offset points",
         xytext=(0, 4),
-        color=MUTED_COLOR,
         fontsize=8,
     )
     axis_error.axhline(
@@ -186,7 +179,6 @@ def plot_simulation(
         (checkpoints[0], tolerance),
         textcoords="offset points",
         xytext=(0, 4),
-        color=MUTED_COLOR,
         fontsize=8,
     )
 
@@ -225,7 +217,7 @@ def plot_simulation(
     axis_rate.set_xlim(right=checkpoints[-1] * 1.18)
 
     axis_error.set_ylim(bottom=0.0)
-    axis_error.legend(frameon=False, fontsize=9, labelcolor=SECONDARY_INK_COLOR)
+    axis_error.legend(frameon=False, fontsize=9)
 
     figure.tight_layout()
     figure.savefig(path, dpi=150, facecolor=SURFACE_COLOR)
@@ -256,7 +248,7 @@ def plot_replay(
     """
     figure, axis = plt.subplots(figsize=(9.0, 4.5), facecolor=SURFACE_COLOR)
     style_axis(axis)
-    axis.set_title(title, color=INK_COLOR, fontsize=11, loc="left")
+    axis.set_title(title, fontsize=11, loc="left")
 
     color: str = METHOD_COLORS[RATE_ESTIMATOR_BY_SELECTION[selection]]
     plot_estimates(axis, checkpoints, estimates, color)
@@ -265,19 +257,12 @@ def plot_replay(
     y_low, y_high = axis.get_ylim()
     tick_height: float = 0.04 * (y_high - y_low)
     if dont_steps:
-        axis.vlines(
-            dont_steps,
-            y_low,
-            y_low + tick_height,
-            color=MUTED_COLOR,
-            linewidth=1.0,
-        )
+        axis.vlines(dont_steps, y_low, y_low + tick_height, linewidth=1.0)
         axis.annotate(
             "don't know answers",
             (checkpoints[-1], y_low + tick_height / 2.0),
             textcoords="offset points",
             xytext=(6, 0),
-            color=MUTED_COLOR,
             fontsize=8,
             va="center",
         )

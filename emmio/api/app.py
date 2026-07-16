@@ -71,6 +71,7 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.replay import replay
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
@@ -1685,6 +1686,29 @@ def answer_lexicon_word(
         )
 
 
+def _frequency_list_or_error(config: dict, lexicon_id: str) -> FrequencyList:
+    """Load the lexicon's configured frequency list, or raise an HTTP error.
+
+    The model-based rate estimators place every word by frequency rank,
+    so they cannot run without the list: no list configured is a client
+    error, a configured list that fails to load is a server one.
+    """
+    if config["frequency_list"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Lexicon `{lexicon_id}` has no frequency list configured.",
+        )
+    frequency_list: FrequencyList | None = get_data().get_frequency_list(
+        ListUsageConfig(**config["frequency_list"])
+    )
+    if frequency_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Configured frequency list could not be loaded.",
+        )
+    return frequency_list
+
+
 class RateEstimate(BaseModel):
     """Strategy-aware estimate of the vocabulary rate and its error."""
 
@@ -1733,21 +1757,9 @@ def get_lexicon_rate_estimate(
         # states that seed word selection: the estimate must reflect this
         # lexicon's own sample, not answers collected under sibling lexicons'
         # strategies.
-        if config["frequency_list"] is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"Lexicon `{lexicon_id}` has no frequency list configured."
-                ),
-            )
-        frequency_list = get_data().get_frequency_list(
-            ListUsageConfig(**config["frequency_list"])
+        frequency_list: FrequencyList = _frequency_list_or_error(
+            config, lexicon_id
         )
-        if frequency_list is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Configured frequency list could not be loaded.",
-            )
         states: dict[str, tuple[str | None, bool | None]] = (
             postgres.get_lexicon_selector_states(user_id, lexicon_id)
         )
@@ -1756,6 +1768,84 @@ def get_lexicon_rate_estimate(
     if estimate is None:
         return RateEstimate(rate=None, sd=None, method=method)
     return RateEstimate(rate=estimate[0], sd=estimate[1], method=method)
+
+
+class TrajectoryPoint(BaseModel):
+    """The rate estimate after a prefix of the answer history."""
+
+    queries: int
+    """1-based number of answers the estimate is computed over."""
+
+    rate: float | None
+    """Estimated rate, or `None` if not enough data at this point."""
+
+    sd: float | None
+    """Standard deviation of the estimate."""
+
+
+class RateTrajectory(BaseModel):
+    """The estimate trajectory over the whole recorded answer history."""
+
+    method: RateEstimator
+    """Estimator used at every checkpoint."""
+
+    total: int
+    """Number of answers recorded in the lexicon."""
+
+    checkpoints: list[TrajectoryPoint]
+    """Estimates at evenly spaced points of the history, oldest first."""
+
+
+MAX_TRAJECTORY_CHECKPOINTS: int = 200
+"""Upper bound on trajectory checkpoints.
+
+Enough points for a smooth line on screen, few enough that replaying a
+long answer history stays a single fast request.
+"""
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/rate-trajectory")
+def get_lexicon_rate_trajectory(
+    lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> RateTrajectory:
+    """Replay the rate estimate over the lexicon's whole answer history.
+
+    Re-runs the same strategy-matched estimator `rate-estimate` uses after
+    every `step` answers of the recorded log, so the check page can seed
+    its convergence chart with the history and then grow it live from the
+    per-answer estimates.
+    """
+    config: dict = _lexicon_config_or_404(user_id, lexicon_id)
+    selection: LexiconSelection = LexiconSelection(config["selection"])
+    method: RateEstimator | None = RATE_ESTIMATOR_BY_SELECTION.get(selection)
+    if method is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"No rate estimator for selection `{selection}`.",
+        )
+
+    frequency_list: FrequencyList | None = None
+    if method != RateEstimator.FREQUENCY:
+        frequency_list = _frequency_list_or_error(config, lexicon_id)
+
+    records: list[tuple[str, str]] = postgres.get_lexicon_record_log(
+        user_id, lexicon_id
+    )
+    step: int = max(1, -(-len(records) // MAX_TRAJECTORY_CHECKPOINTS))
+    checkpoints, estimates = replay(records, selection, frequency_list, step)
+
+    return RateTrajectory(
+        method=method,
+        total=len(records),
+        checkpoints=[
+            TrajectoryPoint(
+                queries=queries,
+                rate=estimate[0] if estimate else None,
+                sd=estimate[1] if estimate else None,
+            )
+            for queries, estimate in zip(checkpoints, estimates, strict=True)
+        ],
+    )
 
 
 @app.post("/api/v1/me/lexicons/{lexicon_id}/undo")

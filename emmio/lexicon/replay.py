@@ -42,6 +42,8 @@ def replay(
     frequency_list: FrequencyList | None,
     step: int = 1,
     precision: int = 100,
+    *,
+    show_progress: bool = False,
 ) -> tuple[list[int], list[tuple[float, float] | None]]:
     """Re-run the production rate estimator over a recorded log.
 
@@ -57,6 +59,8 @@ def replay(
     :param step: checkpoint spacing in answers
     :param precision: number of "don't know" answers per frequency
         estimator window
+    :param show_progress: draw a terminal progress bar (for the CLI; the
+        API replays silently)
     :return: (checkpoint query numbers, per-checkpoint estimates)
     """
     know: str = LexiconResponse.KNOW.to_code()
@@ -66,7 +70,11 @@ def replay(
     checkpoints: list[int] = []
     estimates: list[tuple[float, float] | None] = []
 
-    for number, (word, code) in tqdm(enumerate(records, start=1)):
+    for number, (word, code) in tqdm(
+        enumerate(records, start=1),
+        total=len(records),
+        disable=not show_progress,
+    ):
         states[word] = (code, None)
         if code == know:
             sequence.append(1)
@@ -191,7 +199,12 @@ def main(arguments: list[str] | None = None) -> None:
             )
 
     checkpoints, estimates = replay(
-        records, selection, frequency_list, options.step, options.precision
+        records,
+        selection,
+        frequency_list,
+        options.step,
+        options.precision,
+        show_progress=True,
     )
 
     last: tuple[float, float] | None = next(

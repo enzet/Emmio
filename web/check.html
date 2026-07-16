@@ -26,6 +26,15 @@
             <section aria-labelledby="word-heading">
                 <p id="word"></p>
                 <p id="sentence"></p>
+                <p id="translation-button">
+                    <button type="button" id="show-translation" data-key=" ">
+                        Show translation <kbd>Space</kbd>
+                    </button>
+                    <span id="no-translation" hidden>No translation found.</span>
+                </p>
+                <div id="translation"></div>
+            </section>
+            <section>
                 <p id="question"></p>
                 <div id="answers">
                     <button type="button" data-response="know" data-key="y">
@@ -74,13 +83,14 @@
                         >Kaikki</a
                     >
                 </p>
-                <p id="translation-button">
-                    <button type="button" id="show-translation" data-key=" ">
-                        Show translation <kbd>Space</kbd>
-                    </button>
-                    <span id="no-translation" hidden>No translation found.</span>
-                </p>
-                <div id="translation"></div>
+                <figure id="trajectory" hidden>
+                    <svg
+                        id="trajectory-svg"
+                        role="img"
+                        aria-label="Rate estimate trajectory over the answer history"
+                    ></svg>
+                    <div id="trajectory-tooltip" hidden></div>
+                </figure>
             </section>
         </main>
         <footer>
