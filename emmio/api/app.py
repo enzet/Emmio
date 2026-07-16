@@ -66,7 +66,6 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconResponse,
     RateEstimator,
-    compute_lexicon_rate,
     estimate_rate_with_sd,
     select_next_word,
     stratum_of_rank,
@@ -158,8 +157,8 @@ class LexiconSummary(BaseModel):
     selection: str | None
     name: str | None  # Display name; the identifier is used when not set.
     words: int  # Number of words checked so far.
-    dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
+    sd: float | None  # Standard deviation of the rate estimate.
     is_main: bool  # Main lexicon for its language (its rate is language level).
 
 
@@ -346,29 +345,123 @@ def get_my_courses(
     ]
 
 
+_ROW_RATE_CACHE: dict[
+    tuple[str, str], tuple[int | None, tuple[float, float] | None]
+] = {}
+"""Rate estimates by (user, lexicon), versioned by the user's newest record.
+
+The bootstrapped estimators (logistic, threshold) cost a fraction of a
+second per lexicon — too slow to recompute for every row on every table
+load. A user's estimates only change when their answer history does, so the
+newest lexicon record id (which an undo also moves) versions the cache, as
+in the rate-graph `ETag`.
+"""
+
+
+def _row_rate_estimate(
+    user_id: str,
+    lexicon_id: str,
+    selection: str | None,
+    frequency_list_config: dict | None,
+    sequence: list[int],
+    version: int | None = None,
+) -> tuple[float, float] | None:
+    """Estimate a list row's rate with the strategy-matched estimator.
+
+    The quiet counterpart of `get_lexicon_rate_estimate` for the list
+    endpoints, which show many lexicons at once: prerequisites the
+    single-lexicon endpoint reports as HTTP errors (no estimator for the
+    strategy, no frequency list) simply yield no rate here.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: the lexicon whose rate to estimate
+    :param selection: the lexicon's stored selection strategy code
+    :param frequency_list_config: the lexicon's frequency list usage
+        configuration, required by the model-based estimators
+    :param sequence: chronological responses (1 "know" / 0 "don't"),
+        required by the frequency estimator
+    :param version: the user's newest lexicon record id, keying
+        `_ROW_RATE_CACHE`; None bypasses the cache
+    :return: (r̂, SD), or None if there is not enough data or the lexicon
+        has no usable estimator
+    """
+    key: tuple[str, str] = (user_id, lexicon_id)
+    if version is not None:
+        hit = _ROW_RATE_CACHE.get(key)
+        if hit is not None and hit[0] == version:
+            return hit[1]
+    estimate: tuple[float, float] | None = _compute_row_rate_estimate(
+        user_id, lexicon_id, selection, frequency_list_config, sequence
+    )
+    if version is not None:
+        _ROW_RATE_CACHE[key] = (version, estimate)
+    return estimate
+
+
+def _compute_row_rate_estimate(
+    user_id: str,
+    lexicon_id: str,
+    selection: str | None,
+    frequency_list_config: dict | None,
+    sequence: list[int],
+) -> tuple[float, float] | None:
+    """Estimate a list row's rate, uncached (see `_row_rate_estimate`)."""
+    if selection is None:
+        return None
+    try:
+        parsed: LexiconSelection = LexiconSelection(selection)
+    except ValueError:
+        return None
+    method: RateEstimator | None = RATE_ESTIMATOR_BY_SELECTION.get(parsed)
+    if method is None:
+        return None
+    if method == RateEstimator.FREQUENCY:
+        return estimate_rate_with_sd(parsed, sequence=sequence)
+    if not frequency_list_config:
+        return None
+    frequency_list: FrequencyList | None = get_data().get_frequency_list(
+        ListUsageConfig(**frequency_list_config)
+    )
+    if frequency_list is None:
+        return None
+    states: dict[str, tuple[str | None, bool | None]] = (
+        postgres.get_lexicon_selector_states(user_id, lexicon_id)
+    )
+    return estimate_rate_with_sd(parsed, frequency_list, states)
+
+
 @app.get("/api/v1/me/lexicons")
 def get_my_lexicons(
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[LexiconSummary]:
     """List the authenticated user's lexicons, sorted by vocabulary rate.
 
-    The rate is computed from each lexicon's answer history (one bulk query);
-    lexicons without enough data (rate `None`) sort to the end.
+    The rate comes from the estimator matching each lexicon's selection
+    strategy, as in the single-lexicon `rate-estimate` endpoint; lexicons
+    without enough data (rate `None`) sort to the end.
     """
     sequences: dict[str, list[tuple[datetime, int]]] = (
         postgres.get_lexicon_answer_sequences(user_id)
     )
+    version: int | None = postgres.get_last_lexicon_record_id(user_id)
     summaries: list[LexiconSummary] = []
     for (
         lexicon_id,
         language,
         selection,
         words,
-        dont_last_week,
         is_main,
         name,
+        frequency_list_config,
     ) in postgres.list_lexicons(user_id):
-        _, rate_values = compute_lexicon_rate(sequences.get(lexicon_id, []))
+        estimate: tuple[float, float] | None = _row_rate_estimate(
+            user_id,
+            lexicon_id,
+            selection,
+            frequency_list_config,
+            [response for _, response in sequences.get(lexicon_id, [])],
+            version,
+        )
         summaries.append(
             LexiconSummary(
                 lexicon_id=lexicon_id,
@@ -376,8 +469,8 @@ def get_my_lexicons(
                 selection=selection,
                 name=name,
                 words=words,
-                dont_last_week=dont_last_week,
-                rate=rate_values[-1] if rate_values else None,
+                rate=estimate[0] if estimate else None,
+                sd=estimate[1] if estimate else None,
                 is_main=is_main,
             )
         )
@@ -1412,24 +1505,6 @@ def _skip_decision(
     return None  # Seen but stale: re-ask to refresh the estimate.
 
 
-def _frequency_list_or_error(config: dict, lexicon_id: str) -> FrequencyList:
-    """Resolve a lexicon's configured frequency list or raise an HTTP error."""
-    if config["frequency_list"] is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lexicon `{lexicon_id}` has no frequency list configured.",
-        )
-    frequency_list = get_data().get_frequency_list(
-        ListUsageConfig(**config["frequency_list"])
-    )
-    if frequency_list is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Configured frequency list could not be loaded.",
-        )
-    return frequency_list
-
-
 def _draw_batch(
     pick: Callable[[set[str]], str | None],
     drawn: set[str],
@@ -1980,6 +2055,7 @@ class LexiconStats(BaseModel):
     precision: int  # Total "don't know" answers (the rate's precision).
     dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
+    sd: float | None  # Standard deviation of the rate estimate.
     is_main: bool  # Main lexicon for its language.
 
 
@@ -1989,8 +2065,9 @@ def get_lexicon_stats(
 ) -> LexiconStats:
     """Get details and statistics for one lexicon.
 
-    Loads the lexicon's records to compute the vocabulary rate, so it is
-    heavier than the list endpoint; intended for a single-lexicon view.
+    Loads the lexicon's records to compute the vocabulary rate (with the
+    estimator matching the selection strategy, as in `rate-estimate`), so it
+    is heavier than the list endpoint; intended for a single-lexicon view.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     # The path is vestigial (records live in the database); any value works.
@@ -2006,6 +2083,13 @@ def get_lexicon_stats(
         knowledge.knowing == LexiconResponse.DONT
         for knowledge in lexicon.words.values()
     )
+    estimate: tuple[float, float] | None = _row_rate_estimate(
+        user_id,
+        lexicon_id,
+        config["selection"],
+        config["frequency_list"],
+        postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
+    )
     return LexiconStats(
         lexicon_id=lexicon_id,
         language=config["language"],
@@ -2016,7 +2100,8 @@ def get_lexicon_stats(
         dont_know=dont_know,
         precision=lexicon.count_unknowns(),
         dont_last_week=lexicon.count_unknowns(now - timedelta(days=7), now),
-        rate=lexicon.get_last_rate(),
+        rate=estimate[0] if estimate else None,
+        sd=estimate[1] if estimate else None,
         is_main=postgres.is_main_lexicon(user_id, lexicon_id),
     )
 
@@ -2027,6 +2112,7 @@ class LanguageRate(BaseModel):
     language: str
     lexicon_id: str  # The main lexicon the rate comes from.
     rate: float | None  # Vocabulary rate, or None if not enough data.
+    sd: float | None  # Standard deviation of the rate estimate.
     weekly_remaining: int  # Weekly precision goal minus this week's progress.
     last_dont_know: datetime | None  # Time of the last "don't know" answer.
 
@@ -2035,19 +2121,33 @@ class LanguageRate(BaseModel):
 def get_my_languages(
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[LanguageRate]:
-    """List the user's languages and their level (the main lexicon's rate)."""
+    """List the user's languages and their level (the main lexicon's rate).
+
+    The rate comes from the estimator matching each main lexicon's selection
+    strategy, as in the single-lexicon `rate-estimate` endpoint.
+    """
     sequences: dict[str, list[tuple[datetime, int]]] = (
         postgres.get_lexicon_answer_sequences(user_id)
     )
+    version: int | None = postgres.get_last_lexicon_record_id(user_id)
     rates: list[LanguageRate] = []
     for (
         language,
         lexicon_id,
         precision_per_week,
         dont_last_week,
+        selection,
+        frequency_list_config,
     ) in postgres.get_main_lexicons(user_id):
         sequence = sequences.get(lexicon_id, [])
-        _, rate_values = compute_lexicon_rate(sequence)
+        estimate: tuple[float, float] | None = _row_rate_estimate(
+            user_id,
+            lexicon_id,
+            selection,
+            frequency_list_config,
+            [response for _, response in sequence],
+            version,
+        )
         last_dont_know = next(
             (time for time, response in reversed(sequence) if response == 0),
             None,
@@ -2056,7 +2156,8 @@ def get_my_languages(
             LanguageRate(
                 language=language,
                 lexicon_id=lexicon_id,
-                rate=rate_values[-1] if rate_values else None,
+                rate=estimate[0] if estimate else None,
+                sd=estimate[1] if estimate else None,
                 weekly_remaining=precision_per_week - dont_last_week,
                 last_dont_know=last_dont_know,
             )
@@ -2097,7 +2198,7 @@ def get_lexicons_graph(
         postgres.get_lexicon_answer_sequences(user_id)
     )
     data: dict[Language, list[tuple[datetime, int]]] = {}
-    for language, lexicon_id, _, _ in postgres.get_main_lexicons(user_id):
+    for language, lexicon_id, *_ in postgres.get_main_lexicons(user_id):
         sequence = sequences.get(lexicon_id)
         if not sequence:
             continue

@@ -97,14 +97,24 @@ function languageName(code) {
 // Emmio-specific language level derived directly from the lexicon rate `r`:
 // each level spans one unit of `r`. Rates below A1 or a missing rate return an
 // em dash.
+// Format a rate estimate with its standard deviation, e.g. `5.5 ±0.6`; an
+// em dash when there is no estimate yet.
+function formatRate(rate, sd, digits) {
+    if (rate === null || rate === undefined) return "—";
+    let text = rate.toFixed(digits);
+    if (sd !== null && sd !== undefined) text += ` ±${sd.toFixed(digits)}`;
+    return text;
+}
+
 function emmioLevel(rate) {
-    if (rate === null || rate < 2) return "—";
+    if (rate === null || rate < 2) return "below A1"
     if (rate < 3) return "A1";
     if (rate < 4) return "A2";
     if (rate < 5) return "B1";
     if (rate < 6) return "B2";
     if (rate < 7) return "C1";
-    return "C2";
+    if (rate < 8) return "C2";
+    return "over C2";
 }
 
 // Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
@@ -297,8 +307,9 @@ async function initHome() {
         row.appendChild(nameCell);
 
         const rateCell = document.createElement("td");
-        rateCell.textContent =
-            entry && entry.rate !== null ? entry.rate.toFixed(2) : "—";
+        rateCell.textContent = entry
+            ? formatRate(entry.rate, entry.sd, 2)
+            : "—";
         rateCell.style.textAlign = "right";
         rateCell.style.fontVariantNumeric = "tabular-nums";
         row.appendChild(rateCell);
@@ -553,9 +564,8 @@ async function initLexicons() {
         for (const value of [
             languageName(lexicon.language),
             lexicon.selection || "",
-            lexicon.rate === null ? "—" : lexicon.rate.toFixed(1),
+            formatRate(lexicon.rate, lexicon.sd, 1),
             lexicon.words,
-            lexicon.dont_last_week,
         ]) {
             const cell = document.createElement("td");
             cell.textContent = value;
@@ -616,7 +626,9 @@ async function initLexicon() {
         ["Don't know", s.dont_know],
         [
             "Vocabulary rate",
-            s.rate === null ? "not enough data" : s.rate.toFixed(1),
+            s.rate === null
+                ? "not enough data"
+                : formatRate(s.rate, s.sd, 1),
         ],
         ["Precision (total)", s.precision],
         ["Precision (last 7 days)", s.dont_last_week],

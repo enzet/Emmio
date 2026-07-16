@@ -420,25 +420,21 @@ def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
 
 def list_lexicons(
     user_id: str,
-) -> list[tuple[str, str, str | None, int, int, bool, str | None]]:
+) -> list[tuple[str, str, str | None, int, bool, str | None, dict | None]]:
     """Get a user's lexicons with short info.
 
     :param user_id: owning user login, e.g. `john`
     :return: (lexicon id, language, selection strategy, number of words
-        checked, number of "don't know" answers in the last 7 days, whether
-        it is the main lexicon for its language, display name) tuples,
-        ordered by lexicon id
+        checked, whether it is the main lexicon for its language, display
+        name, frequency list usage configuration) tuples, ordered by
+        lexicon id
     """
     with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, "
             "(SELECT count(*) FROM lexicon_words w "
             "WHERE w.lexicon_id = l.id), "
-            "(SELECT count(*) FROM lexicon_records r "
-            "JOIN lexicon_words w2 ON w2.id = r.word_id "
-            "WHERE w2.lexicon_id = l.id AND r.response = 'D' "
-            "AND r.response_time >= now() - interval '7 days'), "
-            "l.is_main, l.config->>'name' "
+            "l.is_main, l.config->>'name', l.frequency_list "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
@@ -488,11 +484,14 @@ def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
         return bool(row and row[0])
 
 
-def get_main_lexicons(user_id: str) -> list[tuple[str, str, int, int]]:
+def get_main_lexicons(
+    user_id: str,
+) -> list[tuple[str, str, int, int, str | None, dict | None]]:
     """Get the user's main lexicons, one per language, with weekly progress.
 
     :return: (language, lexicon id, weekly precision goal, "don't know"
-        answers in the last 7 days) tuples, ordered by language
+        answers in the last 7 days, selection strategy, frequency list usage
+        configuration) tuples, ordered by language
     """
     with db_connection() as connection, connection.cursor() as cursor:
         cursor.execute(
@@ -501,12 +500,16 @@ def get_main_lexicons(user_id: str) -> list[tuple[str, str, int, int]]:
             "(SELECT count(*) FROM lexicon_records r "
             "JOIN lexicon_words w ON w.id = r.word_id "
             "WHERE w.lexicon_id = l.id AND r.response = 'D' "
-            "AND r.response_time >= now() - interval '7 days') "
+            "AND r.response_time >= now() - interval '7 days'), "
+            "l.selection, l.frequency_list "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.is_main ORDER BY l.language",
             (user_id,),
         )
-        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
+        return [
+            (row[0], row[1], row[2], row[3], row[4], row[5])
+            for row in cursor.fetchall()
+        ]
 
 
 def has_main_lexicon(user_id: str, language: str) -> bool:

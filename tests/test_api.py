@@ -431,6 +431,50 @@ def test_rate_trajectory_includes_strata_for_stratified_lexicon(
     ]
 
 
+@pytest.mark.usefixtures("fake_uk_list")
+def test_tables_show_strategy_matched_rate_for_stratified_lexicon() -> None:
+    """The list and stats endpoints use the strategy-matched estimator.
+
+    A stratified lexicon collects far fewer "don't know" answers than the
+    window estimator's precision gate, but the stratified estimator has an
+    answer as soon as every stratum is covered — here via a full census,
+    which also pins the SD at exactly zero.
+    """
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+
+    # Answer every word: ranks 1-20 known, the tail unknown — a census.
+    for index, word in enumerate(_UK_WORDS):
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={"word": word, "response": "know" if index < 20 else "dont"},
+            headers=_auth(token),
+        )
+
+    expected = client.get(
+        "/api/v1/me/lexicons/uk/rate-estimate", headers=_auth(token)
+    ).json()
+    assert expected["rate"] is not None
+
+    lexicons = client.get("/api/v1/me/lexicons", headers=_auth(token)).json()
+    assert len(lexicons) == 1
+    assert lexicons[0]["rate"] == pytest.approx(expected["rate"])
+    assert lexicons[0]["sd"] == pytest.approx(0.0)
+
+    # The first lexicon of a language is created as its main one, so the
+    # language level comes from the same estimator.
+    languages = client.get("/api/v1/me/languages", headers=_auth(token)).json()
+    assert len(languages) == 1
+    assert languages[0]["rate"] == pytest.approx(expected["rate"])
+    assert languages[0]["sd"] == pytest.approx(0.0)
+
+    stats = client.get(
+        "/api/v1/me/lexicons/uk/stats", headers=_auth(token)
+    ).json()
+    assert stats["rate"] == pytest.approx(expected["rate"])
+    assert stats["sd"] == pytest.approx(0.0)
+
+
 def test_next_without_frequency_list_is_bad_request() -> None:
     """A lexicon with no configured frequency list returns 400 for `next`."""
 

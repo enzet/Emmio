@@ -235,7 +235,7 @@ section[aria-labelledby="danger-heading"] {
     margin-top: 0.2rem;
 }
 
-main {
+main.check {
     display: flex;
 }
 main section {
