@@ -28,6 +28,7 @@ from typing import Any
 from emmio import postgres
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning, LearningSession
+from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import WordSelector, WordStates, create_selector
 from emmio.lists.frequency_list import FrequencyList
 
@@ -56,7 +57,7 @@ class LexiconCheckSession:
     user_id: str
     lexicon_id: str
     language: str
-    selection: str
+    selection: LexiconSelection
     frequency_list: FrequencyList
     selector: WordSelector
     states: WordStates
@@ -105,7 +106,7 @@ class LexiconSessionRegistry:
         user_id: str,
         lexicon_id: str,
         language: str,
-        selection: str,
+        selection: LexiconSelection,
         frequency_list: FrequencyList,
     ) -> tuple[WordSelector, WordStates, set[str], int]:
         """Build selection working memory from ground truth."""
@@ -115,7 +116,7 @@ class LexiconSessionRegistry:
         )
         recent: set[str] = postgres.get_recently_answered(user_id, language)
         answered: set[str] | None = None
-        if selection == "top":
+        if selection == LexiconSelection.TOP:
             answered = postgres.get_answered_words(user_id, lexicon_id)
         # The language-wide states above only drive skip decisions; the
         # selector's statistics are seeded from this lexicon's own records, so
@@ -134,7 +135,7 @@ class LexiconSessionRegistry:
         user_id: str,
         lexicon_id: str,
         language: str,
-        selection: str,
+        selection: LexiconSelection,
         frequency_list: FrequencyList,
         session_id: str | None = None,
     ) -> LexiconCheckSession:
@@ -180,7 +181,7 @@ class LexiconSessionRegistry:
         lexicon_id: str,
         session_id: str,
         language: str,
-        selection: str,
+        selection: LexiconSelection,
         frequency_list: FrequencyList,
     ) -> LexiconCheckSession:
         """Get the session for a request, reopening or refreshing as needed.

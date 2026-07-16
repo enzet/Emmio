@@ -30,7 +30,9 @@ from matplotlib import pyplot as plt
 from scipy.special import expit  # pylint: disable=no-name-in-module
 from tqdm import tqdm
 
+from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
+    RATE_ESTIMATOR_BY_SELECTION,
     LexiconResponse,
     TestedWord,
     UntestedWord,
@@ -62,7 +64,12 @@ __email__ = "me@enzet.ru"
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-METHODS: tuple[str, ...] = ("frequency", "stratified", "threshold", "logistic")
+METHODS: tuple[LexiconSelection, ...] = (
+    LexiconSelection.FREQUENCY,
+    LexiconSelection.STRATIFIED,
+    LexiconSelection.THRESHOLD,
+    LexiconSelection.LOGISTIC,
+)
 """The four checking methods, named by their selection strategy."""
 
 KNOWLEDGE_MODELS: tuple[str, ...] = ("uniform", "logistic", "step")
@@ -230,7 +237,7 @@ def _tested_and_untested(
 class MethodTrajectory:
     """Estimates of one method over one trial, taken at checkpoints."""
 
-    method: str
+    method: LexiconSelection
     """Selection strategy the trajectory was collected under."""
 
     checkpoints: list[int]
@@ -241,7 +248,7 @@ class MethodTrajectory:
 
 
 def run_method(
-    method: str,
+    method: LexiconSelection,
     frequency_list: FrequencyList,
     knowledge: dict[str, int],
     max_queries: int,
@@ -289,18 +296,18 @@ def run_method(
         if query % step != 0 and query != max_queries:
             continue
         checkpoints.append(query)
-        if method == "frequency":
+        if method == LexiconSelection.FREQUENCY:
             estimates.append(estimate_rate_frequency(sequence, precision))
             continue
         tested, untested = _tested_and_untested(frequency_list, states)
         match method:
-            case "stratified":
+            case LexiconSelection.STRATIFIED:
                 estimates.append(estimate_rate_stratified(tested, untested))
-            case "threshold":
+            case LexiconSelection.THRESHOLD:
                 estimates.append(
                     estimate_rate_threshold(tested, untested, n_bootstrap)
                 )
-            case "logistic":
+            case LexiconSelection.LOGISTIC:
                 estimates.append(
                     estimate_rate_logistic(tested, untested, n_bootstrap)
                 )
@@ -323,17 +330,17 @@ class CheckpointStats:
 
 
 def _aggregate(
-    methods: list[str],
-    trajectories: dict[str, list[MethodTrajectory]],
+    methods: list[LexiconSelection],
+    trajectories: dict[LexiconSelection, list[MethodTrajectory]],
     true_rates: list[float],
-) -> dict[str, list[CheckpointStats]]:
+) -> dict[LexiconSelection, list[CheckpointStats]]:
     """Aggregate per-trial estimates by method and checkpoint.
 
     Mean and RMSE are over the trials where the estimator had an answer;
     `CheckpointStats.count` tells how many that was. Errors are measured
     against each trial's realized rate.
     """
-    result: dict[str, list[CheckpointStats]] = {}
+    result: dict[LexiconSelection, list[CheckpointStats]] = {}
     for method in methods:
         stats: list[CheckpointStats] = []
         for index in range(len(trajectories[method][0].checkpoints)):
@@ -359,8 +366,8 @@ def _aggregate(
 
 def _print_report(
     interface: Interface,
-    methods: list[str],
-    trajectories: dict[str, list[MethodTrajectory]],
+    methods: list[LexiconSelection],
+    trajectories: dict[LexiconSelection, list[MethodTrajectory]],
     true_rates: list[float],
     tolerance: float,
 ) -> None:
@@ -372,7 +379,7 @@ def _print_report(
     """
     checkpoints: list[int] = trajectories[methods[0]][0].checkpoints
     n_trials: int = len(true_rates)
-    stats: dict[str, list[CheckpointStats]] = _aggregate(
+    stats: dict[LexiconSelection, list[CheckpointStats]] = _aggregate(
         methods, trajectories, true_rates
     )
 
@@ -412,8 +419,8 @@ def _print_report(
 
 
 def plot_trajectories(
-    methods: list[str],
-    trajectories: dict[str, list[MethodTrajectory]],
+    methods: list[LexiconSelection],
+    trajectories: dict[LexiconSelection, list[MethodTrajectory]],
     true_rates: list[float],
     tolerance: float,
     path: Path,
@@ -429,7 +436,7 @@ def plot_trajectories(
     """
     checkpoints: list[int] = trajectories[methods[0]][0].checkpoints
     n_trials: int = len(true_rates)
-    stats: dict[str, list[CheckpointStats]] = _aggregate(
+    stats: dict[LexiconSelection, list[CheckpointStats]] = _aggregate(
         methods, trajectories, true_rates
     )
 
@@ -474,7 +481,7 @@ def plot_trajectories(
 
     label_ends: list[tuple[str, float]] = []
     for method in methods:
-        color: str = METHOD_COLORS[method]
+        color: str = METHOD_COLORS[RATE_ESTIMATOR_BY_SELECTION[method]]
         for trajectory in trajectories[method]:
             axis_rate.plot(
                 checkpoints,
@@ -543,6 +550,7 @@ def main(arguments: list[str] | None = None) -> None:
     parser.add_argument(
         "--methods",
         nargs="+",
+        type=LexiconSelection,
         choices=METHODS,
         default=list(METHODS),
         help="checking methods to simulate",
@@ -602,7 +610,7 @@ def main(arguments: list[str] | None = None) -> None:
         f"target r = {options.rate:.3f}, {options.trials} trial(s)."
     )
 
-    trajectories: dict[str, list[MethodTrajectory]] = {
+    trajectories: dict[LexiconSelection, list[MethodTrajectory]] = {
         method: [] for method in options.methods
     }
     true_rates: list[float] = []

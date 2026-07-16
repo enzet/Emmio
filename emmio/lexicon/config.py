@@ -1,6 +1,6 @@
 """Configuration for the lexicon."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic.main import BaseModel
 
@@ -22,8 +22,13 @@ class LexiconUsageConfig(BaseModel):
     """Identifier of the lexicon."""
 
 
-class LexiconSelection(Enum):
-    """How words for lexicon checking was picked."""
+class LexiconSelection(StrEnum):
+    """How words for lexicon checking was picked.
+
+    A `StrEnum`, so members compare and hash equal to their stored string
+    values: configurations read from the database or JSON can be checked
+    against members directly, and members serialize as plain strings.
+    """
 
     RANDOM = "random"
     """Words were picked uniformly at random from the frequency list."""

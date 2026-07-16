@@ -22,6 +22,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from emmio.data import Data
+from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
     RATE_ESTIMATOR_BY_SELECTION,
     LexiconResponse,
@@ -45,7 +46,7 @@ from emmio.ui import Interface, TerminalInterface
 
 def replay(
     records: list[tuple[str, str]],
-    selection: str,
+    selection: LexiconSelection,
     frequency_list: FrequencyList | None,
     step: int = 1,
     precision: int = 100,
@@ -98,7 +99,7 @@ def plot_replay(
     checkpoints: list[int],
     estimates: list[tuple[float, float] | None],
     dont_steps: list[int],
-    selection: str,
+    selection: LexiconSelection,
     title: str,
     path: Path,
 ) -> None:
@@ -202,7 +203,7 @@ def main(arguments: list[str] | None = None) -> None:
             f"No lexicon `{options.lexicon}` for user `{options.user}`."
         )
         raise SystemExit(message)
-    selection: str = config["selection"]
+    selection: LexiconSelection = LexiconSelection(config["selection"])
 
     frequency_list: FrequencyList | None = None
     if config.get("frequency_list"):

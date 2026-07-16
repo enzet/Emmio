@@ -10,11 +10,13 @@ import math
 
 from matplotlib.axes import Axes
 
-METHOD_COLORS: dict[str, str] = {
-    "frequency": "#2a78d6",
-    "stratified": "#1baf7a",
-    "threshold": "#eda100",
-    "logistic": "#008300",
+from emmio.lexicon.core import RateEstimator
+
+METHOD_COLORS: dict[RateEstimator, str] = {
+    RateEstimator.FREQUENCY: "#2a78d6",
+    RateEstimator.STRATIFIED: "#1baf7a",
+    RateEstimator.THRESHOLD: "#eda100",
+    RateEstimator.LOGISTIC: "#008300",
 }
 """Categorical color per checking method.
 

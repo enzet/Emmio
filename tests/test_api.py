@@ -19,6 +19,7 @@ from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
+from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import StratifiedSelector
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
@@ -1681,7 +1682,7 @@ def test_lexicon_session_selector_ignores_sibling_answers(
     )
 
     session = LEXICON_SESSIONS.open(
-        "alice", second_id, "uk", "stratified", fake_uk_list
+        "alice", second_id, "uk", LexiconSelection.STRATIFIED, fake_uk_list
     )
 
     # Sibling answers still drive the skip decisions...

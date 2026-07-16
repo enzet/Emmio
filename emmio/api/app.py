@@ -58,7 +58,7 @@ from emmio.dictionary.core import DictionaryCollection
 from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
 from emmio.learn.core import Learning, Response
-from emmio.lexicon.config import LexiconConfig
+from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
     RATE_ESTIMATOR_BY_SELECTION,
@@ -396,7 +396,7 @@ class LexiconLanguage(BaseModel):
 class LexiconStrategy(BaseModel):
     """A word-selection strategy offered when creating a lexicon."""
 
-    value: str  # Stored on the lexicon, e.g. `frequency`.
+    value: LexiconSelection  # Stored on the lexicon, e.g. `frequency`.
     label: str  # Human-readable name shown in the UI.
 
 
@@ -405,16 +405,21 @@ class LexiconStrategy(BaseModel):
 # UI populates its dropdowns from it. Every value here must be servable by
 # `select_next_word` in `emmio.lexicon.core`.
 LEXICON_STRATEGIES: tuple[LexiconStrategy, ...] = (
-    LexiconStrategy(value="frequency", label="Frequency-weighted random"),
-    LexiconStrategy(value="random", label="Uniform random"),
-    LexiconStrategy(value="top", label="Most frequent first"),
-    LexiconStrategy(value="logistic", label="Logistic adaptive"),
-    LexiconStrategy(value="threshold", label="Optimal threshold"),
     LexiconStrategy(
-        value="stratified", label="Stratified frequency-weighted random"
+        value=LexiconSelection.FREQUENCY, label="Frequency-weighted random"
+    ),
+    LexiconStrategy(value=LexiconSelection.RANDOM, label="Uniform random"),
+    LexiconStrategy(value=LexiconSelection.TOP, label="Most frequent first"),
+    LexiconStrategy(value=LexiconSelection.LOGISTIC, label="Logistic adaptive"),
+    LexiconStrategy(
+        value=LexiconSelection.THRESHOLD, label="Optimal threshold"
+    ),
+    LexiconStrategy(
+        value=LexiconSelection.STRATIFIED,
+        label="Stratified frequency-weighted random",
     ),
 )
-_VALID_SELECTIONS: frozenset[str] = frozenset(
+_VALID_SELECTIONS: frozenset[LexiconSelection] = frozenset(
     strategy.value for strategy in LEXICON_STRATEGIES
 )
 
@@ -550,6 +555,7 @@ def create_lexicon(
                 f"Choose one of: {', '.join(sorted(_VALID_SELECTIONS))}."
             ),
         )
+    selection: LexiconSelection = LexiconSelection(request.selection)
 
     data = get_data()
     frequency_list: dict | None = data.get_frequency_list_languages().get(
@@ -593,7 +599,7 @@ def create_lexicon(
     )
     config: dict = {
         "language": request.language,
-        "selection": request.selection,
+        "selection": selection.value,
         "frequency_list": frequency_list,
         "precision_per_week": 0,
         "dictionaries": dictionaries,
@@ -1025,7 +1031,7 @@ class NextWords(BaseModel):
 
     language: str  # ISO code of the words' language, e.g. `fr`.
     words: list[WordCard]
-    selection: str | None = None
+    selection: LexiconSelection | None = None
     """The lexicon's selection strategy (lexicon checks only)."""
     list_size: int | None = None
     """Number of words in the lexicon's frequency list (lexicon checks only)."""
@@ -1493,7 +1499,7 @@ def open_lexicon_session(
             user_id,
             lexicon_id,
             config["language"],
-            config["selection"],
+            LexiconSelection(config["selection"]),
             frequency_list,
         )
     except NotImplementedError as error:
@@ -1547,7 +1553,7 @@ def get_next_lexicon_words(
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     frequency_list: FrequencyList = _frequency_list_or_error(config, lexicon_id)
     language: str = config["language"]
-    selection: str = config["selection"]
+    selection: LexiconSelection = LexiconSelection(config["selection"])
     symbols: str | None = Language.from_code(language).get_symbols()
 
     limit: int = max(1, min(count, _BATCH_MAX))
@@ -1595,7 +1601,7 @@ def get_next_lexicon_words(
             # "top" walks the list in rank order and never re-asks an answered
             # word, so exclude everything already recorded; sampling
             # strategies re-sample, so they rely on `_skip_decision` instead.
-            if selection == "top":
+            if selection == LexiconSelection.TOP:
                 drawn |= postgres.get_answered_words(user_id, lexicon_id)
             words, auto = _draw_batch(
                 lambda pool: select_next_word(
@@ -1626,14 +1632,18 @@ def get_next_lexicon_words(
         if index < 0:
             continue
         card.rank = index + 1
-        if selection == "stratified":
+        if selection == LexiconSelection.STRATIFIED:
             card.stratum = stratum_of_rank(card.rank, size)
     return NextWords(
         language=language,
         words=cards,
         selection=selection,
         list_size=size,
-        strata=DEFAULT_N_STRATA if selection == "stratified" else None,
+        strata=(
+            DEFAULT_N_STRATA
+            if selection == LexiconSelection.STRATIFIED
+            else None
+        ),
     )
 
 
@@ -1704,7 +1714,7 @@ def get_lexicon_rate_estimate(
     page after every answer.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
-    selection: str = config["selection"]
+    selection: LexiconSelection = LexiconSelection(config["selection"])
     method: RateEstimator | None = RATE_ESTIMATOR_BY_SELECTION.get(selection)
     if method is None:
         raise HTTPException(
@@ -1712,7 +1722,7 @@ def get_lexicon_rate_estimate(
             detail=f"No rate estimator for selection `{selection}`.",
         )
 
-    if method == "frequency":
+    if method == RateEstimator.FREQUENCY:
         estimate: tuple[float, float] | None = estimate_rate_with_sd(
             selection,
             sequence=postgres.get_lexicon_answer_sequence(user_id, lexicon_id),

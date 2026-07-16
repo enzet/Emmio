@@ -10,9 +10,9 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Any, Literal, Self, cast, override
+from typing import Any, Self, cast, override
 
 import numpy as np
 from pydantic import BaseModel
@@ -246,7 +246,7 @@ has no recorded response.
 def select_next_word(
     frequency_list: FrequencyList,
     exclude: set[str],
-    selection: str,
+    selection: LexiconSelection,
     states: WordStates | None = None,
 ) -> str | None:
     """Pick the next word to check, honoring the lexicon's selection strategy.
@@ -943,7 +943,7 @@ class StratifiedSelector(_RankedSelector):
 
 def create_selector(
     frequency_list: FrequencyList,
-    selection: str,
+    selection: LexiconSelection,
     states: WordStates | None = None,
     answered: set[str] | None = None,
     n_strata: int = DEFAULT_N_STRATA,
@@ -962,21 +962,21 @@ def create_selector(
     :raises NotImplementedError: for unknown strategies
     """
     match selection:
-        case "frequency":
+        case LexiconSelection.FREQUENCY:
             return _SampledSelector(
                 frequency_list, frequency_list.get_random_word_by_frequency
             )
-        case "random":
+        case LexiconSelection.RANDOM:
             return _SampledSelector(
                 frequency_list, frequency_list.get_random_word
             )
-        case "top":
+        case LexiconSelection.TOP:
             return TopSelector(frequency_list, set(answered or ()))
-        case "logistic":
+        case LexiconSelection.LOGISTIC:
             return LogisticSelector(frequency_list, states or {})
-        case "threshold":
+        case LexiconSelection.THRESHOLD:
             return ThresholdSelector(frequency_list, states or {})
-        case "stratified":
+        case LexiconSelection.STRATIFIED:
             return StratifiedSelector(frequency_list, states or {}, n_strata)
         case _:
             message = f"Selection `{selection}` is not supported over the API."
@@ -1141,23 +1141,38 @@ TestedWord = tuple[int, float, int]
 UntestedWord = tuple[int, float]
 """An untested word: (frequency rank, frequency share p_i)."""
 
-RateEstimator = Literal["frequency", "stratified", "threshold", "logistic"]
-"""Identifier of a rate estimator.
 
-It is named after the selection strategy whose logs it is designed for.
-"""
+class RateEstimator(StrEnum):
+    """Identifier of a rate estimator.
 
-RATE_ESTIMATOR_BY_SELECTION: dict[str, RateEstimator] = {
-    "frequency": "frequency",
-    "stratified": "stratified",
-    "threshold": "threshold",
-    "logistic": "logistic",
+    Each estimator is named after the selection strategy whose logs it is
+    designed for.
+    """
+
+    FREQUENCY = "frequency"
+    """Design-based sliding window over frequency-weighted draws."""
+
+    STRATIFIED = "stratified"
+    """Horvitz—Thompson estimate over log-uniform strata."""
+
+    THRESHOLD = "threshold"
+    """Optimal frequency threshold (decision stump) estimate."""
+
+    LOGISTIC = "logistic"
+    """Fitted logistic model over frequency rank."""
+
+
+RATE_ESTIMATOR_BY_SELECTION: dict[LexiconSelection, RateEstimator] = {
+    LexiconSelection.FREQUENCY: RateEstimator.FREQUENCY,
+    LexiconSelection.STRATIFIED: RateEstimator.STRATIFIED,
+    LexiconSelection.THRESHOLD: RateEstimator.THRESHOLD,
+    LexiconSelection.LOGISTIC: RateEstimator.LOGISTIC,
     # The logistic estimator does not require frequency-weighted draws: every
     # tested word enters θ̂ weighted by its true corpus frequency regardless
     # of how it was drawn. It therefore also serves the logs collected by the
     # non-frequency-weighted design strategies.
-    "top": "logistic",
-    "random": "logistic",
+    LexiconSelection.TOP: RateEstimator.LOGISTIC,
+    LexiconSelection.RANDOM: RateEstimator.LOGISTIC,
 }
 """Which rate estimator each selection strategy's log must be fed to.
 
@@ -1481,7 +1496,7 @@ def _estimate_rate_logistic_arrays(
 
 
 def estimate_rate_with_sd(
-    selection: str,
+    selection: LexiconSelection,
     frequency_list: FrequencyList | None = None,
     states: WordStates | None = None,
     sequence: list[int] | None = None,
@@ -1512,7 +1527,7 @@ def estimate_rate_with_sd(
         message = f"No rate estimator for selection `{selection}`."
         raise NotImplementedError(message)
 
-    if method == "frequency":
+    if method == RateEstimator.FREQUENCY:
         return estimate_rate_frequency(sequence or [], precision)
 
     if frequency_list is None:
@@ -1543,7 +1558,7 @@ def estimate_rate_with_sd(
             # counts toward stratum totals.
             resolved.append((index + 1, p_i))
 
-    if method == "stratified":
+    if method == RateEstimator.STRATIFIED:
         return _estimate_rate_stratified_masses(
             tested, _stratum_masses(frequency_list, DEFAULT_N_STRATA), size
         )
@@ -1553,7 +1568,7 @@ def estimate_rate_with_sd(
         [(rank, p_i) for rank, p_i, _ in tested] + resolved
     )
 
-    if method == "threshold":
+    if method == RateEstimator.THRESHOLD:
         full_suffix: np.ndarray = _suffix_masses(frequency_list)
         excluded_ranks: list[int] = [rank for rank, _ in excluded]
         excluded_suffix: list[float] = [0.0] * (len(excluded) + 1)

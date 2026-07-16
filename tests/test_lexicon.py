@@ -63,7 +63,7 @@ def test_select_next_word_skips_answered_words() -> None:
     )
     words: set[str] = {"the", "cat", "dog"}
 
-    for selection in ("frequency", "random"):
+    for selection in (LexiconSelection.FREQUENCY, LexiconSelection.RANDOM):
         word = select_next_word(frequency_list, {"the", "cat"}, selection)
         assert word == "dog"  # Only unanswered word.
         assert select_next_word(frequency_list, words, selection) is None
@@ -76,7 +76,7 @@ def test_select_next_word_rejects_unsupported_strategy() -> None:
     frequency_list: FrequencyList = _frequency_list({"the": 100})
 
     with pytest.raises(NotImplementedError):
-        select_next_word(frequency_list, set(), "binary_search")
+        select_next_word(frequency_list, set(), LexiconSelection.ARBITRARY)
 
 
 def _ranked_frequency_list(size: int) -> FrequencyList:
@@ -108,8 +108,11 @@ def test_select_next_word_top_walks_by_rank() -> None:
 
     frequency_list: FrequencyList = _ranked_frequency_list(5)
 
-    assert select_next_word(frequency_list, set(), "top") == "w0"
-    assert select_next_word(frequency_list, {"w0", "w1"}, "top") == "w2"
+    assert select_next_word(frequency_list, set(), LexiconSelection.TOP) == "w0"
+    assert (
+        select_next_word(frequency_list, {"w0", "w1"}, LexiconSelection.TOP)
+        == "w2"
+    )
 
 
 def test_select_next_word_threshold_targets_the_boundary() -> None:
@@ -123,7 +126,9 @@ def test_select_next_word_threshold_targets_the_boundary() -> None:
             continue
         states[f"w{i}"] = (("K" if i < 10 else "D"), None)
 
-    word = select_next_word(frequency_list, set(), "threshold", states)
+    word = select_next_word(
+        frequency_list, set(), LexiconSelection.THRESHOLD, states
+    )
     assert word in {"w9", "w10"}
 
 
@@ -193,7 +198,11 @@ def test_select_next_word_model_strategies_skip_answered() -> None:
         f"w{i}": (("K" if i % 2 else "D"), None) for i in range(5)
     }  # Only `w5` is untested.
 
-    for strategy in ("logistic", "threshold", "stratified"):
+    for strategy in (
+        LexiconSelection.LOGISTIC,
+        LexiconSelection.THRESHOLD,
+        LexiconSelection.STRATIFIED,
+    ):
         assert select_next_word(frequency_list, set(), strategy, states) == "w5"
 
 
@@ -432,7 +441,7 @@ def test_estimate_rate_dispatches_by_selection() -> None:
 
     sequence: list[int] = [1, 1, 1, 0] * 5
     assert estimate_rate_with_sd(
-        "frequency", sequence=sequence
+        LexiconSelection.FREQUENCY, sequence=sequence
     ) == estimate_rate_frequency(sequence)
 
     frequency_list: FrequencyList = _ranked_frequency_list(30)
@@ -440,13 +449,15 @@ def test_estimate_rate_dispatches_by_selection() -> None:
         f"w{i}": (("K" if i < 6 else "D"), None)
         for i in list(range(6)) + list(range(9, 15))
     }
-    estimate = estimate_rate_with_sd("threshold", frequency_list, states)
+    estimate = estimate_rate_with_sd(
+        LexiconSelection.THRESHOLD, frequency_list, states
+    )
     assert estimate is not None
     # `w{i}` has rank i + 1, so this is the OT test case above.
     assert estimate[0] == pytest.approx(-math.log2(253.0 / 465.0))
 
     with pytest.raises(NotImplementedError):
-        estimate_rate_with_sd("arbitrary", sequence=sequence)
+        estimate_rate_with_sd(LexiconSelection.ARBITRARY, sequence=sequence)
 
 
 def test_selectors_incremental_matches_rebuilt() -> None:
@@ -465,7 +476,11 @@ def test_selectors_incremental_matches_rebuilt() -> None:
         # Words in the top half of the list (by rank) are known.
         return "K" if int(word[1:]) < size // 2 else "D"
 
-    for strategy in ("top", "threshold", "stratified"):
+    for strategy in (
+        LexiconSelection.TOP,
+        LexiconSelection.THRESHOLD,
+        LexiconSelection.STRATIFIED,
+    ):
         incremental = create_selector(frequency_list, strategy, {})
         states: dict[str, tuple[str | None, bool | None]] = {}
         answered: set[str] = set()
@@ -479,7 +494,7 @@ def test_selectors_incremental_matches_rebuilt() -> None:
             random.seed(step)
             expected: str | None = fresh.next_word()
             assert expected is not None
-            if strategy == "stratified":
+            if strategy == LexiconSelection.STRATIFIED:
                 rank = frequency_list.get_index(picked) + 1
                 expected_rank = frequency_list.get_index(expected) + 1
                 assert stratum_of_rank(rank, size) == stratum_of_rank(
