@@ -9,7 +9,10 @@ Run as::
     python -m emmio.lexicon.visualize simulation simulation.csv
     python -m emmio.lexicon.visualize replay john_fr_1.csv
 
-The output image file defaults to the CSV file with a ``.png`` suffix.
+The output image file defaults to the CSV file with a `.png` suffix.
+With `--format tikz` the same picture is written as TikZ (pgfplots) code
+in a `.tex` file instead, ready to be embedded into a LaTeX document;
+see `emmio.lexicon.tikz`.
 """
 
 import argparse
@@ -38,6 +41,7 @@ from emmio.lexicon.simulation import (
     MethodTrajectory,
     aggregate_trajectories,
 )
+from emmio.lexicon.tikz import render_replay, render_simulation
 from emmio.ui import Interface, TerminalInterface
 
 __author__ = "Sergey Vartanov"
@@ -60,8 +64,8 @@ def read_simulation_csv(
 ]:
     """Read per-trial trajectories written by the simulation.
 
-    :param path: CSV file with columns ``method``, ``trial``,
-        ``queries``, ``r_hat``, ``sd``, ``r_true``
+    :param path: CSV file with columns `method`, `trial`, `queries`, `r_hat`,
+        `sd`, `r_true`
     :return: (methods in file order, per-method trajectories, realized
         rate per trial)
     """
@@ -97,8 +101,8 @@ def read_replay_csv(
 ]:
     """Read a replayed trajectory written by the replay.
 
-    :param path: CSV file with columns ``queries``, ``response``,
-        ``checkpoint``, ``r_hat``, ``sd``, ``selection``
+    :param path: CSV file with columns `queries`, `response`, `checkpoint`,
+        `r_hat`, `sd`, `selection`
     :return: (checkpoint query numbers, per-checkpoint estimates, query
         numbers of "don't know" answers, the lexicon's selection
         strategy)
@@ -314,7 +318,15 @@ def main(arguments: list[str] | None = None) -> None:
         "--plot",
         type=Path,
         default=None,
-        help="output image file (default: the CSV file with `.png` suffix)",
+        help=(
+            "output file (default: the CSV file with `.png` or `.tex` suffix)"
+        ),
+    )
+    simulation_parser.add_argument(
+        "--format",
+        choices=["png", "tikz"],
+        default="png",
+        help="output format: PNG image or TikZ code for LaTeX embedding",
     )
     simulation_parser.add_argument(
         "--tolerance",
@@ -333,41 +345,69 @@ def main(arguments: list[str] | None = None) -> None:
         "--plot",
         type=Path,
         default=None,
-        help="output image file (default: the CSV file with `.png` suffix)",
+        help=(
+            "output file (default: the CSV file with `.png` or `.tex` suffix)"
+        ),
+    )
+    replay_parser.add_argument(
+        "--format",
+        choices=["png", "tikz"],
+        default="png",
+        help="output format: PNG image or TikZ code for LaTeX embedding",
     )
     replay_parser.add_argument(
         "--title",
         default=None,
-        help="chart title (default: built from the CSV file name)",
+        help=(
+            "chart title (default: built from the CSV file name; TikZ "
+            "output has no default title, the LaTeX caption takes its place)"
+        ),
     )
 
     options: argparse.Namespace = parser.parse_args(arguments)
     interface: Interface = TerminalInterface(use_input=False)
+    is_tikz: bool = options.format == "tikz"
     path: Path = (
         options.plot
         if options.plot is not None
-        else options.csv.with_suffix(".png")
+        else options.csv.with_suffix(".tex" if is_tikz else ".png")
     )
 
     match options.command:
         case "simulation":
             methods, trajectories, true_rates = read_simulation_csv(options.csv)
-            plot_simulation(
-                methods, trajectories, true_rates, options.tolerance, path
-            )
+            if is_tikz:
+                path.write_text(
+                    render_simulation(
+                        methods, trajectories, true_rates, options.tolerance
+                    ),
+                    encoding="utf-8",
+                )
+            else:
+                plot_simulation(
+                    methods, trajectories, true_rates, options.tolerance, path
+                )
         case "replay":
             checkpoints, estimates, dont_steps, selection = read_replay_csv(
                 options.csv
             )
-            title: str = (
-                options.title
-                if options.title is not None
-                else f"Rate estimate r̂ ± SD — `{options.csv.stem}` "
-                f"({selection})"
-            )
-            plot_replay(
-                checkpoints, estimates, dont_steps, selection, title, path
-            )
+            if is_tikz:
+                path.write_text(
+                    render_replay(
+                        checkpoints, estimates, selection, options.title
+                    ),
+                    encoding="utf-8",
+                )
+            else:
+                title: str = (
+                    options.title
+                    if options.title is not None
+                    else f"Rate estimate r̂ ± SD — `{options.csv.stem}` "
+                    f"({selection})"
+                )
+                plot_replay(
+                    checkpoints, estimates, dont_steps, selection, title, path
+                )
 
     interface.print(f"Plot written to `{path}`.")
 

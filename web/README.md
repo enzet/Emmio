@@ -10,7 +10,7 @@ access token in `localStorage`. The API serves these files itself (mounted at
 
 ## Running
 
-```sh
+```shell
 uvicorn emmio.api.app:app --reload
 ```
 

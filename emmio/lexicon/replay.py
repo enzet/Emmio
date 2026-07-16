@@ -93,10 +93,10 @@ def write_replay_csv(
 ) -> None:
     """Write the replayed trajectory to a CSV file, one row per answer.
 
-    Columns: ``queries`` (1-based answer number), ``response`` (the
-    recorded response code), ``checkpoint`` (1 where the estimator ran),
-    ``r_hat`` and ``sd`` (empty where the estimator had no answer or the
-    row is not a checkpoint), and ``selection`` (the lexicon's selection
+    Columns: `queries` (1-based answer number), `response` (the
+    recorded response code), `checkpoint` (1 where the estimator ran),
+    `r_hat` and `sd` (empty where the estimator had no answer or the
+    row is not a checkpoint), and `selection` (the lexicon's selection
     strategy, constant).
 
     :param path: output CSV file

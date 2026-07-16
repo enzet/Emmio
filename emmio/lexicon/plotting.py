@@ -26,11 +26,11 @@ repaints the survivors; the hues and their order are CVD-validated.
 """
 
 SURFACE_COLOR: str = "#fcfcfb"
-INK_COLOR: str = "#0b0b0b"
-SECONDARY_INK_COLOR: str = "#52514e"
-MUTED_COLOR: str = "#898781"
-GRID_COLOR: str = "#e1e0d9"
-BASELINE_COLOR: str = "#c3c2b7"
+INK_COLOR: str = "#000000"
+SECONDARY_INK_COLOR: str = "#000000"
+MUTED_COLOR: str = "#000000"
+GRID_COLOR: str = "#E0E0E0"
+BASELINE_COLOR: str = "#000000"
 
 
 def style_axis(axis: Axes) -> None:
@@ -94,6 +94,26 @@ def plot_estimates(
     )
 
 
+def spread_label_positions(
+    ends: list[tuple[str, float]], y_low: float, y_high: float
+) -> list[tuple[str, float]]:
+    """Nudge direct labels apart vertically on collision.
+
+    :param ends: (label, y value at the line end) pairs
+    :param y_low: bottom of the visible value range
+    :param y_high: top of the visible value range
+    :return: (label, y position) pairs, sorted bottom to top
+    """
+    gap: float = 0.05 * (y_high - y_low)
+    positions: list[tuple[str, float]] = []
+    last: float | None = None
+    for label, value in sorted(ends, key=lambda item: item[1]):
+        position: float = value if last is None else max(value, last + gap)
+        last = position
+        positions.append((label, position))
+    return positions
+
+
 def label_line_ends(
     axis: Axes, ends: list[tuple[str, float]], x: float
 ) -> None:
@@ -104,11 +124,7 @@ def label_line_ends(
     :param x: x coordinate of the line ends
     """
     y_low, y_high = axis.get_ylim()
-    gap: float = 0.05 * (y_high - y_low)
-    last: float | None = None
-    for label, value in sorted(ends, key=lambda item: item[1]):
-        position: float = value if last is None else max(value, last + gap)
-        last = position
+    for label, position in spread_label_positions(ends, y_low, y_high):
         axis.annotate(
             label,
             (x, position),

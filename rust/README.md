@@ -10,7 +10,7 @@ for Emmio's `FrequencyWordsList`.
 
 ## Build
 
-```sh
+```shell
 cargo build --release
 ```
 
@@ -19,7 +19,7 @@ cargo build --release
 OPUS distributes OpenSubtitles as monolingual, untokenised, gzipped text (one
 sentence per line). Pick a language code and version:
 
-```sh
+```shell
 # v2024 is the newest; v2018 matches the existing FrequencyWords lists.
 curl -O https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2024/mono/fr.txt.gz
 ```
@@ -28,7 +28,7 @@ Browse languages at <https://opus.nlpl.eu/OpenSubtitles/corpus/version/OpenSubti
 
 ## Generate a list
 
-```sh
+```shell
 # `.gz` is decompressed on the fly; plain text also works.
 ./target/release/freqlist --input fr.txt.gz --output fr_full.txt
 ```

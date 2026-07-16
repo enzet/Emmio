@@ -354,8 +354,8 @@ class LexiconVisualizer:
     ) -> None:
         r"""Plot lexicon rate change through time into a pgfplots TikZ file.
 
-        Generates a standalone ``tikzpicture`` environment that can be
-        ``\input``-ted directly into a LaTeX document. Each language is
+        Generates a standalone `tikzpicture` environment that can be
+        `\input`-ted directly into a LaTeX document. Each language is
         rendered as a coloured line and added to the legend.
 
         :param lexicons: mapping of languages to lexicons
@@ -379,14 +379,14 @@ class LexiconVisualizer:
                 sum(y_range) / len(y_range) for y_range in data_range.y_ranges
             ]
             color = data_range.language.get_color()
-            lang_id = data_range.language.code  # safe 2-letter identifier
+            language_id = data_range.language.code  # Safe 2-letter identifier.
             name = data_range.language.get_name()
 
             r = round(color.red * 255)
             g = round(color.green * 255)
             b = round(color.blue * 255)
             color_defs.append(
-                f"\\definecolor{{lang{lang_id}}}{{RGB}}{{{r},{g},{b}}}"
+                f"\\definecolor{{lang{language_id}}}{{RGB}}{{{r},{g},{b}}}"
             )
 
             coords = " ".join(
@@ -394,7 +394,7 @@ class LexiconVisualizer:
                 for x, y in zip(data_range.xs, ys, strict=True)
             )
             plots.append(
-                f"\\addplot[color=lang{lang_id},thick,line width=0.8pt]"
+                f"\\addplot[color=lang{language_id},thick,line width=0.8pt]"
                 f" coordinates {{{coords}}};\n"
                 f"\\addlegendentry{{{name}}}"
             )

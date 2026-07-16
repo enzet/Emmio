@@ -2,11 +2,11 @@
 
 Build a synthetic Zipfian frequency list for a fake language, draw a
 random knowledge profile (a 0/1 label per word) calibrated so that the
-frequency-weighted share of unknown words matches a chosen rate ``r``,
-then drive every checking method — FWR (``frequency``), SFWR
-(``stratified``), OT (``threshold``) and LA (``logistic``) — through the
+frequency-weighted share of unknown words matches a chosen rate `r`,
+then drive every checking method — FWR (`frequency`), SFWR
+(`stratified`), OT (`threshold`) and LA (`logistic`) — through the
 production selection (`select_next_word`) and estimation
-(`estimate_rate_*`) code, and report how fast each converges to ``r``.
+(`estimate_rate_*`) code, and report how fast each converges to `r`.
 
 Run as::
 
@@ -17,7 +17,7 @@ and errors are measured against the realized rate of that lexicon (which
 differs slightly from the target because labels are random).
 
 Besides the printed report, per-trial trajectories are written to a CSV
-file (``--csv``, default ``simulation.csv``); visualize it with::
+file (`--csv`, default `simulation.csv`); visualize it with::
 
     python -m emmio.lexicon.visualize simulation simulation.csv
 """
@@ -73,7 +73,7 @@ def make_frequency_list(
 ) -> FrequencyList:
     """Build a Zipfian frequency list of a fake language.
 
-    Word of rank ``i`` is named ``w{i}`` and occurs ``scale / i^exponent``
+    Word of rank `i` is named `w{i}` and occurs `scale / i^exponent`
     times (at least once), so the list is already sorted by frequency.
 
     :param size: number of distinct words in the fake language
@@ -108,18 +108,18 @@ def generate_knowledge(
 
     Labels are 1 for unknown and 0 for known, and are calibrated so that
     the *expected* frequency-weighted unknown share equals
-    ``θ = 2^-rate_target``; the realized share of a particular draw
+    `θ = 2^-rate_target`; the realized share of a particular draw
     differs randomly, so measure errors against `true_rate`.
 
     Models:
 
-    - ``uniform``: every word is unknown with probability θ, regardless
+    - `uniform`: every word is unknown with probability θ, regardless
       of rank (no rank structure at all — adversarial for the
       model-based methods);
-    - ``logistic``: word of rank ``i`` is unknown with probability
+    - `logistic`: word of rank `i` is unknown with probability
       σ(steepness · (log i − μ)), with μ calibrated to hit θ (the shape
       the LA method assumes);
-    - ``step``: words are known up to a boundary rank and unknown after
+    - `step`: words are known up to a boundary rank and unknown after
       it, with the boundary chosen to make the tail mass closest to θ
       (the shape the OT method assumes; deterministic).
 
@@ -253,7 +253,7 @@ def run_method(
     Words are selected by the production selector (the same working
     memory a checking session holds) and answered from the knowledge
     profile; at every checkpoint the estimator matching the method is
-    run on the log collected so far. The ``frequency`` method samples
+    run on the log collected so far. The `frequency` method samples
     with replacement (as FWR prescribes) and feeds the chronological
     sequence to its estimator; the model-based methods never repeat a
     word since answered words leave the candidate pool.
@@ -365,8 +365,8 @@ def _print_report(
 ) -> None:
     """Print the convergence table and per-method summary.
 
-    Cells are ``mean r̂/RMSE`` over the trials where the estimator had an
-    answer; ``*`` marks checkpoints where some trials had none, ``—``
+    Cells are `mean r̂/RMSE` over the trials where the estimator had an
+    answer; `*` marks checkpoints where some trials had none, `—`
     where none had. Errors are against each trial's realized rate.
     """
     checkpoints: list[int] = trajectories[methods[0]][0].checkpoints

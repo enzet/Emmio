@@ -169,6 +169,11 @@ simulation plot shows per-trial and mean trajectories with the RMSE against
 the realized rates. The output image file defaults to the CSV file with a
 `.png` suffix, override with `--plot`.
 
+With `--format tikz` the same picture (without the "don't know" ticks) is
+written as TikZ (pgfplots) code in a `.tex` file instead, ready to be embedded
+into a LaTeX document with `\input`. The document preamble needs
+`\usepackage{pgfplots}` and `\pgfplotsset{compat=1.18}`.
+
 ## Data Directory Structure
 
 Emmio data directory is located by default in `~/.emmio` and contains all

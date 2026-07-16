@@ -1319,12 +1319,12 @@ async def _translate(
 ) -> list[DictionaryTranslation]:
     """Look a word up, rendering each dictionary's output separately.
 
-    When ``index`` is given, only the dictionary at that position in the
+    When `index` is given, only the dictionary at that position in the
     configured list is queried; this lets the client load each dictionary
     independently and reveal them as they arrive, rather than waiting for the
-    slowest one. ``None`` queries every configured dictionary. With
-    ``hide_word`` the word is blanked out of the definitions, so they can serve
-    as a learning prompt without revealing the answer.
+    slowest one. `None` queries every configured dictionary. With `hide_word`
+    the word is blanked out of the definitions, so they can serve as a learning
+    prompt without revealing the answer.
     """
 
     configs: list[DictionaryUsageConfig] = _dictionary_configs(dictionaries)
@@ -1791,8 +1791,8 @@ async def get_lexicon_translation(
 ) -> Translation:
     """Get a word's translation from the lexicon's configured dictionaries.
 
-    ``index`` optionally restricts the result to the single dictionary at that
-    position (see ``/dictionaries``), so the client can load each dictionary
+    `index` optionally restricts the result to the single dictionary at that
+    position (see `/dictionaries`), so the client can load each dictionary
     independently and reveal them as they arrive.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
@@ -2464,11 +2464,11 @@ async def get_course_translation(
 ) -> Translation:
     """Get a word's translation from the course's configured dictionaries.
 
-    With ``hide_word`` (the default) the word is blanked out of the definitions,
+    With `hide_word` (the default) the word is blanked out of the definitions,
     so the meaning serves as a recall prompt without revealing the answer — used
-    by the type-the-word question. The know question passes ``hide_word=false``
-    to show the full meaning once the user has self-assessed. ``index``
-    optionally restricts the result to one dictionary (see ``/dictionaries``).
+    by the type-the-word question. The know question passes `hide_word=false`
+    to show the full meaning once the user has self-assessed. `index`
+    optionally restricts the result to one dictionary (see `/dictionaries`).
     """
     config: dict = _course_config_or_404(user_id, course_id)
     return Translation(

@@ -2256,13 +2256,13 @@ class LexiconChecker:
         """Run the interactive checking loop with a pluggable word picker.
 
         This is the shared body of every strategy. Each strategy supplies a
-        ``pick_next`` coroutine that returns the next word to ask, or ``None``
+        `pick_next` coroutine that returns the next word to ask, or `None`
         when its candidates are exhausted; the model-based strategies also
-        supply ``record`` (their selector's), so every answer — asked or
+        supply `record` (their selector's), so every answer — asked or
         propagated by `do_skip` — updates the selector's working memory.
 
         :param other_lexicons: other user lexicons of the same language
-        :param pick_next: coroutine yielding the next word, or ``None`` to stop
+        :param pick_next: coroutine yielding the next word, or `None` to stop
         :param stop_at: stop after a number of actions
         :param stop_at_wrong: stop after a number of unknown words
         :param record: selector feedback for every word that gained a state
