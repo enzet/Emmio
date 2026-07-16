@@ -169,6 +169,51 @@ html[data-theme="dark"] #trajectory[data-method="threshold"] {
     --series: #BD8100;
 }
 
+/* Stratum wheel, shown for the stratified strategy only: eleven concentric
+   circles fence ten annular bands, one per frequency stratum (innermost
+   holds the most frequent words); a band's width is proportional to how
+   many answers it holds. One dot per answered word, scattered inside its
+   stratum's band — filled for "know", hollow for "don't know". The
+   transitions animate rotation and radius, so dots slide with the wheel
+   as it re-balances. */
+#strata {
+    margin: 0 auto 0.3rem;
+    max-width: 18rem;
+}
+#strata svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+#strata .ring {
+    fill: none;
+    stroke: var(--faint);
+    stroke-width: 1;
+    /* Band widths adapt to how many dots each stratum holds. */
+    transition: r 0.5s ease;
+}
+#strata .dot {
+    /* Rotate around the wheel center (the viewBox is 300×300). */
+    transform-box: view-box;
+    transform-origin: 150px 150px;
+    /* Slide along the ring (rotation) and with it (radius). */
+    transition: transform 0.5s ease, cx 0.5s ease;
+    animation: strata-pop 0.4s ease;
+}
+#strata .dot.know {
+    fill: var(--fg);
+}
+#strata .dot.dont {
+    fill: var(--bg);
+    stroke: var(--fg);
+    stroke-width: 1.2;
+}
+@keyframes strata-pop {
+    from {
+        opacity: 0;
+    }
+}
+
 /* Live status of the check session: answer counts, the strategy-aware
    "r = 7.23 ± 0.14" estimate, and the current word's frequency rank. */
 #session-status {

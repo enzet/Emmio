@@ -1783,6 +1783,16 @@ class TrajectoryPoint(BaseModel):
     """Standard deviation of the estimate."""
 
 
+class StratumAnswer(BaseModel):
+    """One know/don't-know answer placed in its frequency stratum."""
+
+    stratum: int
+    """0-based log-uniform stratum index of the answered word's rank."""
+
+    know: bool
+    """True for a "know" answer, False for "don't know"."""
+
+
 class RateTrajectory(BaseModel):
     """The estimate trajectory over the whole recorded answer history."""
 
@@ -1794,6 +1804,16 @@ class RateTrajectory(BaseModel):
 
     checkpoints: list[TrajectoryPoint]
     """Estimates at evenly spaced points of the history, oldest first."""
+
+    n_strata: int | None = None
+    """Total number of strata, when the selection is `stratified`."""
+
+    strata: list[StratumAnswer] | None = None
+    """Chronological know/don't-know answers with their strata.
+
+    Only for the `stratified` selection; answers to words outside the
+    frequency list (invisible to the selector) are skipped.
+    """
 
 
 MAX_TRAJECTORY_CHECKPOINTS: int = 200
@@ -1834,6 +1854,26 @@ def get_lexicon_rate_trajectory(
     step: int = max(1, -(-len(records) // MAX_TRAJECTORY_CHECKPOINTS))
     checkpoints, estimates = replay(records, selection, frequency_list, step)
 
+    # The check page's stratum wheel: every know/don't-know answer with its
+    # word's stratum, in answer order.
+    strata: list[StratumAnswer] | None = None
+    if selection == LexiconSelection.STRATIFIED and frequency_list is not None:
+        know: str = LexiconResponse.KNOW.to_code()
+        dont: str = LexiconResponse.DONT.to_code()
+        size: int = len(frequency_list)
+        strata = []
+        for word, code in records:
+            if code not in (know, dont):
+                continue
+            index: int = frequency_list.get_index(word)
+            if index < 0:
+                continue
+            strata.append(
+                StratumAnswer(
+                    stratum=stratum_of_rank(index + 1, size), know=code == know
+                )
+            )
+
     return RateTrajectory(
         method=method,
         total=len(records),
@@ -1845,6 +1885,12 @@ def get_lexicon_rate_trajectory(
             )
             for queries, estimate in zip(checkpoints, estimates, strict=True)
         ],
+        n_strata=(
+            DEFAULT_N_STRATA
+            if selection == LexiconSelection.STRATIFIED
+            else None
+        ),
+        strata=strata,
     )
 
 

@@ -20,7 +20,11 @@ from emmio.language import Language
 from emmio.learn.config import LearnConfig
 from emmio.learn.core import Learning
 from emmio.lexicon.config import LexiconSelection
-from emmio.lexicon.core import StratifiedSelector
+from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
+    StratifiedSelector,
+    stratum_of_rank,
+)
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -388,6 +392,43 @@ def test_rate_trajectory_replays_the_answer_history() -> None:
     last = trajectory["checkpoints"][-1]
     assert last["rate"] == pytest.approx(2.0)
     assert last["sd"] == pytest.approx(1.0 / (math.log(2) * math.sqrt(5)))
+    # The stratum wheel is for the stratified strategy only.
+    assert trajectory["n_strata"] is None
+    assert trajectory["strata"] is None
+
+
+def test_rate_trajectory_includes_strata_for_stratified_lexicon(
+    fake_uk_list: FrequencyList,
+) -> None:
+    """The trajectory carries per-answer strata for the stratified strategy."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+
+    # Rank 1 known, rank 2 unknown, and a word outside the frequency list
+    # (recorded, but invisible to the selector and so absent from the wheel).
+    for word, response in (
+        (_UK_WORDS[0], "know"),
+        (_UK_WORDS[1], "dont"),
+        ("ааа", "know"),
+    ):
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={"word": word, "response": response},
+            headers=_auth(token),
+        )
+
+    trajectory = client.get(
+        "/api/v1/me/lexicons/uk/rate-trajectory", headers=_auth(token)
+    ).json()
+    assert trajectory["method"] == "stratified"
+    assert trajectory["total"] == 3
+    assert trajectory["n_strata"] == DEFAULT_N_STRATA
+    size = len(fake_uk_list)
+    assert trajectory["strata"] == [
+        {"stratum": stratum_of_rank(1, size), "know": True},
+        {"stratum": stratum_of_rank(2, size), "know": False},
+    ]
 
 
 def test_next_without_frequency_list_is_bad_request() -> None:

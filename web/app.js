@@ -995,6 +995,179 @@ function createTrajectoryChart(figure, svg, tooltip) {
     };
 }
 
+// Stratum wheel (check page, stratified strategy only): eleven concentric
+// circles fence ten annular bands, one per frequency stratum — the innermost
+// band holds the most frequent words. Each answered word is a dot scattered
+// inside its stratum's band, filled for "know", hollow for "don't know", and
+// a band's width is proportional to how many dots it holds, so the wheel
+// reads as a density map. The CSS transitions on rotation, `cx` and `r`
+// make dots and boundaries slide smoothly as answers arrive.
+function createStrataChart(figure, svg) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const CENTER = 150; // The viewBox is a fixed 300×300 square.
+    const MIN_RADIUS = 40; // The innermost boundary; keeps the center open.
+    const MAX_RADIUS = 140;
+    const DOT_RADIUS = 3.5;
+    const MIN_BAND = 4; // An empty stratum's band never quite vanishes.
+
+    let nStrata = 0;
+    let checkedAtSeed = 0; // Session answers already included in the seed.
+    let seeded = false;
+    const ringElements = []; // The band boundary circles, nStrata + 1.
+    const rings = []; // Per stratum: [{ element, know, … }], insertion order.
+    const phases = []; // Per stratum: where its first slot points, so the
+    // bands' slot origins never line up into a radial streak.
+    const pending = []; // Live answers arriving before the seed.
+
+    // The band boundaries: every stratum gets the minimum band plus a
+    // share of the remaining span proportional to its dot count.
+    function boundaries() {
+        const total = rings.reduce((sum, dots) => sum + dots.length, 0);
+        const span = MAX_RADIUS - MIN_RADIUS - nStrata * MIN_BAND;
+        const radii = [MIN_RADIUS];
+        for (const dots of rings) {
+            radii.push(
+                radii[radii.length - 1] +
+                    MIN_BAND +
+                    (total ? (span * dots.length) / total : span / nStrata),
+            );
+        }
+        return radii;
+    }
+
+    // Re-place everything: boundary circles at their radii, dots in evenly
+    // spaced slots starting at the top, plus each dot's own stable jitter.
+    // Both jitter components scale with the band's width (edges spared):
+    // radially the dot scatters across the band, angularly it wanders by
+    // the same distance in arc length — isotropic, so a thin band stays an
+    // orderly ring while a wide band loosens into a point cloud. Updating
+    // rotation and `cx` of dots already in the document triggers the slide
+    // transitions.
+    function layoutAll() {
+        const radii = boundaries();
+        for (const [index, ring] of ringElements.entries()) {
+            ring.setAttribute("r", radii[index]);
+        }
+        for (const [stratum, dots] of rings.entries()) {
+            const middle = (radii[stratum] + radii[stratum + 1]) / 2;
+            const room = Math.max(
+                radii[stratum + 1] - radii[stratum] - 2 * DOT_RADIUS - 2,
+                0,
+            );
+            const slot = 360 / dots.length;
+            for (const [index, dot] of dots.entries()) {
+                dot.element.setAttribute(
+                    "cx",
+                    CENTER + middle + dot.drift * room,
+                );
+                const arc =
+                    ((dot.spin * room) / middle) * (180 / Math.PI);
+                dot.element.style.transform =
+                    `rotate(${phases[stratum] + index * slot + arc}deg)`;
+            }
+        }
+    }
+
+    // Create a dot (its jitter is drawn once and kept, so re-layouts never
+    // make it wander) without adding it to the document: the caller runs
+    // `layoutAll` first, so the dot pops up in place instead of sliding in.
+    function place(stratum, know) {
+        if (stratum == null || stratum < 0 || stratum >= nStrata) return null;
+        const dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute("class", `dot ${know ? "know" : "dont"}`);
+        dot.setAttribute("cy", CENTER);
+        dot.setAttribute("r", DOT_RADIUS);
+        rings[stratum].push({
+            element: dot,
+            know,
+            spin: Math.random() - 0.5,
+            drift: Math.random() - 0.5,
+        });
+        return dot;
+    }
+
+    function add(stratum, know) {
+        const dot = place(stratum, know);
+        if (!dot) return;
+        layoutAll();
+        svg.append(dot);
+    }
+
+    // Remove the ring's most recent dot of that kind (for an undo).
+    function remove(stratum, know) {
+        if (stratum == null || stratum < 0 || stratum >= nStrata) return;
+        const dots = rings[stratum];
+        for (let index = dots.length - 1; index >= 0; index -= 1) {
+            if (dots[index].know === know) {
+                dots[index].element.remove();
+                dots.splice(index, 1);
+                layoutAll();
+                return;
+            }
+        }
+    }
+
+    return {
+        // Draw the rings and the whole history's dots, then replay the
+        // answers this session recorded while the seed was loading (the
+        // first `checkedNow` of them are already inside the seed).
+        setSeed(answers, total, checkedNow) {
+            nStrata = total;
+            checkedAtSeed = checkedNow;
+            rings.length = 0;
+            ringElements.length = 0;
+            phases.length = 0;
+            svg.replaceChildren();
+            // One boundary circle more than there are strata bands.
+            for (let boundary = 0; boundary <= nStrata; boundary += 1) {
+                const ring = document.createElementNS(SVG_NS, "circle");
+                ring.setAttribute("class", "ring");
+                ring.setAttribute("cx", CENTER);
+                ring.setAttribute("cy", CENTER);
+                svg.append(ring);
+                ringElements.push(ring);
+                if (boundary < nStrata) {
+                    rings.push([]);
+                    phases.push(Math.random() * 360);
+                }
+            }
+            // One layout for the whole history, then attach: dots enter the
+            // document already in position.
+            const dots = [];
+            for (const answer of answers) {
+                const dot = place(answer.stratum, answer.know);
+                if (dot) dots.push(dot);
+            }
+            layoutAll();
+            svg.append(...dots);
+            seeded = true;
+            for (const event of pending) {
+                if (event.checked <= checkedAtSeed) continue;
+                if (event.add) add(event.stratum, event.know);
+                else remove(event.stratum, event.know);
+            }
+            pending.length = 0;
+            figure.hidden = false;
+        },
+        noteAnswer(checked, stratum, know) {
+            if (stratum == null) return;
+            if (!seeded) {
+                pending.push({ checked, add: true, stratum, know });
+                return;
+            }
+            add(stratum, know);
+        },
+        noteUndo(checked, stratum, know) {
+            if (stratum == null) return;
+            if (!seeded) {
+                pending.push({ checked, add: false, stratum, know });
+                return;
+            }
+            remove(stratum, know);
+        },
+    };
+}
+
 // Session pages: lexicon checking and learning repetition share one flow.
 // Rather than fetch one word per answer, the client keeps a small queue of
 // upcoming words (each with its translation already loading) plus a history
@@ -1046,14 +1219,28 @@ async function runSession(base, doneText) {
           )
         : null;
 
-    // Seed the chart with the whole history's estimate trajectory. A lexicon
+    // The stratum wheel, drawn for stratified lexicons only (the trajectory
+    // response carries no strata for the other strategies).
+    const strataFigure = document.getElementById("strata");
+    const strataChart = strataFigure
+        ? createStrataChart(
+              strataFigure,
+              document.getElementById("strata-svg"),
+          )
+        : null;
+
+    // Seed both charts with the whole history from one response. A lexicon
     // whose strategy has no estimator (or no frequency list) just keeps the
-    // chart hidden.
+    // charts hidden.
     async function loadTrajectory() {
         if (!chart) return;
         const response = await api(`${base}/rate-trajectory`);
         if (!response.ok) return;
-        chart.setSeed(await response.json(), counts.checked);
+        const data = await response.json();
+        chart.setSeed(data, counts.checked);
+        if (strataChart && data.strata) {
+            strataChart.setSeed(data.strata, data.n_strata, counts.checked);
+        }
     }
 
     // Live session status (check page only; the elements are absent
@@ -1376,6 +1563,13 @@ async function runSession(base, doneText) {
         counts.checked += 1;
         if (response === "know") counts.know += 1;
         else if (response === "dont") counts.dont += 1;
+        if (response === "know" || response === "dont") {
+            strataChart?.noteAnswer(
+                counts.checked,
+                current.stratum,
+                response === "know",
+            );
+        }
         await api(`${base}/answer`, {
             method: "POST",
             body: { word: answered, response, to_skip: toSkip },
@@ -1397,6 +1591,13 @@ async function runSession(base, doneText) {
         if (entry.response === "know") counts.know -= 1;
         else if (entry.response === "dont") counts.dont -= 1;
         chart?.noteUndo(counts.checked);
+        if (entry.response === "know" || entry.response === "dont") {
+            strataChart?.noteUndo(
+                counts.checked,
+                entry.stratum,
+                entry.response === "know",
+            );
+        }
         if (current) queue.unshift(current);
         current = {
             word: undone,
