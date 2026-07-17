@@ -1798,7 +1798,10 @@ async function runLearnSession(base) {
 
     // Know box.
     const knowBox = document.getElementById("know-box");
+    const knowHeading = document.getElementById("know-heading");
     const knowWord = document.getElementById("know-word");
+    const knowShowBar = document.getElementById("know-show-bar");
+    const knowShow = document.getElementById("know-show");
     const knowAnswers = document.getElementById("know-answers");
     const knowMeaning = document.getElementById("know-meaning");
     const knowContinueBar = document.getElementById("know-continue-bar");
@@ -1962,6 +1965,13 @@ async function runLearnSession(base) {
             newExhausted = true;
             return null;
         }
+        // First exposure of a word learned directly is a `know` card when the
+        // server allows it: a never-seen word cannot be typed from its
+        // meaning. After an `ask_lexicon` check the know/don't-know question
+        // was already asked, so teaching by typing follows instead.
+        if (!data.check_lexicon && data.question_type === "know") {
+            return { type: "know", word: data.word, source: "new" };
+        }
         return makeItem({
             word: data.word,
             accepted: data.accepted,
@@ -1993,8 +2003,9 @@ async function runLearnSession(base) {
     }
 
     // Pick the next thing to present: a due review question first (its type
-    // chosen by the server), then a new word (taught as type_word, possibly
-    // after a know/don't-know lexicon check).
+    // chosen by the server), then a new word (a `know` card when the server
+    // allows it, or taught as type_word after a know/don't-know lexicon
+    // check).
     async function advance() {
         answeredWrong = false;
         status.textContent = "Loading…";
@@ -2008,6 +2019,7 @@ async function runLearnSession(base) {
         if (item) {
             current = item;
             if (item.checkLexicon) renderAsk();
+            else if (item.type === "know") renderKnow();
             else renderTeach();
             return;
         }
@@ -2073,23 +2085,24 @@ async function runLearnSession(base) {
         if (history.length) {
             undoWord.textContent = history[history.length - 1].word;
         }
+        knowHeading.textContent =
+            current.source === "new"
+                ? "New word — do you know it?"
+                : "Do you know this word?";
         knowWord.textContent = current.word;
+        knowShowBar.hidden = false;
         knowAnswers.hidden = false;
         knowMeaning.hidden = true;
         knowMeaning.replaceChildren();
         knowContinueBar.hidden = true;
         current.pendingResponse = null;
+        current.revealed = false;
         presentedAt = Date.now();
     }
-    async function knowSelfAssess(knows) {
-        if (!current || current.type !== "know" || current.pendingResponse) {
-            return;
-        }
-        current.pendingResponse = knows ? "y" : "n";
-        knowAnswers.hidden = true;
-        await postAnswer(current.word, current.pendingResponse);
-        // Reveal the full meaning (word shown) so the user learns/confirms it.
-        const item = current;
+    // Fetch and show the card's full meaning (word shown) so the user
+    // learns/confirms it.
+    async function revealKnowMeaning(item) {
+        knowShowBar.hidden = true;
         knowMeaning.hidden = false;
         knowMeaning.textContent = "Loading…";
         const groups = [];
@@ -2109,6 +2122,27 @@ async function runLearnSession(base) {
         knowMeaning.replaceChildren();
         if (groups.length) appendDictionaries(knowMeaning, groups);
         else knowMeaning.textContent = "No translation found.";
+        item.revealed = true;
+    }
+    // Peek at the translation before self-assessing (as on the lexicon check
+    // page); records nothing, the Know/Don't-know buttons stay.
+    async function knowShowTranslation() {
+        if (!current || current.type !== "know" || current.pendingResponse) {
+            return;
+        }
+        await revealKnowMeaning(current);
+    }
+    async function knowSelfAssess(knows) {
+        if (!current || current.type !== "know" || current.pendingResponse) {
+            return;
+        }
+        current.pendingResponse = knows ? "y" : "n";
+        knowAnswers.hidden = true;
+        knowShowBar.hidden = true;
+        await postAnswer(current.word, current.pendingResponse);
+        const item = current;
+        if (!item.revealed) await revealKnowMeaning(item);
+        if (current !== item) return;
         knowContinueBar.hidden = false;
         knowContinue.focus();
         void playWordAudio(item.word);
@@ -2359,6 +2393,7 @@ async function runLearnSession(base) {
             knowSelfAssess(button.dataset.response === "y"),
         );
     }
+    knowShow.addEventListener("click", () => void knowShowTranslation());
     knowContinue.addEventListener("click", advance);
     // choice / connect: Continue advances once the question is answered.
     choiceContinue.addEventListener("click", advance);

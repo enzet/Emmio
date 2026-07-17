@@ -219,6 +219,13 @@ class Knowledge:
         """Get number of responses."""
         return len(self.__responses)
 
+    def get_last_answer_time(self) -> datetime | None:
+        """Get the time of the last answer, ignoring postpones."""
+        for record in self.records[::-1]:
+            if record.response != Response.POSTPONE:
+                return record.time
+        return None
+
     def add_record(self, record: LearningRecord) -> None:
         """Add a learning record."""
 

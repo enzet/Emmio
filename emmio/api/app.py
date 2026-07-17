@@ -2427,6 +2427,9 @@ _CHOICE_OPTIONS: int = 4
 _CONNECT_SIZE: int = 4
 # Due words to consider when forming one question.
 _QUESTION_BATCH: int = 12
+# A word not answered for this long falls back to `know` regardless of its
+# streak: after such a gap the streak no longer proves the word is retained.
+_STALE_AFTER: timedelta = timedelta(weeks=2)
 
 
 class CourseAnswerRequest(BaseModel):
@@ -2589,14 +2592,27 @@ def _streak(learning: Learning, word: str) -> int:
     return knowledge.count_right_streak() if knowledge else 0
 
 
+def _is_stale(learning: Learning, word: str) -> bool:
+    """Whether the word was last answered more than `_STALE_AFTER` ago."""
+    knowledge = learning.get_knowledge(word)
+    if knowledge is None:
+        return False
+    last_answer_time: datetime | None = knowledge.get_last_answer_time()
+    return (
+        last_answer_time is not None
+        and datetime.now(UTC) - last_answer_time > _STALE_AFTER
+    )
+
+
 def _single_question_type(
-    streak: int, enabled: set[str], *, choice_feasible: bool
+    streak: int, enabled: set[str], *, choice_feasible: bool, stale: bool
 ) -> str:
     """Pick a single-word question type for a word by its knowledge.
 
     The hardest enabled, feasible type the word has earned by its streak; if it
     has earned none, the easiest enabled, feasible type. `type_word` is always
-    feasible, so a type is always returned.
+    feasible, so a type is always returned. A stale word (not answered for
+    `_STALE_AFTER`) gets `know` regardless of its streak, when enabled.
     """
 
     def feasible(question_type: str) -> bool:
@@ -2605,6 +2621,9 @@ def _single_question_type(
         if question_type == QUESTION_TYPE_CHOICE:
             return choice_feasible
         return True  # `know` and `type_word` need no extra data.
+
+    if stale and feasible(QUESTION_TYPE_KNOW):
+        return QUESTION_TYPE_KNOW
 
     earned: list[str] = [
         question_type
@@ -2632,8 +2651,9 @@ async def get_question(
 
     The type is decided by the course's configured `question_types`, by each
     word's knowledge (recognition before production), and by what data exists
-    (a short translation is needed for `choice`/`connect`). New words are not
-    served here — they come from `/new`. `type` is `None` when nothing is due.
+    (a short translation is needed for `choice`/`connect`). A word not answered
+    for `_STALE_AFTER` falls back to `know`. New words are not served here —
+    they come from `/new`. `type` is `None` when nothing is due.
     """
     entry: LearningEntry = _learning_entry(user_id, course_id)
     with entry.lock:
@@ -2642,10 +2662,13 @@ async def get_question(
         due: list[str] = learning.get_next_questions(
             _QUESTION_BATCH, set(exclude or [])
         )
-        # Snapshot the streaks under the lock: the translation lookups below
-        # await, and the instance may take answers meanwhile.
+        # Snapshot the streaks and staleness under the lock: the translation
+        # lookups below await, and the instance may take answers meanwhile.
         streaks: dict[str, int] = {
             word: _streak(learning, word) for word in due
+        }
+        stale: dict[str, bool] = {
+            word: _is_stale(learning, word) for word in due
         }
     if not due:
         return Question(type=None, language=language)
@@ -2676,9 +2699,12 @@ async def get_question(
                 seen_translations.add(translation)
 
     # Connect: when enough low-knowledge due words can be matched, group them.
+    # Stale words are left out: they should get `know` on the single-word path.
     if QUESTION_TYPE_CONNECT in enabled:
         matchable: list[str] = [
-            word for word in due if word in translatable and streaks[word] <= 1
+            word
+            for word in due
+            if word in translatable and streaks[word] <= 1 and not stale[word]
         ]
         if len(matchable) >= _CONNECT_SIZE:
             chosen: list[str] = matchable[:_CONNECT_SIZE]
@@ -2697,7 +2723,10 @@ async def get_question(
         word in translatable and len(seen_translations) >= _CHOICE_OPTIONS
     )
     question_type: str = _single_question_type(
-        streaks[word], enabled, choice_feasible=choice_feasible
+        streaks[word],
+        enabled,
+        choice_feasible=choice_feasible,
+        stale=stale[word],
     )
     if question_type == QUESTION_TYPE_CHOICE:
         correct: str = translatable[word]
@@ -2886,6 +2915,11 @@ class NewQuestion(BaseModel):
     that lexicon's `/answer`. "Know" means skip the word (request `/new` again);
     "don't know" admits it to learning. `None` means learn the word directly.
     """
+    question_type: str | None = None
+    """How to present the word's first exposure: `know` when the course allows
+    it (see the word, self-assess, reveal meaning), else `type_word`. Ignored
+    when `check_lexicon` already asks know/don't-know first.
+    """
     remaining_today: int  # New words still allowed today (`max_for_day`).
 
 
@@ -3015,10 +3049,21 @@ async def get_new_question_word(
             ask_lexicon_id is not None and word not in ask_states
         ):
             check_lexicon = ask_lexicon_id
+        # First exposure is the gentlest enabled type: a new word cannot be
+        # produced from its meaning, so `know` is used unless the course
+        # excludes it.
+        enabled_types: set[str] = set(
+            scheme.question_types or _ALL_QUESTION_TYPES
+        )
         return NewQuestion(
             word=word,
             accepted=_accepted_forms(word, learning.learning_language),
             check_lexicon=check_lexicon,
+            question_type=(
+                QUESTION_TYPE_KNOW
+                if QUESTION_TYPE_KNOW in enabled_types
+                else QUESTION_TYPE_TYPE_WORD
+            ),
             remaining_today=remaining,
         )
 

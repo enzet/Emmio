@@ -1292,6 +1292,43 @@ def test_new_question_dont_in_check_learns_directly(
     assert body["check_lexicon"] is None  # Learned directly.
 
 
+def test_new_question_first_exposure_is_know(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A new word's first exposure is a `know` card when the course allows."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme=_new_question_scheme())
+    monkeypatch.setattr(
+        app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
+    )
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    body = response.json()
+    assert body["word"] == "gamma"
+    assert body["question_type"] == "know"
+
+
+def test_new_question_first_exposure_respects_question_types(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without `know` among the course's types, teaching stays `type_word`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    scheme = _new_question_scheme() | {"question_types": ["type_word"]}
+    _make_course("alice", scheme=scheme)
+    monkeypatch.setattr(
+        app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
+    )
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    body = response.json()
+    assert body["word"] == "gamma"
+    assert body["question_type"] == "type_word"
+
+
 def test_new_question_excludes_queued_words(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1492,10 +1529,15 @@ class _FakeQuestionData:
         return DictionaryCollection([])
 
 
-def _add_due_word(course_id: str, word: str, responses: list[str]) -> None:
+def _add_due_word(
+    course_id: str,
+    word: str,
+    responses: list[str],
+    age: timedelta = timedelta(hours=2),
+) -> None:
     """Add a learning word whose records make it due now, in the past."""
 
-    base = datetime.now(UTC) - timedelta(hours=2)
+    base = datetime.now(UTC) - age
     records = [
         (word, response, base + timedelta(minutes=index), None, None)
         for index, response in enumerate(responses)
@@ -1556,6 +1598,43 @@ def test_question_types_config_restricts_the_type(
     body = response.json()
     assert body["type"] == "type_word"
     assert body["accepted"] == ["saluton"]
+
+
+def test_question_falls_back_to_know_for_a_stale_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A word not answered for over two weeks is re-asked with `know`."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice")
+    # A streak of three would normally earn `type_word`.
+    _add_due_word("eo", "saluton", ["y", "y", "y"], age=timedelta(weeks=3))
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "know"
+    assert body["words"] == ["saluton"]
+
+
+def test_question_stale_fallback_needs_know_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without `know` among the course's types, staleness changes nothing."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _add_due_word("eo", "saluton", ["y", "y", "y"], age=timedelta(weeks=3))
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    assert response.json()["type"] == "type_word"
 
 
 def test_question_accepts_simplified_spellings(
