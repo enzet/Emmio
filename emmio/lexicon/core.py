@@ -1487,8 +1487,8 @@ def estimate_rate_logistic(
     (a, b) fitted by maximum likelihood, and r̂ = -log₂(θ̂). The SD is
     bootstrapped by refitting on resampled tested words; the tested
     contribution is an exact observation and is held fixed (as in
-    `estimate_r_with_sd`). The untested sum is vectorised, so the bootstrap
-    stays fast even over large frequency lists.
+    `estimate_rate_threshold`). The untested sum is vectorised, so the
+    bootstrap stays fast even over large frequency lists.
 
     :param tested: tested words as (rank, frequency share, 1 = unknown)
     :param untested: untested words as (rank, frequency share)
@@ -2511,92 +2511,6 @@ class LexiconChecker:
         if theta <= 0.0:
             return None
         return -math.log2(theta)
-
-    def estimate_r_with_sd(
-        self, frequency_list: FrequencyList, n_bootstrap: int = 200
-    ) -> tuple[float, float] | None:
-        """Estimate r and its standard deviation via bootstrap resampling.
-
-        The uncertainty in r̂ comes entirely from uncertainty in the logistic
-        model parameters (a, b, c), which determine θ̂_u (the contribution of
-        untested words). The contribution θ_s from tested words is an exact
-        observation, not a model estimate, so it is held fixed across bootstrap
-        iterations.
-
-        :param frequency_list: frequency list providing p_i values
-        :param n_bootstrap: number of bootstrap resamples
-        :return: (r_hat, sd_r_hat), or None if not enough data
-        """
-        total: int = frequency_list.get_all_occurrences()
-        words: list[str] = frequency_list.get_words()
-
-        tested_ranks: list[int] = []
-        tested_labels: list[int] = []
-        theta_s: float = 0.0
-
-        for rank, word in enumerate(words, start=1):
-            if not self.lexicon.has(word):
-                continue
-            p_i: float = frequency_list.get_occurrences(word) / total
-            response: LexiconResponse = self.lexicon.get(word)
-            if response == LexiconResponse.KNOW:
-                tested_ranks.append(rank)
-                tested_labels.append(0)
-            elif response == LexiconResponse.DONT:
-                tested_ranks.append(rank)
-                tested_labels.append(1)
-                theta_s += p_i
-
-        n_unknown: int = sum(tested_labels)
-        if (
-            len(tested_ranks) < MIN_SIZE_TESTED_RANKS
-            or n_unknown < MIN_N_UNKNOWN
-        ):
-            return None
-
-        untested: list[tuple[int, float]] = [
-            (rank, frequency_list.get_occurrences(word) / total)
-            for rank, word in enumerate(words, start=1)
-            if not self.lexicon.has(word)
-        ]
-
-        def theta_u_from_params(a: float, b: float, c: float) -> float:
-            return sum(p_i * _predict(a, b, c, rank) for rank, p_i in untested)
-
-        # Point estimate.
-        a, b, c = _fit_logistic(tested_ranks, tested_labels)
-        theta: float = theta_s + theta_u_from_params(a, b, c)
-        if theta <= 0.0:
-            return None
-        r_hat: float = -math.log2(theta)
-
-        # Bootstrap: resample (rank, label) pairs to estimate SD of r_hat.
-        ranks_arr: np.ndarray = np.array(tested_ranks)
-        labels_arr: np.ndarray = np.array(tested_labels)
-        n: int = len(tested_ranks)
-        rng = np.random.default_rng()
-        r_boots: list[float] = []
-
-        for _ in range(n_bootstrap):
-            idx = rng.integers(0, n, size=n)
-            boot_ranks: list[int] = cast("list[int]", ranks_arr[idx].tolist())
-            boot_labels: list[int] = cast("list[int]", labels_arr[idx].tolist())
-            if not any(label == 0 for label in boot_labels) or not any(
-                label == 1 for label in boot_labels
-            ):
-                continue
-            try:
-                a_b, b_b, c_b = _fit_logistic(boot_ranks, boot_labels)
-            except (ValueError, RuntimeError):
-                continue
-            theta_boot: float = theta_s + theta_u_from_params(a_b, b_b, c_b)
-            if theta_boot > 0.0:
-                r_boots.append(-math.log2(theta_boot))
-
-        if len(r_boots) < MIN_R_BOOTS:
-            return None
-
-        return r_hat, float(np.std(r_boots, ddof=1))
 
     async def check_logistic(
         self,

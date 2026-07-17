@@ -22,6 +22,33 @@ from emmio.util import plus_week, week_start, year_end, year_start
 DEFAULT_LEXICON_GRAPH: str = "lexicon.svg"
 DEFAULT_LEXICON_TIKZ: str = "lexicon.tex"
 
+AVERAGE_BANDS: tuple[tuple[float, float, float], ...] = (
+    (0.0, 1.0, 0.1),
+    (0.2, 0.8, 0.15),
+    (0.4, 0.6, 0.2),
+)
+"""Nested quantile bands drawn around the average: (lower, upper, opacity)."""
+
+
+def quantile_band(
+    y_ranges: list[list[float]], lower: float, upper: float
+) -> tuple[list[float], list[float]]:
+    """Get the lower and upper quantile curves of per-point value ranges.
+
+    :param y_ranges: the values at each time point
+    :param lower: lower quantile in [0, 1]
+    :param upper: upper quantile in [0, 1]
+    :return: (lower curve, upper curve), one value per time point
+    """
+    lower_curve: list[float] = [
+        sorted(y_range)[int(lower * len(y_range))] for y_range in y_ranges
+    ]
+    upper_curve: list[float] = [
+        sorted(y_range)[min(int(upper * len(y_range)), len(y_range) - 1)]
+        for y_range in y_ranges
+    ]
+    return lower_curve, upper_curve
+
 
 @dataclass
 class LexiconRangeData:
@@ -128,21 +155,8 @@ class LexiconVisualizer:
                     label=title,
                 )
             if self.plot_averages:
-                for left, right, opacity in (
-                    (0.0, 1.0, 0.1),
-                    (0.2, 0.8, 0.15),
-                    (0.4, 0.6, 0.2),
-                ):
-                    ys_1 = [
-                        sorted(y_range)[int(left * len(y_range))]
-                        for y_range in data_range.y_ranges
-                    ]
-                    ys_2 = [
-                        sorted(y_range)[
-                            min(int(right * len(y_range)), len(y_range) - 1)
-                        ]
-                        for y_range in data_range.y_ranges
-                    ]
+                for left, right, opacity in AVERAGE_BANDS:
+                    ys_1, ys_2 = quantile_band(data_range.y_ranges, left, right)
                     plt.fill_between(
                         mdates.date2num(data_range.xs),
                         ys_1,
@@ -321,21 +335,8 @@ class LexiconVisualizer:
 
         if self.plot_averages:
             for data_range in lexicon_data:
-                for left, right, opacity in (
-                    (0.0, 1.0, 0.1),
-                    (0.2, 0.8, 0.15),
-                    (0.4, 0.6, 0.2),
-                ):
-                    ys_1 = [
-                        sorted(y_range)[int(left * len(y_range))]
-                        for y_range in data_range.y_ranges
-                    ]
-                    ys_2 = [
-                        sorted(y_range)[
-                            min(int(right * len(y_range)), len(y_range) - 1)
-                        ]
-                        for y_range in data_range.y_ranges
-                    ]
+                for left, right, opacity in AVERAGE_BANDS:
+                    ys_1, ys_2 = quantile_band(data_range.y_ranges, left, right)
                     graph.fill_between(
                         svg,
                         data_range.xs,

@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 from colour import Color
@@ -399,6 +399,13 @@ def _row_rate_estimate(
     return estimate
 
 
+def _rate_and_sd(
+    estimate: tuple[float, float] | None,
+) -> tuple[float | None, float | None]:
+    """Unpack an optional (rate, SD) estimate into nullable response fields."""
+    return estimate if estimate is not None else (None, None)
+
+
 def _compute_row_rate_estimate(
     user_id: str,
     lexicon_id: str,
@@ -463,6 +470,7 @@ def get_my_lexicons(
             [response for _, response in sequences.get(lexicon_id, [])],
             version,
         )
+        rate, sd = _rate_and_sd(estimate)
         summaries.append(
             LexiconSummary(
                 lexicon_id=lexicon_id,
@@ -470,8 +478,8 @@ def get_my_lexicons(
                 selection=selection,
                 name=name,
                 words=words,
-                rate=estimate[0] if estimate else None,
-                sd=estimate[1] if estimate else None,
+                rate=rate,
+                sd=sd,
                 is_main=is_main,
             )
         )
@@ -586,6 +594,70 @@ def _is_known_language(code: str) -> bool:
     return True
 
 
+def _validated_targets(codes: list[str]) -> list[str]:
+    """Deduplicate translation targets, keeping only known languages.
+
+    The shared validation of lexicon and course creation and settings
+    updates.
+
+    :param codes: requested target language codes, in order
+    :raises HTTPException: 400 when no valid target remains
+    """
+    targets: list[str] = [
+        target for target in dict.fromkeys(codes) if _is_known_language(target)
+    ]
+    if not targets:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one valid translation language is required.",
+        )
+    return targets
+
+
+def _frequency_list_or_400(data: Any, language: str) -> dict:
+    """Get the language's frequency-list usage config, or raise 400.
+
+    Both a lexicon and a course draw their words from a frequency list, so
+    creation is refused for languages without one.
+
+    :param data: the shared `Data`; typed loosely because tests substitute a
+        duck-typed stub for `get_data`
+    """
+    frequency_list: dict | None = data.get_frequency_list_languages().get(
+        language
+    )
+    if frequency_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No frequency list available for language `{language}`.",
+        )
+    return frequency_list
+
+
+def _unique_artifact_id(language: str, existing: set[str]) -> str:
+    """Derive an unused identifier from the language code: `fr`, `fr_2`, ..."""
+    artifact_id: str = language
+    suffix: int = 2
+    while artifact_id in existing:
+        artifact_id = f"{language}_{suffix}"
+        suffix += 1
+    return artifact_id
+
+
+def _with_kaikki(data: Any, targets: list[str], language: str) -> bool:
+    """Whether to configure the Kaikki (en.wiktionary) dictionary.
+
+    English must be a target and kaikki.org must cover the language; the
+    dictionary itself is downloaded in the background on first use.
+
+    :param data: the shared `Data`; typed loosely because tests substitute a
+        duck-typed stub for `get_data`
+    """
+    return "en" in targets and data.dictionaries.can_download_kaikki(
+        Language.from_code(language)
+    )
+
+
 def _translation_config(
     language: str, targets: list[str], *, with_kaikki: bool
 ) -> tuple[list[dict], list[dict]]:
@@ -653,42 +725,12 @@ def create_lexicon(
     selection: LexiconSelection = LexiconSelection(request.selection)
 
     data = get_data()
-    frequency_list: dict | None = data.get_frequency_list_languages().get(
-        request.language
+    frequency_list: dict = _frequency_list_or_400(data, request.language)
+    targets: list[str] = _validated_targets(request.translation_languages)
+    lexicon_id: str = _unique_artifact_id(
+        request.language, {row[0] for row in postgres.list_lexicons(user_id)}
     )
-    if frequency_list is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"No frequency list available for language "
-                f"`{request.language}`."
-            ),
-        )
-
-    targets: list[str] = [
-        target
-        for target in dict.fromkeys(request.translation_languages)
-        if _is_known_language(target)
-    ]
-    if not targets:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one valid translation language is required.",
-        )
-
-    existing: set[str] = {row[0] for row in postgres.list_lexicons(user_id)}
-    lexicon_id: str = request.language
-    suffix: int = 2
-    while lexicon_id in existing:
-        lexicon_id = f"{request.language}_{suffix}"
-        suffix += 1
-
-    with_kaikki: bool = (
-        "en" in targets
-        and data.dictionaries.can_download_kaikki(
-            Language.from_code(request.language)
-        )
-    )
+    with_kaikki: bool = _with_kaikki(data, targets, request.language)
     dictionaries, sentences = _translation_config(
         request.language, targets, with_kaikki=with_kaikki
     )
@@ -829,25 +871,12 @@ def update_lexicon_settings(
         config["precision_per_week"] = request.precision_per_week
 
     if request.translation_languages is not None:
-        targets: list[str] = [
-            target
-            for target in dict.fromkeys(request.translation_languages)
-            if _is_known_language(target)
-        ]
-        if not targets:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one valid translation language is required.",
-            )
+        targets: list[str] = _validated_targets(request.translation_languages)
         language: str = config["language"]
-        with_kaikki: bool = (
-            "en" in targets
-            and get_data().dictionaries.can_download_kaikki(
-                Language.from_code(language)
-            )
-        )
         dictionaries, sentences = _translation_config(
-            language, targets, with_kaikki=with_kaikki
+            language,
+            targets,
+            with_kaikki=_with_kaikki(get_data(), targets, language),
         )
         config["dictionaries"] = dictionaries
         config["sentences"] = sentences
@@ -896,42 +925,12 @@ def create_course(
     lexicon uses. Its id is the language code, suffixed if one already exists.
     """
     data = get_data()
-    frequency_list: dict | None = data.get_frequency_list_languages().get(
-        request.language
+    frequency_list: dict = _frequency_list_or_400(data, request.language)
+    targets: list[str] = _validated_targets(request.translation_languages)
+    course_id: str = _unique_artifact_id(
+        request.language, {row[0] for row in postgres.list_courses(user_id)}
     )
-    if frequency_list is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"No frequency list available for language "
-                f"`{request.language}`."
-            ),
-        )
-
-    targets: list[str] = [
-        target
-        for target in dict.fromkeys(request.translation_languages)
-        if _is_known_language(target)
-    ]
-    if not targets:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one valid translation language is required.",
-        )
-
-    existing: set[str] = {row[0] for row in postgres.list_courses(user_id)}
-    course_id: str = request.language
-    suffix: int = 2
-    while course_id in existing:
-        course_id = f"{request.language}_{suffix}"
-        suffix += 1
-
-    with_kaikki: bool = (
-        "en" in targets
-        and data.dictionaries.can_download_kaikki(
-            Language.from_code(request.language)
-        )
-    )
+    with_kaikki: bool = _with_kaikki(data, targets, request.language)
     dictionaries, sentences = _translation_config(
         request.language, targets, with_kaikki=with_kaikki
     )
@@ -1050,25 +1049,10 @@ def update_course_settings(
         config["play_audio"] = request.play_audio
 
     if request.translation_languages is not None:
-        targets: list[str] = [
-            target
-            for target in dict.fromkeys(request.translation_languages)
-            if _is_known_language(target)
-        ]
-        if not targets:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one valid translation language is required.",
-            )
+        targets: list[str] = _validated_targets(request.translation_languages)
         language: str = config["learning_language"]
-        with_kaikki: bool = (
-            "en" in targets
-            and data.dictionaries.can_download_kaikki(
-                Language.from_code(language)
-            )
-        )
         dictionaries, sentences = _translation_config(
-            language, targets, with_kaikki=with_kaikki
+            language, targets, with_kaikki=_with_kaikki(data, targets, language)
         )
         config["base_languages"] = targets
         config["dictionaries"] = dictionaries
@@ -1387,28 +1371,31 @@ def get_data() -> Data:
     return _data
 
 
-def _lexicon_config_or_404(user_id: str, lexicon_id: str) -> dict:
-    """Get a lexicon's reassembled config dict or raise 404."""
+def _config_or_404(config: dict | None, kind: str, artifact_id: str) -> dict:
+    """Return the reassembled config dict or raise 404."""
 
-    config: dict | None = postgres.get_lexicon_config(user_id, lexicon_id)
     if config is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown lexicon `{lexicon_id}`.",
+            detail=f"Unknown {kind} `{artifact_id}`.",
         )
     return config
+
+
+def _lexicon_config_or_404(user_id: str, lexicon_id: str) -> dict:
+    """Get a lexicon's reassembled config dict or raise 404."""
+
+    return _config_or_404(
+        postgres.get_lexicon_config(user_id, lexicon_id), "lexicon", lexicon_id
+    )
 
 
 def _course_config_or_404(user_id: str, course_id: str) -> dict:
     """Get a course's reassembled config dict or raise 404."""
 
-    config: dict | None = postgres.get_learn_config(user_id, course_id)
-    if config is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown course `{course_id}`.",
-        )
-    return config
+    return _config_or_404(
+        postgres.get_learn_config(user_id, course_id), "course", course_id
+    )
 
 
 def _dictionary_configs(
@@ -1855,9 +1842,8 @@ def get_lexicon_rate_estimate(
         )
         estimate = estimate_rate_with_sd(selection, frequency_list, states)
 
-    if estimate is None:
-        return RateEstimate(rate=None, sd=None, method=method)
-    return RateEstimate(rate=estimate[0], sd=estimate[1], method=method)
+    rate, sd = _rate_and_sd(estimate)
+    return RateEstimate(rate=rate, sd=sd, method=method)
 
 
 class TrajectoryPoint(BaseModel):
@@ -1968,12 +1954,10 @@ def get_lexicon_rate_trajectory(
         method=method,
         total=len(records),
         checkpoints=[
-            TrajectoryPoint(
-                queries=queries,
-                rate=estimate[0] if estimate else None,
-                sd=estimate[1] if estimate else None,
+            TrajectoryPoint(queries=queries, rate=rate, sd=sd)
+            for queries, (rate, sd) in zip(
+                checkpoints, map(_rate_and_sd, estimates), strict=True
             )
-            for queries, estimate in zip(checkpoints, estimates, strict=True)
         ],
         n_strata=(
             DEFAULT_N_STRATA
@@ -2105,6 +2089,7 @@ def get_lexicon_stats(
         config["frequency_list"],
         postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
     )
+    rate, sd = _rate_and_sd(estimate)
     return LexiconStats(
         lexicon_id=lexicon_id,
         language=config["language"],
@@ -2115,8 +2100,8 @@ def get_lexicon_stats(
         dont_know=dont_know,
         precision=lexicon.count_unknowns(),
         dont_last_week=lexicon.count_unknowns(now - timedelta(days=7), now),
-        rate=estimate[0] if estimate else None,
-        sd=estimate[1] if estimate else None,
+        rate=rate,
+        sd=sd,
         is_main=postgres.is_main_lexicon(user_id, lexicon_id),
     )
 
@@ -2167,12 +2152,13 @@ def get_my_languages(
             (time for time, response in reversed(sequence) if response == 0),
             None,
         )
+        rate, sd = _rate_and_sd(estimate)
         rates.append(
             LanguageRate(
                 language=language,
                 lexicon_id=lexicon_id,
-                rate=estimate[0] if estimate else None,
-                sd=estimate[1] if estimate else None,
+                rate=rate,
+                sd=sd,
                 weekly_remaining=precision_per_week - dont_last_week,
                 last_dont_know=last_dont_know,
             )
@@ -2584,6 +2570,10 @@ class Question(BaseModel):
     options: list[str] | None = None  # `choice`: the translations to pick from.
     answer: str | None = None  # `choice`: the correct option.
     pairs: list[ConnectPair] | None = None  # `connect`: words and translations.
+    streak: int | None = None
+    """The word's run of correct answers, for single-word questions."""
+    last_answer_time: datetime | None = None
+    """When the word was last answered, for single-word questions."""
 
 
 def _streak(learning: Learning, word: str) -> int:
@@ -2592,16 +2582,10 @@ def _streak(learning: Learning, word: str) -> int:
     return knowledge.count_right_streak() if knowledge else 0
 
 
-def _is_stale(learning: Learning, word: str) -> bool:
-    """Whether the word was last answered more than `_STALE_AFTER` ago."""
+def _last_answer_time(learning: Learning, word: str) -> datetime | None:
+    """Get when the word was last answered (postpones don't count)."""
     knowledge = learning.get_knowledge(word)
-    if knowledge is None:
-        return False
-    last_answer_time: datetime | None = knowledge.get_last_answer_time()
-    return (
-        last_answer_time is not None
-        and datetime.now(UTC) - last_answer_time > _STALE_AFTER
-    )
+    return knowledge.get_last_answer_time() if knowledge else None
 
 
 def _single_question_type(
@@ -2662,14 +2646,20 @@ async def get_question(
         due: list[str] = learning.get_next_questions(
             _QUESTION_BATCH, set(exclude or [])
         )
-        # Snapshot the streaks and staleness under the lock: the translation
-        # lookups below await, and the instance may take answers meanwhile.
+        # Snapshot the streaks and last answer times under the lock: the
+        # translation lookups below await, and the instance may take answers
+        # meanwhile.
         streaks: dict[str, int] = {
             word: _streak(learning, word) for word in due
         }
-        stale: dict[str, bool] = {
-            word: _is_stale(learning, word) for word in due
+        last_answered: dict[str, datetime | None] = {
+            word: _last_answer_time(learning, word) for word in due
         }
+    now: datetime = datetime.now(UTC)
+    stale: dict[str, bool] = {
+        word: time is not None and now - time > _STALE_AFTER
+        for word, time in last_answered.items()
+    }
     if not due:
         return Question(type=None, language=language)
 
@@ -2741,16 +2731,24 @@ async def get_question(
             words=[word],
             options=options,
             answer=correct,
+            streak=streaks[word],
+            last_answer_time=last_answered[word],
         )
     if question_type == QUESTION_TYPE_KNOW:
         return Question(
-            type=QUESTION_TYPE_KNOW, language=language, words=[word]
+            type=QUESTION_TYPE_KNOW,
+            language=language,
+            words=[word],
+            streak=streaks[word],
+            last_answer_time=last_answered[word],
         )
     return Question(
         type=QUESTION_TYPE_TYPE_WORD,
         language=language,
         words=[word],
         accepted=_accepted_forms(word, learning.learning_language),
+        streak=streaks[word],
+        last_answer_time=last_answered[word],
     )
 
 

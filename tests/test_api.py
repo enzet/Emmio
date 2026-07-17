@@ -1618,6 +1618,10 @@ def test_question_falls_back_to_know_for_a_stale_word(
     body = response.json()
     assert body["type"] == "know"
     assert body["words"] == ["saluton"]
+    # The card's status context: the streak and when it was last answered.
+    assert body["streak"] == 3
+    last = datetime.fromisoformat(body["last_answer_time"])
+    assert datetime.now(UTC) - last > timedelta(weeks=2)
 
 
 def test_question_stale_fallback_needs_know_enabled(

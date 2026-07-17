@@ -1795,6 +1795,7 @@ async function runLearnSession(base) {
     const kaikkiLink = document.getElementById("kaikki-link");
     const continueBar = document.getElementById("continue-bar");
     const continueButton = document.getElementById("continue");
+    const cardStatus = document.getElementById("card-status");
 
     // Know box.
     const knowBox = document.getElementById("know-box");
@@ -1981,7 +1982,22 @@ async function runLearnSession(base) {
     }
 
     // Present a server-chosen review question by its type.
+    // Show the current word's streak and when it was last answered (as the
+    // lexicon check page does). Empty for connect cards (several words at
+    // once) and for new words.
+    function renderCardStatus(q) {
+        if (!q || q.streak == null) {
+            cardStatus.textContent = "";
+            return;
+        }
+        const when = q.last_answer_time
+            ? ` · last answered ${relativeTime(q.last_answer_time)}`
+            : "";
+        cardStatus.textContent = `Streak: ${q.streak}${when}`;
+    }
+
     function presentReview(q) {
+        renderCardStatus(q);
         if (q.type === "type_word") {
             current = makeItem({ word: q.words[0], accepted: q.accepted });
             renderTeach();
@@ -2017,6 +2033,8 @@ async function runLearnSession(base) {
         }
         const item = await fetchNew();
         if (item) {
+            // A new word has no streak or last answer to show.
+            cardStatus.textContent = "New word — never answered yet.";
             current = item;
             if (item.checkLexicon) renderAsk();
             else if (item.type === "know") renderKnow();
@@ -2024,6 +2042,7 @@ async function runLearnSession(base) {
             return;
         }
         current = null;
+        renderCardStatus(null);
         renderDone();
     }
 
@@ -2355,6 +2374,7 @@ async function runLearnSession(base) {
         if (!undone) return;
         history.pop();
         current = makeItem({ word: undone, source: "review" });
+        renderCardStatus(null); // The word's history changed server-side.
         renderTeach();
     }
 
