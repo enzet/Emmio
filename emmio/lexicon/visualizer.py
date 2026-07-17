@@ -450,6 +450,35 @@ class LexiconVisualizer:
         :param skip_first_point: skip first point in time
         """
         date_ranges, rates = compute_lexicon_rate(sequence, self.precision)
+        return self.range_data_from_history(
+            language,
+            date_ranges,
+            rates,
+            margin,
+            skip_first_point=skip_first_point,
+        )
+
+    def range_data_from_history(
+        self,
+        language: Language,
+        date_ranges: list[tuple[datetime, datetime]],
+        rates: list[float],
+        margin: float | None,
+        *,
+        skip_first_point: bool = True,
+    ) -> LexiconRangeData | None:
+        """Bucket precomputed rate history points for plotting.
+
+        The estimator-agnostic part of `get_range_data`: points arrive as
+        (window date range, rate) pairs from any windowed rate history and
+        are grouped into calendar buckets by their window end date.
+
+        :param language: language
+        :param date_ranges: (window start, window end) per history point
+        :param rates: rate per history point, aligned with `date_ranges`
+        :param margin: do not show languages that never had rate over the margin
+        :param skip_first_point: skip first point in time
+        """
         if not rates or (margin is not None and max(rates) < margin):
             return None
 
@@ -527,11 +556,44 @@ class LexiconVisualizer:
         :param margin: do not show languages that never had rate over the margin
         :param skip_first_point: skip first point in time
         """
+        histories: dict[
+            Language, tuple[list[tuple[datetime, datetime]], list[float]]
+        ] = {
+            language: compute_lexicon_rate(sequence, self.precision)
+            for language, sequence in sequences.items()
+        }
+        return self.construct_data_from_histories(
+            histories, margin, skip_first_point=skip_first_point
+        )
+
+    def construct_data_from_histories(
+        self,
+        histories: dict[
+            Language, tuple[list[tuple[datetime, datetime]], list[float]]
+        ],
+        margin: float | None,
+        *,
+        skip_first_point: bool = False,
+    ) -> tuple[datetime | None, datetime | None, list[LexiconRangeData]]:
+        """Construct data for plotting from precomputed rate histories.
+
+        Unlike `construct_data_from_sequences`, takes ready history points,
+        so any windowed rate history (`emmio.lexicon.history`) can feed the
+        graph regardless of the estimator that produced it.
+
+        :param histories: mapping of languages to (window date ranges, rates)
+        :param margin: do not show languages that never had rate over the margin
+        :param skip_first_point: skip first point in time
+        """
         data: list[LexiconRangeData] = []
 
-        for language, sequence in sequences.items():
-            data_range = self.get_range_data(
-                language, sequence, margin, skip_first_point=skip_first_point
+        for language, (date_ranges, rates) in histories.items():
+            data_range = self.range_data_from_history(
+                language,
+                date_ranges,
+                rates,
+                margin,
+                skip_first_point=skip_first_point,
             )
             if data_range:
                 data.append(data_range)

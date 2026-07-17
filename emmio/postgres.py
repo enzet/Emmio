@@ -646,6 +646,35 @@ def get_lexicon_record_log(
         return [(word, response) for word, response in cursor.fetchall()]
 
 
+def get_lexicon_dated_record_log(
+    user_id: str, lexicon_id: str
+) -> list[tuple[datetime, str, str]]:
+    """Get one lexicon's chronological (time, word, response code) log.
+
+    The dated variant of `get_lexicon_record_log`: the windowed rate history
+    places every answer in time, and needs resolutions too.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :return: time-ordered list of (response time, word, response code)
+    """
+    with db_connection() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT r.response_time, w.word, r.response "
+            "FROM lexicon_records r "
+            "JOIN lexicon_words w ON w.id = r.word_id "
+            "JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "ORDER BY r.id",
+            (user_id, lexicon_id),
+        )
+        return [
+            (response_time, word, response)
+            for response_time, word, response in cursor.fetchall()
+        ]
+
+
 def get_last_lexicon_record_id(user_id: str) -> int | None:
     """Get the id of the user's newest lexicon record.
 

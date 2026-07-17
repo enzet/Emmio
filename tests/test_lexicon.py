@@ -3,7 +3,7 @@
 import math
 import random
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -18,6 +18,7 @@ from emmio.lexicon.core import (
     StratifiedSelector,
     TopSelector,
     _predict,
+    compute_lexicon_rate,
     create_selector,
     estimate_rate_frequency,
     estimate_rate_logistic,
@@ -27,6 +28,7 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.history import compute_rate_history
 from emmio.lists.config import (
     FrequencyListConfig,
     FrequencyListFileFormat,
@@ -646,3 +648,143 @@ def test_top_selector_draws_sibling_answered_words_once() -> None:
     # propagated answer, and the selector moves on.
     selector.record("w1", "K")
     assert selector.next_word() == "w2"
+
+
+def _dated(records: list[tuple[str, str]]) -> list[tuple[datetime, str, str]]:
+    """Spread (word, response code) records one hour apart, oldest first."""
+    return [
+        (dt(2024, 1, 1) + timedelta(hours=hour), word, code)
+        for hour, (word, code) in enumerate(records)
+    ]
+
+
+def test_compute_rate_history_frequency_matches_classic_windows() -> None:
+    """The default threshold reproduces the 100-don't-know FWR windows."""
+    records: list[tuple[str, str]] = [
+        (f"w{index}", "D" if index % 3 == 0 else "K") for index in range(400)
+    ]
+    records.insert(200, ("junk", "N"))  # Resolutions are not answers.
+    dated: list[tuple[datetime, str, str]] = _dated(records)
+
+    date_ranges, rates, sds = compute_rate_history(
+        LexiconSelection.FREQUENCY, None, dated
+    )
+
+    data: list[tuple[datetime, int]] = [
+        (date, 1 if code == "K" else 0)
+        for date, _, code in dated
+        if code in ("K", "D")
+    ]
+    expected_ranges, expected_rates = compute_lexicon_rate(data, 100)
+    assert date_ranges == expected_ranges
+    assert rates == expected_rates
+    assert all(sd == pytest.approx(1.0 / (math.log(2) * 10.0)) for sd in sds)
+
+
+def test_compute_rate_history_frequency_threshold_sets_window() -> None:
+    """A looser SD threshold shrinks the required unknown count."""
+    dated: list[tuple[datetime, str, str]] = _dated(
+        [(f"w{index}", "D" if index % 3 == 0 else "K") for index in range(100)]
+    )
+    sd_threshold: float = 1.0 / (math.log(2) * math.sqrt(25))
+
+    date_ranges, rates, sds = compute_rate_history(
+        LexiconSelection.FREQUENCY, None, dated, sd_threshold=sd_threshold
+    )
+
+    data: list[tuple[datetime, int]] = [
+        (date, 1 if code == "K" else 0) for date, _, code in dated
+    ]
+    expected_ranges, expected_rates = compute_lexicon_rate(data, 25)
+    assert date_ranges == expected_ranges
+    assert rates == expected_rates
+    assert all(sd == pytest.approx(sd_threshold) for sd in sds)
+
+
+def test_compute_rate_history_stratified_census() -> None:
+    """A censused list yields an exact point; noisier prefixes yield none."""
+    frequency_list: FrequencyList = _frequency_list(
+        {"a": 8, "b": 4, "c": 2, "d": 1}
+    )
+    dated: list[tuple[datetime, str, str]] = _dated(
+        [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K")]
+    )
+
+    date_ranges, rates, sds = compute_rate_history(
+        LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
+    )
+
+    # Every point before the census has SD over the threshold; the census
+    # has none: θ̂ is the unknown mass share of `c`.
+    assert rates == [pytest.approx(-math.log2(2 / 15))]
+    assert sds == [0.0]
+    assert date_ranges == [(dated[0][0], dated[3][0])]
+
+
+def test_compute_rate_history_stratified_reask_uses_latest_answer() -> None:
+    """Within a window, only a word's latest answer counts."""
+    frequency_list: FrequencyList = _frequency_list(
+        {"a": 8, "b": 4, "c": 2, "d": 1}
+    )
+    dated: list[tuple[datetime, str, str]] = _dated(
+        [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("d", "D")]
+    )
+
+    date_ranges, rates, sds = compute_rate_history(
+        LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
+    )
+
+    # The re-ask flips `d` to unknown: still a census (no double count),
+    # with the unknown mass share now covering `c` and `d`.
+    assert len(rates) == 2
+    assert rates[1] == pytest.approx(-math.log2(3 / 15))
+    assert sds[1] == 0.0
+    assert date_ranges[1] == (dated[0][0], dated[4][0])
+
+
+def test_compute_rate_history_stratified_window_skips_superseded() -> None:
+    """The window's left edge slides past superseded answers for free."""
+    frequency_list: FrequencyList = _frequency_list(
+        {"a": 8, "b": 4, "c": 2, "d": 1}
+    )
+    dated: list[tuple[datetime, str, str]] = _dated(
+        [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("a", "K")]
+    )
+
+    date_ranges, rates, _ = compute_rate_history(
+        LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
+    )
+
+    # The re-ask supersedes the first answer for `a`, so the window starts
+    # at `b`; dropping `b` itself would push the SD over the threshold.
+    assert len(rates) == 2
+    assert rates[1] == pytest.approx(-math.log2(2 / 15))
+    assert date_ranges[1] == (dated[1][0], dated[4][0])
+
+
+def test_compute_rate_history_stratified_resolution_is_permanent() -> None:
+    """A resolution shrinks the population and never expires."""
+    frequency_list: FrequencyList = _frequency_list(
+        {"a": 8, "b": 4, "c": 2, "d": 1}
+    )
+    dated: list[tuple[datetime, str, str]] = _dated(
+        [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("d", "N"), ("b", "K")]
+    )
+
+    date_ranges, rates, sds = compute_rate_history(
+        LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
+    )
+
+    # The resolution itself emits no point; after it, `d` is out of the
+    # population, so the remaining words form a census again. Its frequency
+    # mass still counts toward the stratum total.
+    assert len(rates) == 2
+    assert rates[1] == pytest.approx(-math.log2(7 / 45))
+    assert sds[1] == 0.0
+    assert date_ranges[1] == (dated[0][0], dated[5][0])
+
+
+def test_compute_rate_history_no_backend_for_logistic() -> None:
+    """Estimators with bootstrapped SDs have no windowed history yet."""
+    with pytest.raises(NotImplementedError):
+        compute_rate_history(LexiconSelection.LOGISTIC, None, [])

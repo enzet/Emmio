@@ -1319,11 +1319,47 @@ def _estimate_rate_stratified_masses(
             p_unknown[k] += p_i
             count_unknown[k] += 1
 
-    bounds: list[tuple[int, int]] = _stratum_bounds_of_size(size, n_strata)
+    return _stratified_rate_from_aggregates(
+        p_total,
+        p_tested,
+        p_unknown,
+        count,
+        count_unknown,
+        _stratum_bounds_of_size(size, n_strata),
+        n_resolved,
+    )
 
+
+def _stratified_rate_from_aggregates(
+    p_total: list[float],
+    p_tested: list[float],
+    p_unknown: list[float],
+    count: list[int],
+    count_unknown: list[int],
+    bounds: list[tuple[int, int]],
+    n_resolved: list[int] | None = None,
+) -> tuple[float, float] | None:
+    """Estimate the rate from per-stratum aggregates of the tested words.
+
+    The stratified estimator core: every input is a per-stratum aggregate, so
+    a caller that maintains them incrementally (the windowed rate history in
+    `emmio.lexicon.history`) evaluates the estimate in O(K) without touching
+    individual words.
+
+    :param p_total: P_k, each stratum's total frequency mass
+    :param p_tested: frequency mass of the tested words per stratum
+    :param p_unknown: frequency mass of the tested "don't know" words per
+        stratum
+    :param count: n_k, tested words per stratum
+    :param count_unknown: tested words labeled "don't know" per stratum
+    :param bounds: per-stratum `[lo, hi)` 1-based rank ranges
+    :param n_resolved: per-stratum count of words resolved as unlearnable;
+        they shrink the finite population the stratum's sample is drawn from
+    :return: (r̂, SD), or None if some stratum has no tested words yet
+    """
     theta: float = 0.0
     variance: float = 0.0
-    for k in range(n_strata):
+    for k in range(len(p_total)):
         if p_total[k] <= 0.0:
             continue
         if count[k] == 0 or p_tested[k] <= 0.0:

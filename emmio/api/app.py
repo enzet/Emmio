@@ -70,6 +70,7 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.history import compute_rate_history
 from emmio.lexicon.replay import replay
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
@@ -2179,6 +2180,12 @@ def get_lexicons_graph(
 ) -> HTTPResponse:
     """Render the rate history of the user's main lexicons as an SVG graph.
 
+    Each lexicon's curve comes from the windowed, strategy-matched estimator
+    (`compute_rate_history`), so every point carries the same precision
+    regardless of how the lexicon's answers were collected. Lexicons whose
+    estimator has no windowed history yet (threshold, logistic) and lexicons
+    whose configured frequency list cannot be loaded are skipped.
+
     The background is transparent so the graph can be inlined into a page and
     inherit its theme. The `ETag` is derived from the newest lexicon record:
     the history only changes when the user answers (or undoes) a lexicon
@@ -2194,22 +2201,57 @@ def get_lexicons_graph(
             status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag}
         )
 
-    sequences: dict[str, list[tuple[datetime, int]]] = (
-        postgres.get_lexicon_answer_sequences(user_id)
-    )
-    data: dict[Language, list[tuple[datetime, int]]] = {}
-    for language, lexicon_id, *_ in postgres.get_main_lexicons(user_id):
-        sequence = sequences.get(lexicon_id)
-        if not sequence:
-            continue
+    histories: dict[
+        Language, tuple[list[tuple[datetime, datetime]], list[float]]
+    ] = {}
+    for (
+        language_code,
+        lexicon_id,
+        _,
+        _,
+        selection_code,
+        list_config,
+    ) in postgres.get_main_lexicons(user_id):
         try:
-            data[Language.from_code(language)] = sequence
+            language: Language = Language.from_code(language_code)
         except LanguageNotFoundError:
             continue
+        # Lexicons imported before selection strategies were recorded are
+        # frequency-weighted ones.
+        selection: LexiconSelection = (
+            LexiconSelection(selection_code)
+            if selection_code
+            else LexiconSelection.FREQUENCY
+        )
+        frequency_list: FrequencyList | None = None
+        if (
+            RATE_ESTIMATOR_BY_SELECTION.get(selection)
+            != RateEstimator.FREQUENCY
+        ):
+            if not list_config:
+                continue
+            frequency_list = get_data().get_frequency_list(
+                ListUsageConfig(**list_config)
+            )
+            if frequency_list is None:
+                continue
+        records: list[tuple[datetime, str, str]] = (
+            postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
+        )
+        if not records:
+            continue
+        try:
+            date_ranges, rates, _ = compute_rate_history(
+                selection, frequency_list, records
+            )
+        except NotImplementedError:
+            continue
+        if date_ranges:
+            histories[language] = (date_ranges, rates)
 
     visualizer: LexiconVisualizer = LexiconVisualizer(interactive=False)
-    x_min, x_max, lexicon_data = visualizer.construct_data_from_sequences(
-        data, margin=None
+    x_min, x_max, lexicon_data = visualizer.construct_data_from_histories(
+        histories, margin=None
     )
     svg = visualizer.build_svg(
         x_min,
