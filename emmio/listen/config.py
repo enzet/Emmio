@@ -9,9 +9,6 @@ from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.language import LanguageConfig
 from emmio.lists.config import ListUsageConfig
 
-ListenConfigValuesType = str | list[dict[str, str]]
-ListenConfigType = dict[str, ListenConfigValuesType]
-
 
 class ListenConfig(BaseModel):
     """Configuration for listening."""

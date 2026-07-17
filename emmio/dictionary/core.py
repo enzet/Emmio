@@ -17,7 +17,6 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 from typing import Any, Self, override
 
@@ -38,28 +37,6 @@ DESCRIPTORS_OF_WORDS_TO_IGNORE: set[str] = set(
     CONFIG["descriptors_of_words_to_ignore"]
 )
 SANITIZER: str = "_"
-
-
-class WordStatus(Enum):
-    """How the word is presented in the dictionary."""
-
-    COMMON = "common"
-    """The word is the common word in dictionary. E.g. `book`."""
-
-    FORM = "form"
-    """The word is only a form of another common word in dictionary.
-
-    E.g. `books` is either a plural form of the noun `book` or a form of a verb
-    `book`.
-    """
-
-    NOT_COMMON = "not_common"
-    """The word is not common.
-
-    It may be a letter, a proper noun, an abbreviation, etc."""
-
-    NO_DEFINITION = "no_definition"
-    """The dictionary has no definition for the word."""
 
 
 @dataclass
@@ -227,12 +204,6 @@ class Form:
 
     gender: str | None = None
     """Gender of the word, e.g. "masculine", "feminine", "neuter"."""
-
-    verb_group: int | None = None
-    """Group of the verb, e.g. 1, 2, 3, etc."""
-
-    is_singular: bool | None = None
-    """Whether the word is singular (otherwise it is plural)."""
 
     @classmethod
     def from_simple_translation(
@@ -559,16 +530,6 @@ class DictionaryItem:
 
         return transcription, flatten(texts, 1, 1, 1)
 
-    def get_transcriptions(self) -> list[str]:
-        """Get all transcriptions."""
-
-        result: list[str] = []
-        for form in self.get_forms():
-            for transcription in form.transcriptions:
-                if transcription not in result:
-                    result.append(transcription)
-        return result
-
 
 class Dictionary(ABC):
     """Dictionary of word definitions."""
@@ -676,11 +637,6 @@ class Dictionary(ABC):
         """Check if the dictionary contains definitions in that language."""
         raise NotImplementedError
 
-    @abstractmethod
-    def check_is_machine(self) -> bool:
-        """Check if the definitions or translations are machine-generated."""
-        raise NotImplementedError
-
 
 class SimpleDictionary(Dictionary):
     """Simple dictionary with word-definition pairs."""
@@ -782,10 +738,6 @@ class SimpleDictionary(Dictionary):
     def check_to_language(self, language: Language) -> bool:
         return language == self.to_language
 
-    @override
-    def check_is_machine(self) -> bool:
-        return self.is_machine
-
 
 @dataclass
 class DictionaryCollection:
@@ -793,15 +745,6 @@ class DictionaryCollection:
 
     dictionaries: list[Dictionary] = field(default_factory=list)
     """List of dictionaries."""
-
-    def add_dictionary(self, dictionary: Dictionary) -> None:
-        """Add dictionary to the list.
-
-        It will have lower priority than previously added dictionaries.
-
-        :param dictionary: dictionary to add
-        """
-        self.dictionaries.append(dictionary)
 
     async def get_items_marked(
         self, word: str, language: Language, *, follow_links: bool = True

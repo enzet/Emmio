@@ -75,9 +75,6 @@ class Language:
     checking: Callable[[str], bool] | None = None
     """Check if the symbol is allowed in the language."""
 
-    sentence_end: str | None = None
-    """Sentence end symbol."""
-
     def __post_init__(self) -> None:
         self.iso639_language: ISO639Language = ISO639Language(self.code)
 
@@ -116,15 +113,6 @@ class Language:
         if self.self_name:
             return self.self_name
         return self.get_name()
-
-    def get_parent(self) -> Language | None:
-        """Get parent language.
-
-        E.g. Norwegian (`no`) is the parent language of Norwegian Bokmål (`nb`).
-        """
-        if self.parent:
-            return self.parent
-        return None
 
     def get_adjusted_color(self) -> Color:
         """Try to get adjusted color.

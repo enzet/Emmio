@@ -4,8 +4,6 @@ from pydantic import BaseModel
 
 from emmio.language import LanguageConfig
 
-TextUsageConfigType = dict[str, str]
-
 
 class TextConfig(BaseModel):
     """Configuration for a text."""

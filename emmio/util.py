@@ -17,8 +17,6 @@ __email__ = "me@enzet.ru"
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-HIDE_SYMBOL: str = "░"
-
 
 @contextmanager
 def log_duration(
@@ -109,26 +107,6 @@ def plus_week(point: datetime) -> datetime:
     return point + timedelta(days=7)
 
 
-def format_delta_hm(delta: timedelta) -> str:
-    """Format the delta as hours and minutes."""
-    hours: int = int(delta.total_seconds() // 60 // 60)
-    minutes: int = int(delta.total_seconds() // 60) - hours * 60
-    return f"{hours:02d}:{minutes:02d}"
-
-
-def format_delta(delta: timedelta) -> str:
-    """Format the delta as a string."""
-    if delta < timedelta(hours=1):
-        minutes: int = int(delta.total_seconds() // 60)
-        return f"{minutes} minute" + ("s" if minutes > 1 else "")
-    if delta < timedelta(days=1):
-        hours: int = int(delta.total_seconds() // 60 // 60)
-        return f"{hours} hour" + ("s" if hours > 1 else "")
-
-    days: int = int(delta.total_seconds() // 60 // 60 // 24)
-    return f"{days} day" + ("s" if days > 1 else "")
-
-
 def download(
     address: str,
     cache_path: Path,
@@ -183,31 +161,6 @@ class MalformedFileError(Exception):
     """File is malformed."""
 
     path: Path
-
-
-@dataclass
-class MalformedDataError(Exception):
-    """Data is malformed."""
-
-    message: str
-
-
-def remove_parenthesis(text: str) -> str:
-    """Remove the parenthesis from the text."""
-
-    depth: int = 0
-    result: str = ""
-
-    for character in text:
-        if character == "(":
-            depth += 1
-        if character == ")":
-            depth -= 1
-            continue
-        if depth == 0:
-            result += character
-
-    return result.strip()
 
 
 def flatten(

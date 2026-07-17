@@ -1477,13 +1477,3 @@ def save_lexicon(
             "VALUES (%s, %s, %s)",
             [(db_id, start, end) for (start, end) in sessions],
         )
-
-
-def close_pool() -> None:
-    """Close the connection pool if it is open, freeing all its connections."""
-
-    global _pool  # noqa: PLW0603  # pylint: disable=global-statement
-
-    if _pool is not None:
-        _pool.close()
-        _pool = None

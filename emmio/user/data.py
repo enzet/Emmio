@@ -232,43 +232,6 @@ class UserData:
             sessions += lexicon.get_sessions()
         return sorted(sessions, key=lambda session: session.start)
 
-    def get_sessions_and_records(self) -> list[tuple[Session, list[Record]]]:
-        """Get all sessions and records."""
-
-        records: list[Record] = self.get_records()
-        sessions: list[Session] = self.get_sessions()
-
-        result: list[tuple[Session, list[Record]]] = []
-        session_index: int = 0
-        record_index: int = 0
-        current: tuple[Session, list[Record]] = (sessions[0], [])
-
-        while True:
-            session: Session = sessions[session_index]
-            record: Record = records[record_index]
-
-            if record.time < session.start:
-                record_index += 1
-                if record_index == len(records):
-                    break
-                continue
-
-            if session.end and session.start <= record.time <= session.end:
-                current[1].append(record)
-                record_index += 1
-                if record_index == len(records):
-                    break
-                continue
-
-            if session.end and record.time > session.end:
-                session_index += 1
-                result.append(current)
-                if session_index == len(sessions):
-                    break
-                current = (sessions[session_index], [])
-
-        return result
-
     @classmethod
     def create(cls, path: Path, user_id: str, user_name: str) -> Self:
         """Create new user.

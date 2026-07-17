@@ -19,9 +19,6 @@ class TatoebaDatabase(Database):
 
     Tables <language>_sentences:
         ID: INTEGER, SENTENCE: TEXT
-
-    Table links:
-        ID_1: INTEGER, ID_2: INTEGER
     """
 
     def __init__(self, database_file_path: Path, cache_path: Path) -> None:
@@ -32,49 +29,6 @@ class TatoebaDatabase(Database):
         """
         super().__init__(database_file_path)
         self.cache_path: Path = cache_path
-
-    def load_links(self) -> None:
-        """Load links from cache."""
-        links_csv_path: Path = self.cache_path / "links.csv"
-
-        # If links file doesn't exist in cache, download and unzip it.
-        if not links_csv_path.exists():
-            # Download zipped links file if it doesn't exist in cache.
-            links_zip_path: Path = self.cache_path / "links.tar.bz2"
-            if not links_zip_path.exists():
-                download(
-                    "https://downloads.tatoeba.org/exports/links.tar.bz2",
-                    links_zip_path,
-                )
-
-            # Unzip links file to `links.csv`.
-            if links_zip_path.exists():
-                with (
-                    bz2.open(links_zip_path) as zip_file,
-                    links_csv_path.open("wb+") as cache_file,
-                ):
-                    logger.info("Unzipping links file...")
-                    cache_file.write(zip_file.read())
-            else:
-                message = "Failed to download links file."
-                raise ValueError(message)
-
-            # Remove zipped links file.
-            links_zip_path.unlink()
-
-        self.connection.execute(
-            "CREATE TABLE links (id_1 integer, id_2 integer)"
-        )
-
-        with links_csv_path.open(encoding="utf-8") as input_csv:
-            lines = input_csv.readlines()
-
-        for line in lines:
-            id_1, id_2 = map(int, line[:-1].split("\t"))
-            self.connection.execute(
-                "INSERT INTO links VALUES (?, ?)", (id_1, id_2)
-            )
-        self.connection.commit()
 
     def load_language(self, language: Language, cache_path: Path) -> None:
         """Create table for sentences written in the specified language.

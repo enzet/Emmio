@@ -381,45 +381,6 @@ class Visualizer:
         )
         self.plot()
 
-    def graph_mistakes(self, learnings: Iterator[Learning]) -> None:
-        """Show the graph of mistakes."""
-
-        size: int = 10
-
-        for learning in learnings:
-            records: list[tuple[str, LearningRecord]] = [
-                (learning.id_, record) for record in learning.process.records
-            ]
-
-            xs = range(size)
-            ys: list[int] = [0] * size
-            ns: list[int] = [0] * size
-            lasts: dict[str, int] = defaultdict(int)
-            for learning_id, record in records:
-                id_: str = f"{learning_id}_{record.question_id}"
-                if record.response == Response.RIGHT:
-                    if id_ in lasts:
-                        ys[lasts[id_]] += 1
-                    lasts[id_] += 1
-                elif record.response == Response.WRONG:
-                    if id_ in lasts:
-                        ns[lasts[id_]] += 1
-                    lasts[id_] = 0
-            plt.plot(
-                xs,
-                [
-                    (
-                        ns[i] / (ns[i] + ys[i]) * 100
-                        if (ns[i] + ys[i] > 0)
-                        else 0
-                    )
-                    for i in range(size)
-                ],
-            )
-        plt.ylim(ymin=0)
-        plt.xlim([0, size - 1])
-        self.plot()
-
     def response_time(
         self,
         records: list[tuple[LearningRecord, Learning]],

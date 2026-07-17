@@ -87,10 +87,6 @@ class Text(InlineElement):
         self.elements.append(element)
         return self
 
-    def is_empty(self) -> bool:
-        """Check whether the text is empty."""
-        return len(self.elements) == 0
-
 
 @dataclass
 class Formatted(InlineElement):
@@ -458,7 +454,6 @@ def get_char() -> str:
 
 
 BOXES: str = " ▏▎▍▌▋▊▉"
-BOXES_LENGTH: int = len(BOXES)
 
 
 def progress(a: int) -> str:

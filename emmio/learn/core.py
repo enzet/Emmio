@@ -24,7 +24,6 @@ __email__ = "me@enzet.ru"
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-FORMAT: str = "%Y.%m.%d %H:%M:%S.%f"
 MULTIPLIER: float = 2.0
 
 
@@ -202,10 +201,6 @@ class Knowledge:
         if Response.WRONG in self.__responses:
             return list(reversed(self.__responses)).index(Response.WRONG)
         return len(self.__responses)
-
-    def count_wrong_answers(self) -> int:
-        """Get number of times learning interval was set to minimal."""
-        return self.__responses.count(Response.WRONG)
 
     def count_right_streak(self) -> int:
         """Get number of right answers after the last wrong answer."""
@@ -578,10 +573,6 @@ class Learning(UserArtifact):
     def dump_json(self) -> str:
         """Serialize learning process to a JSON string."""
         return self.process.model_dump_json(indent=4)
-
-    def is_ready(self) -> bool:
-        """Check whether the learning is ready for the next question."""
-        return self.get_next_question() is not None
 
     def count_questions_to_add(self) -> int:
         """Count the number of questions before reaching the maximum."""

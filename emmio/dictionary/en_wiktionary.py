@@ -5,7 +5,6 @@ See https://en.wiktionary.org.
 
 import json
 import logging
-import re
 import shutil
 from pathlib import Path
 from typing import Any, override
@@ -13,7 +12,6 @@ from typing import Any, override
 import requests
 from tqdm import tqdm
 
-from emmio.dictionary import CONFIG
 from emmio.dictionary.core import (
     Definition,
     DefinitionValue,
@@ -48,8 +46,6 @@ def kaikki_language_name(language: Language) -> str:
     return _KAIKKI_NAME_OVERRIDES.get(language.get_code(), language.get_name())
 
 
-PRONUNCIATION_PREFIXES: set[str] = set(CONFIG["pronunciation_prefixes"])
-FORMS: set[str] = set(CONFIG["forms"])
 PART_OF_SPEECH_MAP: dict[str, str] = {
     "prep": "preposition",
     "adv": "adverb",
@@ -60,53 +56,6 @@ PART_OF_SPEECH_MAP: dict[str, str] = {
     "conj": "conjunction",
     "pron": "pronoun",
 }
-
-
-LINK_PATTERN: re.Pattern[str] = re.compile(
-    r"^(?P<preffix>\(.*\) )?(?P<link_type>.*) of "
-    r"(?P<link>[^:;,. ]*)[:;,.]?"
-    r'(?P<suffix1>[:;,] .*)?(?P<suffix2> \(.*\))?(?P<suffix3> ".*")?$'
-)
-DESCRIPTOR_PATTERN: re.Pattern[str] = re.compile(
-    r"\((?P<descriptor>[^()]*)\) .*"
-)
-
-
-def get_file_name(word: str) -> str:
-    """Get file name for cache JSON file.
-
-    For this to work on case-insensitive operating systems, we add special
-    symbol `^` before the capitalized letter.
-    """
-    name: str = "".join(f"^{c.lower()}" if c.lower() != c else c for c in word)
-
-    return f"{name}.json"
-
-
-def check_link_type(link_type: str) -> bool:
-    """Check if the link type is valid.
-
-    TODO(enzet): recheck this function and probably remove.
-
-    :param link_type: link type
-    :return: true iff the link type is valid
-    """
-    link_type = (
-        link_type.replace("(t\u00fa)", "")
-        .replace("(usted)", "")
-        .replace("(ustedes)", "")
-        .replace("(yo)", "")
-        .replace("(nosotros, nosotras)", "")
-        .replace("(\u00e9l, ella, also used with usted?)", "")
-        .replace("(ellos; ellas; also used with ustedes?)", "")
-        .replace("/", " ")
-        .replace("(", "")
-        .replace(")", "")
-        .replace(" and ", " ")
-        .replace("  ", " ")
-        .lower()
-    )
-    return all(not x or x in FORMS for x in link_type.split(" "))
 
 
 class DictionaryDownloadError(Exception):
@@ -389,7 +338,3 @@ class EnglishWiktionaryKaikki(Dictionary):
     @override
     def check_to_language(self, language: Language) -> bool:
         return language == KnownLanguages.ENGLISH
-
-    @override
-    def check_is_machine(self) -> bool:
-        return False

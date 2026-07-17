@@ -39,9 +39,6 @@ from emmio.user.data import UserData
 __author__ = "Sergey Vartanov"
 __email__ = "me@enzet.ru"
 
-EXCLUDE_SENTENCES_FILE_NAME: str = "exclude_sentences.json"
-EXCLUDE_TRANSLATIONS_FILE_NAME: str = "exclude_translations.json"
-
 DICTIONARIES_DIRECTORY_NAME: str = "dictionaries"
 SENTENCES_DIRECTORY_NAME: str = "sentences"
 LISTS_DIRECTORY_NAME: str = "lists"

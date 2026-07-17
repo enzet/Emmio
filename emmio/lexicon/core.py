@@ -71,15 +71,6 @@ class LexiconResponse(Enum):
     the dictionary.
     """
 
-    def to_string(self) -> str:
-        """Get string identifier of the response."""
-        return self.name.lower()
-
-    @classmethod
-    def from_string(cls, string: str) -> Self:
-        """Get response from string identifier."""
-        return cls[string.upper()]
-
     def to_code(self) -> str:
         """Get single-character code used to store the response in database.
 
@@ -1059,10 +1050,6 @@ class WordKnowledge:
             structure["to_skip"] = self.to_skip
         return structure
 
-    def to_json_str(self) -> str:
-        """Serialize to JSON string."""
-        return json.dumps(self.to_structure(), ensure_ascii=False)
-
 
 class LexiconLogSession(Session):
     """User session of checking lexicon."""
@@ -1861,10 +1848,6 @@ class Lexicon(UserArtifact):
             LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
         ]
 
-    def do_not_know(self, word: str) -> bool:
-        """Check if user doesn't know the word."""
-        return self.words[word].knowing == LexiconResponse.DONT
-
     def get_last_answer(self, word: str) -> LexiconLogRecord | None:
         """Get last answer for the word."""
 
@@ -2033,23 +2016,6 @@ class Lexicon(UserArtifact):
             return 0.0
         return value
 
-    def get_top_unknown(self, frequency_list: FrequencyList) -> list[str]:
-        """Get all words user marked as unknown in order of frequency.
-
-        :param frequency_list: sort words using this list
-        """
-        result: list[str] = []
-
-        for word in sorted(
-            self.words.keys(),
-            key=lambda word: -frequency_list.get_occurrences(word),
-        ):
-            word_knowledge: WordKnowledge = self.words[word]
-            if word_knowledge.knowing == LexiconResponse.DONT:
-                result.append(word)
-
-        return result
-
     def get_question(
         self,
         word: str,
@@ -2122,18 +2088,6 @@ class Lexicon(UserArtifact):
 
     def __repr__(self) -> str:
         return f"<User lexicon {self.language.get_name()}>"
-
-    def get_user_records(self, word: str) -> list[LexiconLogRecord]:
-        """Get all records for a specific word."""
-
-        return [
-            record
-            for record in self.log.records
-            if (
-                record.word == word
-                and record.answer_type == AnswerType.USER_ANSWER
-            )
-        ]
 
     def get_records(self, word: str | None = None) -> list[LexiconLogRecord]:
         """Get all records or records for a specific word."""

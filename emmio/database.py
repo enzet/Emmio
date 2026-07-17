@@ -47,7 +47,3 @@ class Database:
     def has_table(self, table_id: str) -> bool:
         """Check whether table is in the database."""
         return table_id in self.get_table_ids()
-
-    def drop_table(self, table_id: str) -> None:
-        """Remove table from the database."""
-        self.connection.execute(f"DROP TABLE {table_id};")

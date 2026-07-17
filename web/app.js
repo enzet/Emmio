@@ -1070,7 +1070,7 @@ function createStrataChart(figure, svg) {
             for (const [index, dot] of dots.entries()) {
                 dot.element.setAttribute(
                     "cx",
-                    CENTER + middle + dot.drift * room,
+                    CENTER + middle + dot.drift * room * 2,
                 );
                 const arc =
                     ((dot.spin * room) / middle) * (180 / Math.PI);

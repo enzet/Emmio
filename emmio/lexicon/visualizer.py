@@ -433,35 +433,6 @@ class LexiconVisualizer:
         output_file.write_text(tex, encoding="utf-8")
         self.interface.print(f"TikZ graph saved to `{output_file.absolute()}`.")
 
-    def get_lexicon_range_data(
-        self,
-        language: Language,
-        language_lexicons: list[Lexicon],
-        margin: float | None,
-        *,
-        skip_first_point: bool = True,
-    ) -> LexiconRangeData | None:
-        """Get data for plotting lexicon rate change through time.
-
-        :param language: language
-        :param language_lexicons: lexicons of the language
-        :param margin: do not show languages that never had rate over the margin
-        :param skip_first_point: skip first point in time
-        """
-        dates: list[datetime] = []
-        responses: list[int] = []
-
-        for lexicon in language_lexicons:
-            dates += lexicon.dates
-            responses += lexicon.responses
-
-        return self.get_range_data(
-            language,
-            sorted(zip(dates, responses, strict=False)),
-            margin,
-            skip_first_point=skip_first_point,
-        )
-
     def get_range_data(
         self,
         language: Language,

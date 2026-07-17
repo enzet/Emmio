@@ -216,22 +216,3 @@ class DictionaryData(ArtifactData):
             if dictionary:
                 dictionaries.append(dictionary)
         return DictionaryCollection(dictionaries)
-
-    def get_dictionaries_by_language(
-        self, from_language: Language, to_language: Language
-    ) -> DictionaryCollection:
-        """Get dictionaries by languages.
-
-        :param from_language: language of requests
-        :param to_language: language of definitions
-        :return: collection of dictionaries
-        """
-
-        def check(dictionary: Dictionary) -> bool:
-            return dictionary.check_from_language(
-                from_language
-            ) and dictionary.check_to_language(to_language)
-
-        return DictionaryCollection(
-            [x for x in self.dictionaries.values() if check(x)]
-        )

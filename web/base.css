@@ -238,7 +238,7 @@ section[aria-labelledby="danger-heading"] {
 main.check {
     display: flex;
 }
-main section {
+main.check section {
     width: 50%;
 }
 main.card, main.login {

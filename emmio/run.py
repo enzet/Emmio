@@ -3,12 +3,10 @@
 import argparse
 import logging
 import shlex
-import sys
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 from colour import Color
 
@@ -40,26 +38,6 @@ from emmio.ui import (
 from emmio.user.data import UserData
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-LEXICON_HELP: str = """
-<y> or <Enter>  I know at least one meaning of the word
-<n>             I don’t know any of meanings of the word
-<s>             I know at least one meanings of the word and I’m sure I
-                will not forget it, skip this word in the future
-<b>             I don’t know any of meanings of the word, but it is a proper
-                name too
-<->             the word doesn’t exist or is a proper name
-
-<q>             exit
-"""
-
-
-class ArgumentParser(argparse.ArgumentParser):
-    """Argument parser with redefined `help`."""
-
-    def help(self, _: Any) -> None:
-        """Print help to stdout and don't exit."""
-        self.print_help(sys.stdout)
 
 
 class Emmio:
@@ -135,7 +113,7 @@ class Emmio:
     ) -> None:
         """Process the user command."""
 
-        parser: ArgumentParser = ArgumentParser(
+        parser: argparse.ArgumentParser = argparse.ArgumentParser(
             exit_on_error=False, add_help=False
         )
         subparsers = parser.add_subparsers(dest="command")

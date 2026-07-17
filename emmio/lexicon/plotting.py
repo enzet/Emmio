@@ -26,7 +26,6 @@ repaints the survivors; the hues and their order are CVD-validated.
 """
 
 SURFACE_COLOR: str = "#fcfcfb"
-INK_COLOR: str = "#000000"
 SECONDARY_INK_COLOR: str = "#000000"
 MUTED_COLOR: str = "#000000"
 GRID_COLOR: str = "#E0E0E0"

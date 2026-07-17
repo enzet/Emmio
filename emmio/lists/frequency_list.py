@@ -19,16 +19,6 @@ from emmio.lists.core import List
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class WordOccurrences:
-    """Unique word and number of its occurrences in some text."""
-
-    word: str
-    """Unique word."""
-
-    occurrences: int
-    """Number of occurrences of the word in some text."""
-
-
 @dataclass
 class FrequencyList(List):
     """Frequency list of some text.
@@ -134,19 +124,6 @@ class FrequencyList(List):
         )
         self._invalidate_derived()
 
-    def ignore_proper_nouns(self) -> None:
-        """Make frequency list case-insensitive."""
-        keys: list[str] = list(self.data.keys())
-        for word in keys:
-            if word.lower() != word:
-                if word.lower() in self.data:
-                    self.data[word.lower()] += self.data[word]
-                del self.data[word]
-        self._sorted_keys = sorted(
-            self.data.keys(), key=lambda word: -self.data[word]
-        )
-        self._invalidate_derived()
-
     def has(self, word: str) -> bool:
         """Check whether frequency list contains word."""
         return word in self.data
@@ -156,14 +133,6 @@ class FrequencyList(List):
         if word in self.data:
             return self.data[word]
         return 0
-
-    def get_position(self, word: str) -> int:
-        """Get word index in frequency list.
-
-        The most popular word in the text has index 1. If word is not in
-        frequency list, return -1.
-        """
-        return self._get_rank_index().get(word, -1)
 
     def get_all_occurrences(self) -> int:
         """Get number of all words in the text."""
@@ -180,17 +149,6 @@ class FrequencyList(List):
         """
         word: str = random.choice(self._sorted_keys)
         return word, self.data[word]
-
-    def get_word_by_occurrences(self, occurrences: int) -> tuple[str, int]:
-        """Get first word with occurrences more or equals to specified number.
-
-        :return: word and its number of occurrences in the text
-        """
-        for word in self._sorted_keys:
-            if self.data[word] >= occurrences:
-                return word, self.data[word]
-
-        return "", 0
 
     def get_word_by_index(self, index: int) -> tuple[str, int]:
         """Get word of the specified index."""
@@ -242,10 +200,6 @@ class FrequencyList(List):
     def get_name(self) -> str | None:
         """Get name of the list."""
         return self.config.name
-
-    def get_info(self) -> str:
-        """Get information about the list."""
-        return f"  Length: {len(self)}\n  Language: {self.config.language}"
 
     @classmethod
     def from_file(

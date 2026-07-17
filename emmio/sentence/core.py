@@ -1,6 +1,5 @@
 """Core functionality for sentences."""
 
-from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -135,17 +134,8 @@ class SentenceAndTranslations:
         return self.sentence.rate(self.language, is_known)
 
 
-class Sentences(ABC):
+class Sentences:
     """Sentences as an artifact."""
-
-    excluded_sentences_file_path: Path
-    """Mapping from words to number identifiers of sentences that cannot be used
-    for word learning.
-
-    E.g. if the learning word is "potter", all sentences containing "Potter" as
-    a name (e.g. "Harry Potter"), should be excluded, because back translation
-    is trivial.
-    """
 
 
 @dataclass
@@ -278,51 +268,3 @@ class SimpleTwoLanguagesSentences(Sentences):
         return sorted(
             [(s.rate(is_known), s) for s in sentences], key=lambda r: -r[0]
         )
-
-
-@dataclass
-class SentencesCollection:
-    """Collection of sentences."""
-
-    collection: list[SimpleTwoLanguagesSentences]
-    """List of sentences."""
-
-    def get(
-        self, word: str, ids_to_skip: set[int], max_length: int
-    ) -> list[SentenceAndTranslations]:
-        """Get list of sentences with translations that contain requested word.
-
-        :param word: word to be presented in the resulting sentences
-        :param ids_to_skip: identifiers of sentences to exclude
-        :param max_length: maximum length of the sentence to include
-        """
-        result: list[SentenceAndTranslations] = []
-
-        for sentences in self.collection:
-            result += sentences.get(word, ids_to_skip, max_length)
-
-        return result
-
-    def get_and_rate(
-        self,
-        word: str,
-        is_known: Callable[[str, Language], bool],
-        ids_to_skip: set[int],
-        max_length: int,
-    ) -> list[tuple[float, SentenceAndTranslations]]:
-        """Get list of sentences with requested word and their ratings.
-
-        :param word: word to be presented in the resulting sentences
-        :param is_known: function to check if a word is known
-        :param ids_to_skip: identifiers of sentences to exclude
-        :param max_length: maximum length of the sentence to include
-        """
-        result: list[tuple[float, SentenceAndTranslations]] = []
-
-        for sentences in self.collection:
-            result += sentences.get_and_rate(
-                word, is_known, ids_to_skip, max_length
-            )
-        result.sort(key=lambda record: -record[0])
-
-        return result

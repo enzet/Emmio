@@ -12,9 +12,6 @@ from matplotlib import transforms as mtransforms
 
 from emmio.learn.core import Knowledge, Learning, LearningRecord
 
-DEPTH_COLORS_BLACK_AND_WHITE: list[str] = ["#000000"] + [
-    "#" + f"{int(256 - 256 / 1.5**x):02x}" * 3 for x in range(20)
-]
 DEPTH_COLORS: list[str] = [
     "#CCCCCC",
     "#b7c183", "#74c183", "#3e8a83", "#3e5583",
