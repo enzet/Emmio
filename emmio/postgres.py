@@ -10,7 +10,7 @@ The connection string is taken from the `EMMIO_DATABASE_URL` or
 """
 
 import os
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -104,7 +104,7 @@ def _get_pool() -> ConnectionPool:
 
 
 @contextmanager
-def db_connection() -> Iterator[psycopg.Connection]:
+def db_connection() -> Generator[psycopg.Connection]:
     """Borrow a connection from the pool for one unit of work.
 
     The connection is checked out on entry and returned to the pool on exit;
@@ -120,13 +120,29 @@ def db_connection() -> Iterator[psycopg.Connection]:
         yield connection
 
 
+@contextmanager
+def db_cursor() -> Generator[psycopg.Cursor]:
+    """Borrow a connection and open a cursor for one unit of work.
+
+    The shorthand every query function here uses: `db_connection` with its
+    transaction semantics (commit on clean exit, rollback on exception), with
+    the cursor already opened::
+
+        with db_cursor() as cursor:
+            cursor.execute(...)
+    """
+
+    with db_connection() as connection, connection.cursor() as cursor:
+        yield cursor
+
+
 def ensure_user(user_id: str, name: str) -> None:
     """Create the user if it does not exist yet.
 
     :param user_id: stable string login, e.g. `john`
     :param name: display name
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "INSERT INTO users (user_id, name) VALUES (%s, %s) "
             "ON CONFLICT (user_id) DO NOTHING",
@@ -137,7 +153,7 @@ def ensure_user(user_id: str, name: str) -> None:
 def user_exists(user_id: str) -> bool:
     """Check whether a user with the given login exists."""
 
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
         return cursor.fetchone() is not None
 
@@ -153,7 +169,7 @@ def register_user(
     :param hashed_password: already-hashed password (never the plaintext)
     :raises ValueError: if the login or email is already taken
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT 1 FROM users WHERE user_id = %s OR email = %s",
             (user_id, email),
@@ -182,7 +198,7 @@ def set_credentials(user_id: str, email: str, hashed_password: str) -> None:
     :raises ValueError: if the user does not exist, or the email belongs to
         another user
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT 1 FROM users WHERE email = %s AND user_id <> %s",
             (email, user_id),
@@ -208,7 +224,7 @@ def get_credentials_by_email(email: str) -> tuple[str, str] | None:
 
     :param email: email address to look up
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT user_id, hashed_password FROM users "
             "WHERE email = %s AND hashed_password IS NOT NULL",
@@ -227,7 +243,7 @@ def get_password_hash(user_id: str) -> str | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT hashed_password FROM users WHERE user_id = %s", (user_id,)
         )
@@ -242,7 +258,7 @@ def set_password(user_id: str, hashed_password: str) -> None:
     :param hashed_password: already-hashed new password (never the plaintext)
     :raises ValueError: if the user does not exist
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "UPDATE users SET hashed_password = %s "
             "WHERE user_id = %s RETURNING id",
@@ -256,7 +272,7 @@ def set_password(user_id: str, hashed_password: str) -> None:
 def list_users() -> list[tuple[str, str]]:
     """Get all users as (login, display name) pairs, ordered by login."""
 
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute("SELECT user_id, name FROM users ORDER BY user_id")
         return [(row[0], row[1]) for row in cursor.fetchall()]
 
@@ -266,7 +282,7 @@ def get_user(user_id: str) -> tuple[str, str, str | None] | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT user_id, name, email FROM users WHERE user_id = %s",
             (user_id,),
@@ -283,7 +299,7 @@ def get_users() -> list[tuple[str, str, dict]]:
     dedicated tables (currently `listen`, plus historical sections such as
     `read`).
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute("SELECT user_id, name, config FROM users ORDER BY id")
         return [(row[0], row[1], row[2] or {}) for row in cursor.fetchall()]
 
@@ -293,7 +309,7 @@ def get_user_config(user_id: str) -> dict | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT config FROM users WHERE user_id = %s", (user_id,)
         )
@@ -309,7 +325,7 @@ def store_user_config(user_id: str, config: dict) -> None:
     :param config: configuration sections without dedicated tables
         (e.g. `listen`)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "UPDATE users SET config = %s WHERE user_id = %s",
             (Jsonb(config), user_id),
@@ -325,7 +341,7 @@ def get_account(user_id: str) -> dict[str, object] | None:
 
     :param user_id: user login, e.g. `john`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT user_id, name, email, created_at "
             "FROM users WHERE user_id = %s",
@@ -351,7 +367,7 @@ def delete_user(user_id: str) -> bool:
     :param user_id: owning user login, e.g. `john`
     :return: whether a user was deleted (`False` if none existed)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute("SELECT id FROM users WHERE user_id = %s", (user_id,))
         if not (row := cursor.fetchone()):
             return False
@@ -402,7 +418,7 @@ def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
     :return: (course id, name, learning language, distinct words studied,
         total answers) tuples, ordered by course id
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT c.course_id, c.name, c.learning_language, "
             "(SELECT count(DISTINCT r.question_id) FROM learn_records r "
@@ -429,7 +445,7 @@ def list_lexicons(
         name, frequency list usage configuration) tuples, ordered by
         lexicon id
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, "
             "(SELECT count(*) FROM lexicon_words w "
@@ -458,7 +474,7 @@ def rename_lexicon(user_id: str, lexicon_id: str, new_lexicon_id: str) -> bool:
     :raises ValueError: if the user already has a lexicon with the new
         identifier
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         try:
             cursor.execute(
                 "UPDATE lexicons l SET lexicon_id = %s FROM users u "
@@ -474,7 +490,7 @@ def rename_lexicon(user_id: str, lexicon_id: str, new_lexicon_id: str) -> bool:
 
 def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
     """Check whether a lexicon is the main one for its language."""
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.is_main FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s",
@@ -493,7 +509,7 @@ def get_main_lexicons(
         answers in the last 7 days, selection strategy, frequency list usage
         configuration) tuples, ordered by language
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.language, l.lexicon_id, "
             "COALESCE((l.config->>'precision_per_week')::int, 0), "
@@ -514,7 +530,7 @@ def get_main_lexicons(
 
 def has_main_lexicon(user_id: str, language: str) -> bool:
     """Check whether the user already has a main lexicon for a language."""
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT 1 FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.language = %s AND l.is_main",
@@ -532,7 +548,7 @@ def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
 
     :raises ValueError: if the lexicon does not exist
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.id, l.language "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -556,7 +572,7 @@ def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
 
 def clear_main_lexicon(user_id: str, lexicon_id: str) -> None:
     """Clear a lexicon's main flag (its language then has no main)."""
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "UPDATE lexicons SET is_main = false FROM users u "
             "WHERE lexicons.user_id = u.id AND u.user_id = %s "
@@ -578,7 +594,7 @@ def get_lexicon_answer_sequences(
         (response time, 1 for "know" / 0 for "don't know")
     """
     result: dict[str, list[tuple[datetime, int]]] = {}
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, r.response_time, r.response "
             "FROM lexicon_records r "
@@ -606,7 +622,7 @@ def get_lexicon_answer_sequence(user_id: str, lexicon_id: str) -> list[int]:
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :return: time-ordered list of 1 for "know" / 0 for "don't know"
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.response FROM lexicon_records r "
             "JOIN lexicon_words w ON w.id = r.word_id "
@@ -633,7 +649,7 @@ def get_lexicon_record_log(
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :return: time-ordered list of (word, response code) pairs
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT w.word, r.response FROM lexicon_records r "
             "JOIN lexicon_words w ON w.id = r.word_id "
@@ -658,7 +674,7 @@ def get_lexicon_dated_record_log(
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :return: time-ordered list of (response time, word, response code)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.response_time, w.word, r.response "
             "FROM lexicon_records r "
@@ -685,7 +701,7 @@ def get_last_lexicon_record_id(user_id: str) -> int | None:
     :param user_id: owning user login, e.g. `john`
     :return: the maximum record id, or `None` if there are no records
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT MAX(r.id) FROM lexicon_records r "
             "JOIN lexicon_words w ON w.id = r.word_id "
@@ -735,7 +751,7 @@ def get_lexicon_config(user_id: str, lexicon_id: str) -> dict | None:
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.language, l.selection, l.frequency_list, l.config "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -753,7 +769,7 @@ def get_lexicon_configs(user_id: str) -> dict[str, dict]:
     :param user_id: owning user login, e.g. `john`
     :return: mapping from lexicon identifier to its config dict
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.lexicon_id, l.language, l.selection, l.frequency_list, "
             "l.config FROM lexicons l JOIN users u ON u.id = l.user_id "
@@ -775,7 +791,7 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
     """
     selection, identity_list, mutable = split_lexicon_config(config)
     language: str = config["language"]
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO lexicons "
@@ -842,7 +858,7 @@ def get_learn_config(user_id: str, course_id: str) -> dict | None:
     :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT c.name, c.learning_language, c.config "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
@@ -860,7 +876,7 @@ def get_learn_configs(user_id: str) -> dict[str, dict]:
     :param user_id: owning user login, e.g. `john`
     :return: mapping from course identifier to its config dict
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT c.course_id, c.name, c.learning_language, c.config "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
@@ -880,7 +896,7 @@ def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
     :param course_id: course identifier, e.g. `fr`
     :param config: flat learn config (the `LearnConfig` fields)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO learn_courses "
@@ -910,7 +926,7 @@ def delete_course(user_id: str, course_id: str) -> bool:
     :param course_id: course identifier, e.g. `fr`
     :return: whether a course was deleted (`False` if none existed)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT c.id FROM learn_courses c JOIN users u ON u.id = c.user_id "
             "WHERE u.user_id = %s AND c.course_id = %s",
@@ -943,7 +959,7 @@ def delete_lexicon(user_id: str, lexicon_id: str) -> bool:
     :param lexicon_id: lexicon identifier, e.g. `fr`
     :return: whether a lexicon was deleted (`False` if none existed)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT l.id FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s",
@@ -977,7 +993,7 @@ def get_answered_words(user_id: str, lexicon_id: str) -> set[str]:
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT w.word "
             "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
@@ -1003,7 +1019,7 @@ def get_lexicon_word_states(
     :return: mapping from word to its current response code (the value may be
         `None` when the word is recorded without a cached response)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT w.word, w.response "
             "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
@@ -1028,7 +1044,7 @@ def get_last_lexicon_answers(
     """
     if not words:
         return {}
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (w.word) w.word, r.response, r.response_time "
             "FROM lexicon_records r "
@@ -1053,7 +1069,7 @@ def get_last_learn_answers(
     """
     if not questions:
         return {}
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (r.question_id) "
             "r.question_id, r.response, r.response_time "
@@ -1081,7 +1097,7 @@ def get_language_word_states(
     :param language: language code shared by the lexicons
     :return: mapping from word to its (response code, to_skip)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT ON (w.word) w.word, w.response, w.to_skip "
             "FROM lexicon_words w "
@@ -1101,7 +1117,7 @@ def get_lexicon_selector_states(
 
     :return: mapping from word to its (response code, `to_skip`)
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT w.word, w.response, w.to_skip "
             "FROM lexicon_words w "
@@ -1126,7 +1142,7 @@ def get_recently_answered(
     :param language: language code shared by the lexicons
     :param recent_days: length of the window in days
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT DISTINCT w.word "
             "FROM lexicon_records r "
@@ -1152,7 +1168,7 @@ def count_lexicon_records(user_id: str, language: str) -> int:
     :param user_id: owning user login, e.g. `john`
     :param language: language code shared by the lexicons
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT count(*) "
             "FROM lexicon_records r "
@@ -1175,7 +1191,7 @@ def count_learn_records(user_id: str, course_id: str) -> int:
     :param user_id: owning user login, e.g. `john`
     :param course_id: course identifier, e.g. `fr`
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT count(*) "
             "FROM learn_records r "
@@ -1200,7 +1216,7 @@ def delete_last_lexicon_record(user_id: str, lexicon_id: str) -> str | None:
     :return: the word whose answer was removed, or `None` if there is nothing
         to undo
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.id, w.id, w.word "
             "FROM lexicon_records r "
@@ -1302,7 +1318,7 @@ def load_learning(
     :return: (records, sessions) in insertion order; empty lists if the
         course is not in the database
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.question_id, r.response, r.response_time, "
             "r.request_time, r.extra "
@@ -1341,7 +1357,7 @@ def delete_last_learn_record(user_id: str, course_id: str) -> str | None:
     :return: the word whose answer was removed, or `None` if there is nothing
         to undo
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.id, r.question_id "
             "FROM learn_records r "
@@ -1376,7 +1392,7 @@ def save_learning(
     :param records: new records, not yet stored in the database
     :param sessions: new sessions, not yet stored in the database
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         db_id: int = _get_course_db_id(
             cursor, user_db_id, course_id, name, language
@@ -1424,7 +1440,7 @@ def load_lexicon(
     :return: (records, sessions) in insertion order; empty lists if the
         lexicon is not in the database
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         cursor.execute(
             "SELECT w.word, r.response, r.response_time, r.extra "
             "FROM lexicon_records r "
@@ -1469,7 +1485,7 @@ def save_lexicon(
     :param records: new records, not yet stored in the database
     :param sessions: new sessions, not yet stored in the database
     """
-    with db_connection() as connection, connection.cursor() as cursor:
+    with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         db_id: int = _get_lexicon_db_id(
             cursor, user_db_id, lexicon_id, language
