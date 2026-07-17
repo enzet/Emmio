@@ -71,39 +71,10 @@
                     hidden
                 ></figure>
 
-                <h3 id="add-lexicon-heading">Add a lexicon</h3>
-                <form id="add-lexicon-form">
-                    Add lexicon for
-                    <select id="add-lexicon-language" required></select> language<br />
-                    with definitions in
-                    <select
-                        id="add-lexicon-targets"
-                        class="translation-languages"
-                        required
-                    ></select> language<br />
-                    that uses
-                    <select
-                        id="add-lexicon-selection"
-                        class="lexicon-selection"
-                    ></select><br />
-                    selection strategy.<br />
-                    <button type="submit">Create lexicon</button>
-                </form>
-                <p id="add-status" role="status"></p>
-
-                <h3 id="add-course-heading">Add a course</h3>
-                <form id="add-course-form">
-                    Learn
-                    <select id="add-course-language" required></select> language<br />
-                    with definitions in
-                    <select
-                        id="add-course-targets"
-                        class="translation-languages"
-                        required
-                    ></select> language.<br />
-                    <button type="submit">Create course</button>
-                </form>
-                <p id="add-course-status" role="status"></p>
+                <!-- Filled by `renderAddLexiconForm` / `renderAddCourseForm`
+                     in app.js, shared with the lexicons and courses pages. -->
+                <div id="add-lexicon"></div>
+                <div id="add-course"></div>
             </section>
         </main>
     </body>

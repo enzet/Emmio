@@ -387,11 +387,68 @@ async function initHome() {
         figure.hidden = false;
     }
 
+    await setupAddLexicon();
+    await setupAddCourse();
+}
+
+// The "Add a lexicon" / "Add a course" blocks appear on the dashboard and on
+// the lexicon and course list pages. Each page carries only an empty
+// placeholder `<div>`; the markup lives here so the forms stay identical
+// everywhere and keep the ids/classes the setup functions below expect.
+function renderAddLexiconForm(container) {
+    container.innerHTML = `
+        <h3 id="add-lexicon-heading">Add a lexicon</h3>
+        <form id="add-lexicon-form" aria-labelledby="add-lexicon-heading">
+            Add lexicon for
+            <select id="add-lexicon-language" required></select> language<br />
+            with definitions in
+            <select
+                id="add-lexicon-targets"
+                class="translation-languages"
+                required
+            ></select> language<br />
+            that uses
+            <select
+                id="add-lexicon-selection"
+                class="lexicon-selection"
+            ></select><br />
+            selection strategy.<br />
+            <button type="submit">Create lexicon</button>
+        </form>
+        <p id="add-status" role="status"></p>`;
+}
+
+function renderAddCourseForm(container) {
+    container.innerHTML = `
+        <h3 id="add-course-heading">Add a course</h3>
+        <form id="add-course-form" aria-labelledby="add-course-heading">
+            Learn
+            <select id="add-course-language" required></select> language<br />
+            with definitions in
+            <select
+                id="add-course-targets"
+                class="translation-languages"
+                required
+            ></select> language.<br />
+            <button type="submit">Create course</button>
+        </form>
+        <p id="add-course-status" role="status"></p>`;
+}
+
+// Render the "Add a lexicon" block into the page's `#add-lexicon` placeholder
+// and wire it up.
+async function setupAddLexicon() {
+    renderAddLexiconForm(document.getElementById("add-lexicon"));
     await setupCreateLexicon(
         "add-lexicon-form",
         "add-lexicon-language",
         "add-status",
     );
+}
+
+// Likewise the "Add a course" block, into `#add-course`.
+async function setupAddCourse() {
+    renderAddCourseForm(document.getElementById("add-course"));
     await setupCreateCourse(
         "add-course-form",
         "add-course-language",
@@ -541,10 +598,10 @@ async function initLexicons() {
 
     if (lexicons.length === 0) {
         status.textContent = "No lexicons yet.";
-        return;
+    } else {
+        status.textContent = "";
+        table.hidden = false;
     }
-    status.textContent = "";
-    table.hidden = false;
     for (const lexicon of lexicons) {
         const row = document.createElement("tr");
 
@@ -574,6 +631,8 @@ async function initLexicons() {
 
         rows.appendChild(row);
     }
+
+    await setupAddLexicon();
 }
 
 // Lexicon detail page.
@@ -2419,10 +2478,10 @@ async function initCourses() {
 
     if (courses.length === 0) {
         status.textContent = "No courses yet.";
-        return;
+    } else {
+        status.textContent = "";
+        table.hidden = false;
     }
-    status.textContent = "";
-    table.hidden = false;
     for (const course of courses) {
         const row = document.createElement("tr");
 
@@ -2447,6 +2506,8 @@ async function initCourses() {
 
         rows.appendChild(row);
     }
+
+    await setupAddCourse();
 }
 
 // Course detail page.
