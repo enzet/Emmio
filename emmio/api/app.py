@@ -1148,18 +1148,28 @@ _LEARN_RESPONSE_LABELS: dict[str, str] = {
 }
 
 
+def _accepted_forms(word: str, language: Language) -> list[str]:
+    """Get the word plus its simplified spellings, e.g. Esperanto "anstataux".
+
+    Typing any of these counts as producing the word, mirroring the terminal
+    teacher's `decode_text` on typed answers.
+    """
+    return [word, *language.encode_texts(word)]
+
+
 def _word_cards(
     words: list[str],
     answers: dict[str, tuple[str, datetime]],
     labels: dict[str, str],
     *,
-    typed: bool = False,
+    typed_language: Language | None = None,
 ) -> list[WordCard]:
     """Build word cards, attaching each word's last answer.
 
-    :param typed: whether the card is answered by typing the word (learning),
-        in which case `accepted` is populated so the client can auto-accept a
-        correct entry; lexicon cards leave it `None`.
+    :param typed_language: set when the card is answered by typing the word
+        (learning), in which case `accepted` is populated so the client can
+        auto-accept a correct entry, including the language's simplified
+        spellings; lexicon cards leave it `None`.
     """
     cards: list[WordCard] = []
     for word in words:
@@ -1173,7 +1183,11 @@ def _word_cards(
                     else None
                 ),
                 last_time=code_time[1] if code_time else None,
-                accepted=[word] if typed else None,
+                accepted=(
+                    _accepted_forms(word, typed_language)
+                    if typed_language
+                    else None
+                ),
             )
         )
     return cards
@@ -2364,15 +2378,18 @@ def get_next_questions(
     """
     entry: LearningEntry = _learning_entry(user_id, course_id)
     with entry.lock:
-        language: str = entry.learning.learning_language.get_code()
+        language_object: Language = entry.learning.learning_language
         questions: list[str] = entry.learning.get_next_questions(
             max(1, min(count, _BATCH_MAX)), set(exclude or [])
         )
     answers = postgres.get_last_learn_answers(user_id, course_id, questions)
     return NextWords(
-        language=language,
+        language=language_object.get_code(),
         words=_word_cards(
-            questions, answers, _LEARN_RESPONSE_LABELS, typed=True
+            questions,
+            answers,
+            _LEARN_RESPONSE_LABELS,
+            typed_language=language_object,
         ),
     )
 
@@ -2704,7 +2721,7 @@ async def get_question(
         type=QUESTION_TYPE_TYPE_WORD,
         language=language,
         words=[word],
-        accepted=[word],
+        accepted=_accepted_forms(word, learning.learning_language),
     )
 
 
@@ -3000,7 +3017,7 @@ async def get_new_question_word(
             check_lexicon = ask_lexicon_id
         return NewQuestion(
             word=word,
-            accepted=[word],
+            accepted=_accepted_forms(word, learning.learning_language),
             check_lexicon=check_lexicon,
             remaining_today=remaining,
         )

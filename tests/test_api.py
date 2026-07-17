@@ -1558,6 +1558,25 @@ def test_question_types_config_restricts_the_type(
     assert body["accepted"] == ["saluton"]
 
 
+def test_question_accepts_simplified_spellings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed answer may use the x-system or h-system spelling."""
+
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _add_due_word("eo", "anstataŭ", ["n"])
+
+    response = client.get(
+        "/api/v1/me/courses/eo/question", headers=_auth(token)
+    )
+
+    body = response.json()
+    assert body["type"] == "type_word"
+    assert body["accepted"] == ["anstataŭ", "anstataux", "anstatauh"]
+
+
 def test_question_builds_a_choice_with_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

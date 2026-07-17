@@ -188,6 +188,36 @@ class Language:
 
         return text
 
+    def encode_texts(self, text: str) -> list[str]:
+        """Get simplified spellings that decode back to the text.
+
+        Inverse of `decode_text` for languages with digraphs: one variant per
+        encoding system, e.g. Esperanto "anstataŭ" is represented both as
+        "anstataux" (x-system) and "anstatauh" (h-system). The text itself is
+        never included.
+        """
+        if self.get_code() not in DIGRAPHS:
+            return []
+
+        # Group typed sequences by the character they decode to: each group
+        # lists the character's spelling in every encoding system, in the
+        # order the systems appear in `digraphs.json`.
+        spellings: dict[str, list[str]] = {}
+        for digraph, character in DIGRAPHS[self.get_code()].items():
+            spellings.setdefault(character, []).append(digraph)
+
+        variants: list[str] = []
+        for system in range(max(map(len, spellings.values()))):
+            variant: str = text
+            for character, digraphs in spellings.items():
+                variant = variant.replace(
+                    character, digraphs[min(system, len(digraphs) - 1)]
+                )
+            if variant != text and variant not in variants:
+                variants.append(variant)
+
+        return variants
+
     def __repr__(self) -> str:
         return self.get_code()
 

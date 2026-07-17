@@ -26,6 +26,19 @@ def test_esperanto() -> None:
     assert not KnownLanguages.ESPERANTO.is_word("sweat")
 
 
+def test_esperanto_encode_texts() -> None:
+    """Check simplified spellings that decode back to the word."""
+
+    esperanto = KnownLanguages.ESPERANTO
+
+    assert esperanto.encode_texts("anstataŭ") == ["anstataux", "anstatauh"]
+    assert esperanto.encode_texts("ĉiuĵaŭde") == ["cxiujxauxde", "chiujhauhde"]
+    assert esperanto.encode_texts("domo") == []
+
+    for variant in esperanto.encode_texts("ŝanĝi"):
+        assert esperanto.decode_text(variant) == "ŝanĝi"
+
+
 def test_greek() -> None:
     """Check that Greek words are detected correctly."""
 
