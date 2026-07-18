@@ -37,23 +37,41 @@ def split_sentence(
           - (" ", symbol),
           - ("world", word),
           - ("!", symbol),
+
+    A letter that is not in the language alphabet does not split a word: the
+    whole token is treated as a foreign word and marked as a symbol, so e.g.
+    "Noé" in an Italian sentence is not split into the word "No" and the
+    symbol "é".
     """
     # TODO(enzet): Move this functionality to the language class.
 
     words: list[tuple[str, SentenceElement]] = []
     current: str = ""
+    is_word: bool = True
+
+    def flush() -> None:
+        nonlocal current, is_word
+        if current:
+            words.append(
+                (
+                    current,
+                    SentenceElement.WORD if is_word else SentenceElement.SYMBOL,
+                )
+            )
+        current = ""
+        is_word = True
 
     for symbol in text:
         if language.has_symbol(symbol.lower()):
             current += symbol
+        elif symbol.isalpha():
+            current += symbol
+            is_word = False
         else:
-            if current:
-                words.append((current, SentenceElement.WORD))
+            flush()
             words.append((symbol, SentenceElement.SYMBOL))
-            current = ""
 
-    if current:
-        words.append((current, SentenceElement.WORD))
+    flush()
 
     return words
 

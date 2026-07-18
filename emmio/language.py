@@ -64,7 +64,15 @@ class Language:
     """Language color."""
 
     symbols: str
-    """All symbols allowed in the language."""
+    """All symbols allowed in native words of the language."""
+
+    borrowed_symbols: str = ""
+    """Symbols allowed in the language, but not in its native words.
+
+    Letters that appear only in borrowed words, proper names, or variant
+    orthography: e.g. "j", "k", "w", "x", "y" in Italian are used in words
+    like "weekend", but never in native Italian words.
+    """
 
     self_name: str | None = None
     """Language name in its own language."""
@@ -82,7 +90,10 @@ class Language:
         if self.checking:
             self.has_symbol = self.checking
         else:
-            self.has_symbol = lambda symbol: symbol in self.symbols
+            self.has_symbol = (
+                lambda symbol: symbol in self.symbols
+                or symbol in self.borrowed_symbols
+            )
 
     @classmethod
     def from_code(cls, code: str) -> Language:
@@ -149,15 +160,31 @@ class Language:
         return self.symbols is not None
 
     def get_symbols(self) -> str | None:
-        """Get all symbols allowed in the language."""
-        return self.symbols
+        """Get all symbols allowed in the language, including borrowed."""
+        if not self.has_symbols():
+            return None
+        return self.symbols + self.borrowed_symbols
 
     def is_word(self, word: str) -> bool:
-        """Check if the word is valid in the language."""
+        """Check if the word is valid in the language.
+
+        Borrowed letters are allowed: e.g. Italian "weekend" is a word.
+        """
         if not self.has_symbols():
             msg = f"Language `{self.get_code()}` does not have symbols."
             raise ValueError(msg)
         return all(self.has_symbol(c) for c in word)
+
+    def is_native_word(self, word: str) -> bool:
+        """Check if the word contains only native alphabet letters.
+
+        Borrowed letters (see `borrowed_symbols`) make a word a probable
+        borrowing, not a native word: e.g. Italian "weekend".
+        """
+        if not self.has_symbols():
+            msg = f"Language `{self.get_code()}` does not have symbols."
+            raise ValueError(msg)
+        return all(c in self.symbols for c in word)
 
     def normalize(self, word: str) -> str:
         """Get the most common form of the word.
@@ -302,6 +329,19 @@ THAI_LETTERS: str = letter_range("\u0e00", "\u0e7f")
 LATIN_UPPER: str = letter_range("A", "Z")
 LATIN_LETTERS: str = LATIN_UPPER + LATIN_UPPER.lower()
 
+
+def both_cases(letters: str) -> str:
+    """Get the letters with their lowercase forms appended."""
+    return letters + letters.lower()
+
+
+def latin_letters_except(excluded: str) -> str:
+    """Get Latin letters of both cases without the excluded uppercase ones."""
+    return both_cases(
+        "".join(letter for letter in LATIN_UPPER if letter not in excluded)
+    )
+
+
 RU_UPPER: str = letter_range("А", "Я") + "Ё"
 UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
 EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
@@ -367,7 +407,9 @@ class KnownLanguages:
     ENGLISH: Language = Language(
         "en",
         Color("#071B65"),  # Blue color of the United Kingdom flag.
-        LATIN_LETTERS + "ÏïÉé" + "".join(LATIN_LIGATURES.keys()),
+        LATIN_LETTERS + "".join(LATIN_LIGATURES.keys()),
+        # Diacritics appear only in borrowed spellings, e.g. "café", "naïve".
+        borrowed_symbols=both_cases("ÉÏ"),
     )
     ESPERANTO: Language = Language(
         "eo",
@@ -377,15 +419,19 @@ class KnownLanguages:
     FRENCH: Language = Language(
         "fr",
         Color("#4193C3"),  # Blue color of the Francophonie flag.
-        LATIN_LETTERS
+        latin_letters_except("KW")
         + "ÂÀÇÉÈÊËÎÏÔÙÛÜŸÆŒàâçéèêëîïôùûüÿæœ"
         + "".join(LATIN_LIGATURES.keys()),
+        # K and W appear only in borrowed words, e.g. "kilo", "wagon".
+        borrowed_symbols=both_cases("KW"),
         self_name="français",
     )
     GERMAN: Language = Language(
         "de",
         Color("#F7D046"),  # Yellow color of the German flag.
-        LATIN_LETTERS + "ÄäÖöÜüß",
+        latin_letters_except("Y") + "ÄäÖöÜüß",
+        # Y appears only in borrowed words, e.g. "Typ", "Yacht".
+        borrowed_symbols=both_cases("Y"),
         self_name="deutsch",
     )
     GEORGIAN: Language = Language(
@@ -409,7 +455,11 @@ class KnownLanguages:
     ITALIAN: Language = Language(
         "it",
         Color("#41914D"),  # Green color of the Italy flag.
-        LATIN_LETTERS,
+        # 21-letter native alphabet with standard accented vowels.
+        latin_letters_except("JKWXY") + both_cases("ÀÈÉÌÒÙ"),
+        # J, K, W, X, Y appear only in borrowed words and proper names;
+        # í, î, ó, ú only in variant orthography, e.g. "principî".
+        borrowed_symbols=both_cases("JKWXYÍÎÓÚ"),
         self_name="italiano",
     )
     JAPANESE: Language = Language(
@@ -442,26 +492,33 @@ class KnownLanguages:
     NORWEGIAN: Language = Language(
         "no",
         Color("#061A57"),  # Blue color of the Norway flag.
-        LATIN_LETTERS + "ÆØÅæøå",
+        latin_letters_except("CQWXZ") + "ÆØÅæøå",
+        # C, Q, W, X, Z appear only in borrowed words, e.g. "camping", "quiz".
+        borrowed_symbols=both_cases("CQWXZ"),
         self_name="norsk",
     )
     NORWEGIAN_BOKMAL: Language = Language(
         "nb",
         Color("#061A57"),  # Blue color of the Norway flag.
-        LATIN_LETTERS + "ÆØÅæøå",
+        latin_letters_except("CQWXZ") + "ÆØÅæøå",
+        borrowed_symbols=both_cases("CQWXZ"),
         self_name="norsk bokmål",
         parent=NORWEGIAN,
     )
     PORTUGUESE: Language = Language(
         "pt",
         Color("#2B6519"),  # Green color of the Portugal flag.
-        LATIN_LETTERS + "ÁÂÃ̃ÀÇÉÊÍÓÔÕÚáâã̃àçéêíóôõú",
+        latin_letters_except("KWY") + "ÁÂÃ̃ÀÇÉÊÍÓÔÕÚáâã̃àçéêíóôõú",
+        # K, W, Y appear only in borrowed words, e.g. "kiwi", "yoga".
+        borrowed_symbols=both_cases("KWY"),
         self_name="português",
     )
     POLISH: Language = Language(
         "pl",
         Color("#CB2E3F"),  # Red color of the Poland flag.
-        "AĄBCĆDEĘFGHIJKLŁMNŃOÓPQRSŚTUVWXYZŹŻaąbcćdeęfghijklłmnńoópqrsśtuvwxyzźż",
+        latin_letters_except("QVX") + both_cases("ĄĆĘŁŃÓŚŹŻ"),
+        # Q, V, X appear only in borrowed words, e.g. "quiz", "video".
+        borrowed_symbols=both_cases("QVX"),
         self_name="polski",
     )
     RUSSIAN: Language = Language(
@@ -473,13 +530,17 @@ class KnownLanguages:
     SPANISH: Language = Language(
         "es",
         Color("#F6C844"),  # Yellow color of the Spain flag.
-        LATIN_LETTERS + "ÑÁÉÍÓÚÜñáéíóúü",
+        latin_letters_except("KW") + "ÑÁÉÍÓÚÜñáéíóúü",
+        # K and W appear only in borrowed words, e.g. "kilo", "web".
+        borrowed_symbols=both_cases("KW"),
         self_name="español",
     )
     SWEDISH: Language = Language(
         "sv",
         Color("#205090"),  # Blue color of the Sweden flag.
-        LATIN_LETTERS + "ÅÄÖåäö",
+        latin_letters_except("QWZ") + "ÅÄÖåäö",
+        # Q, W, Z appear only in borrowed words, e.g. "quiz", "webb", "zon".
+        borrowed_symbols=both_cases("QWZ"),
         self_name="svenska",
     )
     UKRAINIAN: Language = Language(
@@ -496,19 +557,23 @@ class KnownLanguages:
     AFRIKAANS: Language = Language(
         "af",
         Color("#007A4D"),  # Green color of the South African flag.
-        LATIN_LETTERS + "ÁÄÉÈÊËÍÎÏÓÔÖÚÛÜÝáäéèêëíîïóôöúûüý",
+        latin_letters_except("CQXZ") + "ÁÄÉÈÊËÍÎÏÓÔÖÚÛÜÝáäéèêëíîïóôöúûüý",
+        borrowed_symbols=both_cases("CQXZ"),
         self_name="Afrikaans",
     )
     ALBANIAN: Language = Language(
         "sq",
         Color("#E41E20"),  # Red color of the Albanian flag.
-        LATIN_LETTERS + "ÇËçë",
+        latin_letters_except("W") + "ÇËçë",
+        borrowed_symbols=both_cases("W"),
         self_name="shqip",
     )
     BASQUE: Language = Language(
         "eu",
         Color("#D52B1E"),  # Red color of the Basque flag.
-        LATIN_LETTERS + "ÑÜÇñüç",
+        latin_letters_except("CQVWY") + "ÑÜñü",
+        # Ç is officially reserved for borrowed words, like C, Q, V, W, Y.
+        borrowed_symbols=both_cases("CQVWYÇ"),
         self_name="euskara",
     )
     BENGALI: Language = Language(
@@ -520,7 +585,8 @@ class KnownLanguages:
     BOSNIAN: Language = Language(
         "bs",
         Color("#002F6C"),  # Blue color of the Bosnian flag.
-        LATIN_LETTERS + "ČĆĐŠŽčćđšž",
+        latin_letters_except("QWXY") + "ČĆĐŠŽčćđšž",
+        borrowed_symbols=both_cases("QWXY"),
         self_name="bosanski",
     )
     BRETON: Language = Language(
@@ -538,49 +604,60 @@ class KnownLanguages:
     CATALAN: Language = Language(
         "ca",
         Color("#FCDD09"),  # Yellow color of the Catalan flag.
-        LATIN_LETTERS + "ÀÇÉÈÍÏÓÒÚÜ·àçéèíïóòúü",
+        latin_letters_except("KW") + "ÀÇÉÈÍÏÓÒÚÜ·àçéèíïóòúü",
+        borrowed_symbols=both_cases("KW"),
         self_name="català",
     )
     CROATIAN: Language = Language(
         "hr",
         Color("#D6001C"),  # Red color of the Croatian flag.
-        LATIN_LETTERS + "ČĆĐŠŽčćđšž",
+        latin_letters_except("QWXY") + "ČĆĐŠŽčćđšž",
+        borrowed_symbols=both_cases("QWXY"),
         self_name="hrvatski",
     )
     CZECH: Language = Language(
         "cs",
         Color("#11457E"),  # Blue color of the Czech flag.
-        LATIN_LETTERS + "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž",
+        latin_letters_except("QWX") + "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž",
+        borrowed_symbols=both_cases("QWX"),
         self_name="čeština",
     )
     DANISH: Language = Language(
         "da",
         Color("#C60C30"),  # Red color of the Danish flag.
-        LATIN_LETTERS + "ÆØÅæøå",
+        latin_letters_except("CQWXZ") + "ÆØÅæøå",
+        borrowed_symbols=both_cases("CQWXZ"),
         self_name="dansk",
     )
     DUTCH: Language = Language(
         "nl",
         Color("#AE1C28"),  # Red color of the Dutch flag.
-        LATIN_LETTERS + "ÁÄÉËÍÏÓÖÚÜĲĳáäéëíïóöúü",
+        latin_letters_except("QXY") + "ÁÄÉËÍÏÓÖÚÜĲĳáäéëíïóöúü",
+        borrowed_symbols=both_cases("QXY"),
         self_name="Nederlands",
     )
     ESTONIAN: Language = Language(
         "et",
         Color("#0072CE"),  # Blue color of the Estonian flag.
-        LATIN_LETTERS + "ŠŽÕÄÖÜšžõäöü",
+        latin_letters_except("CFQWXYZ") + "ÕÄÖÜõäöü",
+        # F, Š, Z, Ž are official "foreign letters" of the alphabet; C, Q, W,
+        # X, Y are used only in foreign proper names.
+        borrowed_symbols=both_cases("CFQWXYZŠŽ"),
         self_name="eesti",
     )
     FINNISH: Language = Language(
         "fi",
         Color("#003580"),  # Blue color of the Finnish flag.
-        LATIN_LETTERS + "ÄÖÅäöåŠŽšž",
+        latin_letters_except("CQWXZ") + "ÄÖäö",
+        # Å is used only in Swedish names; Š and Ž only in borrowed words.
+        borrowed_symbols=both_cases("CQWXZÅŠŽ"),
         self_name="suomi",
     )
     GALICIAN: Language = Language(
         "gl",
         Color("#0066CC"),  # Blue color of the Galician flag.
-        LATIN_LETTERS + "ÁÉÍÓÚÜÑñáéíóúü",
+        latin_letters_except("JKWY") + "ÁÉÍÓÚÜÑñáéíóúü",
+        borrowed_symbols=both_cases("JKWY"),
         self_name="galego",
     )
     HINDI: Language = Language(
@@ -592,13 +669,16 @@ class KnownLanguages:
     HUNGARIAN: Language = Language(
         "hu",
         Color("#CD2A3E"),  # Red color of the Hungarian flag.
-        LATIN_LETTERS + "ÁÉÍÓÖŐÚÜŰáéíóöőúüű",
+        # Y stays native: it is part of the digraphs "gy", "ly", "ny", "ty".
+        latin_letters_except("QWX") + "ÁÉÍÓÖŐÚÜŰáéíóöőúüű",
+        borrowed_symbols=both_cases("QWX"),
         self_name="magyar",
     )
     INDONESIAN: Language = Language(
         "id",
         Color("#CE1126"),  # Red color of the Indonesian flag.
-        LATIN_LETTERS,
+        latin_letters_except("QX"),
+        borrowed_symbols=both_cases("QX"),
         self_name="bahasa Indonesia",
     )
     KAZAKH: Language = Language(
@@ -610,7 +690,8 @@ class KnownLanguages:
     LITHUANIAN: Language = Language(
         "lt",
         Color("#FDB913"),  # Yellow color of the Lithuanian flag.
-        LATIN_LETTERS + "ĄČĘĖĮŠŲŪŽąčęėįšųūž",
+        latin_letters_except("QWX") + "ĄČĘĖĮŠŲŪŽąčęėįšųūž",
+        borrowed_symbols=both_cases("QWX"),
         self_name="lietuvių",
     )
     MACEDONIAN: Language = Language(
@@ -628,7 +709,8 @@ class KnownLanguages:
     ROMANIAN: Language = Language(
         "ro",
         Color("#002B7F"),  # Blue color of the Romanian flag.
-        LATIN_LETTERS + "ÂĂÎȘȚâăîșț",
+        latin_letters_except("KQWY") + "ÂĂÎȘȚâăîșț",
+        borrowed_symbols=both_cases("KQWY"),
         self_name="română",
     )
     SERBIAN: Language = Language(
@@ -646,13 +728,15 @@ class KnownLanguages:
     SLOVAK: Language = Language(
         "sk",
         Color("#0B4EA2"),  # Blue color of the Slovak flag.
-        LATIN_LETTERS + "ÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž",
+        latin_letters_except("QWX") + "ÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž",
+        borrowed_symbols=both_cases("QWX"),
         self_name="slovenčina",
     )
     SLOVENIAN: Language = Language(
         "sl",
         Color("#005DA4"),  # Blue color of the Slovenian flag.
-        LATIN_LETTERS + "ČŠŽčšž",
+        latin_letters_except("QWXY") + "ČŠŽčšž",
+        borrowed_symbols=both_cases("QWXY"),
         self_name="slovenščina",
     )
     TAGALOG: Language = Language(
@@ -682,7 +766,8 @@ class KnownLanguages:
     TURKISH: Language = Language(
         "tr",
         Color("#E30A17"),  # Red color of the Turkish flag.
-        LATIN_LETTERS + "ÇĞİıÖŞÜçğöşü",
+        latin_letters_except("QWX") + "ÇĞİıÖŞÜçğöşü",
+        borrowed_symbols=both_cases("QWX"),
         self_name="Türkçe",
     )
     URDU: Language = Language(
@@ -694,9 +779,10 @@ class KnownLanguages:
     VIETNAMESE: Language = Language(
         "vi",
         Color("#DA251D"),  # Red color of the Vietnamese flag.
-        LATIN_LETTERS
+        latin_letters_except("FJWZ")
         + "ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯư"
         + letter_range("ạ", "ỹ"),
+        borrowed_symbols=both_cases("FJWZ"),
         self_name="Tiếng Việt",
     )
 
