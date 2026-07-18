@@ -987,6 +987,7 @@ class CourseSettings(BaseModel):
     translation_languages: list[str]  # `base_languages`.
     max_for_day: int  # New words introduced per day.
     play_audio: bool  # Whether to play pronunciation audio in a session.
+    extra_symbols: str  # Letters a basic keyboard may lack, for tap buttons.
 
 
 class UpdateCourseRequest(BaseModel):
@@ -1000,12 +1001,19 @@ class UpdateCourseRequest(BaseModel):
 
 def _course_settings(config: dict) -> CourseSettings:
     """Read a course's editable settings out of its flat config."""
+    try:
+        extra_symbols: str = Language.from_code(
+            config["learning_language"]
+        ).get_extra_symbols()
+    except LanguageNotFoundError:
+        extra_symbols = ""
     return CourseSettings(
         name=config["name"],
         learning_language=config["learning_language"],
         translation_languages=config.get("base_languages") or [],
         max_for_day=config.get("max_for_day", 10),
         play_audio=config.get("play_audio", True),
+        extra_symbols=extra_symbols,
     )
 
 

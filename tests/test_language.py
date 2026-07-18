@@ -94,6 +94,27 @@ def test_turkish() -> None:
     assert not KnownLanguages.TURKISH.is_word("книга")
 
 
+def test_extra_symbols() -> None:
+    """Check letters reported as missing from a basic keyboard."""
+
+    assert KnownLanguages.SPANISH.get_extra_symbols() == "ñáéíóúü"
+    assert KnownLanguages.GERMAN.get_extra_symbols() == "äöüß"
+    assert KnownLanguages.UKRAINIAN.get_extra_symbols() == "ґєії'’"
+
+    # Plain Latin and Russian alphabets are assumed to be on the keyboard.
+    assert KnownLanguages.ENGLISH.get_extra_symbols() == ""
+    assert KnownLanguages.RUSSIAN.get_extra_symbols() == ""
+
+    # Caseless scripts need a whole layout, not a row of buttons.
+    assert KnownLanguages.JAPANESE.get_extra_symbols() == ""
+    assert KnownLanguages.HEBREW.get_extra_symbols() == ""
+
+    # Too many missing letters for buttons: a best-effort Unicode-block
+    # alphabet and the heavily diacritised Vietnamese.
+    assert KnownLanguages.BULGARIAN.get_extra_symbols() == ""
+    assert KnownLanguages.VIETNAMESE.get_extra_symbols() == ""
+
+
 def test_thai() -> None:
     """Check that Thai words are detected correctly."""
 

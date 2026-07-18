@@ -165,6 +165,20 @@ class Language:
             return None
         return self.symbols + self.borrowed_symbols
 
+    def get_extra_symbols(self) -> str:
+        """Get letters that a basic keyboard for the language may lack."""
+        extra: list[str] = []
+        for symbol in self.symbols:
+            if symbol in BASIC_KEYBOARD_SYMBOLS or symbol in extra:
+                continue
+            if symbol in LATIN_LIGATURES or symbol == STRESS_MARK:
+                continue
+            if symbol in SKIPPERS or (symbol.isalpha() and symbol.islower()):
+                extra.append(symbol)
+        if len(extra) > MAX_EXTRA_SYMBOLS:
+            return ""
+        return "".join(extra)
+
     def is_word(self, word: str) -> bool:
         """Check if the word is valid in the language.
 
@@ -345,6 +359,22 @@ def latin_letters_except(excluded: str) -> str:
 RU_UPPER: str = letter_range("А", "Я") + "Ё"
 UK_UPPER: str = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
 EO_UPPER: str = "ABCĈDEFGĜHĤIJĴKLMNOPRSŜTUŬVZ"
+
+BASIC_KEYBOARD_SYMBOLS: str = (
+    LATIN_UPPER + LATIN_UPPER.lower() + RU_UPPER + RU_UPPER.lower()
+)
+"""Letters assumed to be present on a basic physical keyboard.
+
+Plain Latin letters (English layout) and the Russian alphabet (ЙЦУКЕН
+layout); see `Language.get_extra_symbols`.
+"""
+
+MAX_EXTRA_SYMBOLS: int = 20
+"""Maximum letters `Language.get_extra_symbols` reports.
+
+More missing letters than this means the user needs a proper layout (or an
+input method), not a row of buttons.
+"""
 
 SKIPPERS: str = "'’"
 STRESS_MARK: str = "́"

@@ -1783,6 +1783,7 @@ async function runLearnSession(base) {
     const teachBox = document.getElementById("teach-box");
     const wordEl = document.getElementById("word");
     const input = document.getElementById("answer-input");
+    const symbolButtons = document.getElementById("symbol-buttons");
     const answers = document.getElementById("answers");
     const question = document.getElementById("question");
     const translation = document.getElementById("translation");
@@ -2426,6 +2427,32 @@ async function runLearnSession(base) {
         .getElementById("ask-dont")
         .addEventListener("click", () => askAnswer(false));
 
+    // On-screen buttons for letters of the learning language that the user's
+    // physical keyboard may lack.
+    function renderSymbolButtons(symbols) {
+        symbolButtons.replaceChildren();
+        symbolButtons.hidden = symbols.length === 0;
+        for (const symbol of symbols) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = symbol;
+            // Keep the focus (and thus the caret) in the input: mousedown
+            // would move it to the button before click fires.
+            button.addEventListener("mousedown", (event) =>
+                event.preventDefault(),
+            );
+            button.addEventListener("click", () => {
+                if (input.hidden || input.disabled) return;
+                const start = input.selectionStart ?? input.value.length;
+                const end = input.selectionEnd ?? start;
+                input.setRangeText(symbol, start, end, "end");
+                input.focus();
+                input.dispatchEvent(new Event("input"));
+            });
+            symbolButtons.append(button);
+        }
+    }
+
     // type_word: auto-accept the instant the typed text matches an accepted form.
     input.addEventListener("input", () => {
         if (!current || current.type !== "type_word") return;
@@ -2493,7 +2520,9 @@ async function runLearnSession(base) {
     ]);
     if (dictionariesResponse.ok) dictionaries = await dictionariesResponse.json();
     if (settingsResponse.ok) {
-        playAudio = (await settingsResponse.json()).play_audio;
+        const settings = await settingsResponse.json();
+        playAudio = settings.play_audio;
+        renderSymbolButtons(settings.extra_symbols || "");
     }
     await advance();
 }

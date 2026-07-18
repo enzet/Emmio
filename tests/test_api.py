@@ -885,6 +885,7 @@ def test_update_course_settings_regenerates_translation_config() -> None:
     assert body["name"] == "My Ukrainian"
     assert body["translation_languages"] == ["en", "ru"]
     assert body["max_for_day"] == 25
+    assert body["extra_symbols"] == "ґєії'’"
 
     config = postgres.get_learn_config("alice", "uk")
     assert config is not None
