@@ -687,10 +687,8 @@ async function initLexicon() {
             "Vocabulary rate",
             s.rate === null
                 ? "not enough data"
-                : formatRate(s.rate, s.sd, 1),
+                : formatRate(s.rate, s.sd, 2),
         ],
-        ["Precision (total)", s.precision],
-        ["Precision (last 7 days)", s.dont_last_week],
         ["Weekly goal", s.precision_per_week],
     ];
     renderDefinitionList(stats, rows);

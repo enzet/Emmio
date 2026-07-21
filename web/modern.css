@@ -1,0 +1,290 @@
+/* Emmio web interface: the "modern" style.
+ *
+ * Decoration layered on top of `base.css`; every rule is scoped under
+ * `html[data-style="modern"]` so the basic style is untouched. Loaded on
+ * every page after `base.css`, so equal-specificity rules here win. To
+ * retint the whole app, override the palette variables from `base.css`
+ * here (both blocks below) instead of restyling elements. */
+
+html[data-style="modern"] {
+    --bg: #FFFFFF;
+    --fg: #0D0D0D;
+    --muted: #8E8E8E;
+    --faint: #C7C7C7;
+    --border: #E4E4E4;
+    --surface: #FFFFFF;
+    --surface-border: #DBDBDB;
+    --input-bg: #F4F4F4;
+    --danger: #ED4956;
+    --press-bg: #0000000D;
+    --press-shadow: #0000001A;
+    --correct-bg: #EAF7EF;
+    --correct-border: #9FD8B4;
+    --correct-fg: #1B7F3B;
+    --wrong-bg: #FBEBED;
+    --wrong-border: #F0B4BA;
+    --wrong-fg: #C22F3D;
+    --selected-bg: #EDF4FE;
+    --selected-border: #A8C7F0;
+}
+html[data-style="modern"][data-theme="dark"] {
+    --bg: #0A0A0A;
+    --fg: #F3F5F7;
+    --muted: #999999;
+    --faint: #4D4D4D;
+    --border: #2A2A2A;
+    --surface: #181818;
+    --surface-border: #FFFFFF29;
+    --input-bg: #1E1E1E;
+    --danger: #FF6874;
+    --press-bg: #FFFFFF14;
+    --press-shadow: #00000066;
+    --correct-bg: #132A1B;
+    --correct-border: #2E6B41;
+    --correct-fg: #7BD89A;
+    --wrong-bg: #33191D;
+    --wrong-border: #7A3A42;
+    --wrong-fg: #F2A2AA;
+    --selected-bg: #16233A;
+    --selected-border: #3D5A8C;
+}
+
+/* The off-white ink (#F3F5F7) needs its own inversion factor for the
+   black-filled SVG logo; 0.9569 turns black into #F4F4F4-ish. */
+html[data-style="modern"][data-theme="dark"] img.logo,
+html[data-style="modern"][data-theme="dark"] img.logo-corner {
+    filter: invert(0.9569);
+}
+
+/* Layout: `body` itself is now full width (edge to edge) so `header` can be
+   a full-bleed bar; the reading column (`main`, `footer`) is centered inside
+   it instead. `--inset` is the shared side padding, wider on roomy
+   viewports so content breathes without the column growing unreadably
+   wide. The sticky-footer flex column from `base.css` still applies. */
+html[data-style="modern"] body {
+    --inset: clamp(1.25rem, 4vw, 3.5rem);
+    box-sizing: border-box;
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+/* `header` spans the full body width, a sticky translucent bar; `main` and
+   `footer` center a wider reading column (760px, up from the previous
+   680px) inside it. All three share the same side inset so their content
+   lines up vertically. */
+html[data-style="modern"] header {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.9rem var(--inset);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+html[data-style="modern"] main,
+html[data-style="modern"] footer {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+    padding-inline: var(--inset);
+}
+html[data-style="modern"] main {
+    padding-block-start: 0.5rem;
+}
+html[data-style="modern"] footer {
+    padding-block-end: 2rem;
+}
+/* The check page's side-by-side halves stack into the single column. */
+html[data-style="modern"] main.check {
+    flex-direction: column;
+}
+html[data-style="modern"] main.check section {
+    width: 100%;
+}
+/* The example-sentence translation is fixed at 500px in the base style;
+   let it fill the column instead. */
+html[data-style="modern"] p#sentence-translation {
+    width: auto;
+    max-width: 32rem;
+}
+html[data-style="modern"] h1,
+html[data-style="modern"] h2 {
+    letter-spacing: -0.02em;
+    font-weight: 700;
+}
+html[data-style="modern"] p {
+    margin-block-start: 0.5em;
+    margin-block-end: 0.5em;
+}
+/* Dictionary entries drop the serif: one typeface everywhere. */
+html[data-style="modern"] .dictionary-body {
+    font-family: inherit;
+}
+/* Links carry the ink color; the underline alone marks them. */
+html[data-style="modern"] a {
+    color: var(--fg);
+    text-decoration-color: var(--faint);
+    text-underline-offset: 2px;
+}
+html[data-style="modern"] a:hover {
+    text-decoration-color: var(--fg);
+}
+html[data-style="modern"] footer {
+    color: var(--muted);
+}
+html[data-style="modern"] code {
+    font-size: 90%;
+}
+
+/* Header navigation: quiet until hovered. */
+html[data-style="modern"] header a,
+html[data-style="modern"] nav span {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.12s ease;
+}
+html[data-style="modern"] header a:hover {
+    color: var(--fg);
+}
+
+/* Buttons: flat, hairline-bordered, filling on hover. The pressed feedback
+   (scale + inset shadow) comes from `base.css`; the 5px corner radius is
+   fixed across every style. */
+html[data-style="modern"] button,
+html[data-style="modern"] a.button {
+    background-color: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 5px;
+    padding: 0.35rem 0.9rem;
+    font-family: inherit;
+    font-size: 90%;
+    font-weight: 600;
+    color: var(--fg);
+    cursor: pointer;
+    transition: transform 0.08s ease, background-color 0.12s ease,
+        border-color 0.12s ease, box-shadow 0.08s ease;
+}
+html[data-style="modern"] button:hover,
+html[data-style="modern"] a.button:hover {
+    background-color: var(--input-bg);
+}
+/* The primary call to action stays a solid, inverted pill. */
+html[data-style="modern"] a.button.primary {
+    background-color: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg);
+}
+html[data-style="modern"] a.button.primary:hover {
+    background-color: var(--fg);
+    opacity: 0.85;
+}
+
+/* Inputs and selects: borderless soft-rounded fields on a gray fill, the
+   ChatGPT-composer look; the border only appears as a focus ring. */
+html[data-style="modern"] input.text,
+html[data-style="modern"] select {
+    font-family: inherit;
+    font-size: 95%;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: var(--input-bg);
+    padding: 0.4rem 0.7rem;
+    width: stretch;
+    color: var(--fg);
+}
+html[data-style="modern"] select {
+    width: auto;
+}
+html[data-style="modern"] input#answer-input {
+    border: 1px solid transparent;
+    border-radius: 16px;
+}
+html[data-style="modern"] :is(input, select, button, a):focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 1px;
+}
+html[data-style="modern"] label {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+/* Cards (login, register, landing): softer corners, more air. */
+html[data-style="modern"] main.card,
+html[data-style="modern"] main.login {
+    border-radius: 20px;
+    border-color: var(--border);
+    padding: 0.5rem 1.5rem;
+}
+
+/* Tables: no cell boxes, just hairline row dividers with quiet headers. */
+html[data-style="modern"] table tr td,
+html[data-style="modern"] th {
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.45rem 0.8rem;
+}
+html[data-style="modern"] th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 85%;
+    text-align: left;
+}
+
+/* Definition lists (profile, stats): muted terms, plain values. */
+html[data-style="modern"] dt {
+    color: var(--muted);
+}
+
+/* Keyboard hints as tiny key caps instead of translucent text. */
+html[data-style="modern"] kbd {
+    font-family: inherit;
+    font-size: 70%;
+    opacity: 1;
+    color: var(--muted);
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0 0.3em;
+    margin-left: 0.35em;
+    vertical-align: 1px;
+}
+
+/* Language codes as quiet little chips, not inverted badges. */
+html[data-style="modern"] span.language-code {
+    font-family: inherit;
+    text-transform: uppercase;
+    font-size: 70%;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    display: inline-block;
+    background: var(--input-bg);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 0.1em 0.4em;
+    min-width: 1.6em;
+    text-align: center;
+}
+
+/* Exercise widgets: same 5px radius as every other button (from the rule
+   above); just a lighter weight here. */
+html[data-style="modern"] #choice-options button.option,
+html[data-style="modern"] .connect-cell {
+    font-weight: 500;
+}
+
+/* The big word tightens like a display headline and scales down with the
+   viewport so long words survive the narrow column. */
+html[data-style="modern"] p#word {
+    font-size: clamp(3.4rem, 15vw, 6rem);
+    letter-spacing: -0.03em;
+}
+html[data-style="modern"] p#word.top {
+    color: var(--correct-fg);
+}

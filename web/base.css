@@ -1,10 +1,11 @@
 /* Emmio web interface: base style.
  *
  * Structure, layout, and the color palette. This file alone is the "basic"
- * style; `fancy.css` layers decoration on top when `<html data-style="fancy">`
- * is set. Colors are custom properties so the dark theme (and the fancy style)
- * only override variables. `theme.js` sets `data-style` and `data-theme` on
- * `<html>` before first paint; the switchers live on the profile page.
+ * style; `modern.css` layers decoration on top when
+ * `<html data-style="modern">` is set. Colors are custom properties so the
+ * dark theme (and the modern style) only override variables. `theme.js`
+ * sets `data-style` and `data-theme` on `<html>` before first paint; the
+ * switchers live on the profile page.
  *
  * Useful hooks in the markup: `.dictionary`, `.dictionary-name`,
  * `.dictionary-body`, and the `id`s used by each page (e.g. `#word`,
@@ -582,6 +583,9 @@ a.button {
     color: var(--fg);
     text-decoration: none;
     font-size: 85%;
+    /* Keeps a leading `svg.button-icon` glued to its label (e.g. "Check")
+       on one line, never orphaned on its own line. */
+    white-space: nowrap;
 }
 td.courses-cell a {
     padding-right: 0.5rem;
