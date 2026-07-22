@@ -17,7 +17,12 @@ from emmio.language import Language, LanguageNotFoundError
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
-from emmio.lexicon.core import Lexicon, LexiconChecker
+from emmio.lexicon.core import (
+    RATE_ESTIMATOR_BY_SELECTION,
+    Lexicon,
+    LexiconChecker,
+)
+from emmio.lexicon.goal import compute_lexicon_goal_state
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
 from emmio.lists.frequency_list import FrequencyList
@@ -505,7 +510,7 @@ class Emmio:
             lexicons: list[Lexicon] = [
                 x
                 for x in self.user_data.get_lexicons()
-                if x.get_precision_per_week()
+                if RATE_ESTIMATOR_BY_SELECTION.get(x.config.selection)
                 and (not arguments.id or x.id_ == arguments.id)
             ]
             if not lexicons:
@@ -897,7 +902,9 @@ class Emmio:
             self.user_id
         ).items():
             lexicons_to_check = [
-                x for x in language_lexicons if x.get_precision_per_week()
+                x
+                for x in language_lexicons
+                if RATE_ESTIMATOR_BY_SELECTION.get(x.config.selection)
             ]
             if len(lexicons_to_check) == 1:
                 lexicons.append(lexicons_to_check[0])
@@ -912,12 +919,18 @@ class Emmio:
             rate_year_before: float | None = lexicon.get_last_rate(
                 before=now - timedelta(days=365.25)
             )
-            last_week_precision: int = lexicon.count_unknowns(
-                now - timedelta(days=7), now
-            )
-            need: int = max(
-                0, lexicon.get_precision_per_week() - last_week_precision
-            )
+            frequency_list: FrequencyList | None = None
+            if lexicon.config.frequency_list:
+                frequency_list = self.data.get_frequency_list(
+                    lexicon.config.frequency_list
+                )
+            records: list[tuple[datetime, str, str]] = [
+                (record.time, record.word, record.response.to_code())
+                for record in lexicon.log.records
+            ]
+            achieved: bool = compute_lexicon_goal_state(
+                lexicon.config.selection, frequency_list, records, now
+            ).achieved
             change: float = (
                 abs(rate) - abs(rate_year_before)
                 if rate_year_before is not None and rate is not None
@@ -938,7 +951,11 @@ class Emmio:
             )
             row: list[InlineElement | str] = [
                 Text().add(code).add(" " + lexicon.language.get_name()),
-                progress(need),
+                (
+                    Colorized("achieved", color="green")
+                    if achieved
+                    else Text("checking")
+                ),
                 (
                     f"{abs(rate):.1f}  " + progress(int(rate * 10))
                     if rate is not None
@@ -949,7 +966,7 @@ class Emmio:
             rows.append(row)
 
         self.interface.print(
-            Table(["Language", "Need", "Rate", "Year change"], rows)
+            Table(["Language", "Status", "Rate", "Year change"], rows)
         )
 
     async def run_lexicon(

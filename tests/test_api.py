@@ -336,7 +336,13 @@ def test_rate_estimate_uses_fwr_for_frequency_lexicon() -> None:
         "/api/v1/me/lexicons/de/rate-estimate", headers=_auth(token)
     )
     assert response.status_code == 200
-    assert response.json() == {"rate": None, "sd": None, "method": "frequency"}
+    assert response.json() == {
+        "rate": None,
+        "sd": None,
+        "method": "frequency",
+        "achieved": False,
+        "recheck_available_at": None,
+    }
 
     # 5 unknowns among 20 answers: theta = 1/4, so r = 2.
     for index in range(20):
@@ -607,7 +613,7 @@ def test_update_lexicon_settings_regenerates_translation_config() -> None:
 
     response = client.patch(
         "/api/v1/me/lexicons/uk/settings",
-        json={"translation_languages": ["en", "ru"], "precision_per_week": 20},
+        json={"translation_languages": ["en", "ru"]},
         headers=_auth(token),
     )
 
@@ -615,7 +621,6 @@ def test_update_lexicon_settings_regenerates_translation_config() -> None:
     body = response.json()
     assert body["language"] == "uk"
     assert body["translation_languages"] == ["en", "ru"]
-    assert body["precision_per_week"] == 20
 
     config = postgres.get_lexicon_config("alice", "uk")
     assert config is not None
@@ -630,7 +635,6 @@ def test_update_lexicon_settings_regenerates_translation_config() -> None:
             "translation_languages": ["en", "ru"],
         }
     ]
-    assert config["precision_per_week"] == 20
     # Identity is untouched.
     assert config["selection"] == "frequency"
     assert config["frequency_list"] == {"id": "uk_list"}
@@ -649,7 +653,7 @@ def test_update_lexicon_settings_partial_leaves_others() -> None:
 
     response = client.patch(
         "/api/v1/me/lexicons/uk/settings",
-        json={"precision_per_week": 10},
+        json={"name": "My Ukrainian"},
         headers=_auth(token),
     )
 
@@ -660,7 +664,7 @@ def test_update_lexicon_settings_partial_leaves_others() -> None:
     assert config["dictionaries"] == [  # Untouched.
         {"id": "google_translate", "from_language": "uk", "to_language": "en"}
     ]
-    assert config["precision_per_week"] == 10
+    assert config["name"] == "My Ukrainian"
 
 
 @pytest.mark.usefixtures("fake_languages")

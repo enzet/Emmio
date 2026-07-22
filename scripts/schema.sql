@@ -94,8 +94,8 @@ CREATE INDEX IF NOT EXISTS learn_sessions_course_start
 --       `language`, `selection`, and `frequency_list` (the sampling
 --       distribution, only for sampling strategies; NULL otherwise).
 --   - Mutable preferences (`config` JSONB; changing them does not alter the
---       meaning of past records): dictionaries, sentences, precision_per_week,
---       and pooled `frequency_lists` for non-sampling strategies.
+--       meaning of past records): name, dictionaries, sentences, and pooled
+--       `frequency_lists` for non-sampling strategies.
 -- Per-answer provenance (which sentence/dictionary was shown) lives in
 -- `lexicon_records.extra`, not here.
 --

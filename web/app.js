@@ -319,15 +319,11 @@ async function initHome() {
         levelCell.textContent = entry ? emmioLevel(entry.rate) : "—";
         row.appendChild(levelCell);
 
-        // Lexicon column: when checks are still wanted this week, the number
-        // remaining and a "Check" button; otherwise the time until the next
-        // check becomes available (last "don't know" answer plus one week).
+        // Lexicon column: a "Check" button while checking is available;
+        // otherwise the time until it unlocks again (the precision goal was
+        // met, and rechecking is paused for a week).
         const lexiconCell = document.createElement("td");
-        if (entry && entry.weekly_remaining > 0) {
-            const remaining = document.createElement("span");
-            remaining.textContent = entry.weekly_remaining;
-            remaining.style.marginRight = "0.5em";
-            lexiconCell.appendChild(remaining);
+        if (entry && entry.check_available) {
             const check = document.createElement("a");
             check.className = "button";
             check.href = `check?lexicon=${encodeURIComponent(
@@ -336,10 +332,10 @@ async function initHome() {
             check.insertAdjacentHTML("afterbegin", BOOK_ICON);
             check.appendChild(document.createTextNode("Check"));
             lexiconCell.appendChild(check);
-        } else if (entry && entry.last_dont_know) {
-            const nextCheck =
-                new Date(entry.last_dont_know).getTime() + 7 * 86400000;
-            lexiconCell.textContent = formatCountdown(nextCheck - Date.now());
+        } else if (entry && entry.recheck_available_at) {
+            lexiconCell.textContent = formatCountdown(
+                new Date(entry.recheck_available_at).getTime() - Date.now(),
+            );
         }
         row.appendChild(lexiconCell);
 
@@ -643,8 +639,6 @@ async function initLexicon() {
     const lexiconId = new URLSearchParams(location.search).get("lexicon");
     document.getElementById("lexicon-heading").textContent =
         `Lexicon: ${lexiconId}`;
-    document.getElementById("check-link").href =
-        `check?lexicon=${encodeURIComponent(lexiconId)}`;
 
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
@@ -657,6 +651,20 @@ async function initLexicon() {
     }
     const s = await response.json();
     status.textContent = "";
+
+    // "Check this lexicon": available unless the precision goal was just met
+    // and rechecking is still paused (see `check_available`).
+    const checkLink = document.getElementById("check-link");
+    if (s.check_available) {
+        checkLink.href = `check?lexicon=${encodeURIComponent(lexiconId)}`;
+    } else {
+        checkLink.removeAttribute("href");
+        checkLink.textContent = s.recheck_available_at
+            ? `Check available in ${formatCountdown(
+                  new Date(s.recheck_available_at).getTime() - Date.now(),
+              )}`
+            : "Check this lexicon";
+    }
 
     // "Main" toggle: this lexicon's rate counts as the language's level.
     // Setting it replaces any other main lexicon for the same language.
@@ -689,8 +697,19 @@ async function initLexicon() {
                 ? "not enough data"
                 : formatRate(s.rate, s.sd, 2),
         ],
-        ["Weekly goal", s.precision_per_week],
+        [
+            "Precision goal (last 3 months)",
+            s.achieved ? "Achieved" : "Not yet achieved",
+        ],
     ];
+    if (!s.check_available && s.recheck_available_at) {
+        rows.push([
+            "Next check available",
+            formatCountdown(
+                new Date(s.recheck_available_at).getTime() - Date.now(),
+            ),
+        ]);
+    }
     renderDefinitionList(stats, rows);
 
     await setupLexiconSettings(lexiconId);
@@ -724,12 +743,12 @@ async function initLexicon() {
 }
 
 // Fill and wire the lexicon settings form: display name, identifier (renaming
-// moves the lexicon's URL, so the page redirects after a rename), translation
-// targets (which regenerate the dictionary/sentence config on save — also
-// backfilling lexicons created before targets were auto-configured), and the
-// weekly goal. The lexicon's identity (language, selection, frequency list)
-// is immutable and not shown here. Pre-filled from the lexicon's current
-// settings.
+// moves the lexicon's URL, so the page redirects after a rename), and
+// translation targets (which regenerate the dictionary/sentence config on
+// save — also backfilling lexicons created before targets were
+// auto-configured). The lexicon's identity (language, selection, frequency
+// list) is immutable and not shown here. Pre-filled from the lexicon's
+// current settings.
 async function setupLexiconSettings(lexiconId) {
     const base = `/me/lexicons/${encodeURIComponent(lexiconId)}`;
     const section = document.getElementById("settings-section");
@@ -737,7 +756,6 @@ async function setupLexiconSettings(lexiconId) {
     const nameInput = document.getElementById("setting-name");
     const idInput = document.getElementById("setting-id");
     const targets = document.getElementById("setting-targets");
-    const precisionInput = document.getElementById("setting-precision");
     const settingsStatus = document.getElementById("settings-status");
 
     const [settingsResponse, targetResponse] = await Promise.all([
@@ -752,7 +770,6 @@ async function setupLexiconSettings(lexiconId) {
     if (settings.name) {
         document.getElementById("lexicon-heading").textContent = settings.name;
     }
-    precisionInput.value = settings.precision_per_week;
     fillLanguageSelect(
         targets,
         await targetResponse.json(),
@@ -778,7 +795,6 @@ async function setupLexiconSettings(lexiconId) {
                 name: nameInput.value,
                 lexicon_id: idInput.value,
                 translation_languages: translationLanguages,
-                precision_per_week: Number(precisionInput.value),
             },
         });
         if (result.ok) {
@@ -1347,24 +1363,27 @@ async function runSession(base, doneText) {
         wordInfo.hidden = false;
     }
 
+    // Returns whether the trailing-window precision goal is met, so the
+    // check loop can stop and hand the session back once it is.
     async function refreshRateEstimate() {
-        if (!rateEstimate) return;
+        if (!rateEstimate) return false;
         const token = ++rateRequest;
         // How many session answers this estimate covers, for the chart.
         const checked = counts.checked;
         const response = await api(`${base}/rate-estimate`);
-        if (token !== rateRequest || !response.ok) return;
+        if (token !== rateRequest || !response.ok) return false;
         const estimate = await response.json();
-        if (token !== rateRequest) return;
+        if (token !== rateRequest) return false;
         chart?.noteEstimate(checked, estimate.rate, estimate.sd);
         if (estimate.rate === null) {
             rateEstimate.hidden = true;
-            return;
+            return Boolean(estimate.achieved);
         }
         rateEstimate.textContent =
             `r = ${estimate.rate.toFixed(2)} ± ${estimate.sd.toFixed(2)}`;
         rateEstimate.title = `${estimate.method[0].toUpperCase()}${estimate.method.slice(1)} estimate`;
         rateEstimate.hidden = false;
+        return Boolean(estimate.achieved);
     }
 
     // The lexicon/course's dictionaries, loaded once. Each is fetched
@@ -1643,7 +1662,13 @@ async function runSession(base, doneText) {
             method: "POST",
             body: { word: answered, response, to_skip: toSkip },
         });
-        void refreshRateEstimate();
+        if (await refreshRateEstimate()) {
+            // The trailing-window precision goal is met: the checking
+            // process is done, so hand the session back automatically.
+            status.textContent = "Goal reached — nice work!";
+            location.href = "lexicons";
+            return;
+        }
         await advance();
     }
 
@@ -1756,7 +1781,13 @@ async function runSession(base, doneText) {
     });
 
     word.replaceChildren(loadingDots());
-    void refreshRateEstimate();
+    if (await refreshRateEstimate()) {
+        // Reached directly (e.g. a stale link) while the goal is already
+        // met: nothing to check, so hand the session back right away.
+        status.textContent = "Goal reached — nice work!";
+        location.href = "lexicons";
+        return;
+    }
     void loadTrajectory();
     // Load the dictionary list first so the per-word prefetch knows which
     // dictionaries to request; an empty list just means no translations.

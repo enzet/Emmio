@@ -70,6 +70,7 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history
 from emmio.lexicon.replay import replay
 from emmio.lexicon.visualizer import LexiconVisualizer
@@ -406,6 +407,17 @@ def _rate_and_sd(
     return estimate if estimate is not None else (None, None)
 
 
+def _frequency_list_or_none(
+    frequency_list_config: dict | None,
+) -> FrequencyList | None:
+    """Load a frequency list usage config, or `None` if absent or unloadable."""
+    if not frequency_list_config:
+        return None
+    return get_data().get_frequency_list(
+        ListUsageConfig(**frequency_list_config)
+    )
+
+
 def _compute_row_rate_estimate(
     user_id: str,
     lexicon_id: str,
@@ -738,7 +750,6 @@ def create_lexicon(
         "language": request.language,
         "selection": selection.value,
         "frequency_list": frequency_list,
-        "precision_per_week": 0,
         "dictionaries": dictionaries,
         "sentences": sentences,
     }
@@ -783,7 +794,6 @@ class LexiconSettings(BaseModel):
     selection: str
     name: str | None  # Display name; the identifier is used when not set.
     translation_languages: list[str]
-    precision_per_week: int  # Weekly goal of new answers.
 
 
 class UpdateLexiconRequest(BaseModel):
@@ -792,7 +802,6 @@ class UpdateLexiconRequest(BaseModel):
     lexicon_id: str | None = Field(default=None, pattern=LEXICON_ID_PATTERN)
     name: str | None = None  # An empty (or blank) name clears it.
     translation_languages: list[str] | None = None
-    precision_per_week: int | None = Field(default=None, ge=0)
 
 
 def _lexicon_translation_languages(config: dict) -> list[str]:
@@ -825,7 +834,6 @@ def _lexicon_settings(lexicon_id: str, config: dict) -> LexiconSettings:
         selection=config["selection"],
         name=config.get("name"),
         translation_languages=_lexicon_translation_languages(config),
-        precision_per_week=config.get("precision_per_week") or 0,
     )
 
 
@@ -866,9 +874,6 @@ def update_lexicon_settings(
             config["name"] = name
         else:
             config.pop("name", None)
-
-    if request.precision_per_week is not None:
-        config["precision_per_week"] = request.precision_per_week
 
     if request.translation_languages is not None:
         targets: list[str] = _validated_targets(request.translation_languages)
@@ -1809,6 +1814,12 @@ class RateEstimate(BaseModel):
     Possible values: `frequency`, `stratified`, `threshold` or `logistic`.
     """
 
+    achieved: bool
+    """Whether the trailing 3-month precision goal is currently met."""
+
+    recheck_available_at: datetime | None
+    """When the "Check" button unlocks again, or `None` if available now."""
+
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/rate-estimate")
 def get_lexicon_rate_estimate(
@@ -1820,7 +1831,8 @@ def get_lexicon_rate_estimate(
     frequency-weighted sliding window to every log), this dispatches to the
     estimator matching the lexicon's selection strategy — the window estimate
     is unbiased only over frequency-weighted draws. Refreshed by the check
-    page after every answer.
+    page after every answer, which also uses `achieved` to end the session and
+    return to the lexicon list once the trailing-window precision goal is met.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     selection: LexiconSelection = LexiconSelection(config["selection"])
@@ -1831,6 +1843,7 @@ def get_lexicon_rate_estimate(
             detail=f"No rate estimator for selection `{selection}`.",
         )
 
+    frequency_list: FrequencyList | None = None
     if method == RateEstimator.FREQUENCY:
         estimate: tuple[float, float] | None = estimate_rate_with_sd(
             selection,
@@ -1842,16 +1855,25 @@ def get_lexicon_rate_estimate(
         # states that seed word selection: the estimate must reflect this
         # lexicon's own sample, not answers collected under sibling lexicons'
         # strategies.
-        frequency_list: FrequencyList = _frequency_list_or_error(
-            config, lexicon_id
-        )
+        frequency_list = _frequency_list_or_error(config, lexicon_id)
         states: dict[str, tuple[str | None, bool | None]] = (
             postgres.get_lexicon_selector_states(user_id, lexicon_id)
         )
         estimate = estimate_rate_with_sd(selection, frequency_list, states)
 
     rate, sd = _rate_and_sd(estimate)
-    return RateEstimate(rate=rate, sd=sd, method=method)
+    goal: LexiconGoalState = compute_lexicon_goal_state(
+        selection,
+        frequency_list,
+        postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
+    )
+    return RateEstimate(
+        rate=rate,
+        sd=sd,
+        method=method,
+        achieved=goal.achieved,
+        recheck_available_at=goal.recheck_available_at,
+    )
 
 
 class TrajectoryPoint(BaseModel):
@@ -2055,7 +2077,6 @@ class LexiconStats(BaseModel):
     lexicon_id: str
     language: str
     selection: str | None
-    precision_per_week: int  # Weekly "don't know" goal.
     words: int  # Distinct words checked.
     known: int  # Words whose last answer was "know".
     dont_know: int  # Words whose last answer was "don't know".
@@ -2064,6 +2085,9 @@ class LexiconStats(BaseModel):
     rate: float | None  # Vocabulary rate, or None if not enough data.
     sd: float | None  # Standard deviation of the rate estimate.
     is_main: bool  # Main lexicon for its language.
+    achieved: bool  # Whether the trailing 3-month precision goal is met.
+    check_available: bool  # Whether checking is allowed right now.
+    recheck_available_at: datetime | None  # When "Check" unlocks, if not now.
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/stats")
@@ -2098,11 +2122,16 @@ def get_lexicon_stats(
         postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
     )
     rate, sd = _rate_and_sd(estimate)
+    goal: LexiconGoalState = compute_lexicon_goal_state(
+        LexiconSelection(config["selection"]),
+        _frequency_list_or_none(config["frequency_list"]),
+        postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
+        now,
+    )
     return LexiconStats(
         lexicon_id=lexicon_id,
         language=config["language"],
         selection=config["selection"],
-        precision_per_week=config["precision_per_week"],
         words=len(lexicon),
         known=known,
         dont_know=dont_know,
@@ -2111,6 +2140,9 @@ def get_lexicon_stats(
         rate=rate,
         sd=sd,
         is_main=postgres.is_main_lexicon(user_id, lexicon_id),
+        achieved=goal.achieved,
+        check_available=goal.check_available,
+        recheck_available_at=goal.recheck_available_at,
     )
 
 
@@ -2121,8 +2153,8 @@ class LanguageRate(BaseModel):
     lexicon_id: str  # The main lexicon the rate comes from.
     rate: float | None  # Vocabulary rate, or None if not enough data.
     sd: float | None  # Standard deviation of the rate estimate.
-    weekly_remaining: int  # Weekly precision goal minus this week's progress.
-    last_dont_know: datetime | None  # Time of the last "don't know" answer.
+    check_available: bool  # Whether checking is allowed right now.
+    recheck_available_at: datetime | None  # When "Check" unlocks, if not now.
 
 
 @app.get("/api/v1/me/languages")
@@ -2138,12 +2170,11 @@ def get_my_languages(
         postgres.get_lexicon_answer_sequences(user_id)
     )
     version: int | None = postgres.get_last_lexicon_record_id(user_id)
+    now: datetime = datetime.now(UTC)
     rates: list[LanguageRate] = []
     for (
         language,
         lexicon_id,
-        precision_per_week,
-        dont_last_week,
         selection,
         frequency_list_config,
     ) in postgres.get_main_lexicons(user_id):
@@ -2156,19 +2187,23 @@ def get_my_languages(
             [response for _, response in sequence],
             version,
         )
-        last_dont_know = next(
-            (time for time, response in reversed(sequence) if response == 0),
-            None,
-        )
         rate, sd = _rate_and_sd(estimate)
+        goal: LexiconGoalState = compute_lexicon_goal_state(
+            LexiconSelection(selection)
+            if selection
+            else LexiconSelection.UNKNOWN,
+            _frequency_list_or_none(frequency_list_config),
+            postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
+            now,
+        )
         rates.append(
             LanguageRate(
                 language=language,
                 lexicon_id=lexicon_id,
                 rate=rate,
                 sd=sd,
-                weekly_remaining=precision_per_week - dont_last_week,
-                last_dont_know=last_dont_know,
+                check_available=goal.check_available,
+                recheck_available_at=goal.recheck_available_at,
             )
         )
     rates.sort(
@@ -2215,8 +2250,6 @@ def get_lexicons_graph(
     for (
         language_code,
         lexicon_id,
-        _,
-        _,
         selection_code,
         list_config,
     ) in postgres.get_main_lexicons(user_id):

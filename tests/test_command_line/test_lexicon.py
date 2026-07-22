@@ -28,7 +28,6 @@ def test_existing_user_empty_data(capsys: pytest.CaptureFixture[str]) -> None:
                 "file_name": "nb.json",
                 "selection": "frequency",
                 "frequency_list": {"id": "nb"},
-                "precision_per_week": 5,
                 "dictionaries": [{"id": "nb_en"}],
             }
         },

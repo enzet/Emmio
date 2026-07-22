@@ -63,8 +63,6 @@ def split_lexicon_config(config: dict) -> tuple[str, dict | None, dict]:
         mutable["dictionaries"] = config["dictionaries"]
     if config.get("sentences"):
         mutable["sentences"] = config["sentences"]
-    if config.get("precision_per_week"):
-        mutable["precision_per_week"] = config["precision_per_week"]
     if not is_sampling and frequency_list:
         mutable["frequency_lists"] = [frequency_list]
 
@@ -502,30 +500,20 @@ def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
 
 def get_main_lexicons(
     user_id: str,
-) -> list[tuple[str, str, int, int, str | None, dict | None]]:
-    """Get the user's main lexicons, one per language, with weekly progress.
+) -> list[tuple[str, str, str | None, dict | None]]:
+    """Get the user's main lexicons, one per language.
 
-    :return: (language, lexicon id, weekly precision goal, "don't know"
-        answers in the last 7 days, selection strategy, frequency list usage
+    :return: (language, lexicon id, selection strategy, frequency list usage
         configuration) tuples, ordered by language
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT l.language, l.lexicon_id, "
-            "COALESCE((l.config->>'precision_per_week')::int, 0), "
-            "(SELECT count(*) FROM lexicon_records r "
-            "JOIN lexicon_words w ON w.id = r.word_id "
-            "WHERE w.lexicon_id = l.id AND r.response = 'D' "
-            "AND r.response_time >= now() - interval '7 days'), "
-            "l.selection, l.frequency_list "
+            "SELECT l.language, l.lexicon_id, l.selection, l.frequency_list "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.is_main ORDER BY l.language",
             (user_id,),
         )
-        return [
-            (row[0], row[1], row[2], row[3], row[4], row[5])
-            for row in cursor.fetchall()
-        ]
+        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
 
 
 def has_main_lexicon(user_id: str, language: str) -> bool:
@@ -738,7 +726,6 @@ def _assemble_lexicon_config(
         "frequency_list": frequency_list,
         "dictionaries": config.get("dictionaries"),
         "sentences": config.get("sentences"),
-        "precision_per_week": config.get("precision_per_week", 0),
     }
 
 
@@ -746,7 +733,7 @@ def get_lexicon_config(user_id: str, lexicon_id: str) -> dict | None:
     """Get a lexicon's reassembled config dict, or `None` if it does not exist.
 
     The dict matches the `LexiconConfig` fields (language, selection,
-    frequency_list, dictionaries, sentences, precision_per_week).
+    frequency_list, dictionaries, sentences).
 
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`

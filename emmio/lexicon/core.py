@@ -2037,10 +2037,6 @@ class Lexicon(UserArtifact):
             return rates[-1]
         return None
 
-    def get_precision_per_week(self) -> int:
-        """Get precision value suggested to get every week."""
-        return self.config.precision_per_week
-
     def get_last_rate_number(self, precision: int = 100) -> float:
         """Get last rate value.
 

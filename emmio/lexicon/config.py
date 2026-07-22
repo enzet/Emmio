@@ -86,10 +86,3 @@ class LexiconConfig(BaseModel):
 
     sentences: list[SentencesUsageConfig] | None = None
     """Sentences configurations."""
-
-    precision_per_week: int = 0
-    """Needed precision for every week.
-
-    When rechecking the lexicon, the process will stop, when the needed
-    precision will be achieved.
-    """
