@@ -658,6 +658,41 @@ def _validated_targets(codes: list[str]) -> list[str]:
     return targets
 
 
+def _validated_lexicon_or_400(
+    user_id: str, lexicon_id: str, language: str
+) -> None:
+    """Check `lexicon_id` belongs to the user and matches `language`, or 400.
+
+    Shared by course creation and settings updates for both a course's
+    `check_lexicons` (skip already-known words) and `ask_lexicon` (ask about
+    unseen ones first) references.
+    """
+    lexicon_config: dict | None = postgres.get_lexicon_config(
+        user_id, lexicon_id
+    )
+    if lexicon_config is None or lexicon_config["language"] != language:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No lexicon `{lexicon_id}` for language `{language}`.",
+        )
+
+
+def _validated_question_types(question_types: list[str] | None) -> None:
+    """Check every requested question type is one the course teacher supports.
+
+    :raises HTTPException: 400 listing the unsupported type(s)
+    """
+    if question_types is None:
+        return
+    unsupported: set[str] = set(question_types) - set(_ALL_QUESTION_TYPES)
+    if unsupported:
+        listed: str = ", ".join(sorted(unsupported))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported question type(s): {listed}.",
+        )
+
+
 def _frequency_list_or_400(data: Any, language: str) -> dict:
     """Get the language's frequency-list usage config, or raise 400.
 
@@ -976,9 +1011,20 @@ class CreateCourseRequest(BaseModel):
 
     language: str
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
+    name: str | None = None
+    """Display name; defaults to the language's own name when omitted."""
+    max_for_day: int = Field(default=10, ge=0)
+    """Maximum number of new words introduced per day."""
+    play_audio: bool = True
+    """Whether to play pronunciation audio during a session."""
+    question_types: list[str] | None = None
+    """Which question types this course may use; all of them when omitted."""
     lexicon_id: str | None = None
     """An existing lexicon for the same language whose already-known words are
     skipped when the course picks new questions."""
+    ask_lexicon_id: str | None = None
+    """An existing lexicon for the same language: an unseen new word is shown
+    as a know/don't-know check first, recorded there, before being taught."""
     frequency_list: FrequencyListSelection | None = None
     """Which frequency list to draw new words from; defaults to the
     language's best available list (`_frequency_list_or_400`)."""
@@ -1002,7 +1048,8 @@ def create_course(
     translated into the requested target languages — the same shared data a
     lexicon uses. Its id is the language code, suffixed if one already exists.
     When `lexicon_id` names one of the user's own lexicons for the same
-    language, words already known there are skipped too. `frequency_list`
+    language, words already known there are skipped; `ask_lexicon_id` instead
+    asks about an unseen word there first, before teaching it. `frequency_list`
     picks among a language's several available lists (e.g. cached
     FrequencyWords years), defaulting to the best one when omitted.
     """
@@ -1012,20 +1059,12 @@ def create_course(
     )
     targets: list[str] = _validated_targets(request.translation_languages)
     if request.lexicon_id is not None:
-        lexicon_config: dict | None = postgres.get_lexicon_config(
-            user_id, request.lexicon_id
+        _validated_lexicon_or_400(user_id, request.lexicon_id, request.language)
+    if request.ask_lexicon_id is not None:
+        _validated_lexicon_or_400(
+            user_id, request.ask_lexicon_id, request.language
         )
-        if (
-            lexicon_config is None
-            or lexicon_config["language"] != request.language
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"No lexicon `{request.lexicon_id}` for language "
-                    f"`{request.language}`."
-                ),
-            )
+    _validated_question_types(request.question_types)
     course_id: str = _unique_artifact_id(
         request.language, {row[0] for row in postgres.list_courses(user_id)}
     )
@@ -1048,14 +1087,24 @@ def create_course(
         ]
     if request.lexicon_id is not None:
         new_question["check_lexicons"] = [{"id": request.lexicon_id}]
+    if request.ask_lexicon_id is not None:
+        new_question["ask_lexicon"] = {"id": request.ask_lexicon_id}
+    scheme: dict = {"new_question": new_question}
+    if request.question_types:
+        scheme["question_types"] = request.question_types
+    name: str = (
+        request.name.strip() if request.name and request.name.strip() else ""
+    ) or Language.from_code(request.language).get_name()
     config: dict = {
-        "name": Language.from_code(request.language).get_name(),
+        "name": name,
         "learning_language": request.language,
         "base_languages": targets,
-        "scheme": {"new_question": new_question},
+        "scheme": scheme,
         "dictionaries": dictionaries,
         "sentences": sentences,
         "audio": data.get_audio_config(request.language),
+        "max_for_day": request.max_for_day,
+        "play_audio": request.play_audio,
     }
     postgres.store_learn_config(user_id, course_id, config)
     return CreatedCourse(course_id=course_id)
@@ -1088,6 +1137,9 @@ class CourseSettings(BaseModel):
     translation_languages: list[str]  # `base_languages`.
     max_for_day: int  # New words introduced per day.
     play_audio: bool  # Whether to play pronunciation audio in a session.
+    question_types: list[str]  # Allowed question types; all four when unset.
+    lexicon_id: str | None  # Skips words already known there, if set.
+    ask_lexicon_id: str | None  # Asks about unseen words there first, if set.
     extra_symbols: str  # Letters a basic keyboard may lack, for tap buttons.
 
 
@@ -1098,6 +1150,12 @@ class UpdateCourseRequest(BaseModel):
     translation_languages: list[str] | None = None
     max_for_day: int | None = Field(default=None, ge=0)
     play_audio: bool | None = None
+    question_types: list[str] | None = None
+    """Omitted keeps the current value; an empty list allows all types."""
+    lexicon_id: str | None = None
+    """Omitted keeps the current value; an empty string clears it."""
+    ask_lexicon_id: str | None = None
+    """Omitted keeps the current value; an empty string clears it."""
 
 
 def _course_settings(config: dict) -> CourseSettings:
@@ -1108,12 +1166,19 @@ def _course_settings(config: dict) -> CourseSettings:
         ).get_extra_symbols()
     except LanguageNotFoundError:
         extra_symbols = ""
+    new_question: dict = (config.get("scheme") or {}).get("new_question") or {}
+    check_lexicons: list[dict] = new_question.get("check_lexicons") or []
+    ask_lexicon: dict | None = new_question.get("ask_lexicon")
     return CourseSettings(
         name=config["name"],
         learning_language=config["learning_language"],
         translation_languages=config.get("base_languages") or [],
         max_for_day=config.get("max_for_day", 10),
         play_audio=config.get("play_audio", True),
+        question_types=(config.get("scheme") or {}).get("question_types")
+        or list(_ALL_QUESTION_TYPES),
+        lexicon_id=check_lexicons[0]["id"] if check_lexicons else None,
+        ask_lexicon_id=ask_lexicon["id"] if ask_lexicon else None,
         extra_symbols=extra_symbols,
     )
 
@@ -1141,6 +1206,7 @@ def update_course_settings(
     """
     config: dict = _course_config_or_404(user_id, course_id)
     data = get_data()
+    language: str = config["learning_language"]
 
     if request.name is not None:
         name: str = request.name.strip()
@@ -1159,7 +1225,6 @@ def update_course_settings(
 
     if request.translation_languages is not None:
         targets: list[str] = _validated_targets(request.translation_languages)
-        language: str = config["learning_language"]
         dictionaries, sentences = _translation_config(
             language, targets, with_kaikki=_with_kaikki(data, targets, language)
         )
@@ -1167,6 +1232,37 @@ def update_course_settings(
         config["dictionaries"] = dictionaries
         config["sentences"] = sentences
         config["audio"] = data.get_audio_config(language)
+
+    if (
+        request.question_types is not None
+        or request.lexicon_id is not None
+        or request.ask_lexicon_id is not None
+    ):
+        scheme: dict = config.setdefault("scheme", {})
+        new_question: dict = scheme.setdefault("new_question", {})
+
+        if request.question_types is not None:
+            if request.question_types:
+                _validated_question_types(request.question_types)
+                scheme["question_types"] = request.question_types
+            else:
+                scheme.pop("question_types", None)
+
+        if request.lexicon_id is not None:
+            if request.lexicon_id:
+                _validated_lexicon_or_400(user_id, request.lexicon_id, language)
+                new_question["check_lexicons"] = [{"id": request.lexicon_id}]
+            else:
+                new_question.pop("check_lexicons", None)
+
+        if request.ask_lexicon_id is not None:
+            if request.ask_lexicon_id:
+                _validated_lexicon_or_400(
+                    user_id, request.ask_lexicon_id, language
+                )
+                new_question["ask_lexicon"] = {"id": request.ask_lexicon_id}
+            else:
+                new_question.pop("ask_lexicon", None)
 
     postgres.store_learn_config(user_id, course_id, config)
     # The cached instance (if any) was built on the old settings.
@@ -2544,6 +2640,33 @@ _ALL_QUESTION_TYPES: tuple[str, ...] = (
     QUESTION_TYPE_CONNECT,
     QUESTION_TYPE_TYPE_WORD,
 )
+# Human-readable labels, matching the headings the learn page shows for each.
+_QUESTION_TYPE_LABELS: dict[str, str] = {
+    QUESTION_TYPE_KNOW: "Know / don't know",
+    QUESTION_TYPE_CHOICE: "Choose the translation",
+    QUESTION_TYPE_CONNECT: "Connect the words",
+    QUESTION_TYPE_TYPE_WORD: "Type the word",
+}
+
+
+class QuestionTypeOption(BaseModel):
+    """A question type a course can be restricted to."""
+
+    value: str  # Stored in `scheme.question_types`, e.g. `type_word`.
+    label: str  # Human-readable name shown in the UI.
+
+
+@app.get("/api/v1/question-types", dependencies=[Depends(get_current_user)])
+def get_question_types() -> list[QuestionTypeOption]:
+    """List the question types a course can be restricted to.
+
+    A course with no `question_types` configured allows all of them.
+    """
+    return [
+        QuestionTypeOption(value=value, label=_QUESTION_TYPE_LABELS[value])
+        for value in _ALL_QUESTION_TYPES
+    ]
+
 
 # Multiple-choice and connect sizes.
 _CHOICE_OPTIONS: int = 4

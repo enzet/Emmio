@@ -43,6 +43,43 @@
                     id="add-course-lexicon"
                     class="course-lexicon"
                 ></select><br />
+                asking about unseen words in
+                <select
+                    id="add-course-ask-lexicon"
+                    class="course-ask-lexicon"
+                ></select><br />
+                named
+                <input
+                    id="add-course-name"
+                    class="course-name"
+                    type="text"
+                    placeholder="optional, defaults to the language name"
+                /><br />
+                up to
+                <input
+                    id="add-course-max-for-day"
+                    class="course-max-for-day"
+                    type="number"
+                    min="0"
+                    value="10"
+                    required
+                /> new words a day<br />
+                <label class="checkbox">
+                    <input
+                        id="add-course-play-audio"
+                        class="course-play-audio"
+                        type="checkbox"
+                        checked
+                    />
+                    Play pronunciation audio
+                </label>
+                <fieldset>
+                    <legend>Question types</legend>
+                    <div
+                        id="add-course-question-types"
+                        class="course-question-types"
+                    ></div>
+                </fieldset>
                 <button type="submit">Create course</button>
             </form>
             <p id="add-course-status" role="status"></p>

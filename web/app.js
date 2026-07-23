@@ -560,15 +560,17 @@ function fillCourseFrequencyListSelect(select, frequencyLists, language) {
     }
 }
 
-// Fill the "skip known words" lexicon picker with the caller's lexicons for
-// `language`, plus a leading "none" option. Called on load and again whenever
-// the course's language changes, since the set of matching lexicons differs
-// per language.
-function fillCourseLexiconSelect(select, lexicons, language) {
+// Fill a course lexicon picker (either "skip known words" or "ask about
+// unseen words") with the caller's lexicons for `language`, plus a leading
+// "none" option; `selected` (a lexicon id, if any) preselects an option.
+// Called on load and, on the creation page, again whenever the course's
+// language changes, since the set of matching lexicons differs per language.
+function fillCourseLexiconSelect(select, lexicons, language, selected) {
     select.innerHTML = "";
     const none = document.createElement("option");
     none.value = "";
     none.textContent = "(none)";
+    if (!selected) none.selected = true;
     select.appendChild(none);
     for (const lexicon of lexicons) {
         if (lexicon.language !== language) continue;
@@ -577,8 +579,42 @@ function fillCourseLexiconSelect(select, lexicons, language) {
         option.textContent =
             (lexicon.is_main ? "★ " : "") +
             (lexicon.name || lexicon.lexicon_id);
+        if (lexicon.lexicon_id === selected) option.selected = true;
         select.appendChild(option);
     }
+}
+
+// Render a "question types" checkbox group into `container`: one checkbox
+// per type the server supports, checked per `checkedTypes` (a `Set` of
+// values). Shared by course creation (defaults to every type checked) and
+// course settings (defaults to the course's current `question_types`).
+function renderQuestionTypeCheckboxes(
+    container,
+    idPrefix,
+    types,
+    checkedTypes,
+) {
+    container.innerHTML = "";
+    for (const type of types) {
+        const label = document.createElement("label");
+        label.className = "checkbox";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.id = `${idPrefix}-${type.value}`;
+        input.value = type.value;
+        input.checked = checkedTypes.has(type.value);
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(` ${type.label}`));
+        container.appendChild(label);
+    }
+}
+
+// Read back which question types are checked in a group rendered above.
+function checkedQuestionTypes(container) {
+    return Array.from(
+        container.querySelectorAll("input[type=checkbox]:checked"),
+        (input) => input.value,
+    );
 }
 
 // Wire up an "add a course" form: fill its language selector from the languages
@@ -591,15 +627,28 @@ async function setupCreateCourse(formId, selectId, statusId) {
     const targets = form.querySelector(".translation-languages");
     const frequencyListSelect = form.querySelector(".course-frequency-list");
     const lexiconSelect = form.querySelector(".course-lexicon");
+    const askLexiconSelect = form.querySelector(".course-ask-lexicon");
+    const nameInput = form.querySelector(".course-name");
+    const maxForDayInput = form.querySelector(".course-max-for-day");
+    const playAudioInput = form.querySelector(".course-play-audio");
+    const questionTypesContainer = form.querySelector(
+        ".course-question-types",
+    );
     const createStatus = document.getElementById(statusId);
 
-    const [response, targetResponse, frequencyListResponse, lexiconResponse] =
-        await Promise.all([
-            api("/lexicon-languages"),
-            api("/translation-languages"),
-            api("/frequency-lists"),
-            api("/me/lexicons"),
-        ]);
+    const [
+        response,
+        targetResponse,
+        frequencyListResponse,
+        lexiconResponse,
+        questionTypeResponse,
+    ] = await Promise.all([
+        api("/lexicon-languages"),
+        api("/translation-languages"),
+        api("/frequency-lists"),
+        api("/me/lexicons"),
+        api("/question-types"),
+    ]);
     const available = await response.json();
     if (available.length === 0) {
         createStatus.textContent =
@@ -613,6 +662,15 @@ async function setupCreateCourse(formId, selectId, statusId) {
     fillLanguageSelect(select, available);
     fillLanguageSelect(targets, await targetResponse.json(), "en");
 
+    // Every question type is allowed unless the user narrows it down.
+    const questionTypes = await questionTypeResponse.json();
+    renderQuestionTypeCheckboxes(
+        questionTypesContainer,
+        "add-course-question-type",
+        questionTypes,
+        new Set(questionTypes.map((type) => type.value)),
+    );
+
     // The frequency-list and lexicon pickers are keyed to the currently
     // selected course language, so they start filtered to it and are
     // refiltered on every language change.
@@ -625,6 +683,7 @@ async function setupCreateCourse(formId, selectId, statusId) {
             select.value,
         );
         fillCourseLexiconSelect(lexiconSelect, lexicons, select.value);
+        fillCourseLexiconSelect(askLexiconSelect, lexicons, select.value);
     };
     refilterByLanguage();
     select.addEventListener("change", refilterByLanguage);
@@ -640,6 +699,13 @@ async function setupCreateCourse(formId, selectId, statusId) {
                 "Pick at least one language to translate into.";
             return;
         }
+        const questionTypesChecked = checkedQuestionTypes(
+            questionTypesContainer,
+        );
+        if (questionTypesChecked.length === 0) {
+            createStatus.textContent = "Pick at least one question type.";
+            return;
+        }
         createStatus.textContent = "Creating…";
         const result = await api("/me/courses", {
             method: "POST",
@@ -650,6 +716,11 @@ async function setupCreateCourse(formId, selectId, statusId) {
                     frequencyListSelect.value,
                 ),
                 lexicon_id: lexiconSelect.value || null,
+                ask_lexicon_id: askLexiconSelect.value || null,
+                name: nameInput.value.trim() || null,
+                max_for_day: Number(maxForDayInput.value),
+                play_audio: playAudioInput.checked,
+                question_types: questionTypesChecked,
             },
         });
         if (result.ok) {
@@ -2779,8 +2850,10 @@ async function initCourse() {
 }
 
 // Fill and wire the course settings form: name, translation targets (which
-// regenerate dictionaries/sentences/audio on save), and the daily new-word
-// limit. Pre-filled from the course's current settings.
+// regenerate dictionaries/sentences/audio on save), the daily new-word limit,
+// allowed question types, and the two optional lexicon references (skip
+// already-known words / ask about unseen ones first). Pre-filled from the
+// course's current settings.
 async function setupCourseSettings(courseId) {
     const base = `/me/courses/${encodeURIComponent(courseId)}`;
     const section = document.getElementById("settings-section");
@@ -2789,11 +2862,23 @@ async function setupCourseSettings(courseId) {
     const targets = document.getElementById("setting-targets");
     const maxInput = document.getElementById("setting-max");
     const playAudioInput = document.getElementById("setting-play-audio");
+    const questionTypesContainer = document.getElementById(
+        "setting-question-types",
+    );
+    const lexiconSelect = document.getElementById("setting-lexicon");
+    const askLexiconSelect = document.getElementById("setting-ask-lexicon");
     const settingsStatus = document.getElementById("settings-status");
 
-    const [settingsResponse, targetResponse] = await Promise.all([
+    const [
+        settingsResponse,
+        targetResponse,
+        questionTypeResponse,
+        lexiconResponse,
+    ] = await Promise.all([
         api(`${base}/settings`),
         api("/translation-languages"),
+        api("/question-types"),
+        api("/me/lexicons"),
     ]);
     if (!settingsResponse.ok) return;
     const settings = await settingsResponse.json();
@@ -2806,6 +2891,29 @@ async function setupCourseSettings(courseId) {
         await targetResponse.json(),
         new Set(settings.translation_languages),
     );
+
+    const questionTypes = await questionTypeResponse.json();
+    renderQuestionTypeCheckboxes(
+        questionTypesContainer,
+        "setting-question-type",
+        questionTypes,
+        new Set(settings.question_types),
+    );
+
+    const lexicons = await lexiconResponse.json();
+    fillCourseLexiconSelect(
+        lexiconSelect,
+        lexicons,
+        settings.learning_language,
+        settings.lexicon_id,
+    );
+    fillCourseLexiconSelect(
+        askLexiconSelect,
+        lexicons,
+        settings.learning_language,
+        settings.ask_lexicon_id,
+    );
+
     section.hidden = false;
 
     form.addEventListener("submit", async (event) => {
@@ -2819,6 +2927,13 @@ async function setupCourseSettings(courseId) {
                 "Pick at least one language to translate into.";
             return;
         }
+        const questionTypesChecked = checkedQuestionTypes(
+            questionTypesContainer,
+        );
+        if (questionTypesChecked.length === 0) {
+            settingsStatus.textContent = "Pick at least one question type.";
+            return;
+        }
         settingsStatus.textContent = "Saving…";
         const result = await api(`${base}/settings`, {
             method: "PATCH",
@@ -2827,6 +2942,14 @@ async function setupCourseSettings(courseId) {
                 translation_languages: translationLanguages,
                 max_for_day: Number(maxInput.value),
                 play_audio: playAudioInput.checked,
+                // Every type checked means "no restriction"; send an empty
+                // list so the server clears any previously narrowed set.
+                question_types:
+                    questionTypesChecked.length === questionTypes.length
+                        ? []
+                        : questionTypesChecked,
+                lexicon_id: lexiconSelect.value,
+                ask_lexicon_id: askLexiconSelect.value,
             },
         });
         if (result.ok) {

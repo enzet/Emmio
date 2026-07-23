@@ -1119,6 +1119,256 @@ def test_create_course_with_unknown_frequency_list_is_bad_request(
     assert response.status_code == 400
 
 
+def test_question_types_are_listed() -> None:
+    """`/question-types` serves every supported type with a label."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/question-types", headers=_auth(token))
+
+    assert response.status_code == 200
+    types = response.json()
+    values = {t["value"] for t in types}
+    assert values == {"know", "choice", "connect", "type_word"}
+    assert all(t["label"] for t in types)
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_stores_name_max_for_day_play_audio_and_types() -> None:
+    """Creation-time name, daily cap, audio toggle, and question types stick."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={
+            "language": "uk",
+            "name": "  My Ukrainian  ",
+            "max_for_day": 3,
+            "play_audio": False,
+            "question_types": ["know", "type_word"],
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["name"] == "My Ukrainian"
+    assert config["max_for_day"] == 3
+    assert config["play_audio"] is False
+    assert config["scheme"]["question_types"] == ["know", "type_word"]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_blank_name_falls_back_to_language_name() -> None:
+    """A blank/omitted `name` still falls back to the language's own name."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "name": "   "},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["name"] == Language.from_code("uk").get_name()
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_rejects_unsupported_question_type() -> None:
+    """An unknown `question_types` entry is a 400, not silently stored."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "question_types": ["know", "bogus"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_with_ask_lexicon_stores_it() -> None:
+    """`ask_lexicon_id` wires a separate `ask_lexicon` reference."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "ask_lexicon_id": "uk"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["scheme"]["new_question"]["ask_lexicon"] == {"id": "uk"}
+    assert "check_lexicons" not in config["scheme"]["new_question"]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_with_unknown_ask_lexicon_is_bad_request() -> None:
+    """An `ask_lexicon_id` that does not belong to the user is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "ask_lexicon_id": "does-not-exist"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_get_course_settings_defaults_question_types_and_lexicons() -> None:
+    """With nothing configured, all question types are allowed, no lexicons."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.get(
+        "/api/v1/me/courses/uk/settings", headers=_auth(token)
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body["question_types"]) == {
+        "know",
+        "choice",
+        "connect",
+        "type_word",
+    }
+    assert body["lexicon_id"] is None
+    assert body["ask_lexicon_id"] is None
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_sets_question_types_and_lexicons() -> None:
+    """Settings can add question types and both lexicon references."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={
+            "question_types": ["know", "choice"],
+            "lexicon_id": "uk",
+            "ask_lexicon_id": "uk",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["question_types"] == ["know", "choice"]
+    assert body["lexicon_id"] == "uk"
+    assert body["ask_lexicon_id"] == "uk"
+
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["scheme"]["question_types"] == ["know", "choice"]
+    assert config["scheme"]["new_question"]["check_lexicons"] == [{"id": "uk"}]
+    assert config["scheme"]["new_question"]["ask_lexicon"] == {"id": "uk"}
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_clears_question_types_and_lexicons() -> None:
+    """An empty list/string clears a previously set field back to unset."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+    client.post(
+        "/api/v1/me/courses",
+        json={
+            "language": "uk",
+            "question_types": ["know"],
+            "lexicon_id": "uk",
+            "ask_lexicon_id": "uk",
+        },
+        headers=_auth(token),
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={"question_types": [], "lexicon_id": "", "ask_lexicon_id": ""},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body["question_types"]) == {
+        "know",
+        "choice",
+        "connect",
+        "type_word",
+    }
+    assert body["lexicon_id"] is None
+    assert body["ask_lexicon_id"] is None
+
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert "question_types" not in config["scheme"]
+    assert "check_lexicons" not in config["scheme"]["new_question"]
+    assert "ask_lexicon" not in config["scheme"]["new_question"]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_rejects_unsupported_question_type() -> None:
+    """An unknown question type in a settings update is a 400."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={"question_types": ["bogus"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_update_course_settings_rejects_unknown_lexicon() -> None:
+    """A `lexicon_id`/`ask_lexicon_id` not belonging to the user is a 400."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.patch(
+        "/api/v1/me/courses/uk/settings",
+        json={"lexicon_id": "does-not-exist"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
 def test_lexicon_strategies_are_listed() -> None:
     """`/lexicon-strategies` serves the selectable strategies with labels."""
 
