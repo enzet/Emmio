@@ -7,23 +7,23 @@
 const API = "/api/v1";
 const TOKEN_KEY = "emmio_token";
 
-// "Book" icon from @enzet/roentgen, inlined so it inherits the link's color via
-// `currentColor` (a referenced `<img>` can't follow the host page's color).
-const BOOK_ICON =
-    '<svg class="button-icon" viewBox="0 0 16 16" aria-hidden="true">' +
-    '<path d="M 4.5,2.0 C 3.671,2.0 3.0,2.672 3.0,3.5 L 3.0,12.5 C 3.0,13.328 ' +
-    "3.671,14.0 4.498,14.0 L 12.5,14.0 C 12.777,14.0 13.0,13.776 13.0,13.5 C " +
-    "13.0,13.224 12.777,13.0 12.501,13.0 L 4.5,13.0 C 4.223,13.0 4.0,12.776 " +
-    "4.0,12.5 L 4.0,11.501 C 4.0,11.224 4.223,11.0 4.499,11.0 L 12.5,11.0 C " +
-    "12.777,11.0 13.0,10.776 13.0,10.5 L 13.0,2.501 C 13.0,2.224 12.777,2.0 " +
-    "12.501,2.0 L 5.5,2.0 L 4.5,2.0 M 5.499,4.0 L 10.5,4.0 C 10.777,4.001 " +
-    "11.0,4.224 11.0,4.5 C 11.0,4.776 10.777,4.999 10.501,5.0 L 5.5,5.0 C " +
-    "5.223,4.999 5.0,4.776 5.0,4.5 C 5.0,4.224 5.223,4.001 5.499,4.0 M " +
-    "5.499,6.0 L 8.5,6.0 C 8.777,6.001 9.0,6.224 9.0,6.5 C 9.0,6.776 8.777,6.999 " +
-    "8.501,7.0 L 5.5,7.0 C 5.223,6.999 5.0,6.776 5.0,6.5 C 5.0,6.224 5.223,6.001 " +
-    "5.499,6.0 M 5.499,8.0 L 9.5,8.0 C 9.777,8.0 10.0,8.224 10.0,8.5 C 10.0,8.776 " +
-    "9.777,9.0 9.501,9.0 L 5.5,9.0 C 5.223,9.0 5.0,8.776 5.0,8.5 C 5.0,8.224 " +
-    '5.223,8.0 5.499,8.0" fill="currentColor" /></svg>';
+// Lexicon selection-strategy icons: private-use codepoints in the "Emmio"
+// icon font (see `data/codepoints.txt`, `base.css`'s `@font-face`). Strategies
+// without a glyph here (uniform random, most frequent first) show no icon.
+const STRATEGY_ICON_CHARS = {
+    frequency: "\uE001",
+    stratified: "\uE002",
+    logistic: "\uE003",
+    threshold: "\uE004",
+};
+
+// A strategy's icon glyph plus a trailing space, or "" if it has none. Pair
+// with the `.strategy-text` CSS class so the glyph actually renders as an
+// icon (see the comment above `.strategy-text` in base.css).
+function strategyIconPrefix(strategyValue) {
+    const char = STRATEGY_ICON_CHARS[strategyValue];
+    return char ? char + " " : "";
+}
 
 const getToken = () => localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
@@ -120,11 +120,12 @@ function emmioLevel(rate) {
 // Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
 // Shared by the lexicon, course, and profile detail pages.
 function renderDefinitionList(container, rows) {
-    for (const [label, value] of rows) {
+    for (const [label, value, className] of rows) {
         const term = document.createElement("dt");
         term.textContent = label;
         const description = document.createElement("dd");
         description.textContent = value;
+        if (className) description.className = className;
         container.append(term, description);
     }
 }
@@ -292,18 +293,7 @@ async function initHome() {
         code.className = "language-code";
         code.textContent = language;
         nameCell.appendChild(code);
-        if (entry) {
-            const link = document.createElement("a");
-            link.href = `lexicon?lexicon=${encodeURIComponent(
-                entry.lexicon_id,
-            )}`;
-            link.textContent = languageName(language);
-            nameCell.appendChild(link);
-        } else {
-            nameCell.appendChild(
-                document.createTextNode(languageName(language)),
-            );
-        }
+        nameCell.appendChild(document.createTextNode(languageName(language)));
         row.appendChild(nameCell);
 
         const rateCell = document.createElement("td");
@@ -319,17 +309,26 @@ async function initHome() {
         levelCell.textContent = entry ? emmioLevel(entry.rate) : "—";
         row.appendChild(levelCell);
 
-        // Lexicon column: a "Check" button while checking is available;
-        // otherwise the time until it unlocks again (the precision goal was
-        // met, and rechecking is paused for a week).
+        // Lexicon column: a link to the main lexicon, then a "Check" button
+        // while checking is available, otherwise the time until it unlocks
+        // again (the precision goal was met, and rechecking is paused for a
+        // week).
         const lexiconCell = document.createElement("td");
+        if (entry) {
+            const lexiconLink = document.createElement("a");
+            lexiconLink.className = "lexicon-link";
+            lexiconLink.href = `lexicon?lexicon=${encodeURIComponent(
+                entry.lexicon_id,
+            )}`;
+            lexiconLink.textContent = entry.lexicon_id;
+            lexiconCell.appendChild(lexiconLink);
+        }
         if (entry && entry.check_available) {
             const check = document.createElement("a");
             check.className = "button";
             check.href = `check?lexicon=${encodeURIComponent(
                 entry.lexicon_id,
             )}`;
-            check.insertAdjacentHTML("afterbegin", BOOK_ICON);
             check.appendChild(document.createTextNode("Check"));
             lexiconCell.appendChild(check);
         } else if (entry && entry.recheck_available_at) {
@@ -452,6 +451,64 @@ async function setupAddCourse() {
     );
 }
 
+// Skin a native strategy <select> with a decorative icon+label overlay: the
+// closed box shows the icon (the overlay mirrors the selected option), but
+// the actual <option> text stays icon-free, so the *open* dropdown list never
+// shows the icon glyph. That's deliberate — on macOS, Safari and Chrome
+// render the open list as a native Cocoa popup that ignores the page's
+// @font-face and falls back to a "missing glyph" box for the icon font's
+// private-use codepoints, while the closed box (drawn by the page itself)
+// renders it fine. The overlay is `aria-hidden` and `pointer-events: none`,
+// so it's purely visual: the real <select> still drives all keyboard/mouse
+// interaction, focus, and the accessible name.
+function addStrategyOverlay(select) {
+    const wrapper = document.createElement("span");
+    wrapper.className = "strategy-picker";
+    select.replaceWith(wrapper);
+    wrapper.appendChild(select);
+
+    const overlay = document.createElement("span");
+    overlay.className = "strategy-picker-overlay strategy-text";
+    overlay.setAttribute("aria-hidden", "true");
+    wrapper.appendChild(overlay);
+
+    // A bare <select> gets the browser's own small control font, distinct
+    // from (usually smaller than) the page's ambient font the overlay would
+    // otherwise inherit; match it so the overlay's icon-prefixed text is the
+    // same size the select auto-sized its (icon-free) box for.
+    const selectStyle = getComputedStyle(select);
+    overlay.style.fontSize = selectStyle.fontSize;
+    overlay.style.lineHeight = selectStyle.lineHeight;
+
+    function update() {
+        const option = select.options[select.selectedIndex];
+        overlay.textContent = option
+            ? strategyIconPrefix(option.value) + option.textContent
+            : "";
+    }
+
+    // The select auto-sizes to fit its own (icon-free) option text, so its
+    // box can be too narrow for the overlay's longer icon-prefixed version.
+    // Measure how much every option actually needs (rather than guessing a
+    // fixed padding) and widen the select by the worst case, so this keeps
+    // working if the strategy labels or the icon set change.
+    let maxTextWidth = 0;
+    for (const option of select.options) {
+        overlay.textContent = strategyIconPrefix(option.value) + option.textContent;
+        maxTextWidth = Math.max(maxTextWidth, overlay.scrollWidth);
+    }
+    const overlayStyle = getComputedStyle(overlay);
+    const needed =
+        maxTextWidth + parseFloat(overlayStyle.left) + parseFloat(overlayStyle.right);
+    const shortfall = needed - select.getBoundingClientRect().width;
+    if (shortfall > 0) {
+        select.style.paddingLeft = `calc(${selectStyle.paddingLeft} + ${Math.ceil(shortfall) + 2}px)`;
+    }
+
+    select.addEventListener("change", update);
+    update();
+}
+
 // Wire up a "create lexicon" form: fill its language selector from the
 // available frequency-list languages, and on submit create the lexicon (which
 // is set as main, with the chosen selection strategy) and open it. Shared by
@@ -492,6 +549,7 @@ async function setupCreateLexicon(formId, selectId, statusId) {
         option.textContent = strategy.label;
         selection.appendChild(option);
     }
+    addStrategyOverlay(selection);
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -614,9 +672,18 @@ async function initLexicons() {
         idCell.appendChild(link);
         row.appendChild(idCell);
 
+        const languageCell = document.createElement("td");
+        languageCell.textContent = languageName(lexicon.language);
+        row.appendChild(languageCell);
+
+        const selectionCell = document.createElement("td");
+        selectionCell.className = "strategy-text";
+        selectionCell.textContent = lexicon.selection
+            ? strategyIconPrefix(lexicon.selection) + lexicon.selection
+            : "";
+        row.appendChild(selectionCell);
+
         for (const value of [
-            languageName(lexicon.language),
-            lexicon.selection || "",
             formatRate(lexicon.rate, lexicon.sd, 1),
             lexicon.words,
         ]) {
@@ -687,7 +754,11 @@ async function initLexicon() {
 
     const rows = [
         ["Language", language],
-        ["Selection", s.selection || "—"],
+        [
+            "Selection",
+            s.selection ? strategyIconPrefix(s.selection) + s.selection : "—",
+            "strategy-text",
+        ],
         ["Words checked", s.words],
         ["Known", s.known],
         ["Don't know", s.dont_know],

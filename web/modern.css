@@ -162,7 +162,6 @@ html[data-style="modern"] a.button {
     background-color: var(--surface);
     border: 1px solid var(--surface-border);
     border-radius: 5px;
-    padding: 0.1rem 0.5rem;
     font-family: inherit;
     font-size: 90%;
     font-weight: 600;
@@ -170,6 +169,12 @@ html[data-style="modern"] a.button {
     cursor: pointer;
     transition: transform 0.08s ease, background-color 0.12s ease,
         border-color 0.12s ease, box-shadow 0.08s ease;
+}
+html[data-style="modern"] button {
+    padding: 0.4rem 0.6rem;
+}
+html[data-style="modern"] a.button {
+    padding: 0.1rem 0.5rem;
 }
 html[data-style="modern"] button:hover,
 html[data-style="modern"] a.button:hover {
@@ -201,6 +206,13 @@ html[data-style="modern"] select {
 }
 html[data-style="modern"] select {
     width: auto;
+}
+/* Match the select's own border/radius/background (see input.text/select
+   above) so `.strategy-picker-overlay` (base.css) looks glued to it. */
+html[data-style="modern"] .strategy-picker-overlay {
+    padding-left: 0.1rem;
+    background: var(--input-bg);
+    border-radius: 5px 0 0 5px;
 }
 html[data-style="modern"] input#answer-input {
     border: 1px solid transparent;

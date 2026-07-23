@@ -11,6 +11,48 @@
  * `.dictionary-body`, and the `id`s used by each page (e.g. `#word`,
  * `#answers`, `#translation`, `#stats`). */
 
+@font-face {
+    font-family: "Emmio";
+    src: url("/data/emmio.ttf") format("truetype");
+}
+.strategy-text {
+    font-family:
+        "Emmio",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+}
+
+/* Decorative icon+label overlay for the strategy <select>
+   (`addStrategyOverlay` in app.js). The real select sits underneath,
+   fully native and interactive; the overlay is `aria-hidden` and
+   `pointer-events: none`, so it never intercepts clicks/keyboard/AT — it
+   only redraws the closed box's text with an icon. `right` stops short of
+   the select's own edge so the native dropdown arrow stays visible. */
+.strategy-picker {
+    position: relative;
+    display: inline-block;
+}
+.strategy-picker-overlay {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    left: 1px;
+    right: 1.3em;
+    display: flex;
+    align-items: center;
+    padding-left: 0.3rem;
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--surface);
+    color: var(--fg);
+    pointer-events: none;
+}
+
 :root {
     /* Native widgets (buttons, inputs, scrollbars) follow the theme. */
     color-scheme: light;
@@ -507,15 +549,6 @@ header .profile-link {
     height: auto;
 }
 
-/* "Book" icon inside the "Check lexicon" links. Inlined SVG, so `fill`
-   inherits the link's color via `currentColor`. */
-svg.button-icon {
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.15em;
-    margin-right: 0.3rem;
-}
-
 /* Vocabulary-level graph on the dashboard: server-rendered SVG, inlined so
    its transparent background sits on the page theme. The `viewBox` lets it
    scale down to the page width. */
@@ -583,12 +616,12 @@ a.button {
     color: var(--fg);
     text-decoration: none;
     font-size: 85%;
-    /* Keeps a leading `svg.button-icon` glued to its label (e.g. "Check")
-       on one line, never orphaned on its own line. */
-    white-space: nowrap;
 }
 td.courses-cell a {
     padding-right: 0.5rem;
+}
+a.lexicon-link {
+    margin-right: 0.5rem;
 }
 /* The learning typing field, centered under the blanked word. */
 input#answer-input {

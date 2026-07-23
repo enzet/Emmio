@@ -3114,6 +3114,11 @@ async def get_new_question_word(
 _DOC_DIR: Path = Path(__file__).resolve().parents[2] / "doc"
 app.mount("/doc", StaticFiles(directory=_DOC_DIR), name="doc")
 
+# Serve generated design assets (currently just the icon font used by the
+# lexicon selection-strategy glyphs) the same read-only way.
+_DATA_DIR: Path = Path(__file__).resolve().parents[2] / "data"
+app.mount("/data", StaticFiles(directory=_DATA_DIR), name="data")
+
 # Serve the static web interface from the same origin as the API, so the
 # browser's `fetch` calls to `/api/v1/...` need no CORS configuration. Mounted
 # last so it never shadows an API route.

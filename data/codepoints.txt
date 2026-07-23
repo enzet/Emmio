@@ -1,0 +1,4 @@
+strategy_frequency_v0 = 0xE001
+strategy_stratified_v0 = 0xE002
+strategy_logistic_v0 = 0xE003
+strategy_threshold_v0 = 0xE004
