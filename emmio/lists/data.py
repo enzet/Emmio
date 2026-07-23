@@ -97,57 +97,101 @@ class ListsData(ArtifactData):
                     )
                 return self.frequency_lists[id_]
 
-    def get_frequency_list_languages(self) -> dict[str, dict]:
-        """Map each language with a frequency list to its usage config.
+    def get_frequency_list_options(self) -> list[dict]:
+        """List every frequency list available, across all languages.
 
-        Two sources are covered: configured `frequency_list` entries (preferred)
-        and the FrequencyWords (Opensubtitles) lists, which are plain files
-        named `<language>_opensubtitles_<year>.txt` in the directory rather than
-        entries in the configuration. For the latter the most recent year wins.
+        Two sources are covered: configured `frequency_list` entries
+        (preferred) and the FrequencyWords (OpenSubtitles) lists, which are
+        plain files named `<language>_opensubtitles_<year>.txt` in the
+        directory rather than entries in the configuration. Unlike
+        `get_frequency_list_languages`, every option is kept — e.g. every
+        cached FrequencyWords year — so a picker can offer a choice; for a
+        given language, the first option in the returned list is the one
+        `get_frequency_list_languages` would pick automatically.
 
-        :return: mapping from language code (e.g. `uk`) to a frequency-list
-            usage config (the `ListUsageConfig` fields) ready to store on a
-            lexicon
+        :return: list of `{"language", "name", "config"}`, where `config` is
+            a `ListUsageConfig`-shaped dict ready to store as a lexicon's or
+            course's `pick_from` entry
         """
-        languages: dict[str, dict] = {}
+        options: list[dict] = []
+        languages_seen: set[str] = set()
 
-        # Configured frequency lists take priority.
+        # Configured frequency lists take priority, one option per id.
         for id_, config in self.list_configs.items():
             if (
                 isinstance(config, dict)
                 and config.get("type") == "frequency_list"
                 and (language := config.get("language")) is not None
             ):
-                languages.setdefault(language, {"id": id_})
+                options.append(
+                    {
+                        "language": language,
+                        "name": config.get("name") or id_,
+                        "config": {"id": id_},
+                    }
+                )
+                languages_seen.add(language)
 
-        # FrequencyWords lists are files, not configuration entries; keep the
-        # most recent year for each language.
-        best_year: dict[str, int] = {}
+        # FrequencyWords lists are files, not configuration entries; a
+        # language may have more than one cached year, newest first.
+        downloaded_years: dict[str, list[int]] = {}
         for file_path in self.path.glob("*_opensubtitles_*.txt"):
             match = re.fullmatch(
                 r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
             )
             if match is None:
                 continue
-            language = match["language"]
-            year: int = int(match["year"])
-            if year > best_year.get(language, 0):
-                best_year[language] = year
-        for language, year in best_year.items():
-            languages.setdefault(
-                language,
-                {"id": "frequency_words", "language": language, "year": year},
+            downloaded_years.setdefault(match["language"], []).append(
+                int(match["year"])
             )
+        for language, years in downloaded_years.items():
+            options.extend(
+                {
+                    "language": language,
+                    "name": f"FrequencyWords ({year})",
+                    "config": {
+                        "id": "frequency_words",
+                        "language": language,
+                        "year": year,
+                    },
+                }
+                for year in sorted(years, reverse=True)
+            )
+            languages_seen.add(language)
 
-        # Languages whose FrequencyWords list is not downloaded yet but can be:
-        # offer them too (the file is fetched on first use). Downloaded and
-        # configured lists above still win.
+        # Languages with nothing downloaded or configured yet: offer the best
+        # release, fetched in the background on first use.
         for language, year in FREQUENCY_WORDS_YEARS.items():
-            languages.setdefault(
-                language,
-                {"id": "frequency_words", "language": language, "year": year},
+            if language in languages_seen:
+                continue
+            options.append(
+                {
+                    "language": language,
+                    "name": f"FrequencyWords ({year})",
+                    "config": {
+                        "id": "frequency_words",
+                        "language": language,
+                        "year": year,
+                    },
+                }
             )
 
+        return options
+
+    def get_frequency_list_languages(self) -> dict[str, dict]:
+        """Map each language with a frequency list to its default usage config.
+
+        The default is the first (highest-priority) option
+        `get_frequency_list_options` returns for the language — see there for
+        the precedence order.
+
+        :return: mapping from language code (e.g. `uk`) to a frequency-list
+            usage config (the `ListUsageConfig` fields) ready to store on a
+            lexicon
+        """
+        languages: dict[str, dict] = {}
+        for option in self.get_frequency_list_options():
+            languages.setdefault(option["language"], option["config"])
         return languages
 
     def get_list(self, list_usage_config: ListUsageConfig) -> List | None:

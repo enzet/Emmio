@@ -157,8 +157,7 @@ html[data-style="modern"] header a:hover {
 /* Buttons: flat, hairline-bordered, filling on hover. The pressed feedback
    (scale + inset shadow) comes from `base.css`; the 5px corner radius is
    fixed across every style. */
-html[data-style="modern"] button,
-html[data-style="modern"] a.button {
+html[data-style="modern"] button {
     background-color: var(--surface);
     border: 1px solid var(--surface-border);
     border-radius: 5px;
@@ -167,28 +166,50 @@ html[data-style="modern"] a.button {
     font-weight: 600;
     color: var(--fg);
     cursor: pointer;
+    padding: 0.4rem 0.6rem;
     transition: transform 0.08s ease, background-color 0.12s ease,
         border-color 0.12s ease, box-shadow 0.08s ease;
 }
-html[data-style="modern"] button {
-    padding: 0.4rem 0.6rem;
+html[data-style="modern"] button:hover {
+    background-color: var(--input-bg);
 }
+
+/* `a.button` (the landing page's calls to action) gets extra flair a plain
+   form `button` doesn't need: a pill shape, a resting shadow, and a hover
+   lift. */
 html[data-style="modern"] a.button {
-    padding: 0.1rem 0.5rem;
+    display: inline-block;
+    background-color: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 90%;
+    font-weight: 600;
+    color: var(--fg);
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0.45rem 1.1rem;
+    box-shadow: 0 1px 2px #0001;
+    transition: transform 0.15s ease, background-color 0.12s ease,
+        border-color 0.12s ease, box-shadow 0.15s ease;
 }
-html[data-style="modern"] button:hover,
 html[data-style="modern"] a.button:hover {
     background-color: var(--input-bg);
+    box-shadow: 0 4px 10px #0002;
+    transform: translateY(-1px);
 }
 /* The primary call to action stays a solid, inverted pill. */
 html[data-style="modern"] a.button.primary {
     background-color: var(--fg);
     border-color: var(--fg);
     color: var(--bg);
+    box-shadow: 0 2px 8px #0003;
 }
 html[data-style="modern"] a.button.primary:hover {
     background-color: var(--fg);
     opacity: 0.85;
+    box-shadow: 0 6px 14px #0004;
+    transform: translateY(-1px);
 }
 
 /* Inputs and selects: borderless soft-rounded fields on a gray fill, the

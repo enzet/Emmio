@@ -418,13 +418,24 @@ function renderAddCourseForm(container) {
         <h3 id="add-course-heading">Add a course</h3>
         <form id="add-course-form" aria-labelledby="add-course-heading">
             Learn
-            <select id="add-course-language" required></select> language<br />
+            <select id="add-course-language" required></select> language,<br />
+            drawing new words from
+            <select
+                id="add-course-frequency-list"
+                class="course-frequency-list"
+                required
+            ></select><br />
             with definitions in
             <select
                 id="add-course-targets"
                 class="translation-languages"
                 required
-            ></select> language.<br />
+            ></select> language,<br />
+            skipping words already known in
+            <select
+                id="add-course-lexicon"
+                class="course-lexicon"
+            ></select><br />
             <button type="submit">Create course</button>
         </form>
         <p id="add-course-status" role="status"></p>`;
@@ -583,6 +594,56 @@ async function setupCreateLexicon(formId, selectId, statusId) {
     });
 }
 
+// A frequency-list option is identified by `id` plus `year` (only
+// `frequency_words` options need the year, to tell cached releases apart),
+// so encode both into the <select> value as a single string.
+function encodeFrequencyListValue(option) {
+    return `${option.id}::${option.year ?? ""}`;
+}
+
+function decodeFrequencyListValue(value) {
+    const [id, year] = value.split("::");
+    return { id, year: year ? Number(year) : null };
+}
+
+// Fill the "draw new words from" picker with the frequency lists available
+// for `language`, starring and preselecting the one creation would pick
+// automatically if left untouched. Called on load and again whenever the
+// course's language changes, since the set of matching lists differs per
+// language.
+function fillCourseFrequencyListSelect(select, frequencyLists, language) {
+    select.innerHTML = "";
+    for (const option of frequencyLists) {
+        if (option.language !== language) continue;
+        const el = document.createElement("option");
+        el.value = encodeFrequencyListValue(option);
+        el.textContent = (option.is_default ? "★ " : "") + option.name;
+        if (option.is_default) el.selected = true;
+        select.appendChild(el);
+    }
+}
+
+// Fill the "skip known words" lexicon picker with the caller's lexicons for
+// `language`, plus a leading "none" option. Called on load and again whenever
+// the course's language changes, since the set of matching lexicons differs
+// per language.
+function fillCourseLexiconSelect(select, lexicons, language) {
+    select.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "(none)";
+    select.appendChild(none);
+    for (const lexicon of lexicons) {
+        if (lexicon.language !== language) continue;
+        const option = document.createElement("option");
+        option.value = lexicon.lexicon_id;
+        option.textContent =
+            (lexicon.is_main ? "★ " : "") +
+            (lexicon.name || lexicon.lexicon_id);
+        select.appendChild(option);
+    }
+}
+
 // Wire up an "add a course" form: fill its language selector from the languages
 // available for learning (the same ones a lexicon can use — a frequency list to
 // draw new words from and Tatoeba sentences for examples), and on submit create
@@ -591,12 +652,17 @@ async function setupCreateCourse(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
     const targets = form.querySelector(".translation-languages");
+    const frequencyListSelect = form.querySelector(".course-frequency-list");
+    const lexiconSelect = form.querySelector(".course-lexicon");
     const createStatus = document.getElementById(statusId);
 
-    const [response, targetResponse] = await Promise.all([
-        api("/lexicon-languages"),
-        api("/translation-languages"),
-    ]);
+    const [response, targetResponse, frequencyListResponse, lexiconResponse] =
+        await Promise.all([
+            api("/lexicon-languages"),
+            api("/translation-languages"),
+            api("/frequency-lists"),
+            api("/me/lexicons"),
+        ]);
     const available = await response.json();
     if (available.length === 0) {
         createStatus.textContent =
@@ -609,6 +675,22 @@ async function setupCreateCourse(formId, selectId, statusId) {
 
     fillLanguageSelect(select, available);
     fillLanguageSelect(targets, await targetResponse.json(), "en");
+
+    // The frequency-list and lexicon pickers are keyed to the currently
+    // selected course language, so they start filtered to it and are
+    // refiltered on every language change.
+    const frequencyLists = await frequencyListResponse.json();
+    const lexicons = await lexiconResponse.json();
+    const refilterByLanguage = () => {
+        fillCourseFrequencyListSelect(
+            frequencyListSelect,
+            frequencyLists,
+            select.value,
+        );
+        fillCourseLexiconSelect(lexiconSelect, lexicons, select.value);
+    };
+    refilterByLanguage();
+    select.addEventListener("change", refilterByLanguage);
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -627,6 +709,10 @@ async function setupCreateCourse(formId, selectId, statusId) {
             body: {
                 language: select.value,
                 translation_languages: translationLanguages,
+                frequency_list: decodeFrequencyListValue(
+                    frequencyListSelect.value,
+                ),
+                lexicon_id: lexiconSelect.value || null,
             },
         });
         if (result.ok) {

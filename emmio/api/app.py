@@ -582,6 +582,38 @@ def get_translation_languages() -> list[TranslationLanguage]:
     ]
 
 
+class FrequencyListOption(BaseModel):
+    """A frequency list a lexicon or course can draw new words from.
+
+    A language may have more than one (e.g. several cached FrequencyWords
+    years, or a custom configured list alongside them).
+    """
+
+    language: str  # ISO code, e.g. `fr`.
+    id: str  # List config id, e.g. `frequency_words` or a custom list id.
+    year: int | None = None  # FrequencyWords release year, when relevant.
+    name: str  # Human-readable label for the picker.
+    is_default: bool
+    """Whether creation picks this option automatically when none is given."""
+
+
+@app.get("/api/v1/frequency-lists", dependencies=[Depends(get_current_user)])
+def get_frequency_lists() -> list[FrequencyListOption]:
+    """List every frequency list available, across all languages."""
+    data = get_data()
+    defaults: dict[str, dict] = data.get_frequency_list_languages()
+    return [
+        FrequencyListOption(
+            language=option["language"],
+            id=option["config"]["id"],
+            year=option["config"].get("year"),
+            name=option["name"],
+            is_default=option["config"] == defaults.get(option["language"]),
+        )
+        for option in data.get_frequency_list_options()
+    ]
+
+
 class CreateLexiconRequest(BaseModel):
     """Payload to create a lexicon: the language and its translation targets."""
 
@@ -644,6 +676,41 @@ def _frequency_list_or_400(data: Any, language: str) -> dict:
             detail=f"No frequency list available for language `{language}`.",
         )
     return frequency_list
+
+
+class FrequencyListSelection(BaseModel):
+    """A specific frequency list to draw new words from, by id (and year)."""
+
+    id: str
+    year: int | None = None
+
+
+def _chosen_frequency_list_or_400(
+    data: Any, language: str, choice: FrequencyListSelection | None
+) -> dict:
+    """Resolve the frequency list to draw new words from.
+
+    Defaults to the language's best available list (`_frequency_list_or_400`)
+    when `choice` is omitted; otherwise validates the requested (id, year)
+    against `get_frequency_list_options` so a course can't be pointed at a
+    list that doesn't exist or belongs to another language.
+
+    :param data: the shared `Data`; typed loosely because tests substitute a
+        duck-typed stub for `get_data`
+    """
+    if choice is None:
+        return _frequency_list_or_400(data, language)
+    for option in data.get_frequency_list_options():
+        if (
+            option["language"] == language
+            and option["config"]["id"] == choice.id
+            and option["config"].get("year") == choice.year
+        ):
+            return option["config"]
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(f"No frequency list `{choice.id}` for language `{language}`."),
+    )
 
 
 def _unique_artifact_id(language: str, existing: set[str]) -> str:
@@ -909,6 +976,12 @@ class CreateCourseRequest(BaseModel):
 
     language: str
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
+    lexicon_id: str | None = None
+    """An existing lexicon for the same language whose already-known words are
+    skipped when the course picks new questions."""
+    frequency_list: FrequencyListSelection | None = None
+    """Which frequency list to draw new words from; defaults to the
+    language's best available list (`_frequency_list_or_400`)."""
 
 
 class CreatedCourse(BaseModel):
@@ -928,10 +1001,31 @@ def create_course(
     dictionary marks uncommon), shown with Tatoeba usage examples, and
     translated into the requested target languages — the same shared data a
     lexicon uses. Its id is the language code, suffixed if one already exists.
+    When `lexicon_id` names one of the user's own lexicons for the same
+    language, words already known there are skipped too. `frequency_list`
+    picks among a language's several available lists (e.g. cached
+    FrequencyWords years), defaulting to the best one when omitted.
     """
     data = get_data()
-    frequency_list: dict = _frequency_list_or_400(data, request.language)
+    frequency_list: dict = _chosen_frequency_list_or_400(
+        data, request.language, request.frequency_list
+    )
     targets: list[str] = _validated_targets(request.translation_languages)
+    if request.lexicon_id is not None:
+        lexicon_config: dict | None = postgres.get_lexicon_config(
+            user_id, request.lexicon_id
+        )
+        if (
+            lexicon_config is None
+            or lexicon_config["language"] != request.language
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"No lexicon `{request.lexicon_id}` for language "
+                    f"`{request.language}`."
+                ),
+            )
     course_id: str = _unique_artifact_id(
         request.language, {row[0] for row in postgres.list_courses(user_id)}
     )
@@ -952,6 +1046,8 @@ def create_course(
                 ),
             }
         ]
+    if request.lexicon_id is not None:
+        new_question["check_lexicons"] = [{"id": request.lexicon_id}]
     config: dict = {
         "name": Language.from_code(request.language).get_name(),
         "learning_language": request.language,

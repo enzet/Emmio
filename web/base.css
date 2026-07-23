@@ -39,8 +39,8 @@
 }
 .strategy-picker-overlay {
     position: absolute;
-    top: 1px;
-    bottom: 1px;
+    top: 3px;
+    /* bottom: 1px; */
     left: 1px;
     right: 1.3em;
     display: flex;
@@ -321,14 +321,10 @@ main.card.landing {
 }
 .landing .cta a.button {
     font-size: 100%;
-    padding: 0.4rem 0.9rem;
 }
-/* The primary call to action: a solid, high-contrast button (inverts per
-   theme without a new color variable). */
+/* The primary call to action stays a plain link, just bolder. */
 a.button.primary {
-    background-color: var(--fg);
-    border-color: var(--fg);
-    color: var(--bg);
+    font-weight: 700;
 }
 
 nav {
@@ -607,14 +603,10 @@ kbd {
     opacity: 50%;
     font-size: 80%;
 }
+/* A plain link, undecorated as a button; `modern.css` dresses it up. */
 a.button {
-    display: inline-block;
-    background-color: var(--surface);
-    border: 1px solid var(--surface-border);
-    border-radius: 5px;
-    padding: 0.2rem 0.5rem;
     color: var(--fg);
-    text-decoration: none;
+    text-decoration: underline;
     font-size: 85%;
 }
 td.courses-cell a {

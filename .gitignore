@@ -8,10 +8,12 @@ Emmio.egg-info
 __pycache__
 c/text
 cache
+image/*.svg
 out
 research
 rust/target/
 test
 tests/temp
+uv.lock
 visualize/
 work

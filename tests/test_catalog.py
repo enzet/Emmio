@@ -86,6 +86,28 @@ def test_frequency_words_config_uses_catalog_year(tmp_path: Path) -> None:
     }
 
 
+def test_frequency_list_options_offer_every_cached_year(tmp_path: Path) -> None:
+    """Two cached FrequencyWords years for a language offer both, newest first.
+
+    The default `get_frequency_list_languages` picks (the newest cached year)
+    must be the first option returned for that language.
+    """
+    lists_path = tmp_path / "lists"
+    lists_path.mkdir()
+    (lists_path / "fr_opensubtitles_2016.txt").touch()
+    (lists_path / "fr_opensubtitles_2018.txt").touch()
+
+    lists = ListsData.from_config(lists_path)
+    options = [
+        option
+        for option in lists.get_frequency_list_options()
+        if option["language"] == "fr"
+    ]
+
+    assert [option["config"]["year"] for option in options] == [2018, 2016]
+    assert options[0]["config"] == lists.get_frequency_list_languages()["fr"]
+
+
 def test_supported_languages_includes_downloadable(tmp_path: Path) -> None:
     """`get_supported_languages` reports catalog languages without downloads."""
 

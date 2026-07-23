@@ -50,13 +50,22 @@ class _FakeData:
         self,
         languages: dict[str, dict],
         frequency_lists: dict[str, FrequencyList] | None = None,
+        extra_frequency_options: list[dict] | None = None,
     ) -> None:
         self._languages = languages
         self._frequency_lists = frequency_lists or {}
+        self._extra_frequency_options = extra_frequency_options or []
         self.dictionaries = _FakeDictionaries()
 
     def get_frequency_list_languages(self) -> dict[str, dict]:
         return self._languages
+
+    def get_frequency_list_options(self) -> list[dict]:
+        defaults = [
+            {"language": language, "name": config["id"], "config": config}
+            for language, config in self._languages.items()
+        ]
+        return defaults + self._extra_frequency_options
 
     def get_frequency_list(self, usage_config: Any) -> FrequencyList | None:
         return self._frequency_lists.get(usage_config.id)
@@ -976,6 +985,138 @@ def test_create_course_suffixes_duplicate_ids() -> None:
 
     assert first.json()["course_id"] == "uk"
     assert second.json()["course_id"] == "uk_2"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_with_lexicon_stores_check_lexicons() -> None:
+    """Passing `lexicon_id` wires the lexicon into the new-question scheme."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
+    )
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "lexicon_id": "uk"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["scheme"]["new_question"]["check_lexicons"] == [{"id": "uk"}]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_with_unknown_lexicon_is_bad_request() -> None:
+    """A `lexicon_id` that does not belong to the user is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "lexicon_id": "does-not-exist"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_with_mismatched_lexicon_language_is_bad_request() -> (
+    None
+):
+    """A `lexicon_id` for a different language is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/lexicons", json={"language": "ru"}, headers=_auth(token)
+    )
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "lexicon_id": "ru"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+def test_frequency_lists_endpoint_flags_the_default_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`/frequency-lists` lists every option and flags the default one."""
+
+    languages = {"uk": {"id": "uk_list"}}
+    extra = [
+        {
+            "language": "uk",
+            "name": "Alt Ukrainian list",
+            "config": {"id": "uk_list_alt"},
+        }
+    ]
+    fake: Any = _FakeData(languages, extra_frequency_options=extra)
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/frequency-lists", headers=_auth(token))
+
+    assert response.status_code == 200
+    options = {option["id"]: option for option in response.json()}
+    assert options["uk_list"]["is_default"] is True
+    assert options["uk_list_alt"]["is_default"] is False
+    assert options["uk_list_alt"]["language"] == "uk"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_stores_the_chosen_frequency_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing `frequency_list` overrides the language's default list."""
+
+    languages = {"uk": {"id": "uk_list"}}
+    extra = [
+        {
+            "language": "uk",
+            "name": "Alt Ukrainian list",
+            "config": {"id": "uk_list_alt"},
+        }
+    ]
+    fake: Any = _FakeData(languages, extra_frequency_options=extra)
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "frequency_list": {"id": "uk_list_alt"}},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["scheme"]["new_question"]["pick_from"] == [
+        {"id": "uk_list_alt"}
+    ]
+
+
+def test_create_course_with_unknown_frequency_list_is_bad_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `frequency_list` not offered for the language is rejected."""
+
+    fake: Any = _FakeData({"uk": {"id": "uk_list"}})
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "frequency_list": {"id": "does-not-exist"}},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
 
 
 def test_lexicon_strategies_are_listed() -> None:
