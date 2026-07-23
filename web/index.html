@@ -29,24 +29,11 @@
                     know. You don't have one set as your main lexicon yet —
                     pick a language to create your first one.
                 </p>
-                <form id="create-lexicon-form">
-                    Add lexicon for
-                    <select id="new-lexicon-language" required></select>
-                    with definitions in
-                    <select
-                        id="new-lexicon-targets"
-                        class="translation-languages"
-                        required
-                    ></select>
-                    that uses
-                    <select
-                        id="new-lexicon-selection"
-                        class="lexicon-selection"
-                    ></select>
-                    selection strategy.
-                    <button type="submit">Create lexicon</button>
-                </form>
-                <p id="create-status" role="status"></p>
+                <p>
+                    <a href="new-lexicon" class="button primary"
+                        >Create your first lexicon</a
+                    >
+                </p>
             </section>
 
             <section id="languages" aria-labelledby="languages-heading" hidden>
@@ -71,10 +58,10 @@
                     hidden
                 ></figure>
 
-                <!-- Filled by `renderAddLexiconForm` / `renderAddCourseForm`
-                     in app.js, shared with the lexicons and courses pages. -->
-                <div id="add-lexicon"></div>
-                <div id="add-course"></div>
+                <p>
+                    <a href="new-lexicon" class="button">Add a lexicon</a>
+                    <a href="new-course" class="button">Add a course</a>
+                </p>
             </section>
         </main>
     </body>

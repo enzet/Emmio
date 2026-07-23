@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Add a lexicon</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="new-lexicon">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="lexicons">← Lexicons</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="add-lexicon-heading">Add a lexicon</h1>
+            <form id="add-lexicon-form" aria-labelledby="add-lexicon-heading">
+                Add lexicon for
+                <select id="add-lexicon-language" required></select>
+                language<br />
+                with definitions in
+                <select
+                    id="add-lexicon-targets"
+                    class="translation-languages"
+                    required
+                ></select> language<br />
+                that uses
+                <select
+                    id="add-lexicon-selection"
+                    class="lexicon-selection"
+                ></select><br />
+                selection strategy.<br />
+                <button type="submit">Create lexicon</button>
+            </form>
+            <p id="add-status" role="status"></p>
+        </main>
+    </body>
+</html>

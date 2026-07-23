@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Add a course</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="new-course">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="courses">← Courses</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="add-course-heading">Add a course</h1>
+            <form id="add-course-form" aria-labelledby="add-course-heading">
+                Learn
+                <select id="add-course-language" required></select>
+                language,<br />
+                drawing new words from
+                <select
+                    id="add-course-frequency-list"
+                    class="course-frequency-list"
+                    required
+                ></select><br />
+                with definitions in
+                <select
+                    id="add-course-targets"
+                    class="translation-languages"
+                    required
+                ></select> language,<br />
+                skipping words already known in
+                <select
+                    id="add-course-lexicon"
+                    class="course-lexicon"
+                ></select><br />
+                <button type="submit">Create course</button>
+            </form>
+            <p id="add-course-status" role="status"></p>
+        </main>
+    </body>
+</html>
