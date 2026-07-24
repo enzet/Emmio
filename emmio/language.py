@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from colour import Color
@@ -85,7 +85,10 @@ class Language:
 
     def __post_init__(self) -> None:
         self.iso639_language: ISO639Language = ISO639Language(self.code)
+        self._init_has_symbol()
 
+    def _init_has_symbol(self) -> None:
+        """Set up `has_symbol`, shared by `Language` and `Script`."""
         self.has_symbol: Callable[[str], bool]
         if self.checking:
             self.has_symbol = self.checking
@@ -97,9 +100,10 @@ class Language:
 
     @classmethod
     def from_code(cls, code: str) -> Language:
-        """Get language by its code.
+        """Get language (or script; see `Script`) by its code.
 
-        :param code: ISO 639-1:2002 two-letter code
+        :param code: ISO 639-1:2002 two-letter code, or an ISO 15924 script
+            code
         """
         for language in KnownLanguages.get_languages():
             if code == language.get_code():
@@ -308,25 +312,73 @@ class Language:
         return variants
 
 
+@dataclass
+class Script(Language):
+    """A writing system identified by an ISO 15924 script code, not a language.
+
+    For a script shared by several languages (`deva` Devanagari: Hindi,
+    Marathi, Nepali, Sanskrit; `arab` Arabic script: Arabic, Persian, Urdu),
+    or with no language of its own (`kana` Katakana, `hira` Hiragana): a
+    `course_type=symbol` (alphabet) course is identified this way, kept
+    separate from the language code(s) its vocabulary courses use.
+    """
+
+    name: str = field(kw_only=True)
+    """Display name — a script has no `iso639` entry to derive one from."""
+
+    def __post_init__(self) -> None:
+        """Set up `has_symbol`; skip `Language`'s `iso639` lookup."""
+        self._init_has_symbol()
+
+    def get_name(self) -> str:
+        """Get the script's display name."""
+        return self.name
+
+    def get_code(self) -> str:
+        """Get the ISO 15924 script code."""
+        return self.code
+
+    def get_part3(self) -> str:
+        """Get the script code; scripts have no ISO 639-3 equivalent."""
+        return self.code
+
+
 def letter_range(start: str, stop: str) -> str:
     """Get range of letters from Unicode code point."""
     return "".join(chr(x) for x in range(ord(start), ord(stop) + 1))
 
 
 KATAKANA: str = letter_range("゠", "ヿ")
-HIRAGANA: str = letter_range("ぁ", "ゟ")
+HIRAGANA: str = letter_range("ぁ", "ゟ").replace("゗", "").replace("゘", "")
+"""The Hiragana block, minus U+3097 and U+3098 — reserved, unassigned
+codepoints `letter_range` would otherwise include as if they were letters."""
 KANJI: str = (
     letter_range("㐀", "䶵")
     + letter_range("一", "鿋")
     + letter_range("豈", "頻")
 )
 ARABIC_LETTERS: str = letter_range("\u0620", "\u06ff")  # TODO(enzet): check.
-KOREAN_LETTERS: str = letter_range("\u1100", "\u11ff") + letter_range(
-    "\uac00", "\ud7a3"
+KOREAN_LETTERS: str = (
+    # 19 modern consonants (Hangul Compatibility Jamo, U+3131-314E), skipping
+    # archaic consonant clusters interspersed in that range.
+    "\u3131\u3132\u3134\u3137\u3138\u3139\u3141\u3142\u3143\u3145"
+    "\u3146\u3147\u3148\u3149\u314a\u314b\u314c\u314d\u314e"
+    # 21 modern vowels (U+314F-3163), a contiguous run.
+    + letter_range("\u314f", "\u3163")
 )
+"""The 40 modern Hangul jamo.
+
+Not `letter_range("\\u1100", "\\u11ff")` (the algorithmic composition block,
+full of archaic position-dependent forms) nor the precomposed-syllable block
+`\\uac00`-`\\ud7a3` (11,172 syllable blocks, not letters).
+"""
 JAPANESE_LETTERS: str = KATAKANA + HIRAGANA + KANJI
 ARMENIAN_LETTERS: str = letter_range("\u0561", "\u0587") + letter_range(
     "\u0531", "\u0556"
+)
+GEORGIAN_LETTERS: str = (
+    "\u10d0\u10d1\u10d2\u10d3\u10d4\u10d5\u10d6\u10d7\u10d8\u10d9\u10da\u10db\u10dc\u10dd\u10de\u10df\u10e0\u10e1\u10e2\u10e3\u10e4\u10e5\u10e6\u10e7\u10e8\u10e9\u10ea\u10eb\u10ec\u10ed\u10ee\u10ef\u10f0"
+    "\u10f1\u10f2\u10f3\u10f4\u10f5"
 )
 
 # Whole Unicode blocks, used as best-effort alphabets for languages written in
@@ -467,7 +519,7 @@ class KnownLanguages:
     GEORGIAN: Language = Language(
         "ka",
         Color("#EA3323"),  # Red color of the Georgian flag.
-        "აბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰ" + "ჱჲჳჴჵ",
+        GEORGIAN_LETTERS,
         self_name="ქართული",
     )
     HEBREW: Language = Language(
@@ -814,6 +866,57 @@ class KnownLanguages:
         + letter_range("ạ", "ỹ"),
         borrowed_symbols=both_cases("FJWZ"),
         self_name="Tiếng Việt",
+    )
+
+    # Script identities (ISO 15924 codes).
+
+    ARMENIAN_SCRIPT: Script = Script(
+        "armn",
+        Color("#E8AD3B"),  # Same orange as `ARMENIAN`.
+        ARMENIAN_LETTERS,
+        name="Armenian script",
+    )
+    GEORGIAN_SCRIPT: Script = Script(
+        "geor",
+        Color("#EA3323"),  # Same red as `GEORGIAN`.
+        GEORGIAN_LETTERS,
+        name="Georgian script",
+    )
+    HANGUL: Script = Script(
+        "hang",
+        Color("#1B449C"),  # Same blue as `KOREAN`.
+        KOREAN_LETTERS,
+        name="Hangul",
+    )
+    DEVANAGARI: Script = Script(
+        "deva",
+        Color("#FF9933"),  # Same saffron as `HINDI`.
+        DEVANAGARI_LETTERS,
+        name="Devanagari",
+    )
+    ARABIC_SCRIPT: Script = Script(
+        "arab",
+        Color("#286035"),  # Same green as `ARABIC`.
+        ARABIC_LETTERS,
+        name="Arabic script",
+    )
+    KATAKANA_SCRIPT: Script = Script(
+        "kana",
+        Color("#AE232F"),  # Same red as `JAPANESE`.
+        KATAKANA,
+        name="Katakana",
+    )
+    HIRAGANA_SCRIPT: Script = Script(
+        "hira",
+        Color("#C75B6A"),  # A softer red, to tell it apart from Katakana.
+        HIRAGANA,
+        name="Hiragana",
+    )
+    CYRILLIC_SCRIPT: Script = Script(
+        "cyrl",
+        Color("#8B2E2E"),  # A distinct brick red, unused by any real language.
+        CYRILLIC_LETTERS,
+        name="Cyrillic script",
     )
 
 

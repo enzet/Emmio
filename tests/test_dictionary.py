@@ -1,5 +1,7 @@
 """Test for dictionary."""
 
+import asyncio
+import json
 import threading
 from pathlib import Path
 from typing import Any
@@ -7,8 +9,16 @@ from typing import Any
 import pytest
 
 from emmio.dictionary import data as dictionary_data
-from emmio.dictionary.config import DictionaryUsageConfig
-from emmio.dictionary.core import SimpleDictionary
+from emmio.dictionary.config import DictionaryConfig, DictionaryUsageConfig
+from emmio.dictionary.core import (
+    Definition,
+    DefinitionValue,
+    DictionaryItem,
+    Form,
+    Link,
+    SimpleDictionary,
+    StructuredDictionary,
+)
 from emmio.dictionary.data import DictionaryData
 from emmio.dictionary.en_wiktionary import (
     EnglishWiktionaryKaikki,
@@ -28,6 +38,121 @@ def test_dictionary() -> None:
         KnownLanguages.FRENCH,
         KnownLanguages.ENGLISH,
     )
+
+
+_ARMENIAN_ALPHABET_ENTRY: dict[str, Any] = {
+    "part_of_speech": "letter",
+    "transcriptions": ["ɑ"],
+    "definitions": {"hy": ["այբ"], "en": ["ayb"], "ru": ["айб"]},
+    "links": [{"type": "lowercase form", "value": "ա"}],
+}
+
+
+def test_structured_dictionary_get_item() -> None:
+    """`StructuredDictionary.get_item` looks up its pre-built items by word."""
+
+    item = DictionaryItem(
+        "Ա",
+        [
+            Form(
+                "Ա",
+                part_of_speech="letter",
+                transcriptions={"ɑ"},
+                definitions={
+                    KnownLanguages.ARMENIAN: [
+                        Definition([DefinitionValue("այբ")])
+                    ],
+                    KnownLanguages.ENGLISH: [
+                        Definition([DefinitionValue("ayb")])
+                    ],
+                },
+                links=[Link("lowercase form", "ա")],
+            )
+        ],
+    )
+    dictionary = StructuredDictionary(
+        "hy_alphabet",
+        Path("unused"),
+        "Armenian alphabet",
+        {"Ա": item},
+        KnownLanguages.ARMENIAN,
+    )
+
+    found = asyncio.run(dictionary.get_item("Ա"))
+    assert found is item
+    assert asyncio.run(dictionary.get_item("missing")) is None
+    assert dictionary.check_from_language(KnownLanguages.ARMENIAN)
+    assert not dictionary.check_from_language(KnownLanguages.ENGLISH)
+    assert dictionary.check_to_language(KnownLanguages.ENGLISH)
+    assert not dictionary.check_to_language(KnownLanguages.RUSSIAN)
+
+
+def test_dictionary_data_loads_structured_type(tmp_path: Path) -> None:
+    """`type: "structured"` in `config.json` dispatches to it.
+
+    The parsed item should carry definitions, transcriptions, and links from
+    plain JSON.
+    """
+
+    (tmp_path / "hy_alphabet.json").write_text(
+        json.dumps({"Ա": _ARMENIAN_ALPHABET_ENTRY}), encoding="utf-8"
+    )
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "hy_alphabet": {
+                    "type": "structured",
+                    "file_name": "hy_alphabet.json",
+                    "name": "Armenian alphabet",
+                    "from_language": "hy",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    data = DictionaryData.from_config(tmp_path)
+
+    dictionary = data.get_dictionary(
+        DictionaryUsageConfig(id="hy_alphabet", from_language="hy")
+    )
+    assert isinstance(dictionary, StructuredDictionary)
+    item = asyncio.run(dictionary.get_item("Ա"))
+    assert item is not None
+    form = item.get_forms()[0]
+    assert form.part_of_speech == "letter"
+    assert form.transcriptions == {"ɑ"}
+    assert form.definitions[KnownLanguages.ARMENIAN][0].values[0].value == (
+        "այբ"
+    )
+    assert form.definitions[KnownLanguages.ENGLISH][0].values[0].value == (
+        "ayb"
+    )
+    assert [link.link_value for link in form.get_links()] == ["ա"]
+
+
+def test_dictionary_config_defaults_to_file_type() -> None:
+    """Omitting `type` keeps the long-standing flat-file behavior."""
+
+    config = DictionaryConfig(
+        file_name="nb_en.json",
+        name="Norwegian Bokmål-English Dictionary",
+        from_language="nb",
+        to_language="en",
+    )
+    assert config.type == "file"
+
+
+def test_simple_dictionary_requires_to_language(tmp_path: Path) -> None:
+    """A `file`-type dictionary without `to_language` is a clear error."""
+
+    (tmp_path / "d.json").write_text("{}", encoding="utf-8")
+    config = DictionaryConfig(
+        file_name="d.json", name="Test", from_language="nb"
+    )
+
+    with pytest.raises(ValueError, match="to_language"):
+        SimpleDictionary.from_config(tmp_path, "d", config)
 
 
 def test_can_download_kaikki() -> None:

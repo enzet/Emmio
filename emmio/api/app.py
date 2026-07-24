@@ -572,7 +572,12 @@ def get_lexicon_languages() -> list[LexiconLanguage]:
 class AlphabetLanguage(BaseModel):
     """A language a `CourseType.SYMBOL` (alphabet) course can be created for."""
 
-    language: str  # ISO code, e.g. `uk`.
+    language: str  # ISO code, e.g. `uk`, or an ISO 15924 script code.
+
+
+_SUPERSEDED_BY_SCRIPT: frozenset[str] = frozenset(
+    {"hy", "ka", "ko", "hi", "ar", "bg", "kk", "mk", "sr"}
+)
 
 
 @app.get("/api/v1/alphabet-languages", dependencies=[Depends(get_current_user)])
@@ -581,13 +586,14 @@ def get_alphabet_languages() -> list[AlphabetLanguage]:
 
     An alphabet course draws its items directly from `Language.symbols`, not
     from a frequency list or Tatoeba sentences, so it is offered for any
-    language that knows its own alphabet — a strictly larger set than
-    `lexicon-languages`.
+    language (or script, e.g. `deva` Devanagari) that knows its alphabet — a
+    strictly larger set than `lexicon-languages`.
     """
     return [
         AlphabetLanguage(language=language.get_code())
         for language in KnownLanguages.get_languages()
         if language.has_symbols()
+        and language.get_code() not in _SUPERSEDED_BY_SCRIPT
     ]
 
 

@@ -688,7 +688,12 @@ class SimpleDictionary(Dictionary):
             file
         :param id_: unique string identifier of the dictionary
         :param config: dictionary configuration
+        :raises ValueError: if `config.to_language` is not set
         """
+        if config.to_language is None:
+            message = f"`to_language` is required for `{id_}` (type=simple)."
+            raise ValueError(message)
+
         with (path / config.file_name).open(encoding="utf-8") as input_file:
             data: dict[str, str] = json.load(input_file)
 
@@ -737,6 +742,123 @@ class SimpleDictionary(Dictionary):
     @override
     def check_to_language(self, language: Language) -> bool:
         return language == self.to_language
+
+
+def _structured_item_from_entry(
+    word: str, entry: dict[str, Any]
+) -> DictionaryItem:
+    """Parse one `StructuredDictionary` JSON entry into a `DictionaryItem`.
+
+    :param word: the headword this entry defines
+    :param entry: `{"part_of_speech": <str>, "transcriptions": [<IPA>, ...],
+        "definitions": {<language code>: [<definition text>, ...], ...},
+        "links": [{"type": <link type>, "value": <linked word>}, ...]}`, every
+        key optional
+    """
+    definitions: dict[Language, list[Definition]] = {
+        Language.from_code(code): [
+            Definition.from_simple_translation(text) for text in texts
+        ]
+        for code, texts in entry.get("definitions", {}).items()
+    }
+    links: list[Link] = [
+        Link(link["type"], link["value"]) for link in entry.get("links", [])
+    ]
+    form = Form(
+        word,
+        part_of_speech=entry.get("part_of_speech"),
+        transcriptions=set(entry.get("transcriptions", [])),
+        definitions=definitions,
+        links=links,
+    )
+    return DictionaryItem(word, [form])
+
+
+class StructuredDictionary(Dictionary):
+    """Dictionary of full items, hand-authored as JSON.
+
+    Unlike `SimpleDictionary` (one definition string per word, one shared
+    target language for the whole file), each entry here is a full
+    `DictionaryItem`/`Form` — multiple forms, definitions per language,
+    transcriptions, and links to other entries. This is for content a single
+    string cannot express, e.g. an alphabet letter's name in several
+    languages plus links to its case or positional variants.
+    """
+
+    def __init__(
+        self,
+        id_: str,
+        path: Path,
+        name: str,
+        items: dict[str, DictionaryItem],
+        from_language: Language,
+        *,
+        is_machine: bool = False,
+    ) -> None:
+        """Initialize structured dictionary.
+
+        :param id_: unique string identifier of the dictionary
+        :param path: path to the dictionary file
+        :param name: name of the dictionary
+        :param items: pre-parsed dictionary items, keyed by word
+        :param from_language: language of the words being defined
+        :param is_machine: whether the dictionary is machine-generated
+        """
+        super().__init__(id_)
+        self.path: Path = path
+        self.name: str = name
+        self.items: dict[str, DictionaryItem] = items
+        self.from_language: Language = from_language
+        self.is_machine: bool = is_machine
+
+    @classmethod
+    def from_config(
+        cls, path: Path, id_: str, config: DictionaryConfig
+    ) -> Self:
+        """Initialize structured dictionary from configuration.
+
+        :param path: path to the directory with dictionaries and `config.json`
+            file
+        :param id_: unique string identifier of the dictionary
+        :param config: dictionary configuration
+        """
+        with (path / config.file_name).open(encoding="utf-8") as input_file:
+            raw: dict[str, dict[str, Any]] = json.load(input_file)
+
+        items: dict[str, DictionaryItem] = {
+            word: _structured_item_from_entry(word, entry)
+            for word, entry in raw.items()
+        }
+        return cls(
+            id_,
+            path / config.file_name,
+            config.name,
+            items,
+            Language.from_code(config.from_language),
+            is_machine=config.is_machine,
+        )
+
+    @override
+    async def get_item(
+        self, word: str, *, cache_only: bool = False
+    ) -> DictionaryItem | None:
+        return self.items.get(word)
+
+    @override
+    def get_name(self) -> str:
+        return self.name
+
+    @override
+    def check_from_language(self, language: Language) -> bool:
+        return language == self.from_language
+
+    @override
+    def check_to_language(self, language: Language) -> bool:
+        return any(
+            language in form.definitions
+            for item in self.items.values()
+            for form in item.get_forms()
+        )
 
 
 @dataclass

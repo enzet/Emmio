@@ -13,6 +13,7 @@ from emmio.dictionary.core import (
     Dictionary,
     DictionaryCollection,
     SimpleDictionary,
+    StructuredDictionary,
 )
 from emmio.dictionary.en_wiktionary import (
     DictionaryDownloadError,
@@ -79,8 +80,14 @@ class DictionaryData(ArtifactData):
 
         dictionaries: dict[str, Dictionary] = {}
         for id_, data in config.items():
-            dictionaries[id_] = SimpleDictionary.from_config(
-                path, id_, DictionaryConfig(**data)
+            dictionary_config = DictionaryConfig(**data)
+            builder = (
+                StructuredDictionary
+                if dictionary_config.type == "structured"
+                else SimpleDictionary
+            )
+            dictionaries[id_] = builder.from_config(
+                path, id_, dictionary_config
             )
         return cls(path, dictionaries)
 
