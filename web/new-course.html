@@ -23,31 +23,55 @@
         <main>
             <h1 id="add-course-heading">Add a course</h1>
             <form id="add-course-form" aria-labelledby="add-course-heading">
+                <fieldset>
+                    <legend>What to learn</legend>
+                    <label class="checkbox">
+                        <input
+                            type="radio"
+                            name="course-type"
+                            class="course-type"
+                            value="word"
+                            checked
+                        />
+                        Words
+                    </label>
+                    <label class="checkbox">
+                        <input
+                            type="radio"
+                            name="course-type"
+                            class="course-type"
+                            value="symbol"
+                        />
+                        Alphabet
+                    </label>
+                </fieldset>
                 Learn
                 <select id="add-course-language" required></select>
                 language,<br />
-                drawing new words from
-                <select
-                    id="add-course-frequency-list"
-                    class="course-frequency-list"
-                    required
-                ></select><br />
-                with definitions in
-                <select
-                    id="add-course-targets"
-                    class="translation-languages"
-                    required
-                ></select> language,<br />
-                skipping words already known in
-                <select
-                    id="add-course-lexicon"
-                    class="course-lexicon"
-                ></select><br />
-                asking about unseen words in
-                <select
-                    id="add-course-ask-lexicon"
-                    class="course-ask-lexicon"
-                ></select><br />
+                <div class="course-word-fields">
+                    drawing new words from
+                    <select
+                        id="add-course-frequency-list"
+                        class="course-frequency-list"
+                        required
+                    ></select><br />
+                    with definitions in
+                    <select
+                        id="add-course-targets"
+                        class="translation-languages"
+                        required
+                    ></select> language,<br />
+                    skipping words already known in
+                    <select
+                        id="add-course-lexicon"
+                        class="course-lexicon"
+                    ></select><br />
+                    asking about unseen words in
+                    <select
+                        id="add-course-ask-lexicon"
+                        class="course-ask-lexicon"
+                    ></select><br />
+                </div>
                 named
                 <input
                     id="add-course-name"

@@ -617,13 +617,20 @@ function checkedQuestionTypes(container) {
     );
 }
 
-// Wire up an "add a course" form: fill its language selector from the languages
-// available for learning (the same ones a lexicon can use — a frequency list to
-// draw new words from and Tatoeba sentences for examples), and on submit create
-// the course and open its learning session.
+// Wire up an "add a course" form. A `word` course (the default) draws new
+// words from a frequency list, needs translation targets, and can reference
+// lexicons; a `symbol` course drills the language's own alphabet instead and
+// needs none of that — switching the "What to learn" radio swaps the
+// language list (`/lexicon-languages` vs `/alphabet-languages`) and hides
+// the word-only fields. On submit, creates the course and opens its learning
+// session.
 async function setupCreateCourse(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
+    const courseTypeInputs = Array.from(
+        form.querySelectorAll(".course-type"),
+    );
+    const wordFields = form.querySelector(".course-word-fields");
     const targets = form.querySelector(".translation-languages");
     const frequencyListSelect = form.querySelector(".course-frequency-list");
     const lexiconSelect = form.querySelector(".course-lexicon");
@@ -634,32 +641,29 @@ async function setupCreateCourse(formId, selectId, statusId) {
     const questionTypesContainer = form.querySelector(
         ".course-question-types",
     );
+    const submitButton = form.querySelector("button[type=submit]");
     const createStatus = document.getElementById(statusId);
 
     const [
-        response,
+        wordLanguageResponse,
+        alphabetLanguageResponse,
         targetResponse,
         frequencyListResponse,
         lexiconResponse,
         questionTypeResponse,
     ] = await Promise.all([
         api("/lexicon-languages"),
+        api("/alphabet-languages"),
         api("/translation-languages"),
         api("/frequency-lists"),
         api("/me/lexicons"),
         api("/question-types"),
     ]);
-    const available = await response.json();
-    if (available.length === 0) {
-        createStatus.textContent =
-            "No languages with a frequency list and sentences are available " +
-            "yet.";
-        select.disabled = true;
-        form.querySelector("button").disabled = true;
-        return;
-    }
+    const languagesByCourseType = {
+        word: await wordLanguageResponse.json(),
+        symbol: await alphabetLanguageResponse.json(),
+    };
 
-    fillLanguageSelect(select, available);
     fillLanguageSelect(targets, await targetResponse.json(), "en");
 
     // Every question type is allowed unless the user narrows it down.
@@ -671,12 +675,18 @@ async function setupCreateCourse(formId, selectId, statusId) {
         new Set(questionTypes.map((type) => type.value)),
     );
 
-    // The frequency-list and lexicon pickers are keyed to the currently
-    // selected course language, so they start filtered to it and are
-    // refiltered on every language change.
     const frequencyLists = await frequencyListResponse.json();
     const lexicons = await lexiconResponse.json();
-    const refilterByLanguage = () => {
+
+    function currentCourseType() {
+        return form.querySelector(".course-type:checked").value;
+    }
+
+    // The frequency-list and lexicon pickers (word courses only) are keyed to
+    // the currently selected course language, so they start filtered to it
+    // and are refiltered on every language change.
+    function refilterByLanguage() {
+        if (currentCourseType() !== "word") return;
         fillCourseFrequencyListSelect(
             frequencyListSelect,
             frequencyLists,
@@ -684,21 +694,47 @@ async function setupCreateCourse(formId, selectId, statusId) {
         );
         fillCourseLexiconSelect(lexiconSelect, lexicons, select.value);
         fillCourseLexiconSelect(askLexiconSelect, lexicons, select.value);
-    };
-    refilterByLanguage();
+    }
+
+    // Re-fill the language select for the selected course type (word courses
+    // need a frequency list and Tatoeba sentences; alphabet courses need only
+    // a known alphabet, a strictly larger set), show/hide the word-only
+    // fields, and refilter the pickers that depend on the language.
+    function refreshForCourseType() {
+        const isWord = currentCourseType() === "word";
+        const available = languagesByCourseType[isWord ? "word" : "symbol"];
+
+        wordFields.hidden = !isWord;
+        targets.required = isWord;
+        frequencyListSelect.required = isWord;
+
+        if (available.length === 0) {
+            createStatus.textContent = isWord
+                ? "No languages with a frequency list and sentences are " +
+                  "available yet."
+                : "No languages with a known alphabet are available yet.";
+            select.innerHTML = "";
+            select.disabled = true;
+            submitButton.disabled = true;
+            return;
+        }
+        createStatus.textContent = "";
+        select.disabled = false;
+        submitButton.disabled = false;
+        fillLanguageSelect(select, available);
+        refilterByLanguage();
+    }
+
+    for (const input of courseTypeInputs) {
+        input.addEventListener("change", refreshForCourseType);
+    }
     select.addEventListener("change", refilterByLanguage);
+    refreshForCourseType();
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const translationLanguages = Array.from(
-            targets.selectedOptions,
-            (option) => option.value,
-        );
-        if (translationLanguages.length === 0) {
-            createStatus.textContent =
-                "Pick at least one language to translate into.";
-            return;
-        }
+        const isWord = currentCourseType() === "word";
+
         const questionTypesChecked = checkedQuestionTypes(
             questionTypesContainer,
         );
@@ -706,22 +742,38 @@ async function setupCreateCourse(formId, selectId, statusId) {
             createStatus.textContent = "Pick at least one question type.";
             return;
         }
+
+        const body = {
+            language: select.value,
+            course_type: currentCourseType(),
+            name: nameInput.value.trim() || null,
+            max_for_day: Number(maxForDayInput.value),
+            play_audio: playAudioInput.checked,
+            question_types: questionTypesChecked,
+        };
+
+        if (isWord) {
+            const translationLanguages = Array.from(
+                targets.selectedOptions,
+                (option) => option.value,
+            );
+            if (translationLanguages.length === 0) {
+                createStatus.textContent =
+                    "Pick at least one language to translate into.";
+                return;
+            }
+            body.translation_languages = translationLanguages;
+            body.frequency_list = decodeFrequencyListValue(
+                frequencyListSelect.value,
+            );
+            body.lexicon_id = lexiconSelect.value || null;
+            body.ask_lexicon_id = askLexiconSelect.value || null;
+        }
+
         createStatus.textContent = "Creating…";
         const result = await api("/me/courses", {
             method: "POST",
-            body: {
-                language: select.value,
-                translation_languages: translationLanguages,
-                frequency_list: decodeFrequencyListValue(
-                    frequencyListSelect.value,
-                ),
-                lexicon_id: lexiconSelect.value || null,
-                ask_lexicon_id: askLexiconSelect.value || null,
-                name: nameInput.value.trim() || null,
-                max_for_day: Number(maxForDayInput.value),
-                play_audio: playAudioInput.checked,
-                question_types: questionTypesChecked,
-            },
+            body,
         });
         if (result.ok) {
             const { course_id } = await result.json();
@@ -2772,6 +2824,7 @@ async function initCourses() {
 
         for (const value of [
             languageName(course.learning_language),
+            course.course_type === "symbol" ? "Alphabet" : "Vocabulary",
             course.words,
             course.answers,
         ]) {
@@ -2857,7 +2910,9 @@ async function initCourse() {
 async function setupCourseSettings(courseId) {
     const base = `/me/courses/${encodeURIComponent(courseId)}`;
     const section = document.getElementById("settings-section");
+    const courseTypeLabel = document.getElementById("setting-course-type");
     const form = document.getElementById("settings-form");
+    const wordFields = form.querySelector(".course-word-fields");
     const nameInput = document.getElementById("setting-name");
     const targets = document.getElementById("setting-targets");
     const maxInput = document.getElementById("setting-max");
@@ -2882,6 +2937,11 @@ async function setupCourseSettings(courseId) {
     ]);
     if (!settingsResponse.ok) return;
     const settings = await settingsResponse.json();
+    const isWord = settings.course_type === "word";
+
+    courseTypeLabel.textContent = isWord ? "vocabulary" : "alphabet";
+    wordFields.hidden = !isWord;
+    targets.required = isWord;
 
     nameInput.value = settings.name;
     maxInput.value = settings.max_for_day;
@@ -2918,15 +2978,6 @@ async function setupCourseSettings(courseId) {
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const translationLanguages = Array.from(
-            targets.selectedOptions,
-            (option) => option.value,
-        );
-        if (translationLanguages.length === 0) {
-            settingsStatus.textContent =
-                "Pick at least one language to translate into.";
-            return;
-        }
         const questionTypesChecked = checkedQuestionTypes(
             questionTypesContainer,
         );
@@ -2934,23 +2985,35 @@ async function setupCourseSettings(courseId) {
             settingsStatus.textContent = "Pick at least one question type.";
             return;
         }
+        const body = {
+            name: nameInput.value.trim(),
+            max_for_day: Number(maxInput.value),
+            play_audio: playAudioInput.checked,
+            // Every type checked means "no restriction"; send an empty list
+            // so the server clears any previously narrowed set.
+            question_types:
+                questionTypesChecked.length === questionTypes.length
+                    ? []
+                    : questionTypesChecked,
+        };
+        if (isWord) {
+            const translationLanguages = Array.from(
+                targets.selectedOptions,
+                (option) => option.value,
+            );
+            if (translationLanguages.length === 0) {
+                settingsStatus.textContent =
+                    "Pick at least one language to translate into.";
+                return;
+            }
+            body.translation_languages = translationLanguages;
+            body.lexicon_id = lexiconSelect.value;
+            body.ask_lexicon_id = askLexiconSelect.value;
+        }
         settingsStatus.textContent = "Saving…";
         const result = await api(`${base}/settings`, {
             method: "PATCH",
-            body: {
-                name: nameInput.value.trim(),
-                translation_languages: translationLanguages,
-                max_for_day: Number(maxInput.value),
-                play_audio: playAudioInput.checked,
-                // Every type checked means "no restriction"; send an empty
-                // list so the server clears any previously narrowed set.
-                question_types:
-                    questionTypesChecked.length === questionTypes.length
-                        ? []
-                        : questionTypesChecked,
-                lexicon_id: lexiconSelect.value,
-                ask_lexicon_id: askLexiconSelect.value,
-            },
+            body,
         });
         if (result.ok) {
             settingsStatus.textContent = "Saved.";

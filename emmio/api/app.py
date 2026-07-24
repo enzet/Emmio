@@ -57,6 +57,7 @@ from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
 from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
+from emmio.learn.config import CourseType
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
@@ -149,6 +150,7 @@ class CourseSummary(BaseModel):
     learning_language: str
     words: int  # Distinct words studied.
     answers: int  # Total answers recorded.
+    course_type: CourseType
 
 
 class LexiconSummary(BaseModel):
@@ -340,10 +342,16 @@ def get_my_courses(
             learning_language=language,
             words=words,
             answers=answers,
+            course_type=CourseType(course_type),
         )
-        for course_id, name, language, words, answers in postgres.list_courses(
-            user_id
-        )
+        for (
+            course_id,
+            name,
+            language,
+            words,
+            answers,
+            course_type,
+        ) in postgres.list_courses(user_id)
     ]
 
 
@@ -561,6 +569,28 @@ def get_lexicon_languages() -> list[LexiconLanguage]:
     ]
 
 
+class AlphabetLanguage(BaseModel):
+    """A language a `CourseType.SYMBOL` (alphabet) course can be created for."""
+
+    language: str  # ISO code, e.g. `uk`.
+
+
+@app.get("/api/v1/alphabet-languages", dependencies=[Depends(get_current_user)])
+def get_alphabet_languages() -> list[AlphabetLanguage]:
+    """List languages an alphabet course can be created for.
+
+    An alphabet course draws its items directly from `Language.symbols`, not
+    from a frequency list or Tatoeba sentences, so it is offered for any
+    language that knows its own alphabet — a strictly larger set than
+    `lexicon-languages`.
+    """
+    return [
+        AlphabetLanguage(language=language.get_code())
+        for language in KnownLanguages.get_languages()
+        if language.has_symbols()
+    ]
+
+
 class TranslationLanguage(BaseModel):
     """A language a lexicon's words can be translated into."""
 
@@ -711,6 +741,24 @@ def _frequency_list_or_400(data: Any, language: str) -> dict:
             detail=f"No frequency list available for language `{language}`.",
         )
     return frequency_list
+
+
+def _validated_alphabet_language(language: str) -> Language:
+    """Check `language` is known and has a defined alphabet, or raise 400.
+
+    A `CourseType.SYMBOL` course draws its items from `Language.symbols`
+    instead of a frequency list, so it needs the alphabet defined instead.
+    """
+    try:
+        known: Language | None = Language.from_code(language)
+    except LanguageNotFoundError:
+        known = None
+    if known is None or not known.has_symbols():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No alphabet available for language `{language}`.",
+        )
+    return known
 
 
 class FrequencyListSelection(BaseModel):
@@ -1010,6 +1058,8 @@ class CreateCourseRequest(BaseModel):
     """Payload to create a learning course: language and translation targets."""
 
     language: str
+    course_type: CourseType = CourseType.WORD
+    """What kind of item this course drills; immutable after creation."""
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
     name: str | None = None
     """Display name; defaults to the language's own name when omitted."""
@@ -1026,8 +1076,8 @@ class CreateCourseRequest(BaseModel):
     """An existing lexicon for the same language: an unseen new word is shown
     as a know/don't-know check first, recorded there, before being taught."""
     frequency_list: FrequencyListSelection | None = None
-    """Which frequency list to draw new words from; defaults to the
-    language's best available list (`_frequency_list_or_400`)."""
+    """Which frequency list to draw new words from (`course_type=word` only);
+    defaults to the language's best available list when omitted."""
 
 
 class CreatedCourse(BaseModel):
@@ -1043,20 +1093,19 @@ def create_course(
 ) -> CreatedCourse:
     """Create a learning course for a language.
 
-    New words are drawn from the language's frequency list (skipping ones a
-    dictionary marks uncommon), shown with Tatoeba usage examples, and
-    translated into the requested target languages — the same shared data a
-    lexicon uses. Its id is the language code, suffixed if one already exists.
+    A `word` course (the default) draws new words from the language's
+    frequency list (skipping ones a dictionary marks uncommon), shows Tatoeba
+    usage examples, and translates into the requested target languages;
+    `frequency_list` picks among a language's several available lists (e.g.
+    cached FrequencyWords years), defaulting to the best one when omitted. A
+    `symbol` course instead drills the language's own alphabet
+    (`Language.symbols`) directly and has no frequency list, dictionaries, or
+    sentences. Its id is the language code, suffixed if one already exists.
     When `lexicon_id` names one of the user's own lexicons for the same
     language, words already known there are skipped; `ask_lexicon_id` instead
-    asks about an unseen word there first, before teaching it. `frequency_list`
-    picks among a language's several available lists (e.g. cached
-    FrequencyWords years), defaulting to the best one when omitted.
+    asks about an unseen word there first, before teaching it.
     """
     data = get_data()
-    frequency_list: dict = _chosen_frequency_list_or_400(
-        data, request.language, request.frequency_list
-    )
     targets: list[str] = _validated_targets(request.translation_languages)
     if request.lexicon_id is not None:
         _validated_lexicon_or_400(user_id, request.lexicon_id, request.language)
@@ -1068,23 +1117,37 @@ def create_course(
     course_id: str = _unique_artifact_id(
         request.language, {row[0] for row in postgres.list_courses(user_id)}
     )
-    with_kaikki: bool = _with_kaikki(data, targets, request.language)
-    dictionaries, sentences = _translation_config(
-        request.language, targets, with_kaikki=with_kaikki
-    )
-    # New words come from the frequency list; when a Kaikki dictionary is
-    # available it also filters out words it marks uncommon (mere word forms).
-    new_question: dict = {"pick_from": [frequency_list]}
-    if with_kaikki:
-        new_question["ignore_not_common"] = [
-            {
-                "id": "kaikki",
-                "from_language": request.language,
-                "name": kaikki_language_name(
-                    Language.from_code(request.language)
-                ),
-            }
-        ]
+
+    new_question: dict = {}
+    dictionaries: list[dict] = []
+    sentences: list[dict] = []
+    if request.course_type == CourseType.SYMBOL:
+        language: Language = _validated_alphabet_language(request.language)
+        default_name: str = f"{language.get_name()} alphabet"
+    else:
+        frequency_list: dict = _chosen_frequency_list_or_400(
+            data, request.language, request.frequency_list
+        )
+        with_kaikki: bool = _with_kaikki(data, targets, request.language)
+        dictionaries, sentences = _translation_config(
+            request.language, targets, with_kaikki=with_kaikki
+        )
+        # New words come from the frequency list; when a Kaikki dictionary is
+        # available it also filters out words it marks uncommon (mere word
+        # forms).
+        new_question["pick_from"] = [frequency_list]
+        if with_kaikki:
+            new_question["ignore_not_common"] = [
+                {
+                    "id": "kaikki",
+                    "from_language": request.language,
+                    "name": kaikki_language_name(
+                        Language.from_code(request.language)
+                    ),
+                }
+            ]
+        default_name = Language.from_code(request.language).get_name()
+
     if request.lexicon_id is not None:
         new_question["check_lexicons"] = [{"id": request.lexicon_id}]
     if request.ask_lexicon_id is not None:
@@ -1094,9 +1157,10 @@ def create_course(
         scheme["question_types"] = request.question_types
     name: str = (
         request.name.strip() if request.name and request.name.strip() else ""
-    ) or Language.from_code(request.language).get_name()
+    ) or default_name
     config: dict = {
         "name": name,
+        "course_type": request.course_type.value,
         "learning_language": request.language,
         "base_languages": targets,
         "scheme": scheme,
@@ -1133,6 +1197,7 @@ class CourseSettings(BaseModel):
     """A course's editable settings."""
 
     name: str
+    course_type: CourseType  # Read-only: fixed at creation.
     learning_language: str
     translation_languages: list[str]  # `base_languages`.
     max_for_day: int  # New words introduced per day.
@@ -1171,6 +1236,7 @@ def _course_settings(config: dict) -> CourseSettings:
     ask_lexicon: dict | None = new_question.get("ask_lexicon")
     return CourseSettings(
         name=config["name"],
+        course_type=config.get("course_type", CourseType.WORD),
         learning_language=config["learning_language"],
         translation_languages=config.get("base_languages") or [],
         max_for_day=config.get("max_for_day", 10),
@@ -3220,12 +3286,13 @@ async def get_new_question_word(
     """Get the next new word to add to a course, from its question lists.
 
     Ports the selection half of `Teacher`: walks the configured frequency lists
-    in order and returns the first candidate worth learning, skipping words
-    already being learned, already known in a `check_lexicons` lexicon, or not
-    common per the configured dictionaries. A word marked "don't know" in a
-    check lexicon is returned to learn directly; otherwise, when an
-    `ask_lexicon` is configured and the word is new there, it is returned with
-    `check_lexicon` set so the client first asks the user know/don't-know.
+    (or, for a `symbol` course, the learning language's own alphabet) in order
+    and returns the first candidate worth learning, skipping words already
+    being learned, already known in a `check_lexicons` lexicon, or not common
+    per the configured dictionaries. A word marked "don't know" in a check
+    lexicon is returned to learn directly; otherwise, when an `ask_lexicon` is
+    configured and the word is new there, it is returned with `check_lexicon`
+    set so the client first asks the user know/don't-know.
 
     Stateless: it re-scans from the top each call (the in-memory skips are
     cheap), so an answered or admitted word simply stops being returned next
@@ -3237,11 +3304,14 @@ async def get_new_question_word(
         learning: Learning = entry.learning
         remaining: int = learning.count_questions_to_add()
     scheme = learning.config.scheme
+    course_type: CourseType = learning.config.course_type
     if (
         remaining <= 0
         or scheme is None
         or scheme.new_question is None
-        or not scheme.new_question.pick_from
+        or (
+            course_type == CourseType.WORD and not scheme.new_question.pick_from
+        )
     ):
         return NewQuestion(word=None, remaining_today=max(0, remaining))
 
@@ -3250,14 +3320,19 @@ async def get_new_question_word(
 
     # Candidate words, list-then-rank order (mirrors `Teacher.question_ids`).
     candidates: list[str] = []
-    for list_config in new_question.pick_from:
-        word_list = data.get_list(list_config)
-        if word_list is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Question list `{list_config.id}` could not be loaded.",
-            )
-        candidates.extend(word_list.get_words())
+    if course_type == CourseType.SYMBOL:
+        candidates.extend(learning.learning_language.symbols)
+    else:
+        for list_config in new_question.pick_from:
+            word_list = data.get_list(list_config)
+            if word_list is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=(
+                        f"Question list `{list_config.id}` could not be loaded."
+                    ),
+                )
+            candidates.extend(word_list.get_words())
 
     # Current state for the non-interactive filters, each loaded once.
     check_states: list[dict[str, str | None]] = [

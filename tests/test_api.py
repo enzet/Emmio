@@ -1119,6 +1119,144 @@ def test_create_course_with_unknown_frequency_list_is_bad_request(
     assert response.status_code == 400
 
 
+def test_alphabet_languages_lists_known_alphabets() -> None:
+    """`/alphabet-languages` serves languages with a defined alphabet."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/alphabet-languages", headers=_auth(token))
+
+    assert response.status_code == 200
+    languages = {entry["language"] for entry in response.json()}
+    assert {"uk", "eo", "fr"} <= languages
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_symbol_course_stores_course_type() -> None:
+    """A `symbol` course skips the frequency list and stores its own kind."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "course_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_learn_config("alice", "uk")
+    assert config is not None
+    assert config["course_type"] == "symbol"
+    assert config["name"] == f"{Language.from_code('uk').get_name()} alphabet"
+    assert config["dictionaries"] == []
+    assert config["sentences"] == []
+    assert "pick_from" not in config["scheme"]["new_question"]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_symbol_course_does_not_require_frequency_list() -> None:
+    """A `symbol` course works for a language with no frequency list at all."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    # "fr" is not in `fake_languages`'s frequency-list inventory, so this
+    # would 400 for a `word` course (see the unknown-language test above).
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "fr", "course_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_my_courses_lists_course_type() -> None:
+    """`/me/courses` reports each course's `course_type`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+    )
+    client.post(
+        "/api/v1/me/courses",
+        json={"language": "la", "course_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    response = client.get("/api/v1/me/courses", headers=_auth(token))
+
+    assert response.status_code == 200
+    types = {
+        course["course_id"]: course["course_type"] for course in response.json()
+    }
+    assert types == {"uk": "word", "la": "symbol"}
+
+
+def test_my_courses_defaults_course_type_for_legacy_rows() -> None:
+    """A course stored before `course_type` existed lists as `word`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    # Saving with empty records still creates the (owned) course; its config
+    # predates the `course_type` field, so the JSONB key is simply absent.
+    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+
+    response = client.get("/api/v1/me/courses", headers=_auth(token))
+
+    assert response.status_code == 200
+    assert response.json()[0]["course_type"] == "word"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_symbol_course_for_unknown_language_is_bad_request() -> None:
+    """A `symbol` course for a language without a known alphabet is a 400."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"language": "zzzzz", "course_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_get_course_settings_includes_course_type() -> None:
+    """Settings expose the immutable `course_type`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        "/api/v1/me/courses",
+        json={"language": "uk", "course_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    response = client.get(
+        "/api/v1/me/courses/uk/settings", headers=_auth(token)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["course_type"] == "symbol"
+
+
+def test_new_question_for_symbol_course_uses_alphabet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `symbol` course's new-word candidates come from the alphabet."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _make_course("alice", course_type="symbol", scheme={"new_question": {}})
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeSelectionData([]))
+
+    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] in Language.from_code("eo").symbols
+
+
 def test_question_types_are_listed() -> None:
     """`/question-types` serves every supported type with a label."""
 
@@ -1571,21 +1709,24 @@ class _FakeSelectionData:
 
 
 def _make_course(
-    user_id: str, course_id: str = "eo", *, scheme: dict | None = None
+    user_id: str,
+    course_id: str = "eo",
+    *,
+    scheme: dict | None = None,
+    course_type: str | None = None,
 ) -> None:
     """Store a minimal learning course with the given (or no) scheme."""
 
-    postgres.store_learn_config(
-        user_id,
-        course_id,
-        {
-            "name": "Esperanto",
-            "learning_language": "eo",
-            "base_languages": ["en"],
-            "scheme": scheme,
-            "dictionaries": [],
-        },
-    )
+    config: dict[str, Any] = {
+        "name": "Esperanto",
+        "learning_language": "eo",
+        "base_languages": ["en"],
+        "scheme": scheme,
+        "dictionaries": [],
+    }
+    if course_type is not None:
+        config["course_type"] = course_type
+    postgres.store_learn_config(user_id, course_id, config)
 
 
 def _new_question_scheme(

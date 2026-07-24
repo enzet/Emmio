@@ -23,8 +23,12 @@ LearningConfigType = dict[str, LearningConfigValuesType]
 class NewQuestionScheme(BaseModel):
     """How to pick new question."""
 
-    pick_from: list[ListUsageConfig]
-    """Which question lists use to pick new question."""
+    pick_from: list[ListUsageConfig] = []
+    """Which question lists use to pick new question.
+
+    Empty for a `CourseType.SYMBOL` course: its candidates are the learning
+    language's alphabet (`Language.symbols`) instead of a stored list.
+    """
 
     check_lexicons: list[LexiconUsageConfig] | None = None
     """Which lexicon to check to skip already known questions."""
@@ -85,11 +89,29 @@ class Scheme(BaseModel):
     """Which lexicon should be used to store answers during learning."""
 
 
+class CourseType(str, Enum):
+    """What kind of item a course drills.
+
+    Both kinds still belong to a language and share the same scheduling,
+    records, and question types; only the source of new items (and, for
+    `WORD`, the translation/dictionary machinery) differs.
+    """
+
+    WORD = "word"
+    """Words drawn from a frequency list, translated via dictionaries."""
+
+    SYMBOL = "symbol"
+    """The learning language's own alphabet (`Language.symbols`)."""
+
+
 class LearnConfig(BaseModel):
     """Learning process configuration."""
 
     name: str
     """Name of the learning course."""
+
+    course_type: CourseType = CourseType.WORD
+    """What kind of item this course drills; immutable after creation."""
 
     learning_language: LanguageConfig
     """Learning subject."""

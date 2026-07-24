@@ -28,17 +28,27 @@
             <dl id="stats"></dl>
 
             <section id="settings-section" hidden>
-                <h2>Settings</h2>
+                <h2>Settings (<span id="setting-course-type"></span>)</h2>
                 <form id="settings-form">
                     <label for="setting-name">Name</label>
                     <input id="setting-name" type="text" required />
-                    <label for="setting-targets">Translate into</label>
-                    <select
-                        id="setting-targets"
-                        class="translation-languages"
-                        multiple
-                        required
-                    ></select>
+                    <div class="course-word-fields">
+                        <label for="setting-targets">Translate into</label>
+                        <select
+                            id="setting-targets"
+                            class="translation-languages"
+                            multiple
+                            required
+                        ></select>
+                        <label for="setting-lexicon"
+                            >Skip words already known in</label
+                        >
+                        <select id="setting-lexicon"></select>
+                        <label for="setting-ask-lexicon"
+                            >Ask about unseen words in</label
+                        >
+                        <select id="setting-ask-lexicon"></select>
+                    </div>
                     <label for="setting-max">New words per day</label>
                     <input id="setting-max" type="number" min="0" required />
                     <label class="checkbox">
@@ -49,14 +59,6 @@
                         <legend>Question types</legend>
                         <div id="setting-question-types"></div>
                     </fieldset>
-                    <label for="setting-lexicon"
-                        >Skip words already known in</label
-                    >
-                    <select id="setting-lexicon"></select>
-                    <label for="setting-ask-lexicon"
-                        >Ask about unseen words in</label
-                    >
-                    <select id="setting-ask-lexicon"></select>
                     <button type="submit">Save settings</button>
                 </form>
                 <p id="settings-status" role="status"></p>

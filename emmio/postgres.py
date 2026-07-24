@@ -409,25 +409,27 @@ def delete_user(user_id: str) -> bool:
     return True
 
 
-def list_courses(user_id: str) -> list[tuple[str, str, str, int, int]]:
+def list_courses(user_id: str) -> list[tuple[str, str, str, int, int, str]]:
     """Get a user's courses with short info.
 
     :param user_id: owning user login, e.g. `john`
     :return: (course id, name, learning language, distinct words studied,
-        total answers) tuples, ordered by course id
+        total answers, course type) tuples, ordered by course id. Course type
+        is `word` for rows stored before `course_type` existed.
     """
     with db_cursor() as cursor:
         cursor.execute(
             "SELECT c.course_id, c.name, c.learning_language, "
             "(SELECT count(DISTINCT r.question_id) FROM learn_records r "
             "WHERE r.course_id = c.id), "
-            "(SELECT count(*) FROM learn_records r WHERE r.course_id = c.id) "
+            "(SELECT count(*) FROM learn_records r WHERE r.course_id = c.id), "
+            "COALESCE(c.config->>'course_type', 'word') "
             "FROM learn_courses c JOIN users u ON u.id = c.user_id "
             "WHERE u.user_id = %s ORDER BY c.course_id",
             (user_id,),
         )
         return [
-            (row[0], row[1], row[2], row[3], row[4])
+            (row[0], row[1], row[2], row[3], row[4], row[5])
             for row in cursor.fetchall()
         ]
 
@@ -800,6 +802,7 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
 
 
 LEARN_CONFIG_KEYS: tuple[str, ...] = (
+    "course_type",
     "base_languages",
     "is_active",
     "scheme",

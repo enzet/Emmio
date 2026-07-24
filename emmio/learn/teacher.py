@@ -12,7 +12,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.language import Language
-from emmio.learn.config import ActionType, Scheme
+from emmio.learn.config import ActionType, CourseType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import (
     AnswerType,
@@ -20,7 +20,7 @@ from emmio.lexicon.core import (
     LexiconChecker,
     LexiconResponse,
 )
-from emmio.lists.core import List
+from emmio.lists.core import List, SymbolList
 from emmio.sentence.core import SentenceAndTranslations, SentenceElement
 from emmio.ui import Colorized, Interface, Text
 from emmio.user.data import UserData
@@ -60,13 +60,18 @@ class Teacher:
         self.scheme: Scheme | None = self.learning.config.scheme
         """Learning scheme: how to learn."""
 
+        course_type: CourseType = self.learning.config.course_type
+
         if not self.scheme:
             message = "No scheme found."
             raise ValueError(message)
         if not self.scheme.new_question:
             message = "No new question scheme found."
             raise ValueError(message)
-        if not self.scheme.new_question.pick_from:
+        if (
+            course_type == CourseType.WORD
+            and not self.scheme.new_question.pick_from
+        ):
             message = "No question lists found."
             raise ValueError(message)
 
@@ -88,16 +93,24 @@ class Teacher:
                 self.scheme.learning_lexicon.id
             )
 
-        # Load question lists.
+        # Load question lists. A `SYMBOL` course has no stored list: its
+        # candidates are the learning language's own alphabet.
         self.question_index: int = 0
         self.question_ids: list[tuple[str, List, int]] = []
-        for list_config in self.scheme.new_question.pick_from:
-            list_: List | None = data.get_list(list_config)
-            if list_ is None:
-                message = f"No list with id `{list_config.id}` found."
-                raise ValueError(message)
-            for index, word in enumerate(list_.get_words()):
-                self.question_ids.append((word, list_, index))
+        if course_type == CourseType.SYMBOL:
+            symbol_list: SymbolList = SymbolList(
+                self.learning.learning_language
+            )
+            for index, symbol in enumerate(symbol_list.get_words()):
+                self.question_ids.append((symbol, symbol_list, index))
+        else:
+            for list_config in self.scheme.new_question.pick_from:
+                list_: List | None = data.get_list(list_config)
+                if list_ is None:
+                    message = f"No list with id `{list_config.id}` found."
+                    raise ValueError(message)
+                for index, word in enumerate(list_.get_words()):
+                    self.question_ids.append((word, list_, index))
 
         # Load dictionaries for checking questions.
         self.dictionaries_to_check: DictionaryCollection
