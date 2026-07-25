@@ -507,6 +507,107 @@ def test_tables_show_strategy_matched_rate_for_stratified_lexicon() -> None:
     assert stats["sd"] == pytest.approx(0.0)
 
 
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicons_history_lists_one_series_per_language() -> None:
+    """The dashboard history chart gets one point series per language."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+
+    for index, word in enumerate(_UK_WORDS):
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={"word": word, "response": "know" if index < 20 else "dont"},
+            headers=_auth(token),
+        )
+
+    expected = client.get(
+        "/api/v1/me/lexicons/uk/rate-estimate", headers=_auth(token)
+    ).json()
+
+    response = client.get("/api/v1/me/lexicons/history", headers=_auth(token))
+
+    assert response.status_code == 200
+    history = response.json()
+    assert len(history) == 1
+    assert history[0]["language"] == "uk"
+    assert len(history[0]["points"]) >= 1
+    point = history[0]["points"][-1]
+    assert point["rate"] == pytest.approx(expected["rate"])
+    assert point["sd"] == pytest.approx(0.0)
+    assert "date" in point
+
+
+def test_lexicons_history_is_empty_without_lexicons() -> None:
+    """A user with no lexicons yet gets an empty history list, not an error."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/me/lexicons/history", headers=_auth(token))
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_lexicons_history_collapses_to_one_point_per_month() -> None:
+    """Beyond a month of history, the chart gets one point per month.
+
+    A frequency-weighted lexicon's windowed estimator (`_frequency_history`)
+    emits a new point at roughly every "don't know" answer once enough log
+    exists to fill a window, so a four-month, mostly-unknown log produces far
+    more raw windows than four — the dashboard's month-interval chart only
+    needs one of them per month.
+    """
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "frequency")
+
+    base = datetime(2026, 1, 15, tzinfo=UTC)
+    records: list[postgres.LexiconRecordRow] = [
+        (
+            f"word{month}-{index}",
+            "D" if index % 2 else "K",
+            base + timedelta(days=30 * month, hours=index),
+            None,
+        )
+        for month in range(4)
+        for index in range(150)
+    ]
+    postgres.save_lexicon("alice", "uk", "uk", records, [])
+
+    response = client.get("/api/v1/me/lexicons/history", headers=_auth(token))
+
+    assert response.status_code == 200
+    points = response.json()[0]["points"]
+    months = [datetime.fromisoformat(point["date"]).month for point in points]
+    assert len(points) < len(records)
+    assert months == sorted(set(months))
+
+
+def test_lexicons_history_keeps_every_point_within_one_month() -> None:
+    """A history under a month returns unaggregated, not one lone point."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "frequency")
+
+    base = datetime.now(UTC) - timedelta(days=10)
+    records: list[postgres.LexiconRecordRow] = [
+        (
+            f"word{index}",
+            "D" if index % 2 else "K",
+            base + timedelta(hours=index),
+            None,
+        )
+        for index in range(400)
+    ]
+    postgres.save_lexicon("alice", "uk", "uk", records, [])
+
+    response = client.get("/api/v1/me/lexicons/history", headers=_auth(token))
+
+    assert response.status_code == 200
+    points = response.json()[0]["points"]
+    assert len(points) > 1
+
+
 def test_next_without_frequency_list_is_bad_request() -> None:
     """A lexicon with no configured frequency list returns 400 for `next`."""
 
@@ -624,6 +725,23 @@ def test_create_lexicon_configures_translations_and_sentences() -> None:
             "translation_languages": ["en", "ru"],
         }
     ]
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_lexicon_settings_and_stats_report_frequency_list_name() -> None:
+    """Both endpoints expose the human-readable name of the source list."""
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "frequency")
+
+    settings = client.get(
+        "/api/v1/me/lexicons/uk/settings", headers=_auth(token)
+    ).json()
+    assert settings["frequency_list_name"] == "uk_list"
+
+    stats = client.get(
+        "/api/v1/me/lexicons/uk/stats", headers=_auth(token)
+    ).json()
+    assert stats["frequency_list_name"] == "uk_list"
 
 
 @pytest.mark.usefixtures("fake_languages")
@@ -1792,6 +1910,54 @@ def test_create_lexicon_stores_requested_selection() -> None:
     config = postgres.get_lexicon_config("alice", "uk")
     assert config is not None
     assert config["selection"] == "top"
+
+
+def test_create_lexicon_stores_the_chosen_frequency_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing `frequency_list` overrides the language's default list."""
+
+    languages = {"uk": {"id": "uk_list"}}
+    extra = [
+        {
+            "language": "uk",
+            "name": "Alt Ukrainian list",
+            "config": {"id": "uk_list_alt"},
+        }
+    ]
+    fake: Any = _FakeData(languages, extra_frequency_options=extra)
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "frequency_list": {"id": "uk_list_alt"}},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["frequency_list"] == {"id": "uk_list_alt"}
+    settings = client.get(
+        "/api/v1/me/lexicons/uk/settings", headers=_auth(token)
+    ).json()
+    assert settings["frequency_list_name"] == "Alt Ukrainian list"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_lexicon_with_unknown_frequency_list_is_bad_request() -> None:
+    """A `frequency_list` not offered for the language is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={"language": "uk", "frequency_list": {"id": "does-not-exist"}},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.usefixtures("fake_languages")

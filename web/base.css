@@ -134,6 +134,7 @@ body {
 
 a {
     color: var(--link);
+    text-decoration: none;
 }
 
 /* Keep the status line and undo bar pinned to the bottom of the page. */
@@ -160,7 +161,7 @@ footer {
 }
 #trajectory .line {
     stroke: var(--series);
-    stroke-width: 2;
+    stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
@@ -457,7 +458,7 @@ p.login-footer {
 }
 
 p#word {
-    font-size: 640%;
+    font-size: 320%;
     text-align: center;
     font-weight: 700;
     margin: 0;
@@ -557,15 +558,82 @@ header .profile-link {
     height: auto;
 }
 
-/* Vocabulary-level graph on the dashboard: server-rendered SVG, inlined so
-   its transparent background sits on the page theme. The `viewBox` lets it
-   scale down to the page width. */
-#lexicon-graph {
-    margin: 1rem 0;
+#languages-table-and-history {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
 }
-#lexicon-graph svg {
-    max-width: 100%;
-    height: auto;
+
+/* Vocabulary-level history on the dashboard: one line per language, drawn
+   client-side by the same mechanism as the check page's convergence chart
+   (`#trajectory`) — a hover crosshair plus tooltip, growing from live data
+   instead of a server-rendered image. Unlike `#trajectory` each line is set
+   inline per path (from `HISTORY_CHART_PALETTE` in app.js) rather than a
+   shared CSS variable, since several lines share the chart; the legend
+   below the chart spells out which is which. */
+#lexicon-history {
+    position: relative; /* Anchors the hover tooltip. */
+    margin: 1rem 0 0.3rem;
+    max-width: 400px;
+}
+#lexicon-history svg {
+    display: block;
+    width: 100%;
+    height: 35rem;
+}
+#lexicon-history .band {
+    opacity: 0.1;
+}
+#lexicon-history .line {
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+#lexicon-history .grid {
+    stroke: var(--faint);
+    stroke-width: 1;
+}
+#lexicon-history .tick-label {
+    fill: var(--muted);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+}
+#lexicon-history .end-label {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+#lexicon-history .crosshair {
+    stroke: var(--faint);
+    stroke-width: 1;
+}
+#lexicon-history .focus-dot {
+    stroke: var(--bg); /* Surface ring, keeps the dot legible on the line. */
+    stroke-width: 2;
+}
+#lexicon-history-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+#lexicon-history-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.8rem;
+    font-size: 0.85rem;
+}
+#lexicon-history-legend span.swatch {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 50%;
+    margin-right: 0.3em;
 }
 
 table {
@@ -580,6 +648,7 @@ table tr td, th {
     padding: 0.3rem 0.7rem;
     border: none;
     border-bottom: 1px inset;
+    font-variant-numeric: tabular-nums;
 }
 
 span.language-code {
@@ -589,8 +658,9 @@ span.language-code {
 
 /* A course/learning/lexicon identifier shown as text (as opposed to its
    human-facing name), e.g. a fallback list label or a session heading. */
-.identifier {
+.identifier, .language-code {
     font-family: monospace;
+    font-size: 90%;
 }
 
 /* Render definition lists (profile details, lexicon/course stats) as a
@@ -632,6 +702,9 @@ span.abbr {
     letter-spacing: 0.07rem;
     font-variant-numeric: lining-nums;
 }
+sup.notification {
+    font-size: 30%;
+}
 /* A plain link, undecorated as a button; `modern.css` dresses it up. */
 a.button {
     color: var(--fg);
@@ -641,9 +714,6 @@ a.button {
 td.courses-cell a,
 td.courses-cell span.course-empty {
     padding-right: 0.5rem;
-}
-a.lexicon-link {
-    margin-right: 0.5rem;
 }
 /* The learning typing field, centered under the blanked word. */
 input#answer-input {

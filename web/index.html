@@ -39,29 +39,39 @@
             <section id="languages" aria-labelledby="languages-heading" hidden>
                 <h2 id="languages-heading">Languages</h2>
                 <p id="languages-status" role="status"></p>
-                <table id="languages-table" hidden>
-                    <thead>
-                        <tr>
-                            <th scope="col">Language</th>
-                            <th scope="col">Rate</th>
-                            <th scope="col">Level</th>
-                            <th scope="col">Lexicon</th>
-                            <th scope="col">Courses</th>
-                        </tr>
-                    </thead>
-                    <tbody id="languages-rows"></tbody>
-                </table>
-
-                <figure
-                    id="lexicon-graph"
-                    aria-label="Vocabulary level history"
-                    hidden
-                ></figure>
-
-                <p>
-                    <a href="new-lexicon" class="button">Add a lexicon</a>
-                    <a href="new-course" class="button">Add a course</a>
-                </p>
+                <div id="languages-table-and-history">
+                    <div>
+                        <table id="languages-table" hidden>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Language</th>
+                                    <th scope="col">Rate</th>
+                                    <th scope="col">Level</th>
+                                    <th scope="col">Lexicon</th>
+                                    <th scope="col">Courses</th>
+                                </tr>
+                            </thead>
+                            <tbody id="languages-rows"></tbody>
+                        </table>
+                        <p>
+                            <a href="new-lexicon" class="button">Add a lexicon</a>
+                            <a href="new-course" class="button">Add a course</a>
+                        </p>
+                    </div>
+                    <div>
+                        <figure id="lexicon-history" hidden>
+                            <svg
+                                id="lexicon-history-svg"
+                                role="img"
+                                aria-label="Vocabulary level history, one line per
+                                    language"
+                            ></svg>
+                            <div id="lexicon-history-tooltip" hidden></div>
+                            <p id="lexicon-history-legend"></p>
+                        </figure>
+                    </div>
+                    <div></div>
+                </div>
             </section>
         </main>
     </body>

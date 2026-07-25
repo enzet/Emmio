@@ -24,18 +24,8 @@ from tempfile import mkdtemp
 from typing import Annotated, Any
 
 import jwt
-from colour import Color
-from fastapi import (
-    Depends,
-    FastAPI,
-    Form,
-    HTTPException,
-    Query,
-    Request,
-    status,
-)
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
 from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.responses import Response as HTTPResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -74,7 +64,6 @@ from emmio.lexicon.core import (
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history
 from emmio.lexicon.replay import replay
-from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.config import SentencesUsageConfig
@@ -789,6 +778,13 @@ def get_frequency_lists() -> list[FrequencyListOption]:
     ]
 
 
+class FrequencyListSelection(BaseModel):
+    """A specific frequency list to draw new words from, by id (and year)."""
+
+    id: str
+    year: int | None = None
+
+
 class CreateLexiconRequest(BaseModel):
     """Payload to create a lexicon: the language and its translation targets."""
 
@@ -796,6 +792,9 @@ class CreateLexiconRequest(BaseModel):
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
     selection: str = "frequency"
     """Word-selection strategy; one of `LEXICON_STRATEGIES`."""
+    frequency_list: FrequencyListSelection | None = None
+    """Which frequency list to draw words from; defaults to the language's
+    best available list when omitted."""
 
 
 class CreatedLexicon(BaseModel):
@@ -904,13 +903,6 @@ def _validated_alphabet_language(language: str) -> Language:
             detail=f"No alphabet available for language `{language}`.",
         )
     return known
-
-
-class FrequencyListSelection(BaseModel):
-    """A specific frequency list to draw new words from, by id (and year)."""
-
-    id: str
-    year: int | None = None
 
 
 def _chosen_frequency_list_or_400(
@@ -1046,11 +1038,12 @@ def create_lexicon(
     """Create a lexicon for a language.
 
     The lexicon samples words by the requested strategy from the language's
-    frequency list, shows usage examples from Tatoeba, and translates words into
-    the requested target languages. Its id is the language code, suffixed if one
-    already exists. If the language has no main lexicon yet, the new one is set
-    as main so it shows up on the home page at once; an existing main lexicon
-    keeps its status.
+    frequency list (the language's best available one, or a specific one
+    when `frequency_list` is given), shows usage examples from Tatoeba, and
+    translates words into the requested target languages. Its id is the
+    language code, suffixed if one already exists. If the language has no
+    main lexicon yet, the new one is set as main so it shows up on the home
+    page at once; an existing main lexicon keeps its status.
     """
     if request.selection not in _VALID_SELECTIONS:
         raise HTTPException(
@@ -1063,7 +1056,9 @@ def create_lexicon(
     selection: LexiconSelection = LexiconSelection(request.selection)
 
     data = get_data()
-    frequency_list: dict = _frequency_list_or_400(data, request.language)
+    frequency_list: dict = _chosen_frequency_list_or_400(
+        data, request.language, request.frequency_list
+    )
     targets: list[str] = _validated_targets(request.translation_languages)
     lexicon_id: str = _unique_artifact_id(
         request.language, {row[0] for row in postgres.list_lexicons(user_id)}
@@ -1120,6 +1115,11 @@ class LexiconSettings(BaseModel):
     selection: str
     name: str | None  # Display name; the identifier is used when not set.
     translation_languages: list[str]
+    frequency_list_name: str | None
+    """Human-readable name of the frequency list words are drawn from.
+
+    `None` for a lexicon with no frequency list (e.g. an alphabet lexicon).
+    """
 
 
 class UpdateLexiconRequest(BaseModel):
@@ -1152,6 +1152,23 @@ def _lexicon_translation_languages(config: dict) -> list[str]:
     return list(targets)
 
 
+def _frequency_list_name(
+    data: Any, frequency_list_config: dict | None
+) -> str | None:
+    """Look up a human-readable name for a stored frequency-list usage config.
+
+    Matches the stored config against `get_frequency_list_options`, falling
+    back to the raw list id if no option matches exactly (e.g. a list that
+    used to be configured but has since been removed).
+    """
+    if not frequency_list_config:
+        return None
+    for option in data.get_frequency_list_options():
+        if option["config"] == frequency_list_config:
+            return option["name"]
+    return frequency_list_config.get("id")
+
+
 def _lexicon_settings(lexicon_id: str, config: dict) -> LexiconSettings:
     """Read a lexicon's editable settings out of its flat config."""
     return LexiconSettings(
@@ -1160,6 +1177,9 @@ def _lexicon_settings(lexicon_id: str, config: dict) -> LexiconSettings:
         selection=config["selection"],
         name=config.get("name"),
         translation_languages=_lexicon_translation_languages(config),
+        frequency_list_name=_frequency_list_name(
+            get_data(), config.get("frequency_list")
+        ),
     )
 
 
@@ -2532,6 +2552,11 @@ class LexiconStats(BaseModel):
     lexicon_id: str
     language: str
     selection: str | None
+    frequency_list_name: str | None
+    """Human-readable name of the frequency list words are drawn from.
+
+    `None` for a lexicon with no frequency list (e.g. an alphabet lexicon).
+    """
     words: int  # Distinct words checked.
     known: int  # Words whose last answer was "know".
     dont_know: int  # Words whose last answer was "don't know".
@@ -2587,6 +2612,9 @@ def get_lexicon_stats(
         lexicon_id=lexicon_id,
         language=config["language"],
         selection=config["selection"],
+        frequency_list_name=_frequency_list_name(
+            get_data(), config.get("frequency_list")
+        ),
         words=len(lexicon),
         known=known,
         dont_know=dont_know,
@@ -2670,40 +2698,65 @@ def get_my_languages(
     return rates
 
 
-GRAPH_GRID_COLOR: Color = Color("#888888")
-"""Grid color legible on both the light and the dark page theme."""
+class LanguageHistoryPoint(BaseModel):
+    """One windowed rate estimate in a language's history."""
+
+    date: datetime  # The estimation window's end.
+    rate: float
+    sd: float
 
 
-@app.get("/api/v1/me/lexicons/graph")
-def get_lexicons_graph(
-    request: Request, user_id: Annotated[str, Depends(get_current_user)]
-) -> HTTPResponse:
-    """Render the rate history of the user's main lexicons as an SVG graph.
+class LanguageHistory(BaseModel):
+    """A language's windowed rate history, for the dashboard chart."""
 
-    Each lexicon's curve comes from the windowed, strategy-matched estimator
-    (`compute_rate_history`), so every point carries the same precision
-    regardless of how the lexicon's answers were collected. Lexicons whose
-    estimator has no windowed history yet (threshold, logistic) and lexicons
-    whose configured frequency list cannot be loaded are skipped.
+    language: str
+    points: list[LanguageHistoryPoint]
 
-    The background is transparent so the graph can be inlined into a page and
-    inherit its theme. The `ETag` is derived from the newest lexicon record:
-    the history only changes when the user answers (or undoes) a lexicon
-    check, so a matching `If-None-Match` skips loading the records and
-    rendering entirely.
 
-    Responds 204 when there is not enough data to plot anything yet.
+def _monthly_points(
+    date_ranges: list[tuple[datetime, datetime]],
+    rates: list[float],
+    sds: list[float],
+) -> list[LanguageHistoryPoint]:
+    """Collapse a windowed rate history to one point per calendar month.
+
+    `compute_rate_history` emits a new window every time the log first
+    supports the required precision again — for a regular reviewer that can
+    be weekly or even more often, much finer than the dashboard chart's
+    month-interval x-axis. Keeping only the last (most recent) window ending
+    in each month matches the line's resolution to what the axis actually
+    shows. A history under two calendar months returns every raw point
+    instead, the same threshold the chart's own tick labels fall back at,
+    so a young lexicon still gets a legible line rather than one lone point.
     """
-    last_record_id: int | None = postgres.get_last_lexicon_record_id(user_id)
-    etag: str = f'"lexicon-graph-{last_record_id or 0}"'
-    if request.headers.get("if-none-match") == etag:
-        return HTTPResponse(
-            status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag}
-        )
+    raw = [
+        LanguageHistoryPoint(date=end, rate=rate, sd=sd)
+        for (_, end), rate, sd in zip(date_ranges, rates, sds, strict=True)
+    ]
+    by_month: dict[tuple[int, int], LanguageHistoryPoint] = {
+        (point.date.year, point.date.month): point for point in raw
+    }
+    monthly = [by_month[key] for key in sorted(by_month)]
+    return monthly if len(monthly) >= 2 else raw
 
-    histories: dict[
-        Language, tuple[list[tuple[datetime, datetime]], list[float]]
-    ] = {}
+
+@app.get("/api/v1/me/lexicons/history")
+def get_lexicons_history(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[LanguageHistory]:
+    """List the windowed rate history of the user's main lexicons.
+
+    Each language's points come from the windowed, strategy-matched estimator
+    (`compute_rate_history`), collapsed to one per month (`_monthly_points`)
+    once there is more than a month of history. Languages whose estimator
+    has no windowed history yet (threshold, logistic) and lexicons whose
+    configured frequency list cannot be loaded are omitted. The client (the
+    dashboard's history chart, the same mechanism the lexicon check page's
+    convergence chart uses) draws the lines itself, one per language,
+    coloring each from its own chart palette rather than the language's own
+    display color.
+    """
+    result: list[LanguageHistory] = []
     for (
         language_code,
         lexicon_id,
@@ -2739,34 +2792,20 @@ def get_lexicons_graph(
         if not records:
             continue
         try:
-            date_ranges, rates, _ = compute_rate_history(
+            date_ranges, rates, sds = compute_rate_history(
                 selection, frequency_list, records
             )
         except NotImplementedError:
             continue
-        if date_ranges:
-            histories[language] = (date_ranges, rates)
-
-    visualizer: LexiconVisualizer = LexiconVisualizer(interactive=False)
-    x_min, x_max, lexicon_data = visualizer.construct_data_from_histories(
-        histories, margin=None
-    )
-    svg = visualizer.build_svg(
-        x_min,
-        x_max,
-        lexicon_data,
-        colors=None,
-        background_color=None,
-        grid_color=GRAPH_GRID_COLOR,
-    )
-    if svg is None:
-        return HTTPResponse(status_code=status.HTTP_204_NO_CONTENT)
-
-    return HTTPResponse(
-        content=svg.tostring(),
-        media_type="image/svg+xml",
-        headers={"ETag": etag, "Cache-Control": "private, no-cache"},
-    )
+        if not date_ranges:
+            continue
+        result.append(
+            LanguageHistory(
+                language=language.get_code(),
+                points=_monthly_points(date_ranges, rates, sds),
+            )
+        )
+    return result
 
 
 @app.put(

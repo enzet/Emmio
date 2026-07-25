@@ -97,19 +97,19 @@ function languageName(code) {
 // Emmio-specific language level derived directly from the lexicon rate `r`:
 // each level spans one unit of `r`. Rates below A1 or a missing rate return an
 // em dash.
-// Format a rate estimate with its standard deviation, e.g. `5.5 ±0.6`; an
+// Format a rate estimate with its standard deviation, e.g. `5.5 ± 0.6`; an
 // em dash when there is no estimate yet.
 function formatRate(rate, sd, digits) {
     if (rate === null || rate === undefined) return "—";
     let text = rate.toFixed(digits);
-    if (sd !== null && sd !== undefined) text += ` ±${sd.toFixed(digits)}`;
+    if (sd !== null && sd !== undefined) text += ` ± ${sd.toFixed(digits)}`;
     return text;
 }
 
 function emmioLevel(rate, cell) {
     var level = "";
     if (rate === null || rate < 2) {
-        cell.append("below ");
+        cell.append("< ");
         level = "A1";
     } else if (rate < 3) {
         level = "A1";
@@ -124,7 +124,7 @@ function emmioLevel(rate, cell) {
     } else if (rate < 8) {
         level = "C2";
     } else {
-        cell.append("over ");
+        cell.append("> ");
         level = "C2";
     }
     var span = document.createElement("span");
@@ -327,6 +327,7 @@ async function initHome() {
             : "—";
         rateCell.style.textAlign = "right";
         rateCell.style.fontVariantNumeric = "tabular-nums";
+        rateCell.style.textAlign = "right";
         row.appendChild(rateCell);
 
         // Emmio-specific language level derived from the rate.
@@ -336,6 +337,7 @@ async function initHome() {
         } else {
             levelCell.textContent = "—";
         }
+        levelCell.style.textAlign = "right";
         row.appendChild(levelCell);
 
         // Lexicon column: a link to the main lexicon, then a "Check" button
@@ -353,20 +355,15 @@ async function initHome() {
                 lexiconLink.append(strategyIconPrefix(entry.selection));
             }
             lexiconLink.append(identifierSpan(entry.lexicon_id));
+            if (entry && entry.check_available) {
+                const check = document.createElement("sup");
+                check.setAttribute("class", "notification")
+                // Possible link:
+                // `check?lexicon=${encodeURIComponent(entry.lexicon_id)}`.
+                check.appendChild(document.createTextNode("⚫︎"));
+                lexiconLink.appendChild(check);
+            }
             lexiconCell.appendChild(lexiconLink);
-        }
-        if (entry && entry.check_available) {
-            const check = document.createElement("a");
-            check.className = "button";
-            check.href = `check?lexicon=${encodeURIComponent(
-                entry.lexicon_id,
-            )}`;
-            check.appendChild(document.createTextNode("Check"));
-            lexiconCell.appendChild(check);
-        } else if (entry && entry.recheck_available_at) {
-            lexiconCell.textContent = formatCountdown(
-                new Date(entry.recheck_available_at).getTime() - Date.now(),
-            );
         }
         row.appendChild(lexiconCell);
 
@@ -420,15 +417,18 @@ async function initHome() {
     for (const language of courseOnly) {
         renderLanguageRow(language, null, coursesByLanguage.get(language));
     }
-    // Vocabulary-level history of the main lexicons, rendered server-side as
-    // SVG. Inlined rather than an `<img src>` because the endpoint needs the
-    // bearer token and inline SVG scales with the page CSS. 204 means there
-    // are not enough answers to plot yet.
-    const graphResponse = await api("/me/lexicons/graph");
-    if (graphResponse.status === 200) {
-        const figure = document.getElementById("lexicon-graph");
-        figure.innerHTML = await graphResponse.text();
-        figure.hidden = false;
+    // Vocabulary-level history of the main lexicons, one line per language —
+    // drawn client-side by the same mechanism as the check page's
+    // convergence chart, rather than a server-rendered image.
+    const historyResponse = await api("/me/lexicons/history");
+    if (historyResponse.ok) {
+        const chart = createLanguageHistoryChart(
+            document.getElementById("lexicon-history"),
+            document.getElementById("lexicon-history-svg"),
+            document.getElementById("lexicon-history-tooltip"),
+            document.getElementById("lexicon-history-legend"),
+        );
+        chart.setData(await historyResponse.json());
     }
 }
 
@@ -483,7 +483,7 @@ async function initLanguage() {
         row.appendChild(selectionCell);
 
         for (const value of [
-            formatRate(lexicon.rate, lexicon.sd, 1),
+            formatRate(lexicon.rate, lexicon.sd, 2),
             lexicon.words,
         ]) {
             const cell = document.createElement("td");
@@ -620,19 +620,24 @@ function addStrategyOverlay(select) {
 
 // Wire up a "create lexicon" form: fill its language selector from the
 // available frequency-list languages, and on submit create the lexicon (which
-// is set as main, with the chosen selection strategy) and open it.
+// is set as main, with the chosen selection strategy) and open it. The
+// frequency-list picker is re-filled whenever the language changes, since the
+// set of matching lists differs per language.
 async function setupCreateLexicon(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
+    const frequencyListSelect = form.querySelector(".lexicon-frequency-list");
     const targets = form.querySelector(".translation-languages");
     const selection = form.querySelector(".lexicon-selection");
     const createStatus = document.getElementById(statusId);
 
-    const [response, targetResponse, strategyResponse] = await Promise.all([
-        api("/lexicon-languages"),
-        api("/translation-languages"),
-        api("/lexicon-strategies"),
-    ]);
+    const [response, frequencyListResponse, targetResponse, strategyResponse] =
+        await Promise.all([
+            api("/lexicon-languages"),
+            api("/frequency-lists"),
+            api("/translation-languages"),
+            api("/lexicon-strategies"),
+        ]);
     const available = await response.json();
     if (available.length === 0) {
         createStatus.textContent =
@@ -644,6 +649,16 @@ async function setupCreateLexicon(formId, selectId, statusId) {
     }
 
     fillLanguageSelect(select, available);
+
+    const frequencyLists = await frequencyListResponse.json();
+    fillFrequencyListSelect(frequencyListSelect, frequencyLists, select.value);
+    select.addEventListener("change", () => {
+        fillFrequencyListSelect(
+            frequencyListSelect,
+            frequencyLists,
+            select.value,
+        );
+    });
 
     // Fill the "translate into" picker with every known language; preselect
     // English as the most common target.
@@ -677,6 +692,9 @@ async function setupCreateLexicon(formId, selectId, statusId) {
                 language: select.value,
                 translation_languages: translationLanguages,
                 selection: selection.value,
+                frequency_list: decodeFrequencyListValue(
+                    frequencyListSelect.value,
+                ),
             },
         });
         if (result.ok) {
@@ -706,9 +724,9 @@ function decodeFrequencyListValue(value) {
 // Fill the "draw new words from" picker with the frequency lists available
 // for `language`, starring and preselecting the one creation would pick
 // automatically if left untouched. Called on load and again whenever the
-// learning's language changes, since the set of matching lists differs per
-// language.
-function fillLearningFrequencyListSelect(select, frequencyLists, language) {
+// lexicon's or learning's language changes, since the set of matching lists
+// differs per language.
+function fillFrequencyListSelect(select, frequencyLists, language) {
     select.innerHTML = "";
     for (const option of frequencyLists) {
         if (option.language !== language) continue;
@@ -934,7 +952,7 @@ async function setupCreateLearning(courseId, formId, statusId) {
         targets.required = isWord;
         frequencyListSelect.required = isWord;
         if (isWord) {
-            fillLearningFrequencyListSelect(
+            fillFrequencyListSelect(
                 frequencyListSelect,
                 frequencyLists,
                 course.language,
@@ -1056,11 +1074,12 @@ async function initLexicons() {
         row.appendChild(selectionCell);
 
         for (const value of [
-            formatRate(lexicon.rate, lexicon.sd, 1),
+            formatRate(lexicon.rate, lexicon.sd, 2),
             lexicon.words,
         ]) {
             const cell = document.createElement("td");
             cell.textContent = value;
+            cell.style.textAlign = "right";
             row.appendChild(cell);
         }
 
@@ -1130,6 +1149,7 @@ async function initLexicon() {
             s.selection ? strategyIconPrefix(s.selection) + s.selection : "—",
             "strategy-text",
         ],
+        ["Frequency list", s.frequency_list_name ?? "—"],
         ["Words checked", s.words],
         ["Known", s.known],
         ["Don't know", s.dont_know],
@@ -1406,7 +1426,7 @@ function createTrajectoryChart(figure, svg, tooltip) {
             );
         }
 
-        // The r̂ line with its ±SD band, split where the estimator had no
+        // The r line with its ± SD band, split where the estimator had no
         // answer.
         const runs = [];
         let run = [];
@@ -1444,7 +1464,7 @@ function createTrajectoryChart(figure, svg, tooltip) {
         );
         parts.push(
             `<text class="end-label" x="${x(last.q) + 8}" y="${labelY}"` +
-                ` dominant-baseline="middle">r̂ = ${last.rate.toFixed(2)}` +
+                ` dominant-baseline="middle">r = ${last.rate.toFixed(2)}` +
                 ` ± ${(last.sd || 0).toFixed(2)}</text>`,
         );
 
@@ -1478,7 +1498,7 @@ function createTrajectoryChart(figure, svg, tooltip) {
         focusDot.setAttribute("cy", cy);
         focusDot.style.visibility = "visible";
         tooltip.textContent =
-            `r̂ = ${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
+            `r = ${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
             ` · ${nearest.q.toLocaleString("en-US")} answers`;
         tooltip.hidden = false;
         tooltip.style.left = `${Math.max(
@@ -1524,6 +1544,273 @@ function createTrajectoryChart(figure, svg, tooltip) {
                 if (key > q) live.delete(key);
             }
             merge();
+            render();
+        },
+    };
+}
+
+// Dashboard vocabulary-level history: one r line (plus ± SD band) per
+// language, over calendar time. Same drawing approach as
+// `createTrajectoryChart` (inline SVG, hover crosshair and tooltip), but
+// there is no live session to grow it from — `setData` renders a fixed
+// snapshot fetched once — and each language gets a color from a fixed chart
+// palette (by position, cycling if there are more languages than colors)
+// instead of sharing one CSS variable, since several lines share the chart.
+// Deliberately not the language's own display color (`Language.color`,
+// used elsewhere, e.g. `.language-code`): those aren't chosen as a set for
+// mutual contrast, so two languages can end up close in hue. A legend below
+// the chart spells out which line is which language.
+const HISTORY_CHART_PALETTE = [
+    "#2A78D6", // blue
+    "#D6552A", // orange
+    "#1BAF7A", // green
+    "#B03ADB", // purple
+    "#D6B22A", // gold
+    "#2AAFD6", // cyan
+    "#D62A6E", // rose
+    "#6E8C2A", // olive
+];
+
+function createLanguageHistoryChart(figure, svg, tooltip, legend) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const MARGIN = { top: 10, right: 20, bottom: 20, left: 40 };
+
+    let series = []; // [{ language, color, points: [{ date, rate, sd }] }].
+    let scale = null; // Last render's scales, for the hover layer.
+
+    // The hover layer is created once and re-appended after every rebuild
+    // (setting `innerHTML` wipes the SVG).
+    const crosshair = document.createElementNS(SVG_NS, "line");
+    crosshair.setAttribute("class", "crosshair");
+    const focusDot = document.createElementNS(SVG_NS, "circle");
+    focusDot.setAttribute("class", "focus-dot");
+    focusDot.setAttribute("r", "4");
+
+    function hideHover() {
+        crosshair.style.visibility = "hidden";
+        focusDot.style.visibility = "hidden";
+        tooltip.hidden = true;
+    }
+
+    function tickLabel(value) {
+        return Number.isInteger(value)
+            ? value.toLocaleString("en-US")
+            : String(Number(value.toFixed(2)));
+    }
+
+    function dateLabel(date) {
+        return date.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+        });
+    }
+
+    // The first of each month from `minDate` to `maxDate`, as timestamps.
+    function monthStarts(minDate, maxDate) {
+        const first = new Date(minDate);
+        let cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+        if (cursor.getTime() < minDate) {
+            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        }
+        const ticks = [];
+        while (cursor.getTime() <= maxDate) {
+            ticks.push(cursor.getTime());
+            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        }
+        return ticks;
+    }
+
+    function render() {
+        const known = series.filter((one) => one.points.length >= 2);
+        if (known.length === 0) {
+            figure.hidden = true;
+            return;
+        }
+        figure.hidden = false;
+        const width = svg.clientWidth;
+        const height = svg.clientHeight;
+        if (!width || !height) return;
+        svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+        let minDate = Infinity;
+        let maxDate = -Infinity;
+        let yMin = Infinity;
+        let yMax = -Infinity;
+        for (const one of known) {
+            for (const point of one.points) {
+                const t = point.date.getTime();
+                minDate = Math.min(minDate, t);
+                maxDate = Math.max(maxDate, t);
+                yMin = Math.min(yMin, point.rate - (point.sd || 0));
+                yMax = Math.max(yMax, point.rate + (point.sd || 0));
+            }
+        }
+        if (minDate === maxDate) maxDate = minDate + 1;
+        // The axis floor is never negative (a rate can't be), and the
+        // ceiling is always a whole number, so every integer between the two
+        // gets its own gridline below — no fractional padding.
+        yMin = Math.max(0, Math.floor(yMin));
+        yMax = Math.max(yMin + 1, Math.ceil(yMax));
+
+        const plot = {
+            left: MARGIN.left,
+            right: width - MARGIN.right,
+            top: MARGIN.top,
+            bottom: height - MARGIN.bottom,
+        };
+        const x = (t) =>
+            plot.left +
+            ((t - minDate) / (maxDate - minDate)) * (plot.right - plot.left);
+        const y = (value) =>
+            plot.bottom -
+            ((value - yMin) / (yMax - yMin)) * (plot.bottom - plot.top);
+        scale = { x, y, plot, known };
+
+        const parts = [];
+
+        // Horizontal hairline gridlines with their rate labels, one per
+        // integer between the axis floor and ceiling.
+        for (let value = yMin; value <= yMax; value += 1) {
+            const line = y(value);
+            parts.push(
+                `<line class="grid" x1="${plot.left}" y1="${line}"` +
+                    ` x2="${plot.right}" y2="${line}"/>`,
+                `<text class="tick-label" x="${plot.left - 6}" y="${line}"` +
+                    ` text-anchor="end" dominant-baseline="middle">` +
+                    `${tickLabel(value)}</text>`,
+            );
+        }
+
+        // The baseline and date ticks along it: one per month by default (a
+        // history worth charting usually spans several), falling back to a
+        // few evenly spaced day ticks when the whole range is under a month
+        // and so has one month-start tick or none.
+        parts.push(
+            `<line class="grid" x1="${plot.left}" y1="${plot.bottom}"` +
+                ` x2="${plot.right}" y2="${plot.bottom}"/>`,
+        );
+        const months = monthStarts(minDate, maxDate);
+        if (months.length >= 2) {
+            let previousYear = null;
+            for (const t of months) {
+                const date = new Date(t);
+                const options =
+                    date.getFullYear() === previousYear
+                        ? { month: "short" }
+                        : { month: "short", year: "numeric" };
+                previousYear = date.getFullYear();
+                parts.push(
+                    `<text class="tick-label" x="${x(t)}"` +
+                        ` y="${height - 4}" text-anchor="middle">` +
+                        `${date.toLocaleDateString(undefined, options)}</text>`,
+                );
+            }
+        } else {
+            const dateSteps = 4;
+            for (let step = 0; step <= dateSteps; step += 1) {
+                const t = minDate + (step / dateSteps) * (maxDate - minDate);
+                parts.push(
+                    `<text class="tick-label" x="${x(t)}"` +
+                        ` y="${height - 4}" text-anchor="middle">` +
+                        `${dateLabel(new Date(t))}</text>`,
+                );
+            }
+        }
+
+        // One r line with its ± SD band per language, each in its own color.
+        for (const one of known) {
+            const upper = one.points
+                .map((p) => `${x(p.date.getTime())},${y(p.rate + (p.sd || 0))}`)
+                .join(" L ");
+            const lower = one.points
+                .slice()
+                .reverse()
+                .map((p) => `${x(p.date.getTime())},${y(p.rate - (p.sd || 0))}`)
+                .join(" L ");
+            parts.push(
+                `<path class="band" d="M ${upper} L ${lower} Z"` +
+                    ` fill="${one.color}"/>`,
+                `<path class="line" d="M ${one.points
+                    .map((p) => `${x(p.date.getTime())},${y(p.rate)}`)
+                    .join(" L ")}" stroke="${one.color}"/>`,
+            );
+        }
+
+        svg.innerHTML = parts.join("");
+        svg.append(crosshair, focusDot);
+        hideHover();
+    }
+
+    // Crosshair and tooltip: the whole SVG is the hit target, the reader aims
+    // at an x position and the nearest point (across every language) answers.
+    svg.addEventListener("pointermove", (event) => {
+        if (!scale) return;
+        const px = event.clientX - svg.getBoundingClientRect().left;
+        let nearest = null;
+        let nearestSeries = null;
+        let bestDistance = Infinity;
+        for (const one of scale.known) {
+            for (const point of one.points) {
+                const distance = Math.abs(scale.x(point.date.getTime()) - px);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    nearest = point;
+                    nearestSeries = one;
+                }
+            }
+        }
+        if (!nearest) return;
+        const cx = scale.x(nearest.date.getTime());
+        const cy = scale.y(nearest.rate);
+        crosshair.setAttribute("x1", cx);
+        crosshair.setAttribute("x2", cx);
+        crosshair.setAttribute("y1", scale.plot.top);
+        crosshair.setAttribute("y2", scale.plot.bottom);
+        crosshair.style.visibility = "visible";
+        focusDot.setAttribute("cx", cx);
+        focusDot.setAttribute("cy", cy);
+        focusDot.setAttribute("fill", nearestSeries.color);
+        focusDot.style.visibility = "visible";
+        tooltip.textContent =
+            `${languageName(nearestSeries.language)}: r = ` +
+            `${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
+            ` · ${dateLabel(nearest.date)}`;
+        tooltip.hidden = false;
+        tooltip.style.left = `${Math.max(
+            0,
+            Math.min(cx + 10, figure.clientWidth - tooltip.offsetWidth - 4),
+        )}px`;
+        tooltip.style.top = `${Math.max(0, cy - tooltip.offsetHeight - 8)}px`;
+    });
+    svg.addEventListener("pointerleave", hideHover);
+    window.addEventListener("resize", render);
+
+    return {
+        // Seed (and only ever seed) the chart with every language's history,
+        // fetched once on page load.
+        setData(histories) {
+            series = histories.map((entry, index) => ({
+                language: entry.language,
+                color:
+                    HISTORY_CHART_PALETTE[
+                        index % HISTORY_CHART_PALETTE.length
+                    ],
+                points: entry.points.map((point) => ({
+                    date: new Date(point.date),
+                    rate: point.rate,
+                    sd: point.sd,
+                })),
+            }));
+            legend.replaceChildren();
+            for (const one of series) {
+                if (one.points.length < 2) continue;
+                const item = document.createElement("span");
+                const swatch = document.createElement("span");
+                swatch.className = "swatch";
+                swatch.style.backgroundColor = one.color;
+                item.append(swatch, languageName(one.language));
+                legend.append(item);
+            }
             render();
         },
     };
