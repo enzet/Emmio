@@ -918,6 +918,37 @@ def _unique_artifact_id(language: str, existing: set[str]) -> str:
     return artifact_id
 
 
+# Languages whose alphabet is authored under a shared script's dictionary
+# (e.g. `geor_alphabet.json`, keyed by the ISO 15924 script code) rather than
+# their own — see `KnownLanguages`'s "Script identities" section.
+_ALPHABET_SCRIPT_FOR_LANGUAGE: dict[str, str] = {
+    "hy": "armn",
+    "ka": "geor",
+    "ko": "hang",
+    "hi": "deva",
+    "ar": "arab",
+    "bg": "cyrl",
+    "kk": "cyrl",
+    "mk": "cyrl",
+    "sr": "cyrl",
+}
+
+
+def _alphabet_dictionary_config(data: Any, language: str) -> dict | None:
+    """Build a symbol learning's `dictionaries` entry for its letter names.
+
+    Letter-name data (name, transcription, per-language definitions) is
+    hand-authored per script as a `structured` dictionary, id
+    `<code>_alphabet` (see `dictionaries/config.json`). Most languages have
+    none yet, in which case a symbol learning simply has no translations.
+    """
+    code: str = _ALPHABET_SCRIPT_FOR_LANGUAGE.get(language, language)
+    dictionary_id: str = f"{code}_alphabet"
+    if dictionary_id in data.dictionaries.dictionaries:
+        return {"id": dictionary_id}
+    return None
+
+
 def _with_kaikki(data: Any, targets: list[str], language: str) -> bool:
     """Whether to configure the Kaikki (en.wiktionary) dictionary.
 
@@ -1225,11 +1256,13 @@ def create_learning(
     `frequency_list` picks among a language's several available lists (e.g.
     cached FrequencyWords years), defaulting to the best one when omitted. A
     `symbol` learning instead drills the language's own alphabet
-    (`Language.symbols`) directly and has no frequency list, dictionaries, or
-    sentences. Its id is the language code, suffixed if one already exists.
-    When `lexicon_id` names one of the user's own lexicons for the same
-    language, words already known there are skipped; `ask_lexicon_id` instead
-    asks about an unseen word there first, before teaching it.
+    (`Language.symbols`) directly and has no frequency list or sentences; it
+    gets a translation dictionary only if a hand-authored one exists for its
+    script (see `_alphabet_dictionary_config`). Its id is the language code,
+    suffixed if one already exists. When `lexicon_id` names one of the user's
+    own lexicons for the same language, words already known there are
+    skipped; `ask_lexicon_id` instead asks about an unseen word there first,
+    before teaching it.
     """
     _, language = _course_or_404(user_id, course_id)
     data = get_data()
@@ -1249,6 +1282,11 @@ def create_learning(
     if request.learning_type == LearningType.SYMBOL:
         alphabet_language: Language = _validated_alphabet_language(language)
         default_name: str = f"{alphabet_language.get_name()} alphabet"
+        alphabet_dictionary: dict | None = _alphabet_dictionary_config(
+            data, language
+        )
+        if alphabet_dictionary is not None:
+            dictionaries = [alphabet_dictionary]
     else:
         frequency_list: dict = _chosen_frequency_list_or_400(
             data, language, request.frequency_list

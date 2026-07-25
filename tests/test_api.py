@@ -37,7 +37,10 @@ client: TestClient = TestClient(app)
 
 
 class _FakeDictionaries:
-    """Stand-in for the dictionary inventory: no Kaikki available."""
+    """Stand-in for the dictionary inventory: no Kaikki, no structured ones."""
+
+    def __init__(self) -> None:
+        self.dictionaries: dict[str, Any] = {}
 
     def can_download_kaikki(self, language: object) -> bool:  # noqa: ARG002
         return False
@@ -1279,6 +1282,31 @@ def test_create_symbol_learning_stores_learning_type() -> None:
     assert config["dictionaries"] == []
     assert config["sentences"] == []
     assert "pick_from" not in config["scheme"]["new_question"]
+
+
+def test_create_symbol_learning_uses_its_script_dictionary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symbol learning picks up its script's structured dictionary."""
+
+    fake: Any = _FakeData({})
+    fake.dictionaries.dictionaries = {"geor_alphabet": object()}
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "ka")
+
+    response = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"learning_type": "symbol"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
+    assert config is not None
+    assert config["dictionaries"] == [{"id": "geor_alphabet"}]
 
 
 @pytest.mark.usefixtures("fake_languages")

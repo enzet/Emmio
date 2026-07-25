@@ -7,6 +7,7 @@
 Emmio.egg-info
 __pycache__
 c/text
+data/*.ttf
 cache
 image/*.svg
 out
