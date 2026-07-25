@@ -57,7 +57,7 @@ from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
 from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
-from emmio.learn.config import CourseType
+from emmio.learn.config import LearningType
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
@@ -142,15 +142,36 @@ class User(BaseModel):
     name: str
 
 
-class CourseSummary(BaseModel):
-    """A learning course list row: identity plus computed short info."""
+class LearningSummary(BaseModel):
+    """A learning list row: identity plus computed short info."""
 
-    course_id: str
+    learning_id: str
     name: str
     learning_language: str
     words: int  # Distinct words studied.
     answers: int  # Total answers recorded.
-    course_type: CourseType
+    learning_type: LearningType
+
+
+class CourseSummary(BaseModel):
+    """A course (language-level set of learnings) list row."""
+
+    course_id: str
+    name: str
+    language: str
+    learning_count: int
+
+
+class CourseDetail(CourseSummary):
+    """A single course's identity plus its learnings."""
+
+    learnings: list[LearningSummary]
+
+
+class CreatedCourse(BaseModel):
+    """The identifier assigned to a freshly created course."""
+
+    course_id: str
 
 
 class LexiconSummary(BaseModel):
@@ -294,8 +315,9 @@ def change_password(
 def delete_me(user_id: Annotated[str, Depends(get_current_user)]) -> None:
     """Delete the authenticated user and all their data.
 
-    Irreversible: removes the account along with every lexicon, course, and
-    answer it owns. The caller's token becomes useless once the user is gone.
+    Irreversible: removes the account along with every lexicon, course,
+    learning, and answer it owns. The caller's token becomes useless once the
+    user is gone.
     """
     postgres.delete_user(user_id)
     LEXICON_SESSIONS.invalidate_user(user_id)
@@ -334,25 +356,112 @@ def export_me(
 def get_my_courses(
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[CourseSummary]:
-    """List the authenticated user's learning courses."""
+    """List the authenticated user's courses (language-level sets)."""
     return [
         CourseSummary(
             course_id=course_id,
             name=name,
-            learning_language=language,
-            words=words,
-            answers=answers,
-            course_type=CourseType(course_type),
+            language=language,
+            learning_count=learning_count,
         )
         for (
             course_id,
             name,
             language,
-            words,
-            answers,
-            course_type,
+            learning_count,
         ) in postgres.list_courses(user_id)
     ]
+
+
+class CreateCourseRequest(BaseModel):
+    """Payload to create a course: name and language."""
+
+    name: str
+    language: str
+
+
+@app.post("/api/v1/me/courses", status_code=status.HTTP_201_CREATED)
+def create_course(
+    request: CreateCourseRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> CreatedCourse:
+    """Create an empty course (a language-level set of learnings)."""
+    try:
+        language: Language = Language.from_code(request.language)
+    except LanguageNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    course_id: str = _unique_artifact_id(
+        request.language, {row[0] for row in postgres.list_courses(user_id)}
+    )
+    postgres.create_course(
+        user_id, course_id, request.name, language.get_code()
+    )
+    return CreatedCourse(course_id=course_id)
+
+
+@app.get("/api/v1/me/courses/{course_id}")
+def get_course(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> CourseDetail:
+    """Get a course's identity plus its learnings."""
+    course: tuple[str, str] | None = postgres.get_course(user_id, course_id)
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown course `{course_id}`.",
+        )
+    name, language = course
+    learnings: list[LearningSummary] = [
+        LearningSummary(
+            learning_id=learning_id,
+            name=learning_name,
+            learning_language=learning_language,
+            words=words,
+            answers=answers,
+            learning_type=LearningType(learning_type),
+        )
+        for (
+            learning_id,
+            learning_name,
+            learning_language,
+            words,
+            answers,
+            learning_type,
+        ) in postgres.list_learnings(user_id, course_id)
+    ]
+    return CourseDetail(
+        course_id=course_id,
+        name=name,
+        language=language,
+        learning_count=len(learnings),
+        learnings=learnings,
+    )
+
+
+@app.delete(
+    "/api/v1/me/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_course(
+    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Delete an empty course.
+
+    Responds 404 when the user has no such course, and 409 when it still has
+    learnings: delete those first.
+    """
+    try:
+        deleted: bool = postgres.delete_course(user_id, course_id)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown course `{course_id}`.",
+        )
 
 
 _ROW_RATE_CACHE: dict[
@@ -570,30 +679,27 @@ def get_lexicon_languages() -> list[LexiconLanguage]:
 
 
 class AlphabetLanguage(BaseModel):
-    """A language a `CourseType.SYMBOL` (alphabet) course can be created for."""
+    """A language a `LearningType.SYMBOL` (alphabet) learning can be for."""
 
     language: str  # ISO code, e.g. `uk`, or an ISO 15924 script code.
 
 
-_SUPERSEDED_BY_SCRIPT: frozenset[str] = frozenset(
-    {"hy", "ka", "ko", "hi", "ar", "bg", "kk", "mk", "sr"}
-)
-
-
 @app.get("/api/v1/alphabet-languages", dependencies=[Depends(get_current_user)])
 def get_alphabet_languages() -> list[AlphabetLanguage]:
-    """List languages an alphabet course can be created for.
+    """List languages an alphabet learning can be created for.
 
-    An alphabet course draws its items directly from `Language.symbols`, not
+    An alphabet learning draws its items directly from `Language.symbols`, not
     from a frequency list or Tatoeba sentences, so it is offered for any
     language (or script, e.g. `deva` Devanagari) that knows its alphabet — a
-    strictly larger set than `lexicon-languages`.
+    strictly larger set than `lexicon-languages`. Includes languages whose
+    script also has its own generic entry (e.g. both `ka` Georgian and `geor`
+    Georgian script): a course is fixed to one language, so its alphabet
+    learning must be offered under that same code, not just under the script.
     """
     return [
         AlphabetLanguage(language=language.get_code())
         for language in KnownLanguages.get_languages()
         if language.has_symbols()
-        and language.get_code() not in _SUPERSEDED_BY_SCRIPT
     ]
 
 
@@ -619,7 +725,7 @@ def get_translation_languages() -> list[TranslationLanguage]:
 
 
 class FrequencyListOption(BaseModel):
-    """A frequency list a lexicon or course can draw new words from.
+    """A frequency list a lexicon or learning can draw new words from.
 
     A language may have more than one (e.g. several cached FrequencyWords
     years, or a custom configured list alongside them).
@@ -677,7 +783,7 @@ def _is_known_language(code: str) -> bool:
 def _validated_targets(codes: list[str]) -> list[str]:
     """Deduplicate translation targets, keeping only known languages.
 
-    The shared validation of lexicon and course creation and settings
+    The shared validation of lexicon and learning creation and settings
     updates.
 
     :param codes: requested target language codes, in order
@@ -699,7 +805,7 @@ def _validated_lexicon_or_400(
 ) -> None:
     """Check `lexicon_id` belongs to the user and matches `language`, or 400.
 
-    Shared by course creation and settings updates for both a course's
+    Shared by learning creation and settings updates for both a learning's
     `check_lexicons` (skip already-known words) and `ask_lexicon` (ask about
     unseen ones first) references.
     """
@@ -714,7 +820,7 @@ def _validated_lexicon_or_400(
 
 
 def _validated_question_types(question_types: list[str] | None) -> None:
-    """Check every requested question type is one the course teacher supports.
+    """Check every requested question type is one the learning teacher supports.
 
     :raises HTTPException: 400 listing the unsupported type(s)
     """
@@ -732,7 +838,7 @@ def _validated_question_types(question_types: list[str] | None) -> None:
 def _frequency_list_or_400(data: Any, language: str) -> dict:
     """Get the language's frequency-list usage config, or raise 400.
 
-    Both a lexicon and a course draw their words from a frequency list, so
+    Both a lexicon and a learning draw their words from a frequency list, so
     creation is refused for languages without one.
 
     :param data: the shared `Data`; typed loosely because tests substitute a
@@ -752,7 +858,7 @@ def _frequency_list_or_400(data: Any, language: str) -> dict:
 def _validated_alphabet_language(language: str) -> Language:
     """Check `language` is known and has a defined alphabet, or raise 400.
 
-    A `CourseType.SYMBOL` course draws its items from `Language.symbols`
+    A `LearningType.SYMBOL` learning draws its items from `Language.symbols`
     instead of a frequency list, so it needs the alphabet defined instead.
     """
     try:
@@ -781,7 +887,7 @@ def _chosen_frequency_list_or_400(
 
     Defaults to the language's best available list (`_frequency_list_or_400`)
     when `choice` is omitted; otherwise validates the requested (id, year)
-    against `get_frequency_list_options` so a course can't be pointed at a
+    against `get_frequency_list_options` so a learning can't be pointed at a
     list that doesn't exist or belongs to another language.
 
     :param data: the shared `Data`; typed loosely because tests substitute a
@@ -963,7 +1069,7 @@ class UpdateLexiconRequest(BaseModel):
 def _lexicon_translation_languages(config: dict) -> list[str]:
     """Derive a lexicon's translation targets from its stored config.
 
-    Unlike a course (`base_languages`), a lexicon does not store its targets
+    Unlike a learning (`base_languages`), a lexicon does not store its targets
     directly; they only exist inside the dictionary and sentence config they
     generated, so they are read back from the Google Translate entries and the
     Tatoeba `translation_languages`. A lexicon created before targets were
@@ -1060,12 +1166,11 @@ def update_lexicon_settings(
     return _lexicon_settings(new_id, config)
 
 
-class CreateCourseRequest(BaseModel):
-    """Payload to create a learning course: language and translation targets."""
+class CreateLearningRequest(BaseModel):
+    """Payload to add a learning to a course."""
 
-    language: str
-    course_type: CourseType = CourseType.WORD
-    """What kind of item this course drills; immutable after creation."""
+    learning_type: LearningType = LearningType.WORD
+    """What kind of item this learning drills; immutable after creation."""
     translation_languages: list[str] = Field(default_factory=lambda: ["en"])
     name: str | None = None
     """Display name; defaults to the language's own name when omitted."""
@@ -1074,69 +1179,83 @@ class CreateCourseRequest(BaseModel):
     play_audio: bool = True
     """Whether to play pronunciation audio during a session."""
     question_types: list[str] | None = None
-    """Which question types this course may use; all of them when omitted."""
+    """Which question types this learning may use; all when omitted."""
     lexicon_id: str | None = None
     """An existing lexicon for the same language whose already-known words are
-    skipped when the course picks new questions."""
+    skipped when the learning picks new questions."""
     ask_lexicon_id: str | None = None
     """An existing lexicon for the same language: an unseen new word is shown
     as a know/don't-know check first, recorded there, before being taught."""
     frequency_list: FrequencyListSelection | None = None
-    """Which frequency list to draw new words from (`course_type=word` only);
-    defaults to the language's best available list when omitted."""
+    """Which frequency list to draw new words from (`learning_type=word`
+    only); defaults to the language's best available list when omitted."""
 
 
-class CreatedCourse(BaseModel):
-    """The identifier assigned to a freshly created course."""
+class CreatedLearning(BaseModel):
+    """The identifier assigned to a freshly created learning."""
 
-    course_id: str
+    learning_id: str
 
 
-@app.post("/api/v1/me/courses", status_code=status.HTTP_201_CREATED)
-def create_course(
-    request: CreateCourseRequest,
+def _course_or_404(user_id: str, course_id: str) -> tuple[str, str]:
+    """Get a course's (name, language) or raise 404."""
+    course: tuple[str, str] | None = postgres.get_course(user_id, course_id)
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown course `{course_id}`.",
+        )
+    return course
+
+
+@app.post(
+    "/api/v1/me/courses/{course_id}/learnings",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_learning(
+    course_id: str,
+    request: CreateLearningRequest,
     user_id: Annotated[str, Depends(get_current_user)],
-) -> CreatedCourse:
-    """Create a learning course for a language.
+) -> CreatedLearning:
+    """Add a learning to an existing course, in the course's language.
 
-    A `word` course (the default) draws new words from the language's
+    A `word` learning (the default) draws new words from the language's
     frequency list (skipping ones a dictionary marks uncommon), shows Tatoeba
     usage examples, and translates into the requested target languages;
     `frequency_list` picks among a language's several available lists (e.g.
     cached FrequencyWords years), defaulting to the best one when omitted. A
-    `symbol` course instead drills the language's own alphabet
+    `symbol` learning instead drills the language's own alphabet
     (`Language.symbols`) directly and has no frequency list, dictionaries, or
     sentences. Its id is the language code, suffixed if one already exists.
     When `lexicon_id` names one of the user's own lexicons for the same
     language, words already known there are skipped; `ask_lexicon_id` instead
     asks about an unseen word there first, before teaching it.
     """
+    _, language = _course_or_404(user_id, course_id)
     data = get_data()
     targets: list[str] = _validated_targets(request.translation_languages)
     if request.lexicon_id is not None:
-        _validated_lexicon_or_400(user_id, request.lexicon_id, request.language)
+        _validated_lexicon_or_400(user_id, request.lexicon_id, language)
     if request.ask_lexicon_id is not None:
-        _validated_lexicon_or_400(
-            user_id, request.ask_lexicon_id, request.language
-        )
+        _validated_lexicon_or_400(user_id, request.ask_lexicon_id, language)
     _validated_question_types(request.question_types)
-    course_id: str = _unique_artifact_id(
-        request.language, {row[0] for row in postgres.list_courses(user_id)}
+    learning_id: str = _unique_artifact_id(
+        language, {row[0] for row in postgres.list_learnings(user_id)}
     )
 
     new_question: dict = {}
     dictionaries: list[dict] = []
     sentences: list[dict] = []
-    if request.course_type == CourseType.SYMBOL:
-        language: Language = _validated_alphabet_language(request.language)
-        default_name: str = f"{language.get_name()} alphabet"
+    if request.learning_type == LearningType.SYMBOL:
+        alphabet_language: Language = _validated_alphabet_language(language)
+        default_name: str = f"{alphabet_language.get_name()} alphabet"
     else:
         frequency_list: dict = _chosen_frequency_list_or_400(
-            data, request.language, request.frequency_list
+            data, language, request.frequency_list
         )
-        with_kaikki: bool = _with_kaikki(data, targets, request.language)
+        with_kaikki: bool = _with_kaikki(data, targets, language)
         dictionaries, sentences = _translation_config(
-            request.language, targets, with_kaikki=with_kaikki
+            language, targets, with_kaikki=with_kaikki
         )
         # New words come from the frequency list; when a Kaikki dictionary is
         # available it also filters out words it marks uncommon (mere word
@@ -1146,13 +1265,11 @@ def create_course(
             new_question["ignore_not_common"] = [
                 {
                     "id": "kaikki",
-                    "from_language": request.language,
-                    "name": kaikki_language_name(
-                        Language.from_code(request.language)
-                    ),
+                    "from_language": language,
+                    "name": kaikki_language_name(Language.from_code(language)),
                 }
             ]
-        default_name = Language.from_code(request.language).get_name()
+        default_name = Language.from_code(language).get_name()
 
     if request.lexicon_id is not None:
         new_question["check_lexicons"] = [{"id": request.lexicon_id}]
@@ -1166,44 +1283,45 @@ def create_course(
     ) or default_name
     config: dict = {
         "name": name,
-        "course_type": request.course_type.value,
-        "learning_language": request.language,
+        "course_id": course_id,
+        "learning_type": request.learning_type.value,
+        "learning_language": language,
         "base_languages": targets,
         "scheme": scheme,
         "dictionaries": dictionaries,
         "sentences": sentences,
-        "audio": data.get_audio_config(request.language),
+        "audio": data.get_audio_config(language),
         "max_for_day": request.max_for_day,
         "play_audio": request.play_audio,
     }
-    postgres.store_learn_config(user_id, course_id, config)
-    return CreatedCourse(course_id=course_id)
+    postgres.store_learning_config(user_id, learning_id, config)
+    return CreatedLearning(learning_id=learning_id)
 
 
 @app.delete(
-    "/api/v1/me/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/api/v1/me/learnings/{learning_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_course(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+def delete_learning(
+    learning_id: str, user_id: Annotated[str, Depends(get_current_user)]
 ) -> None:
-    """Delete a course and all its answer history.
+    """Delete a learning and all its answer history.
 
-    Irreversible: removes the course along with every record and session it
-    owns. Responds 404 when the user has no such course.
+    Irreversible: removes the learning along with every record and session it
+    owns. Responds 404 when the user has no such learning.
     """
-    if not postgres.delete_course(user_id, course_id):
+    if not postgres.delete_learning(user_id, learning_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown course `{course_id}`.",
+            detail=f"Unknown learning `{learning_id}`.",
         )
-    LEARNING_REGISTRY.invalidate(user_id, course_id)
+    LEARNING_REGISTRY.invalidate(user_id, learning_id)
 
 
-class CourseSettings(BaseModel):
-    """A course's editable settings."""
+class LearningSettings(BaseModel):
+    """A learning's editable settings."""
 
     name: str
-    course_type: CourseType  # Read-only: fixed at creation.
+    learning_type: LearningType  # Read-only: fixed at creation.
     learning_language: str
     translation_languages: list[str]  # `base_languages`.
     max_for_day: int  # New words introduced per day.
@@ -1214,8 +1332,8 @@ class CourseSettings(BaseModel):
     extra_symbols: str  # Letters a basic keyboard may lack, for tap buttons.
 
 
-class UpdateCourseRequest(BaseModel):
-    """Partial update to a course's settings; omitted fields are unchanged."""
+class UpdateLearningRequest(BaseModel):
+    """Partial update to a learning's settings; omitted fields are unchanged."""
 
     name: str | None = None
     translation_languages: list[str] | None = None
@@ -1229,8 +1347,8 @@ class UpdateCourseRequest(BaseModel):
     """Omitted keeps the current value; an empty string clears it."""
 
 
-def _course_settings(config: dict) -> CourseSettings:
-    """Read a course's editable settings out of its flat config."""
+def _learning_settings(config: dict) -> LearningSettings:
+    """Read a learning's editable settings out of its flat config."""
     try:
         extra_symbols: str = Language.from_code(
             config["learning_language"]
@@ -1240,9 +1358,9 @@ def _course_settings(config: dict) -> CourseSettings:
     new_question: dict = (config.get("scheme") or {}).get("new_question") or {}
     check_lexicons: list[dict] = new_question.get("check_lexicons") or []
     ask_lexicon: dict | None = new_question.get("ask_lexicon")
-    return CourseSettings(
+    return LearningSettings(
         name=config["name"],
-        course_type=config.get("course_type", CourseType.WORD),
+        learning_type=config.get("learning_type", LearningType.WORD),
         learning_language=config["learning_language"],
         translation_languages=config.get("base_languages") or [],
         max_for_day=config.get("max_for_day", 10),
@@ -1255,28 +1373,28 @@ def _course_settings(config: dict) -> CourseSettings:
     )
 
 
-@app.get("/api/v1/me/courses/{course_id}/settings")
-def get_course_settings(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
-) -> CourseSettings:
-    """Get a course's editable settings (to pre-fill an edit form)."""
-    return _course_settings(_course_config_or_404(user_id, course_id))
+@app.get("/api/v1/me/learnings/{learning_id}/settings")
+def get_learning_settings(
+    learning_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> LearningSettings:
+    """Get a learning's editable settings (to pre-fill an edit form)."""
+    return _learning_settings(_learning_config_or_404(user_id, learning_id))
 
 
-@app.patch("/api/v1/me/courses/{course_id}/settings")
-def update_course_settings(
-    course_id: str,
-    request: UpdateCourseRequest,
+@app.patch("/api/v1/me/learnings/{learning_id}/settings")
+def update_learning_settings(
+    learning_id: str,
+    request: UpdateLearningRequest,
     user_id: Annotated[str, Depends(get_current_user)],
-) -> CourseSettings:
-    """Update a course's settings; omitted fields keep their current value.
+) -> LearningSettings:
+    """Update a learning's settings; omitted fields keep their current value.
 
     Changing the translation languages regenerates the derived translation and
-    audio config (dictionaries, sentences, audio) from the same builders course
-    creation uses. The course's `learning_language` is immutable and its answer
-    history is untouched (records carry their own provenance).
+    audio config (dictionaries, sentences, audio) from the same builders
+    learning creation uses. The learning's `learning_language` is immutable
+    and its answer history is untouched (records carry their own provenance).
     """
-    config: dict = _course_config_or_404(user_id, course_id)
+    config: dict = _learning_config_or_404(user_id, learning_id)
     data = get_data()
     language: str = config["learning_language"]
 
@@ -1285,7 +1403,7 @@ def update_course_settings(
         if not name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Course name cannot be empty.",
+                detail="Learning name cannot be empty.",
             )
         config["name"] = name
 
@@ -1336,10 +1454,10 @@ def update_course_settings(
             else:
                 new_question.pop("ask_lexicon", None)
 
-    postgres.store_learn_config(user_id, course_id, config)
+    postgres.store_learning_config(user_id, learning_id, config)
     # The cached instance (if any) was built on the old settings.
-    LEARNING_REGISTRY.invalidate(user_id, course_id)
-    return _course_settings(config)
+    LEARNING_REGISTRY.invalidate(user_id, learning_id)
+    return _learning_settings(config)
 
 
 class NextWord(BaseModel):
@@ -1515,7 +1633,7 @@ def _sentence_html(
     )
 
 
-def _course_sentence(
+def _learning_sentence(
     word: str,
     language: str,
     configs: list[dict] | None,
@@ -1523,7 +1641,7 @@ def _course_sentence(
 ) -> tuple[int, str, str] | None:
     """One example sentence (word blanked) plus one of its translations.
 
-    Only sentences that have a translation into one of the course's base
+    Only sentences that have a translation into one of the learning's base
     languages are used, so a learner always sees a translated example. Returns
     `(sentence_id, sentence_html, translation_text)`, or `None` when no such
     sentence exists. The id is recorded as provenance with the answer.
@@ -1667,18 +1785,20 @@ def _lexicon_config_or_404(user_id: str, lexicon_id: str) -> dict:
     )
 
 
-def _course_config_or_404(user_id: str, course_id: str) -> dict:
-    """Get a course's reassembled config dict or raise 404."""
+def _learning_config_or_404(user_id: str, learning_id: str) -> dict:
+    """Get a learning's reassembled config dict or raise 404."""
 
     return _config_or_404(
-        postgres.get_learn_config(user_id, course_id), "course", course_id
+        postgres.get_learning_config(user_id, learning_id),
+        "learning",
+        learning_id,
     )
 
 
 def _dictionary_configs(
     dictionaries: list[dict] | None,
 ) -> list[DictionaryUsageConfig]:
-    """Parse a lexicon/course's raw dictionary configs, preserving order."""
+    """Parse a lexicon/learning's raw dictionary configs, preserving order."""
     return [DictionaryUsageConfig(**d) for d in dictionaries or []]
 
 
@@ -1728,7 +1848,7 @@ async def _translate(
 class DictionaryInfo(BaseModel):
     """A configured dictionary the client can request a translation from."""
 
-    index: int  # Position in the lexicon/course's dictionary list.
+    index: int  # Position in the lexicon/learning's dictionary list.
     name: str  # Human-readable dictionary name.
 
 
@@ -2314,9 +2434,9 @@ class Sentence(BaseModel):
     word: str
     sentence: str | None
     translation: str | None = None
-    """A translation of the sentence (course learning only), else `None`."""
+    """A translation of the sentence (learning only), else `None`."""
     sentence_id: int | None = None
-    """The example's id (course learning only), recorded with the answer."""
+    """The example's id (learning only), recorded with the answer."""
 
 
 @app.get("/api/v1/me/lexicons/{lexicon_id}/sentence")
@@ -2604,22 +2724,22 @@ def clear_lexicon_main(
 # served; adding new words needs the interactive `Teacher` and is not yet here.
 
 
-def _learning_entry(user_id: str, course_id: str) -> LearningEntry:
-    """Get the user's course from the per-process cache.
+def _learning_entry(user_id: str, learning_id: str) -> LearningEntry:
+    """Get the user's learning from the per-process cache.
 
-    Replaying every record of a course on each request does not scale; the
+    Replaying every record of a learning on each request does not scale; the
     registry caches the loaded `Learning` and reloads it only when its
     freshness stamp shows records arrived through another path (undo, CLI).
     Use the entry's lock around any access to the instance.
     """
-    config: dict = _course_config_or_404(user_id, course_id)
-    return LEARNING_REGISTRY.entry(user_id, course_id, config)
+    config: dict = _learning_config_or_404(user_id, learning_id)
+    return LEARNING_REGISTRY.entry(user_id, learning_id, config)
 
 
-class CourseStats(BaseModel):
-    """Details and statistics for a single learning course."""
+class LearningStats(BaseModel):
+    """Details and statistics for a single learning."""
 
-    course_id: str
+    learning_id: str
     name: str
     learning_language: str
     learning: int  # Words currently being learned.
@@ -2630,20 +2750,20 @@ class CourseStats(BaseModel):
     actions: int  # Meaningful actions (right/wrong answers).
 
 
-@app.get("/api/v1/me/courses/{course_id}/stats")
-def get_course_stats(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
-) -> CourseStats:
-    """Get details and statistics for one course.
+@app.get("/api/v1/me/learnings/{learning_id}/stats")
+def get_learning_stats(
+    learning_id: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> LearningStats:
+    """Get details and statistics for one learning.
 
-    Loads the course's records to compute the repetition schedule, so it is
-    heavier than the list endpoint; intended for a single-course view.
+    Loads the learning's records to compute the repetition schedule, so it is
+    heavier than the list endpoint; intended for a single-learning view.
     """
-    entry: LearningEntry = _learning_entry(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, learning_id)
     with entry.lock:
         learning: Learning = entry.learning
-        return CourseStats(
-            course_id=course_id,
+        return LearningStats(
+            learning_id=learning_id,
             name=learning.config.name,
             learning_language=learning.learning_language.get_code(),
             learning=learning.count_questions_to_learn(),
@@ -2655,9 +2775,9 @@ def get_course_stats(
         )
 
 
-@app.get("/api/v1/me/courses/{course_id}/next")
+@app.get("/api/v1/me/learnings/{learning_id}/next")
 def get_next_questions(
-    course_id: str,
+    learning_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
     count: int = 1,
     exclude: Annotated[list[str] | None, Query()] = None,
@@ -2667,13 +2787,13 @@ def get_next_questions(
     `count` lets the client prefetch a queue; `exclude` lists words already
     queued so the batch has no duplicates.
     """
-    entry: LearningEntry = _learning_entry(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, learning_id)
     with entry.lock:
         language_object: Language = entry.learning.learning_language
         questions: list[str] = entry.learning.get_next_questions(
             max(1, min(count, _BATCH_MAX)), set(exclude or [])
         )
-    answers = postgres.get_last_learn_answers(user_id, course_id, questions)
+    answers = postgres.get_last_learn_answers(user_id, learning_id, questions)
     return NextWords(
         language=language_object.get_code(),
         words=_word_cards(
@@ -2722,7 +2842,7 @@ _QUESTION_TYPE_LABELS: dict[str, str] = {
 
 
 class QuestionTypeOption(BaseModel):
-    """A question type a course can be restricted to."""
+    """A question type a learning can be restricted to."""
 
     value: str  # Stored in `scheme.question_types`, e.g. `type_word`.
     label: str  # Human-readable name shown in the UI.
@@ -2730,9 +2850,9 @@ class QuestionTypeOption(BaseModel):
 
 @app.get("/api/v1/question-types", dependencies=[Depends(get_current_user)])
 def get_question_types() -> list[QuestionTypeOption]:
-    """List the question types a course can be restricted to.
+    """List the question types a learning can be restricted to.
 
-    A course with no `question_types` configured allows all of them.
+    A learning with no `question_types` configured allows all of them.
     """
     return [
         QuestionTypeOption(value=value, label=_QUESTION_TYPE_LABELS[value])
@@ -2750,7 +2870,7 @@ _QUESTION_BATCH: int = 12
 _STALE_AFTER: timedelta = timedelta(weeks=2)
 
 
-class CourseAnswerRequest(BaseModel):
+class LearningAnswerRequest(BaseModel):
     """A user's answer to a repetition question."""
 
     word: str
@@ -2776,12 +2896,12 @@ class CourseAnswerRequest(BaseModel):
 
 
 @app.post(
-    "/api/v1/me/courses/{course_id}/answer",
+    "/api/v1/me/learnings/{learning_id}/answer",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def answer_question(
-    course_id: str,
-    request: CourseAnswerRequest,
+    learning_id: str,
+    request: LearningAnswerRequest,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> None:
     """Record an answer to a repetition question.
@@ -2806,7 +2926,7 @@ def answer_question(
         if request.seconds is not None
         else None
     )
-    entry: LearningEntry = _learning_entry(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, learning_id)
     with entry.lock:
         entry.learning.register(
             response,
@@ -2826,7 +2946,7 @@ def answer_question(
             entry.session.last_action = now
 
 
-class OpenCourseSessionRequest(BaseModel):
+class OpenLearningSessionRequest(BaseModel):
     """Payload to open a learning session."""
 
     type: str = "repeat_and_learn_new"
@@ -2834,25 +2954,25 @@ class OpenCourseSessionRequest(BaseModel):
 
 
 @app.post(
-    "/api/v1/me/courses/{course_id}/sessions",
+    "/api/v1/me/learnings/{learning_id}/sessions",
     status_code=status.HTTP_201_CREATED,
 )
-def open_course_session(
-    course_id: str,
+def open_learning_session(
+    learning_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
-    request: OpenCourseSessionRequest | None = None,
+    request: OpenLearningSessionRequest | None = None,
 ) -> OpenedSession:
-    """Open a learning session on the course.
+    """Open a learning session on the learning.
 
     Answers carrying the returned identifier are grouped into one
     `learn_sessions` row (start, end, action count) when the session closes —
     the same bookkeeping the CLI teacher does. Opening also warms the cached
-    course, so the first question arrives without replaying the records.
+    learning, so the first question arrives without replaying the records.
     """
-    config: dict = _course_config_or_404(user_id, course_id)
+    config: dict = _learning_config_or_404(user_id, learning_id)
     session = LEARNING_REGISTRY.open_session(
         user_id,
-        course_id,
+        learning_id,
         config,
         request.type if request is not None else "repeat_and_learn_new",
     )
@@ -2860,11 +2980,11 @@ def open_course_session(
 
 
 @app.post(
-    "/api/v1/me/courses/{course_id}/sessions/{session_id}/close",
+    "/api/v1/me/learnings/{learning_id}/sessions/{session_id}/close",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def close_course_session(
-    course_id: str,
+def close_learning_session(
+    learning_id: str,
     session_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> None:
@@ -2875,8 +2995,8 @@ def close_course_session(
     it expires or the server shuts down; a session without answers leaves no
     row.
     """
-    _course_config_or_404(user_id, course_id)
-    LEARNING_REGISTRY.close_session(user_id, course_id, session_id)
+    _learning_config_or_404(user_id, learning_id)
+    LEARNING_REGISTRY.close_session(user_id, learning_id, session_id)
 
 
 class ConnectPair(BaseModel):
@@ -2957,21 +3077,21 @@ def _single_question_type(
     return feasible_types[0] if feasible_types else QUESTION_TYPE_TYPE_WORD
 
 
-@app.get("/api/v1/me/courses/{course_id}/question")
+@app.get("/api/v1/me/learnings/{learning_id}/question")
 async def get_question(
-    course_id: str,
+    learning_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
     exclude: Annotated[list[str] | None, Query()] = None,
 ) -> Question:
     """Get the next due review question, of a type chosen for the words.
 
-    The type is decided by the course's configured `question_types`, by each
+    The type is decided by the learning's configured `question_types`, by each
     word's knowledge (recognition before production), and by what data exists
     (a short translation is needed for `choice`/`connect`). A word not answered
     for `_STALE_AFTER` falls back to `know`. New words are not served here —
     they come from `/new`. `type` is `None` when nothing is due.
     """
-    entry: LearningEntry = _learning_entry(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, learning_id)
     with entry.lock:
         learning: Learning = entry.learning
         language: str = learning.learning_language.get_code()
@@ -3084,40 +3204,40 @@ async def get_question(
     )
 
 
-@app.post("/api/v1/me/courses/{course_id}/undo")
-def undo_course_answer(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+@app.post("/api/v1/me/learnings/{learning_id}/undo")
+def undo_learning_answer(
+    learning_id: str, user_id: Annotated[str, Depends(get_current_user)]
 ) -> NextWord:
-    """Undo the most recent answer in the course, returning its word.
+    """Undo the most recent answer in the learning, returning its word.
 
     Lets a mis-clicked repetition answer be corrected by re-answering.
     """
-    _course_config_or_404(user_id, course_id)
-    word: str | None = postgres.delete_last_learn_record(user_id, course_id)
+    _learning_config_or_404(user_id, learning_id)
+    word: str | None = postgres.delete_last_learn_record(user_id, learning_id)
     # The delete bypassed the cached instance; drop it so the next request
     # reloads from ground truth.
-    LEARNING_REGISTRY.invalidate(user_id, course_id)
+    LEARNING_REGISTRY.invalidate(user_id, learning_id)
     return NextWord(word=word)
 
 
-@app.get("/api/v1/me/courses/{course_id}/dictionaries")
-def get_course_dictionaries(
-    course_id: str, user_id: Annotated[str, Depends(get_current_user)]
+@app.get("/api/v1/me/learnings/{learning_id}/dictionaries")
+def get_learning_dictionaries(
+    learning_id: str, user_id: Annotated[str, Depends(get_current_user)]
 ) -> list[DictionaryInfo]:
-    """List the course's dictionaries so the client can load each separately."""
-    config: dict = _course_config_or_404(user_id, course_id)
+    """List the learning's dictionaries so the client can load each one."""
+    config: dict = _learning_config_or_404(user_id, learning_id)
     return _dictionary_infos(config.get("dictionaries"))
 
 
-@app.get("/api/v1/me/courses/{course_id}/translation")
-async def get_course_translation(
-    course_id: str,
+@app.get("/api/v1/me/learnings/{learning_id}/translation")
+async def get_learning_translation(
+    learning_id: str,
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
     index: int | None = None,
     hide_word: bool = True,  # noqa: FBT001, FBT002
 ) -> Translation:
-    """Get a word's translation from the course's configured dictionaries.
+    """Get a word's translation from the learning's configured dictionaries.
 
     With `hide_word` (the default) the word is blanked out of the definitions,
     so the meaning serves as a recall prompt without revealing the answer — used
@@ -3125,7 +3245,7 @@ async def get_course_translation(
     to show the full meaning once the user has self-assessed. `index`
     optionally restricts the result to one dictionary (see `/dictionaries`).
     """
-    config: dict = _course_config_or_404(user_id, course_id)
+    config: dict = _learning_config_or_404(user_id, learning_id)
     return Translation(
         word=word,
         dictionaries=await _translate(
@@ -3138,9 +3258,9 @@ async def get_course_translation(
     )
 
 
-@app.get("/api/v1/me/courses/{course_id}/sentence")
-def get_course_sentence(
-    course_id: str,
+@app.get("/api/v1/me/learnings/{learning_id}/sentence")
+def get_learning_sentence(
+    learning_id: str,
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> Sentence:
@@ -3151,8 +3271,8 @@ def get_course_sentence(
     A slow lookup kept off `/next` so the card appears immediately and the
     example is revealed when it arrives.
     """
-    config: dict = _course_config_or_404(user_id, course_id)
-    result: tuple[int, str, str] | None = _course_sentence(
+    config: dict = _learning_config_or_404(user_id, learning_id)
+    result: tuple[int, str, str] | None = _learning_sentence(
         word,
         config["learning_language"],
         config.get("sentences"),
@@ -3180,30 +3300,30 @@ _AUDIO_MEDIA_TYPES: dict[str, str] = {
 }
 
 
-@app.get("/api/v1/me/courses/{course_id}/audio")
-def get_course_audio(
-    course_id: str,
+@app.get("/api/v1/me/learnings/{learning_id}/audio")
+def get_learning_audio(
+    learning_id: str,
     word: str,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> FileResponse:
-    """Stream a pronunciation recording for a word in the course's language.
+    """Stream a pronunciation recording for a word in the learning's language.
 
-    Returns the first available recording across the course's configured audio
+    Returns the first available recording across the learning's configured audio
     providers, in priority order (local directories first; Wikimedia Commons,
-    which downloads on demand, last). Responds 404 when the course has audio
+    which downloads on demand, last). Responds 404 when the learning has audio
     playback disabled, no audio configured, or no recording is found.
     """
-    config: dict = _course_config_or_404(user_id, course_id)
+    config: dict = _learning_config_or_404(user_id, learning_id)
     if not config.get("play_audio", True):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Audio playback is disabled for this course.",
+            detail="Audio playback is disabled for this learning.",
         )
     audio_configs: list[dict] | None = config.get("audio")
     if not audio_configs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No audio configured for this course.",
+            detail="No audio configured for this learning.",
         )
     collection = get_data().get_audio_collection(
         [AudioUsageConfig(**audio) for audio in audio_configs]
@@ -3211,7 +3331,7 @@ def get_course_audio(
     # Ask providers one at a time and stop at the first hit, so a local file
     # short-circuits the on-demand Wikimedia download of a later provider.
     path: Path | None = None
-    with log_duration(f"audio lookup for `{word}` ({course_id})", logger):
+    with log_duration(f"audio lookup for `{word}` ({learning_id})", logger):
         for provider in collection.audio_providers:
             if paths := provider.get_paths(word):
                 path = paths[0]
@@ -3223,7 +3343,7 @@ def get_course_audio(
         )
     # Transcode Ogg Vorbis (and other formats Safari/iOS cannot play) to MP3,
     # cached, so every browser gets a playable file.
-    with log_duration(f"audio transcode for `{word}` ({course_id})", logger):
+    with log_duration(f"audio transcode for `{word}` ({learning_id})", logger):
         path = to_browser_playable(
             path, get_data().get_audio_data().path / "cache" / "browser"
         )
@@ -3233,20 +3353,21 @@ def get_course_audio(
 
 
 class NewQuestion(BaseModel):
-    """The next new word to add to a course, or `None` when none remains."""
+    """The next new word to add to a learning, or `None` when none remains."""
 
     word: str | None
     accepted: list[str] | None = None  # Typed answers that count as correct.
     check_lexicon: str | None = None
     """Lexicon to ask know/don't-know in *before* learning this word.
 
-    Set when the course has an `ask_lexicon` and the word has not been answered
-    there yet: the client first presents a yes/no check and posts the answer to
-    that lexicon's `/answer`. "Know" means skip the word (request `/new` again);
-    "don't know" admits it to learning. `None` means learn the word directly.
+    Set when the learning has an `ask_lexicon` and the word has not been
+    answered there yet: the client first presents a yes/no check and posts
+    the answer to that lexicon's `/answer`. "Know" means skip the word
+    (request `/new` again); "don't know" admits it to learning. `None` means
+    learn the word directly.
     """
     question_type: str | None = None
-    """How to present the word's first exposure: `know` when the course allows
+    """How to present the word's first exposure: `know` when the learning allows
     it (see the word, self-assess, reveal meaning), else `type_word`. Ignored
     when `check_lexicon` already asks know/don't-know first.
     """
@@ -3268,7 +3389,7 @@ async def _is_common(
     language: Language,
     base_languages: list[Language],
 ) -> bool:
-    """Whether a word is worth learning per the course's dictionaries.
+    """Whether a word is worth learning per the learning's dictionaries.
 
     Ports `Teacher.check_common`: a word is skipped when no configured
     dictionary defines it, or when it is solely an uncommon form of other words.
@@ -3283,16 +3404,16 @@ async def _is_common(
     return True
 
 
-@app.get("/api/v1/me/courses/{course_id}/new")
+@app.get("/api/v1/me/learnings/{learning_id}/new")
 async def get_new_question_word(
-    course_id: str,
+    learning_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
     exclude: Annotated[list[str] | None, Query()] = None,
 ) -> NewQuestion:
-    """Get the next new word to add to a course, from its question lists.
+    """Get the next new word to add to a learning, from its question lists.
 
     Ports the selection half of `Teacher`: walks the configured frequency lists
-    (or, for a `symbol` course, the learning language's own alphabet) in order
+    (or, for a `symbol` learning, the learning language's own alphabet) in order
     and returns the first candidate worth learning, skipping words already
     being learned, already known in a `check_lexicons` lexicon, or not common
     per the configured dictionaries. A word marked "don't know" in a check
@@ -3302,21 +3423,22 @@ async def get_new_question_word(
 
     Stateless: it re-scans from the top each call (the in-memory skips are
     cheap), so an answered or admitted word simply stops being returned next
-    time. Returns `word=None` when the daily limit is reached, the course has no
-    new-question scheme, or the lists are exhausted.
+    time. Returns `word=None` when the daily limit is reached, the learning
+    has no new-question scheme, or the lists are exhausted.
     """
-    entry: LearningEntry = _learning_entry(user_id, course_id)
+    entry: LearningEntry = _learning_entry(user_id, learning_id)
     with entry.lock:
         learning: Learning = entry.learning
         remaining: int = learning.count_questions_to_add()
     scheme = learning.config.scheme
-    course_type: CourseType = learning.config.course_type
+    learning_type: LearningType = learning.config.learning_type
     if (
         remaining <= 0
         or scheme is None
         or scheme.new_question is None
         or (
-            course_type == CourseType.WORD and not scheme.new_question.pick_from
+            learning_type == LearningType.WORD
+            and not scheme.new_question.pick_from
         )
     ):
         return NewQuestion(word=None, remaining_today=max(0, remaining))
@@ -3326,7 +3448,7 @@ async def get_new_question_word(
 
     # Candidate words, list-then-rank order (mirrors `Teacher.question_ids`).
     candidates: list[str] = []
-    if course_type == CourseType.SYMBOL:
+    if learning_type == LearningType.SYMBOL:
         candidates.extend(learning.learning_language.symbols)
     else:
         for list_config in new_question.pick_from:
@@ -3389,7 +3511,7 @@ async def get_new_question_word(
         ):
             check_lexicon = ask_lexicon_id
         # First exposure is the gentlest enabled type: a new word cannot be
-        # produced from its meaning, so `know` is used unless the course
+        # produced from its meaning, so `know` is used unless the learning
         # excludes it.
         enabled_types: set[str] = set(
             scheme.question_types or _ALL_QUESTION_TYPES

@@ -256,15 +256,15 @@ async function initHome() {
     const response = await api("/me/languages");
     const languages = await response.json();
 
-    // The user's courses, grouped by learning language, so each language row
-    // can list the courses available to study for it.
+    // The user's courses, grouped by language, so each language row can list
+    // the courses available to study for it.
     const coursesResponse = await api("/me/courses");
     const courses = coursesResponse.ok ? await coursesResponse.json() : [];
     const coursesByLanguage = new Map();
     for (const course of courses) {
-        const list = coursesByLanguage.get(course.learning_language) || [];
+        const list = coursesByLanguage.get(course.language) || [];
         list.push(course);
-        coursesByLanguage.set(course.learning_language, list);
+        coursesByLanguage.set(course.language, list);
     }
 
     // Nothing yet: welcome the user and offer to create their first lexicon.
@@ -333,16 +333,33 @@ async function initHome() {
         }
         row.appendChild(lexiconCell);
 
-        // Courses to study for this language, each linking to its session.
+        // Courses for this language, each linking to its detail page; a
+        // course with no learnings yet offers to add one directly.
         const coursesCell = document.createElement("td");
         coursesCell.className = "courses-cell";
         for (const course of courseList) {
-            const learn = document.createElement("a");
-            learn.href = `learn?course=${encodeURIComponent(
-                course.course_id,
-            )}`;
-            learn.textContent = course.name;
-            coursesCell.appendChild(learn);
+            if (course.learning_count > 0) {
+                const link = document.createElement("a");
+                link.href = `course?course=${encodeURIComponent(
+                    course.course_id,
+                )}`;
+                link.textContent = course.name;
+                coursesCell.appendChild(link);
+            } else {
+                const empty = document.createElement("span");
+                empty.className = "course-empty";
+                empty.appendChild(
+                    document.createTextNode(`${course.name} (`),
+                );
+                const add = document.createElement("a");
+                add.href = `new-learning?course=${encodeURIComponent(
+                    course.course_id,
+                )}`;
+                add.textContent = "+ add a learning";
+                empty.appendChild(add);
+                empty.appendChild(document.createTextNode(")"));
+                coursesCell.appendChild(empty);
+            }
         }
         row.appendChild(coursesCell);
 
@@ -397,6 +414,18 @@ async function initNewCourse() {
         "add-course-form",
         "add-course-language",
         "add-course-status",
+    );
+}
+
+async function initNewLearning() {
+    requireAuth();
+    const courseId = new URLSearchParams(location.search).get("course");
+    document.getElementById("back-to-course").href =
+        `course?course=${encodeURIComponent(courseId)}`;
+    await setupCreateLearning(
+        courseId,
+        "add-learning-form",
+        "add-learning-status",
     );
 }
 
@@ -546,9 +575,9 @@ function decodeFrequencyListValue(value) {
 // Fill the "draw new words from" picker with the frequency lists available
 // for `language`, starring and preselecting the one creation would pick
 // automatically if left untouched. Called on load and again whenever the
-// course's language changes, since the set of matching lists differs per
+// learning's language changes, since the set of matching lists differs per
 // language.
-function fillCourseFrequencyListSelect(select, frequencyLists, language) {
+function fillLearningFrequencyListSelect(select, frequencyLists, language) {
     select.innerHTML = "";
     for (const option of frequencyLists) {
         if (option.language !== language) continue;
@@ -560,12 +589,12 @@ function fillCourseFrequencyListSelect(select, frequencyLists, language) {
     }
 }
 
-// Fill a course lexicon picker (either "skip known words" or "ask about
+// Fill a learning's lexicon picker (either "skip known words" or "ask about
 // unseen words") with the caller's lexicons for `language`, plus a leading
 // "none" option; `selected` (a lexicon id, if any) preselects an option.
-// Called on load and, on the creation page, again whenever the course's
+// Called on load and, on the creation page, again whenever the learning's
 // language changes, since the set of matching lexicons differs per language.
-function fillCourseLexiconSelect(select, lexicons, language, selected) {
+function fillLearningLexiconSelect(select, lexicons, language, selected) {
     select.innerHTML = "";
     const none = document.createElement("option");
     none.value = "";
@@ -586,8 +615,8 @@ function fillCourseLexiconSelect(select, lexicons, language, selected) {
 
 // Render a "question types" checkbox group into `container`: one checkbox
 // per type the server supports, checked per `checkedTypes` (a `Set` of
-// values). Shared by course creation (defaults to every type checked) and
-// course settings (defaults to the course's current `question_types`).
+// values). Shared by learning creation (defaults to every type checked) and
+// learning settings (defaults to the learning's current `question_types`).
 function renderQuestionTypeCheckboxes(
     container,
     idPrefix,
@@ -617,32 +646,101 @@ function checkedQuestionTypes(container) {
     );
 }
 
-// Wire up an "add a course" form. A `word` course (the default) draws new
-// words from a frequency list, needs translation targets, and can reference
-// lexicons; a `symbol` course drills the language's own alphabet instead and
-// needs none of that — switching the "What to learn" radio swaps the
-// language list (`/lexicon-languages` vs `/alphabet-languages`) and hides
-// the word-only fields. On submit, creates the course and opens its learning
-// session.
+// Wire up an "add a course" form: just a language and a name. A course is an
+// empty language-level shell — languages offered are the union of ones that
+// can host a word learning (`/lexicon-languages`) or a symbol learning
+// (`/alphabet-languages`), so every offered language can have at least one
+// learning added to it afterward. On submit, creates the course and opens
+// its (empty) detail page.
 async function setupCreateCourse(formId, selectId, statusId) {
     const form = document.getElementById(formId);
     const select = document.getElementById(selectId);
-    const courseTypeInputs = Array.from(
-        form.querySelectorAll(".course-type"),
-    );
-    const wordFields = form.querySelector(".course-word-fields");
-    const targets = form.querySelector(".translation-languages");
-    const frequencyListSelect = form.querySelector(".course-frequency-list");
-    const lexiconSelect = form.querySelector(".course-lexicon");
-    const askLexiconSelect = form.querySelector(".course-ask-lexicon");
     const nameInput = form.querySelector(".course-name");
-    const maxForDayInput = form.querySelector(".course-max-for-day");
-    const playAudioInput = form.querySelector(".course-play-audio");
-    const questionTypesContainer = form.querySelector(
-        ".course-question-types",
-    );
     const submitButton = form.querySelector("button[type=submit]");
     const createStatus = document.getElementById(statusId);
+
+    const [wordLanguageResponse, alphabetLanguageResponse] =
+        await Promise.all([
+            api("/lexicon-languages"),
+            api("/alphabet-languages"),
+        ]);
+    const byLanguage = new Map();
+    for (const entry of await wordLanguageResponse.json()) {
+        byLanguage.set(entry.language, entry);
+    }
+    for (const entry of await alphabetLanguageResponse.json()) {
+        if (!byLanguage.has(entry.language)) byLanguage.set(entry.language, entry);
+    }
+    const available = [...byLanguage.values()];
+
+    if (available.length === 0) {
+        createStatus.textContent = "No languages are available yet.";
+        select.disabled = true;
+        submitButton.disabled = true;
+        return;
+    }
+    fillLanguageSelect(select, available);
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        createStatus.textContent = "Creating…";
+        const result = await api("/me/courses", {
+            method: "POST",
+            body: {
+                language: select.value,
+                name: nameInput.value.trim() || languageName(select.value),
+            },
+        });
+        if (result.ok) {
+            const { course_id } = await result.json();
+            location.href = `course?course=${encodeURIComponent(course_id)}`;
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            createStatus.textContent = detail || "Could not create course.";
+        }
+    });
+}
+
+// Wire up an "add a learning" form for an existing course. A `word` learning
+// (the default) draws new words from a frequency list, needs translation
+// targets, and can reference lexicons; a `symbol` learning drills the
+// language's own alphabet instead and needs none of that — switching the
+// "What to learn" radio hides the word-only fields. The course's language is
+// fixed, so only the learning type whose language support the course's
+// language actually has is offered. On submit, adds the learning and opens
+// its learning session.
+async function setupCreateLearning(courseId, formId, statusId) {
+    const form = document.getElementById(formId);
+    const createStatus = document.getElementById(statusId);
+    const courseResponse = await api(
+        `/me/courses/${encodeURIComponent(courseId)}`,
+    );
+    if (!courseResponse.ok) {
+        createStatus.textContent = "Unknown course.";
+        form.hidden = true;
+        return;
+    }
+    const course = await courseResponse.json();
+    document.getElementById("add-learning-heading").textContent =
+        `Add a learning: ${course.name}`;
+
+    const learningTypeInputs = Array.from(
+        form.querySelectorAll(".learning-type"),
+    );
+    const wordFields = form.querySelector(".learning-word-fields");
+    const targets = form.querySelector(".translation-languages");
+    const frequencyListSelect = form.querySelector(
+        ".learning-frequency-list",
+    );
+    const lexiconSelect = form.querySelector(".learning-lexicon");
+    const askLexiconSelect = form.querySelector(".learning-ask-lexicon");
+    const nameInput = form.querySelector(".learning-name");
+    const maxForDayInput = form.querySelector(".learning-max-for-day");
+    const playAudioInput = form.querySelector(".learning-play-audio");
+    const questionTypesContainer = form.querySelector(
+        ".learning-question-types",
+    );
+    const submitButton = form.querySelector("button[type=submit]");
 
     const [
         wordLanguageResponse,
@@ -659,10 +757,12 @@ async function setupCreateCourse(formId, selectId, statusId) {
         api("/me/lexicons"),
         api("/question-types"),
     ]);
-    const languagesByCourseType = {
-        word: await wordLanguageResponse.json(),
-        symbol: await alphabetLanguageResponse.json(),
-    };
+    const supportsWord = (await wordLanguageResponse.json()).some(
+        (entry) => entry.language === course.language,
+    );
+    const supportsSymbol = (await alphabetLanguageResponse.json()).some(
+        (entry) => entry.language === course.language,
+    );
 
     fillLanguageSelect(targets, await targetResponse.json(), "en");
 
@@ -670,7 +770,7 @@ async function setupCreateCourse(formId, selectId, statusId) {
     const questionTypes = await questionTypeResponse.json();
     renderQuestionTypeCheckboxes(
         questionTypesContainer,
-        "add-course-question-type",
+        "add-learning-question-type",
         questionTypes,
         new Set(questionTypes.map((type) => type.value)),
     );
@@ -678,62 +778,53 @@ async function setupCreateCourse(formId, selectId, statusId) {
     const frequencyLists = await frequencyListResponse.json();
     const lexicons = await lexiconResponse.json();
 
-    function currentCourseType() {
-        return form.querySelector(".course-type:checked").value;
+    for (const input of learningTypeInputs) {
+        if (input.value === "word") input.disabled = !supportsWord;
+        if (input.value === "symbol") input.disabled = !supportsSymbol;
+    }
+    if (!supportsWord && supportsSymbol) {
+        form.querySelector(".learning-type[value=symbol]").checked = true;
+    }
+    if (!supportsWord && !supportsSymbol) {
+        createStatus.textContent =
+            "This language has neither a frequency list nor a known " +
+            "alphabet.";
+        submitButton.disabled = true;
+        return;
     }
 
-    // The frequency-list and lexicon pickers (word courses only) are keyed to
-    // the currently selected course language, so they start filtered to it
-    // and are refiltered on every language change.
-    function refilterByLanguage() {
-        if (currentCourseType() !== "word") return;
-        fillCourseFrequencyListSelect(
-            frequencyListSelect,
-            frequencyLists,
-            select.value,
-        );
-        fillCourseLexiconSelect(lexiconSelect, lexicons, select.value);
-        fillCourseLexiconSelect(askLexiconSelect, lexicons, select.value);
+    function currentLearningType() {
+        return form.querySelector(".learning-type:checked").value;
     }
 
-    // Re-fill the language select for the selected course type (word courses
-    // need a frequency list and Tatoeba sentences; alphabet courses need only
-    // a known alphabet, a strictly larger set), show/hide the word-only
-    // fields, and refilter the pickers that depend on the language.
-    function refreshForCourseType() {
-        const isWord = currentCourseType() === "word";
-        const available = languagesByCourseType[isWord ? "word" : "symbol"];
-
+    function refreshForLearningType() {
+        const isWord = currentLearningType() === "word";
         wordFields.hidden = !isWord;
         targets.required = isWord;
         frequencyListSelect.required = isWord;
-
-        if (available.length === 0) {
-            createStatus.textContent = isWord
-                ? "No languages with a frequency list and sentences are " +
-                  "available yet."
-                : "No languages with a known alphabet are available yet.";
-            select.innerHTML = "";
-            select.disabled = true;
-            submitButton.disabled = true;
-            return;
+        if (isWord) {
+            fillLearningFrequencyListSelect(
+                frequencyListSelect,
+                frequencyLists,
+                course.language,
+            );
+            fillLearningLexiconSelect(lexiconSelect, lexicons, course.language);
+            fillLearningLexiconSelect(
+                askLexiconSelect,
+                lexicons,
+                course.language,
+            );
         }
-        createStatus.textContent = "";
-        select.disabled = false;
-        submitButton.disabled = false;
-        fillLanguageSelect(select, available);
-        refilterByLanguage();
     }
 
-    for (const input of courseTypeInputs) {
-        input.addEventListener("change", refreshForCourseType);
+    for (const input of learningTypeInputs) {
+        input.addEventListener("change", refreshForLearningType);
     }
-    select.addEventListener("change", refilterByLanguage);
-    refreshForCourseType();
+    refreshForLearningType();
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const isWord = currentCourseType() === "word";
+        const isWord = currentLearningType() === "word";
 
         const questionTypesChecked = checkedQuestionTypes(
             questionTypesContainer,
@@ -744,8 +835,7 @@ async function setupCreateCourse(formId, selectId, statusId) {
         }
 
         const body = {
-            language: select.value,
-            course_type: currentCourseType(),
+            learning_type: currentLearningType(),
             name: nameInput.value.trim() || null,
             max_for_day: Number(maxForDayInput.value),
             play_audio: playAudioInput.checked,
@@ -771,16 +861,18 @@ async function setupCreateCourse(formId, selectId, statusId) {
         }
 
         createStatus.textContent = "Creating…";
-        const result = await api("/me/courses", {
-            method: "POST",
-            body,
-        });
+        const result = await api(
+            `/me/courses/${encodeURIComponent(courseId)}/learnings`,
+            { method: "POST", body },
+        );
         if (result.ok) {
-            const { course_id } = await result.json();
-            location.href = `learn?course=${encodeURIComponent(course_id)}`;
+            const { learning_id } = await result.json();
+            location.href = `learn?learning=${encodeURIComponent(
+                learning_id,
+            )}`;
         } else {
             const { detail } = await result.json().catch(() => ({}));
-            createStatus.textContent = detail || "Could not create course.";
+            createStatus.textContent = detail || "Could not create learning.";
         }
     });
 }
@@ -2079,7 +2171,7 @@ async function runLearnSession(base) {
     let language = null;
     let dictionaries = [];
     let newExhausted = false; // `/new` has nothing more to offer.
-    let playAudio = true; // Course setting: play pronunciation audio.
+    let playAudio = true; // Learning setting: play pronunciation audio.
 
     // Show exactly one question box and hide the rest.
     function showBox(name) {
@@ -2788,9 +2880,9 @@ async function initCheck() {
 
 async function initLearn() {
     requireAuth();
-    const id = new URLSearchParams(location.search).get("course");
+    const id = new URLSearchParams(location.search).get("learning");
     document.getElementById("learn-heading").textContent = `Learn: ${id}`;
-    await runLearnSession(`/me/courses/${encodeURIComponent(id)}`);
+    await runLearnSession(`/me/learnings/${encodeURIComponent(id)}`);
 }
 
 // Courses list page.
@@ -2823,10 +2915,8 @@ async function initCourses() {
         row.appendChild(idCell);
 
         for (const value of [
-            languageName(course.learning_language),
-            course.course_type === "symbol" ? "Alphabet" : "Vocabulary",
-            course.words,
-            course.answers,
+            languageName(course.language),
+            course.learning_count,
         ]) {
             const cell = document.createElement("td");
             cell.textContent = value;
@@ -2843,15 +2933,98 @@ async function initCourse() {
     requireAuth();
 
     const courseId = new URLSearchParams(location.search).get("course");
+    const status = document.getElementById("status");
+    const table = document.getElementById("learning-table");
+    const rows = document.getElementById("learning-rows");
+    const response = await api(
+        `/me/courses/${encodeURIComponent(courseId)}`,
+    );
+    if (!response.ok) {
+        status.textContent = "Could not load course.";
+        return;
+    }
+    const course = await response.json();
+    status.textContent = "";
+
     document.getElementById("course-heading").textContent =
-        `Course: ${courseId}`;
+        `Course: ${course.name}`;
+    document.getElementById("add-learning-link").href =
+        `new-learning?course=${encodeURIComponent(courseId)}`;
+
+    if (course.learnings.length > 0) table.hidden = false;
+    for (const learning of course.learnings) {
+        const row = document.createElement("tr");
+
+        const idCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `learning?learning=${encodeURIComponent(
+            learning.learning_id,
+        )}&course=${encodeURIComponent(courseId)}`;
+        link.textContent = learning.name;
+        idCell.appendChild(link);
+        row.appendChild(idCell);
+
+        for (const value of [
+            learning.learning_type === "symbol" ? "Alphabet" : "Vocabulary",
+            learning.words,
+            learning.answers,
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        }
+
+        rows.appendChild(row);
+    }
+
+    // Delete: only allowed while the course has no learnings left.
+    const danger = document.getElementById("danger");
+    const deleteStatus = document.getElementById("delete-status");
+    danger.hidden = false;
+    document
+        .getElementById("delete-course")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(`Delete course "${course.name}"? This cannot be undone.`)
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api(
+                `/me/courses/${encodeURIComponent(courseId)}`,
+                { method: "DELETE" },
+            );
+            if (result.ok) {
+                location.href = "courses";
+            } else {
+                const { detail } = await result.json().catch(() => ({}));
+                deleteStatus.textContent =
+                    detail || "Could not delete course.";
+            }
+        });
+}
+
+// Learning detail page (settings, statistics, delete).
+
+async function initLearning() {
+    requireAuth();
+
+    const params = new URLSearchParams(location.search);
+    const learningId = params.get("learning");
+    const courseId = params.get("course");
+    if (courseId) {
+        document.getElementById("back-to-course").href =
+            `course?course=${encodeURIComponent(courseId)}`;
+    }
+    document.getElementById("learning-heading").textContent =
+        `Learning: ${learningId}`;
     document.getElementById("learn-link").href =
-        `learn?course=${encodeURIComponent(courseId)}`;
+        `learn?learning=${encodeURIComponent(learningId)}`;
 
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
     const response = await api(
-        `/me/courses/${encodeURIComponent(courseId)}/stats`,
+        `/me/learnings/${encodeURIComponent(learningId)}/stats`,
     );
     if (!response.ok) {
         status.textContent = "Could not load statistics.";
@@ -2872,47 +3045,52 @@ async function initCourse() {
     ];
     renderDefinitionList(stats, rows);
 
-    await setupCourseSettings(courseId);
+    await setupLearningSettings(learningId);
 
-    // Delete: removes the course and all its history, then returns to the list.
+    // Delete: removes the learning and all its history, then returns to the
+    // parent course (or the courses list, if it isn't known).
     const danger = document.getElementById("danger");
     const deleteStatus = document.getElementById("delete-status");
     danger.hidden = false;
     document
-        .getElementById("delete-course")
+        .getElementById("delete-learning")
         .addEventListener("click", async () => {
             if (
                 !confirm(
-                    `Delete course "${courseId}" and all its history? This ` +
-                        "cannot be undone.",
+                    `Delete learning "${learningId}" and all its history? ` +
+                        "This cannot be undone.",
                 )
             ) {
                 return;
             }
             deleteStatus.textContent = "Deleting…";
             const result = await api(
-                `/me/courses/${encodeURIComponent(courseId)}`,
+                `/me/learnings/${encodeURIComponent(learningId)}`,
                 { method: "DELETE" },
             );
             if (result.ok) {
-                location.href = "courses";
+                location.href = courseId
+                    ? `course?course=${encodeURIComponent(courseId)}`
+                    : "courses";
             } else {
-                deleteStatus.textContent = "Could not delete course.";
+                deleteStatus.textContent = "Could not delete learning.";
             }
         });
 }
 
-// Fill and wire the course settings form: name, translation targets (which
+// Fill and wire the learning settings form: name, translation targets (which
 // regenerate dictionaries/sentences/audio on save), the daily new-word limit,
 // allowed question types, and the two optional lexicon references (skip
 // already-known words / ask about unseen ones first). Pre-filled from the
-// course's current settings.
-async function setupCourseSettings(courseId) {
-    const base = `/me/courses/${encodeURIComponent(courseId)}`;
+// learning's current settings.
+async function setupLearningSettings(learningId) {
+    const base = `/me/learnings/${encodeURIComponent(learningId)}`;
     const section = document.getElementById("settings-section");
-    const courseTypeLabel = document.getElementById("setting-course-type");
+    const learningTypeLabel = document.getElementById(
+        "setting-learning-type",
+    );
     const form = document.getElementById("settings-form");
-    const wordFields = form.querySelector(".course-word-fields");
+    const wordFields = form.querySelector(".learning-word-fields");
     const nameInput = document.getElementById("setting-name");
     const targets = document.getElementById("setting-targets");
     const maxInput = document.getElementById("setting-max");
@@ -2937,9 +3115,9 @@ async function setupCourseSettings(courseId) {
     ]);
     if (!settingsResponse.ok) return;
     const settings = await settingsResponse.json();
-    const isWord = settings.course_type === "word";
+    const isWord = settings.learning_type === "word";
 
-    courseTypeLabel.textContent = isWord ? "vocabulary" : "alphabet";
+    learningTypeLabel.textContent = isWord ? "vocabulary" : "alphabet";
     wordFields.hidden = !isWord;
     targets.required = isWord;
 
@@ -2961,13 +3139,13 @@ async function setupCourseSettings(courseId) {
     );
 
     const lexicons = await lexiconResponse.json();
-    fillCourseLexiconSelect(
+    fillLearningLexiconSelect(
         lexiconSelect,
         lexicons,
         settings.learning_language,
         settings.lexicon_id,
     );
-    fillCourseLexiconSelect(
+    fillLearningLexiconSelect(
         askLexiconSelect,
         lexicons,
         settings.learning_language,
@@ -3159,6 +3337,8 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (page === "courses") initCourses();
     else if (page === "course") initCourse();
     else if (page === "new-course") initNewCourse();
+    else if (page === "new-learning") initNewLearning();
+    else if (page === "learning") initLearning();
     else if (page === "learn") initLearn();
     else if (page === "profile") initProfile();
 });

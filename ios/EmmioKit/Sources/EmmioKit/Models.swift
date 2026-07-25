@@ -1,6 +1,6 @@
 // Codable mirrors of the Emmio API's JSON payloads.
 //
-// The API serialises with snake_case keys (`course_id`, `access_token`); the
+// The API serialises with snake_case keys (`learning_id`, `access_token`); the
 // client decodes with `.convertFromSnakeCase`, so the Swift properties stay
 // camelCase and need no explicit `CodingKeys`. Only the fields the recognition
 // learning loop uses are modelled — the API returns more.
@@ -13,19 +13,44 @@ public struct Token: Codable, Sendable {
     public let tokenType: String
 }
 
-/// A learning course list row, from `GET /api/v1/me/courses`.
+/// A learning list row, from `GET /api/v1/me/courses/{course_id}` (nested
+/// under a course).
 ///
 /// `Hashable` so it can drive SwiftUI value-based navigation.
-public struct CourseSummary: Codable, Hashable, Identifiable, Sendable {
+public struct LearningSummary: Codable, Hashable, Identifiable, Sendable {
     /// Distinct words studied.
     public let words: Int
     /// Total answers recorded.
     public let answers: Int
-    public let courseId: String
+    public let learningId: String
     public let name: String
     public let learningLanguage: String
+    public let learningType: String
+
+    public var id: String { learningId }
+}
+
+/// A course (language-level set of learnings) list row, from
+/// `GET /api/v1/me/courses`.
+///
+/// `Hashable` so it can drive SwiftUI value-based navigation.
+public struct CourseSummary: Codable, Hashable, Identifiable, Sendable {
+    public let courseId: String
+    public let name: String
+    public let language: String
+    public let learningCount: Int
 
     public var id: String { courseId }
+}
+
+/// A single course's identity plus its learnings, from
+/// `GET /api/v1/me/courses/{course_id}`.
+public struct CourseDetail: Codable, Sendable {
+    public let courseId: String
+    public let name: String
+    public let language: String
+    public let learningCount: Int
+    public let learnings: [LearningSummary]
 }
 
 /// One upcoming word with its last-answer context, an element of `NextWords`.
@@ -43,7 +68,7 @@ public struct WordCard: Codable, Identifiable, Sendable {
 
 /// A batch of upcoming words, soonest-due first; empty when the queue is spent.
 ///
-/// From `GET /api/v1/me/courses/{course_id}/next`.
+/// From `GET /api/v1/me/learnings/{learning_id}/next`.
 public struct NextWords: Codable, Sendable {
     /// ISO code of the words' language, e.g. `fr`.
     public let language: String
@@ -62,6 +87,12 @@ public struct LanguageOption: Codable, Sendable {
 /// `POST /me/courses`.
 public struct CreatedCourse: Codable, Sendable {
     public let courseId: String
+}
+
+/// The identifier assigned to a freshly created learning, from
+/// `POST /me/courses/{course_id}/learnings`.
+public struct CreatedLearning: Codable, Sendable {
+    public let learningId: String
 }
 
 /// The identifier of a freshly opened session, from
@@ -196,11 +227,11 @@ public struct NextWord: Codable, Sendable {
     public let word: String?
 }
 
-/// The next new word to add to a course, from `.../new`.
+/// The next new word to add to a learning, from `.../new`.
 ///
-/// `word` is `nil` when none remains: the daily limit is reached, the course's
-/// question lists are exhausted, or the server gave up early on a long run of
-/// dictionary checks.
+/// `word` is `nil` when none remains: the daily limit is reached, the
+/// learning's question lists are exhausted, or the server gave up early on a
+/// long run of dictionary checks.
 public struct NewQuestion: Codable, Sendable {
     public let word: String?
     /// Typed answers that count as correct.
@@ -209,7 +240,7 @@ public struct NewQuestion: Codable, Sendable {
     /// to learn it directly. The client posts the answer to that lexicon:
     /// "know" skips the word, "don't know" admits it to learning.
     public let checkLexicon: String?
-    /// New words still allowed today (the course's `max_for_day`).
+    /// New words still allowed today (the learning's `max_for_day`).
     public let remainingToday: Int
 }
 

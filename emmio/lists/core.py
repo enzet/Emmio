@@ -28,8 +28,9 @@ class List(ABC):
 class SymbolList(List):
     """A language's alphabet, treated as a list of single-character "words".
 
-    Backs a `CourseType.SYMBOL` course: unlike other lists, it is not loaded
-    from a file or configuration, but synthesized from `Language.symbols`.
+    Backs a `LearningType.SYMBOL` learning: unlike other lists, it is not
+    loaded from a file or configuration, but synthesized from
+    `Language.symbols`.
     """
 
     language: Language

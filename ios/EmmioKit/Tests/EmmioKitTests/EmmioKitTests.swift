@@ -44,17 +44,35 @@ final class EmmioKitTests: XCTestCase {
 
     func testCourseSummaryDecodesSnakeCase() throws {
         let json = """
-        [{"course_id":"fr","name":"French","learning_language":"fr",
-          "words":42,"answers":100}]
+        [{"course_id":"fr","name":"French","language":"fr",
+          "learning_count":2}]
         """
         let courses = try JSONDecoder.snakeCase().decode(
             [CourseSummary].self, from: Data(json.utf8)
         )
         XCTAssertEqual(courses.count, 1)
         XCTAssertEqual(courses[0].courseId, "fr")
-        XCTAssertEqual(courses[0].learningLanguage, "fr")
-        XCTAssertEqual(courses[0].words, 42)
+        XCTAssertEqual(courses[0].language, "fr")
+        XCTAssertEqual(courses[0].learningCount, 2)
         XCTAssertEqual(courses[0].id, "fr")
+    }
+
+    func testCourseDetailDecodesNestedLearnings() throws {
+        let json = """
+        {"course_id":"fr","name":"French","language":"fr","learning_count":1,
+         "learnings":[{"learning_id":"fr","name":"French",
+           "learning_language":"fr","words":42,"answers":100,
+           "learning_type":"word"}]}
+        """
+        let course = try JSONDecoder.snakeCase().decode(
+            CourseDetail.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(course.courseId, "fr")
+        XCTAssertEqual(course.learnings.count, 1)
+        XCTAssertEqual(course.learnings[0].learningId, "fr")
+        XCTAssertEqual(course.learnings[0].learningLanguage, "fr")
+        XCTAssertEqual(course.learnings[0].words, 42)
+        XCTAssertEqual(course.learnings[0].id, "fr")
     }
 
     func testNextWordsDecodes() throws {
@@ -219,13 +237,13 @@ final class EmmioKitTests: XCTestCase {
     func testNextBuildsCountAndExcludeQuery() async throws {
         let mock = MockHTTP([.ok(#"{"language":"fr","words":[]}"#)])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        _ = try await client.next(courseId: "fr", count: 5, exclude: ["a", "b"])
+        _ = try await client.next(learningId: "fr", count: 5, exclude: ["a", "b"])
 
         let components = URLComponents(
             url: mock.requests[0].url!, resolvingAgainstBaseURL: false
         )!
         let items = components.queryItems ?? []
-        XCTAssertEqual(components.path, "/api/v1/me/courses/fr/next")
+        XCTAssertEqual(components.path, "/api/v1/me/learnings/fr/next")
         XCTAssertTrue(items.contains(URLQueryItem(name: "count", value: "5")))
         XCTAssertEqual(
             items.filter { $0.name == "exclude" }.map(\.value), ["a", "b"]
@@ -236,13 +254,13 @@ final class EmmioKitTests: XCTestCase {
         let mock = MockHTTP([.noContent()])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
         try await client.answer(
-            courseId: "fr", word: "chat", response: .wrong,
+            learningId: "fr", word: "chat", response: .wrong,
             questionType: .typeWord, seconds: 2.5
         )
 
         let request = mock.requests[0]
         XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.url?.path, "/api/v1/me/courses/fr/answer")
+        XCTAssertEqual(request.url?.path, "/api/v1/me/learnings/fr/answer")
         let body = try XCTUnwrap(request.httpBody)
         let json = try JSONSerialization.jsonObject(with: body) as! [String: Any]
         XCTAssertEqual(json["word"] as? String, "chat")
@@ -254,7 +272,7 @@ final class EmmioKitTests: XCTestCase {
     func testAnswerDefaultsToKnowQuestionType() async throws {
         let mock = MockHTTP([.noContent()])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        try await client.answer(courseId: "fr", word: "chat", response: .right)
+        try await client.answer(learningId: "fr", word: "chat", response: .right)
         let json = try JSONSerialization.jsonObject(
             with: XCTUnwrap(mock.requests[0].httpBody)
         ) as! [String: Any]
@@ -266,13 +284,13 @@ final class EmmioKitTests: XCTestCase {
             .ok(#"{"word":"chat","sentence":null,"translation":null}"#)
         ])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        let sentence = try await client.sentence(courseId: "fr", word: "chat")
+        let sentence = try await client.sentence(learningId: "fr", word: "chat")
         XCTAssertNil(sentence.sentence)
 
         let components = URLComponents(
             url: mock.requests[0].url!, resolvingAgainstBaseURL: false
         )!
-        XCTAssertEqual(components.path, "/api/v1/me/courses/fr/sentence")
+        XCTAssertEqual(components.path, "/api/v1/me/learnings/fr/sentence")
         XCTAssertTrue(
             (components.queryItems ?? [])
                 .contains(URLQueryItem(name: "word", value: "chat"))
@@ -282,17 +300,17 @@ final class EmmioKitTests: XCTestCase {
     func testAudioReturnsBody() async throws {
         let mock = MockHTTP([.init(status: 200, body: Data([0x4f, 0x67, 0x67]))])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        let data = try await client.audio(courseId: "fr", word: "chat")
+        let data = try await client.audio(learningId: "fr", word: "chat")
         XCTAssertEqual(data, Data([0x4f, 0x67, 0x67]))
         XCTAssertEqual(
-            mock.requests[0].url?.path, "/api/v1/me/courses/fr/audio"
+            mock.requests[0].url?.path, "/api/v1/me/learnings/fr/audio"
         )
     }
 
     func testAudioReturnsNilOn404() async throws {
         let mock = MockHTTP([.status(404, #"{"detail":"No audio."}"#)])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        let data = try await client.audio(courseId: "fr", word: "chat")
+        let data = try await client.audio(learningId: "fr", word: "chat")
         XCTAssertNil(data)
     }
 
@@ -300,7 +318,7 @@ final class EmmioKitTests: XCTestCase {
         let mock = MockHTTP([.noContent()])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
         try await client.answer(
-            courseId: "fr", word: "chat", response: .right,
+            learningId: "fr", word: "chat", response: .right,
             questionType: .typeWord, sentenceId: 42, seconds: 1.0
         )
         let json = try JSONSerialization.jsonObject(
@@ -312,13 +330,13 @@ final class EmmioKitTests: XCTestCase {
     func testNewWordBuildsExcludeQuery() async throws {
         let mock = MockHTTP([.ok(#"{"word":"chien","remaining_today":3}"#)])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        let new = try await client.newWord(courseId: "fr", exclude: ["a", "b"])
+        let new = try await client.newWord(learningId: "fr", exclude: ["a", "b"])
         XCTAssertEqual(new.word, "chien")
 
         let components = URLComponents(
             url: mock.requests[0].url!, resolvingAgainstBaseURL: false
         )!
-        XCTAssertEqual(components.path, "/api/v1/me/courses/fr/new")
+        XCTAssertEqual(components.path, "/api/v1/me/learnings/fr/new")
         XCTAssertEqual(
             (components.queryItems ?? [])
                 .filter { $0.name == "exclude" }.map(\.value),
@@ -359,11 +377,11 @@ final class EmmioKitTests: XCTestCase {
         )
     }
 
-    func testCreateCoursePostsLanguagesAndReturnsId() async throws {
+    func testCreateCoursePostsLanguageAndNameAndReturnsId() async throws {
         let mock = MockHTTP([.ok(#"{"course_id":"fr"}"#)])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
         let courseId = try await client.createCourse(
-            language: "fr", translationLanguages: ["en", "ru"]
+            language: "fr", name: "French"
         )
         XCTAssertEqual(courseId, "fr")
 
@@ -374,16 +392,51 @@ final class EmmioKitTests: XCTestCase {
             with: XCTUnwrap(request.httpBody)
         ) as! [String: Any]
         XCTAssertEqual(json["language"] as? String, "fr")
+        XCTAssertEqual(json["name"] as? String, "French")
+    }
+
+    func testDeleteCourseSendsDelete() async throws {
+        let mock = MockHTTP([.noContent()])
+        let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
+        try await client.deleteCourse(courseId: "fr")
+        XCTAssertEqual(mock.requests[0].httpMethod, "DELETE")
+        XCTAssertEqual(mock.requests[0].url?.path, "/api/v1/me/courses/fr")
+    }
+
+    func testCreateLearningPostsTranslationLanguagesAndReturnsId() async throws {
+        let mock = MockHTTP([.ok(#"{"learning_id":"fr"}"#)])
+        let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
+        let learningId = try await client.createLearning(
+            courseId: "fr", translationLanguages: ["en", "ru"]
+        )
+        XCTAssertEqual(learningId, "fr")
+
+        let request = mock.requests[0]
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/v1/me/courses/fr/learnings")
+        let json = try JSONSerialization.jsonObject(
+            with: XCTUnwrap(request.httpBody)
+        ) as! [String: Any]
         XCTAssertEqual(json["translation_languages"] as? [String], ["en", "ru"])
+    }
+
+    func testDeleteLearningSendsDelete() async throws {
+        let mock = MockHTTP([.noContent()])
+        let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
+        try await client.deleteLearning(learningId: "fr")
+        XCTAssertEqual(mock.requests[0].httpMethod, "DELETE")
+        XCTAssertEqual(mock.requests[0].url?.path, "/api/v1/me/learnings/fr")
     }
 
     func testUndoPostsAndReturnsWord() async throws {
         let mock = MockHTTP([.ok(#"{"word":"chat"}"#)])
         let client = EmmioClient(baseURL: baseURL, session: mock, token: "tok")
-        let word = try await client.undo(courseId: "fr")
+        let word = try await client.undo(learningId: "fr")
         XCTAssertEqual(word, "chat")
         XCTAssertEqual(mock.requests[0].httpMethod, "POST")
-        XCTAssertEqual(mock.requests[0].url?.path, "/api/v1/me/courses/fr/undo")
+        XCTAssertEqual(
+            mock.requests[0].url?.path, "/api/v1/me/learnings/fr/undo"
+        )
     }
 
     func testNon2xxSurfacesAsHTTPError() async throws {

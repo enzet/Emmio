@@ -26,8 +26,9 @@ class NewQuestionScheme(BaseModel):
     pick_from: list[ListUsageConfig] = []
     """Which question lists use to pick new question.
 
-    Empty for a `CourseType.SYMBOL` course: its candidates are the learning
-    language's alphabet (`Language.symbols`) instead of a stored list.
+    Empty for a `LearningType.SYMBOL` learning: its candidates are the
+    learning language's alphabet (`Language.symbols`) instead of a stored
+    list.
     """
 
     check_lexicons: list[LexiconUsageConfig] | None = None
@@ -71,7 +72,7 @@ class Scheme(BaseModel):
     """How to show question."""
 
     question_types: list[str] | None = None
-    """Which question types this course may use, e.g. `["know", "type_word"]`.
+    """Which question types this learning may use, e.g. `["know", "type_word"]`.
 
     `None` means all supported types are allowed. The actual type per question
     is then chosen from these by the word's knowledge level and by what data is
@@ -89,8 +90,8 @@ class Scheme(BaseModel):
     """Which lexicon should be used to store answers during learning."""
 
 
-class CourseType(str, Enum):
-    """What kind of item a course drills.
+class LearningType(str, Enum):
+    """What kind of item a learning drills.
 
     Both kinds still belong to a language and share the same scheduling,
     records, and question types; only the source of new items (and, for
@@ -104,14 +105,18 @@ class CourseType(str, Enum):
     """The learning language's own alphabet (`Language.symbols`)."""
 
 
-class LearnConfig(BaseModel):
+class LearningConfig(BaseModel):
     """Learning process configuration."""
 
     name: str
-    """Name of the learning course."""
+    """Name of the learning."""
 
-    course_type: CourseType = CourseType.WORD
-    """What kind of item this course drills; immutable after creation."""
+    course_id: str
+    """Identifier of the `Course` (language-level set) this learning belongs
+    to."""
+
+    learning_type: LearningType = LearningType.WORD
+    """What kind of item this learning drills; immutable after creation."""
 
     learning_language: LanguageConfig
     """Learning subject."""

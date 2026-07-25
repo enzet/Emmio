@@ -21,8 +21,8 @@ from emmio.api.sessions import (  # pylint: disable=wrong-import-position
 )
 
 CLEAN_STATEMENT: LiteralString = (
-    "TRUNCATE users, learn_records, learn_sessions, learn_courses, "
-    "lexicon_records, lexicon_words, lexicon_sessions, lexicons "
+    "TRUNCATE users, learning_records, learning_sessions, learnings, "
+    "courses, lexicon_records, lexicon_words, lexicon_sessions, lexicons "
     "RESTART IDENTITY CASCADE"
 )
 

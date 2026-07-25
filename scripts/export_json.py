@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from emmio import postgres
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import Lexicon
@@ -67,21 +67,23 @@ def main() -> None:
     learn_path.mkdir(parents=True, exist_ok=True)
     lexicon_path.mkdir(parents=True, exist_ok=True)
 
-    learn_configs: dict[str, dict] = postgres.get_learn_configs(arguments.user)
+    learn_configs: dict[str, dict] = postgres.get_learning_configs(
+        arguments.user
+    )
     lexicon_configs: dict[str, dict] = postgres.get_lexicon_configs(
         arguments.user
     )
 
-    for course_id, config in learn_configs.items():
+    for learning_id, config in learn_configs.items():
         learning: Learning = Learning.from_config(
-            learn_path, LearnConfig(**config), course_id, arguments.user
+            learn_path, LearningConfig(**config), learning_id, arguments.user
         )
-        (learn_path / f"{course_id}.json").write_text(
+        (learn_path / f"{learning_id}.json").write_text(
             learning.dump_json() + "\n", encoding="utf-8"
         )
         logger.info(
             "Learning `%s`: %d records.",
-            course_id,
+            learning_id,
             len(learning.process.records),
         )
 
@@ -104,8 +106,8 @@ def main() -> None:
     snapshot: dict[str, Any] = {
         "name": user_row[1] or arguments.user,
         "learn": {
-            course_id: {"file_name": f"{course_id}.json", **config}
-            for course_id, config in learn_configs.items()
+            learning_id: {"file_name": f"{learning_id}.json", **config}
+            for learning_id, config in learn_configs.items()
         },
         "lexicon": {
             lexicon_id: {"file_name": f"{lexicon_id}.json", **config}
@@ -118,7 +120,7 @@ def main() -> None:
         encoding="utf-8",
     )
     logger.info(
-        "Configuration snapshot: %d courses, %d lexicons.",
+        "Configuration snapshot: %d learnings, %d lexicons.",
         len(learn_configs),
         len(lexicon_configs),
     )

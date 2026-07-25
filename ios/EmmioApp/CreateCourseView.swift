@@ -1,11 +1,11 @@
 // The "add a course" form, presented as a sheet from the course list.
 //
-// Mirrors the web app's create-course form: the language selector offers the
-// languages available for learning (`/lexicon-languages` — those with a
-// frequency list to draw new words from and Tatoeba sentences for examples),
-// the translation targets come from `/translation-languages` (English
-// preselected), and submitting posts to `/me/courses`. The server assembles
-// the course configuration itself.
+// A course is just a language-level shell (mirrors the web app's simplified
+// create-course form): the language selector offers the languages available
+// for learning (`/lexicon-languages` — those with a frequency list to draw
+// new words from and Tatoeba sentences for examples), and submitting posts
+// to `/me/courses`. A learning is added to it afterward, on the course's
+// detail screen.
 
 import EmmioKit
 import SwiftUI
@@ -19,9 +19,8 @@ struct CreateCourseView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var languages: [String] = []
-    @State private var targets: [String] = []
     @State private var language = ""
-    @State private var selectedTargets: Set<String> = ["en"]
+    @State private var name = ""
     @State private var isLoading = true
     @State private var isCreating = false
     @State private var error: String?
@@ -52,10 +51,7 @@ struct CreateCourseView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") { create() }
-                        .disabled(
-                            isLoading || isCreating
-                                || language.isEmpty || selectedTargets.isEmpty
-                        )
+                        .disabled(isLoading || isCreating || language.isEmpty)
                 }
             }
             .task { await load() }
@@ -69,21 +65,7 @@ struct CreateCourseView: View {
                     Text(name(of: code)).tag(code)
                 }
             }
-            Section("Translate into") {
-                ForEach(targets, id: \.self) { code in
-                    Button {
-                        toggle(code)
-                    } label: {
-                        HStack {
-                            Text(name(of: code)).foregroundStyle(.primary)
-                            Spacer()
-                            if selectedTargets.contains(code) {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
+            TextField("Name (optional)", text: $name)
             if let error {
                 Text(error).foregroundStyle(.red)
             }
@@ -101,21 +83,10 @@ struct CreateCourseView: View {
     private func load() async {
         defer { isLoading = false }
         do {
-            async let available = model.client.lexiconLanguages()
-            async let translations = model.client.translationLanguages()
-            languages = try await available
-            targets = try await translations
+            languages = try await model.client.lexiconLanguages()
             language = languages.first ?? ""
         } catch {
             self.error = friendlyMessage(for: error)
-        }
-    }
-
-    private func toggle(_ code: String) {
-        if selectedTargets.contains(code) {
-            selectedTargets.remove(code)
-        } else {
-            selectedTargets.insert(code)
         }
     }
 
@@ -126,12 +97,12 @@ struct CreateCourseView: View {
         Task {
             defer { isCreating = false }
             do {
-                // Keep the server's offer order for the selected targets.
+                let trimmedName = name.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
                 let courseId = try await model.client.createCourse(
                     language: language,
-                    translationLanguages: targets.filter(
-                        selectedTargets.contains
-                    )
+                    name: trimmedName.isEmpty ? name(of: language) : trimmedName
                 )
                 dismiss()
                 await onCreated(courseId)
@@ -146,10 +117,10 @@ struct CreateCourseView: View {
         Locale.current.localizedString(forLanguageCode: code) ?? code
     }
 
-    /// The server explains creation failures (no frequency list, no valid
-    /// target) in the 400 body's `detail`; show that over the generic line.
+    /// The server explains creation failures in the 4xx body's `detail`; show
+    /// that over the generic line.
     private func message(for error: Error) -> String {
-        if case let EmmioError.http(400, body) = error,
+        if case let EmmioError.http(status, body) = error, (400..<500).contains(status),
             let data = body.data(using: .utf8),
             let json = try? JSONSerialization.jsonObject(with: data)
                 as? [String: Any],

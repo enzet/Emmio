@@ -12,7 +12,7 @@ from emmio.dictionary.core import (
     SimpleDictionary,
 )
 from emmio.language import Language
-from emmio.learn.config import ActionType, CourseType, Scheme
+from emmio.learn.config import ActionType, LearningType, Scheme
 from emmio.learn.core import Knowledge, Learning, LearningSession, Response
 from emmio.lexicon.core import (
     AnswerType,
@@ -60,7 +60,7 @@ class Teacher:
         self.scheme: Scheme | None = self.learning.config.scheme
         """Learning scheme: how to learn."""
 
-        course_type: CourseType = self.learning.config.course_type
+        learning_type: LearningType = self.learning.config.learning_type
 
         if not self.scheme:
             message = "No scheme found."
@@ -69,7 +69,7 @@ class Teacher:
             message = "No new question scheme found."
             raise ValueError(message)
         if (
-            course_type == CourseType.WORD
+            learning_type == LearningType.WORD
             and not self.scheme.new_question.pick_from
         ):
             message = "No question lists found."
@@ -97,7 +97,7 @@ class Teacher:
         # candidates are the learning language's own alphabet.
         self.question_index: int = 0
         self.question_ids: list[tuple[str, List, int]] = []
-        if course_type == CourseType.SYMBOL:
+        if learning_type == LearningType.SYMBOL:
             symbol_list: SymbolList = SymbolList(
                 self.learning.learning_language
             )

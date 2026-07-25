@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from emmio.language import Language
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning, Response
 
 __author__ = "Sergey Vartanov"
@@ -38,7 +38,7 @@ class LearnData:
         """
         learnings: dict[str, Learning] = {
             learn_id: Learning.from_config(
-                path, LearnConfig(**learn_config), learn_id, user_id
+                path, LearningConfig(**learn_config), learn_id, user_id
             )
             for learn_id, learn_config in config.items()
         }

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Learning</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="learning">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a id="back-to-course" href="courses">← Course</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="learning-heading">Learning</h1>
+            <p>
+                <a id="learn-link" href="#">Learn this</a>
+            </p>
+            <dl id="stats"></dl>
+
+            <section id="settings-section" hidden>
+                <h2>Settings (<span id="setting-learning-type"></span>)</h2>
+                <form id="settings-form">
+                    <label for="setting-name">Name</label>
+                    <input id="setting-name" type="text" required />
+                    <div class="learning-word-fields">
+                        <label for="setting-targets">Translate into</label>
+                        <select
+                            id="setting-targets"
+                            class="translation-languages"
+                            multiple
+                            required
+                        ></select>
+                        <label for="setting-lexicon"
+                            >Skip words already known in</label
+                        >
+                        <select id="setting-lexicon"></select>
+                        <label for="setting-ask-lexicon"
+                            >Ask about unseen words in</label
+                        >
+                        <select id="setting-ask-lexicon"></select>
+                    </div>
+                    <label for="setting-max">New words per day</label>
+                    <input id="setting-max" type="number" min="0" required />
+                    <label class="checkbox">
+                        <input id="setting-play-audio" type="checkbox" />
+                        Play pronunciation audio
+                    </label>
+                    <fieldset>
+                        <legend>Question types</legend>
+                        <div id="setting-question-types"></div>
+                    </fieldset>
+                    <button type="submit">Save settings</button>
+                </form>
+                <p id="settings-status" role="status"></p>
+            </section>
+
+            <section id="danger" hidden>
+                <button id="delete-learning" type="button" class="danger">
+                    Delete learning
+                </button>
+                <p id="delete-status" role="status"></p>
+            </section>
+        </main>
+        <footer>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>

@@ -1,4 +1,4 @@
-// The learning session for one course.
+// The learning session for one learning.
 //
 // Due reviews come first, driven by `.../question`, which chooses each
 // question's type server-side (know / choice / connect / type_word) and
@@ -9,7 +9,7 @@
 //
 // When nothing is due (`type == nil`), new words are drawn from `.../new`:
 // each is taught as a type_word card, possibly after a know/don't-know check
-// recorded in the course's ask lexicon ("know" skips the word, "don't know"
+// recorded in the learning's ask lexicon ("know" skips the word, "don't know"
 // admits it). The session ends when `/new` also has nothing left.
 //
 // type_word cards also show a blanked example sentence with its translation
@@ -51,7 +51,7 @@ struct LearnActions {
     /// when none is found.
     let meaning: (String, Bool) async -> String
     /// An example sentence for a word (blanked, with a translation), or `nil`
-    /// when the course has none.
+    /// when the learning has none.
     let sentence: (String) async -> Sentence?
     /// Play the word's pronunciation, if any. Fire-and-forget: returns at
     /// once, and missing audio is silently ignored.
@@ -61,7 +61,7 @@ struct LearnActions {
 }
 
 struct LearnView: View {
-    let course: CourseSummary
+    let learning: LearningSummary
 
     @EnvironmentObject private var model: AppModel
 
@@ -140,24 +140,24 @@ struct LearnView: View {
             }
         }
         .padding()
-        .navigationTitle(course.name)
+        .navigationTitle(learning.name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             // `/question` refines this per question; `/new` sends no language,
-            // so start from the course's.
-            language = course.learningLanguage
-            sessionId = try? await model.client.openCourseSession(
-                courseId: course.courseId
+            // so start from the learning's.
+            language = learning.learningLanguage
+            sessionId = try? await model.client.openLearningSession(
+                learningId: learning.learningId
             )
             await advance()
         }
         .onDisappear {
             guard let sessionId else { return }
             let client = model.client
-            let courseId = course.courseId
+            let learningId = learning.learningId
             Task {
-                try? await client.closeCourseSession(
-                    courseId: courseId, sessionId: sessionId
+                try? await client.closeLearningSession(
+                    learningId: learningId, sessionId: sessionId
                 )
             }
         }
@@ -201,7 +201,7 @@ struct LearnView: View {
         if isNewWord { handledNew.insert(word) }
         do {
             try await model.client.answer(
-                courseId: course.courseId, word: word,
+                learningId: learning.learningId, word: word,
                 response: response, questionType: type,
                 sentenceId: sentenceId, sessionId: sessionId,
                 seconds: seconds
@@ -213,7 +213,7 @@ struct LearnView: View {
 
     private func meaning(_ word: String, hideWord: Bool) async -> String {
         guard let translation = try? await model.client.translation(
-            courseId: course.courseId, word: word, hideWord: hideWord
+            learningId: learning.learningId, word: word, hideWord: hideWord
         ) else { return "" }
         return translation.dictionaries
             .map { HTMLText.plain(from: $0.html) }
@@ -223,17 +223,17 @@ struct LearnView: View {
 
     private func sentence(for word: String) async -> Sentence? {
         guard let sentence = try? await model.client.sentence(
-            courseId: course.courseId, word: word
+            learningId: learning.learningId, word: word
         ), sentence.sentence != nil else { return nil }
         return sentence
     }
 
     /// Fetch and play the word's pronunciation, ignoring failures (no
-    /// recording, audio disabled for the course, or a network error).
+    /// recording, audio disabled for the learning, or a network error).
     private func playAudio(_ word: String) {
         Task {
             guard let data = ((try? await model.client.audio(
-                courseId: course.courseId, word: word
+                learningId: learning.learningId, word: word
             )) ?? nil) else { return }
             audioPlayer.play(data)
         }
@@ -244,7 +244,7 @@ struct LearnView: View {
         check = nil
         isNewWord = false
         do {
-            let next = try await model.client.question(courseId: course.courseId)
+            let next = try await model.client.question(learningId: learning.learningId)
             if next.kind == nil {
                 question = nil
                 await advanceToNew()
@@ -266,7 +266,7 @@ struct LearnView: View {
             let new: NewQuestion
             do {
                 new = try await model.client.newWord(
-                    courseId: course.courseId,
+                    learningId: learning.learningId,
                     exclude: handledNew.sorted()
                 )
             } catch {
@@ -330,7 +330,7 @@ struct LearnView: View {
     private func undo() async {
         do {
             guard let word = try await model.client.undo(
-                courseId: course.courseId
+                learningId: learning.learningId
             ) else { return }
             if !history.isEmpty { history.removeLast() }
             check = nil
@@ -555,7 +555,7 @@ private struct TypeWordCard: View {
 }
 
 /// The new-word pre-check: does the user already know this word? The answer
-/// is recorded in the course's ask lexicon; "know" skips the word, "don't
+/// is recorded in the learning's ask lexicon; "know" skips the word, "don't
 /// know" admits it to learning.
 private struct AskCard: View {
     let word: String

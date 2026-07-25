@@ -22,56 +22,15 @@
         </header>
         <main>
             <h1 id="add-course-heading">Add a course</h1>
+            <p>
+                A course is a language (e.g. Armenian) you're studying; add
+                one or more learnings to it afterward (vocabulary, alphabet,
+                …).
+            </p>
             <form id="add-course-form" aria-labelledby="add-course-heading">
-                <fieldset>
-                    <legend>What to learn</legend>
-                    <label class="checkbox">
-                        <input
-                            type="radio"
-                            name="course-type"
-                            class="course-type"
-                            value="word"
-                            checked
-                        />
-                        Words
-                    </label>
-                    <label class="checkbox">
-                        <input
-                            type="radio"
-                            name="course-type"
-                            class="course-type"
-                            value="symbol"
-                        />
-                        Alphabet
-                    </label>
-                </fieldset>
-                Learn
+                Study
                 <select id="add-course-language" required></select>
                 language,<br />
-                <div class="course-word-fields">
-                    drawing new words from
-                    <select
-                        id="add-course-frequency-list"
-                        class="course-frequency-list"
-                        required
-                    ></select><br />
-                    with definitions in
-                    <select
-                        id="add-course-targets"
-                        class="translation-languages"
-                        required
-                    ></select> language,<br />
-                    skipping words already known in
-                    <select
-                        id="add-course-lexicon"
-                        class="course-lexicon"
-                    ></select><br />
-                    asking about unseen words in
-                    <select
-                        id="add-course-ask-lexicon"
-                        class="course-ask-lexicon"
-                    ></select><br />
-                </div>
                 named
                 <input
                     id="add-course-name"
@@ -79,31 +38,6 @@
                     type="text"
                     placeholder="optional, defaults to the language name"
                 /><br />
-                up to
-                <input
-                    id="add-course-max-for-day"
-                    class="course-max-for-day"
-                    type="number"
-                    min="0"
-                    value="10"
-                    required
-                /> new words a day<br />
-                <label class="checkbox">
-                    <input
-                        id="add-course-play-audio"
-                        class="course-play-audio"
-                        type="checkbox"
-                        checked
-                    />
-                    Play pronunciation audio
-                </label>
-                <fieldset>
-                    <legend>Question types</legend>
-                    <div
-                        id="add-course-question-types"
-                        class="course-question-types"
-                    ></div>
-                </fieldset>
                 <button type="submit">Create course</button>
             </form>
             <p id="add-course-status" role="status"></p>

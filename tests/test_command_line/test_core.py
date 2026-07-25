@@ -115,11 +115,15 @@ def _parse_time(value: str) -> datetime:
 
 def _store_learning(
     user_id: str,
-    course_id: str,
+    learning_id: str,
     config: LearningConfigType,
     content: LearningContentType,
 ) -> None:
-    """Store learning content in the test database."""
+    """Store learning content in the test database.
+
+    Learnings must belong to a course; one is created per language on first
+    use here, matching what the PostgreSQL migration backfills for real data.
+    """
 
     records: list[postgres.LearnRecordRow] = []
     for record in content.get("records", []):
@@ -148,14 +152,20 @@ def _store_learning(
         )
         for session in content.get("sessions", [])
     ]
-    # Store the course's configuration (the CLI reads it from the database),
-    # then its records.
-    postgres.store_learn_config(user_id, course_id, dict(config))
+    language: str = cast("str", config["learning_language"])
+    if postgres.get_course(user_id, language) is None:
+        postgres.create_course(user_id, language, language, language)
+
+    # Store the learning's configuration (the CLI reads it from the
+    # database), then its records.
+    full_config: dict[str, Any] = {"course_id": language, **config}
+    postgres.store_learning_config(user_id, learning_id, full_config)
     postgres.save_learning(
         user_id,
-        course_id,
+        learning_id,
         cast("str", config["name"]),
-        cast("str", config["learning_language"]),
+        language,
+        language,
         records,
         sessions,
     )
@@ -297,11 +307,11 @@ def initialize(
 
     if learnings is not None and learning_configuration is not None:
         for file_name, learning_structure in learnings.items():
-            for course_id, learning_config in learning_configuration.items():
+            for learning_id, learning_config in learning_configuration.items():
                 if learning_config["file_name"] == file_name:
                     _store_learning(
                         temp_user_id,
-                        course_id,
+                        learning_id,
                         learning_config,
                         learning_structure,
                     )

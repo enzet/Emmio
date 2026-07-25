@@ -1,12 +1,13 @@
 // The Emmio API client used by the iOS app.
 //
 // A thin async wrapper over the routes in `emmio/api/app.py`, holding just the
-// calls the learning loop needs: log in, list courses, pull the next due
-// words, draw new words to add (with their lexicon pre-check), reveal a word's
-// translation, example sentence and pronunciation, and record an answer. It is
-// an `actor` so the bearer token is mutated safely from concurrent callers, and it
-// takes its transport through the `HTTPFetching` protocol so tests can drive it
-// with canned responses instead of the network.
+// calls the learning loop needs: log in, list courses and learnings, pull the
+// next due words, draw new words to add (with their lexicon pre-check),
+// reveal a word's translation, example sentence and pronunciation, and record
+// an answer. It is an `actor` so the bearer token is mutated safely from
+// concurrent callers, and it takes its transport through the `HTTPFetching`
+// protocol so tests can drive it with canned responses instead of the
+// network.
 
 import Foundation
 
@@ -88,11 +89,17 @@ public actor EmmioClient {
         return token
     }
 
-    /// List the authenticated user's learning courses.
+    /// List the authenticated user's courses (language-level sets).
     public func courses() async throws -> [CourseSummary] {
         try await send(
             request(for: "/api/v1/me/courses"), as: [CourseSummary].self
         )
+    }
+
+    /// Get a course's identity plus its learnings.
+    public func courseDetail(courseId: String) async throws -> CourseDetail {
+        let path = "/api/v1/me/courses/\(escape(courseId))"
+        return try await send(request(for: path), as: CourseDetail.self)
     }
 
     /// List languages a new course (or lexicon) can be created for — those
@@ -112,18 +119,14 @@ public actor EmmioClient {
         ).map(\.language)
     }
 
-    /// Create a learning course for a language, returning its id.
+    /// Create an empty course (a language-level set), returning its id.
     ///
-    /// The server assembles the configuration (frequency list, dictionaries,
-    /// sentences, audio) from its shared data; the id is the language code,
-    /// suffixed when one already exists.
+    /// The id is the language code, suffixed when one already exists. A
+    /// learning must be added to it afterward via `createLearning`.
     public func createCourse(
-        language: String, translationLanguages: [String]
+        language: String, name: String
     ) async throws -> String {
-        let body: [String: Any] = [
-            "language": language,
-            "translation_languages": translationLanguages,
-        ]
+        let body: [String: Any] = ["language": language, "name": name]
         var request = self.request(for: "/api/v1/me/courses")
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -131,17 +134,55 @@ public actor EmmioClient {
         return try await send(request, as: CreatedCourse.self).courseId
     }
 
-    /// Pull the next words due for repetition in a course, soonest-due first.
+    /// Delete a course. Succeeds only while it has no learnings left — the
+    /// server responds 409 otherwise.
+    public func deleteCourse(courseId: String) async throws {
+        var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))")
+        request.httpMethod = "DELETE"
+        try await sendNoContent(request)
+    }
+
+    /// Add a learning to an existing course, in the course's language,
+    /// returning its id.
+    ///
+    /// The server assembles the configuration (frequency list, dictionaries,
+    /// sentences, audio) from its shared data; the id is the course's
+    /// language code, suffixed when one already exists.
+    public func createLearning(
+        courseId: String, translationLanguages: [String]
+    ) async throws -> String {
+        let body: [String: Any] = [
+            "translation_languages": translationLanguages,
+        ]
+        let path = "/api/v1/me/courses/\(escape(courseId))/learnings"
+        var request = self.request(for: path)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(request, as: CreatedLearning.self).learningId
+    }
+
+    /// Delete a learning and all its answer history. Irreversible.
+    public func deleteLearning(learningId: String) async throws {
+        var request = self.request(
+            for: "/api/v1/me/learnings/\(escape(learningId))"
+        )
+        request.httpMethod = "DELETE"
+        try await sendNoContent(request)
+    }
+
+    /// Pull the next words due for repetition in a learning, soonest-due
+    /// first.
     ///
     /// - Parameters:
     ///   - count: how many words to prefetch into the session queue.
     ///   - exclude: words already queued on the client, to avoid duplicates.
     public func next(
-        courseId: String, count: Int = 10, exclude: [String] = []
+        learningId: String, count: Int = 10, exclude: [String] = []
     ) async throws -> NextWords {
         var items = [URLQueryItem(name: "count", value: String(count))]
         items += exclude.map { URLQueryItem(name: "exclude", value: $0) }
-        let path = "/api/v1/me/courses/\(escape(courseId))/next"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/next"
         return try await send(request(for: path, query: items), as: NextWords.self)
     }
 
@@ -150,23 +191,23 @@ public actor EmmioClient {
     /// `type` on the result is `nil` when nothing is due. `exclude` lists words
     /// to skip (already presented this pass).
     public func question(
-        courseId: String, exclude: [String] = []
+        learningId: String, exclude: [String] = []
     ) async throws -> Question {
         let items = exclude.map { URLQueryItem(name: "exclude", value: $0) }
-        let path = "/api/v1/me/courses/\(escape(courseId))/question"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/question"
         return try await send(request(for: path, query: items), as: Question.self)
     }
 
-    /// Get the next new word to add to the course, from its question lists.
+    /// Get the next new word to add to the learning, from its question lists.
     ///
     /// `word` on the result is `nil` when none remains. `exclude` lists words
     /// already decided this session (answered or admitted), which the stateless
     /// server would otherwise return again.
     public func newWord(
-        courseId: String, exclude: [String] = []
+        learningId: String, exclude: [String] = []
     ) async throws -> NewQuestion {
         let items = exclude.map { URLQueryItem(name: "exclude", value: $0) }
-        let path = "/api/v1/me/courses/\(escape(courseId))/new"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/new"
         return try await send(
             request(for: path, query: items), as: NewQuestion.self
         )
@@ -190,8 +231,10 @@ public actor EmmioClient {
     }
 
     /// Undo the most recent answer, returning the word freed up (or `nil`).
-    public func undo(courseId: String) async throws -> String? {
-        var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))/undo")
+    public func undo(learningId: String) async throws -> String? {
+        var request = self.request(
+            for: "/api/v1/me/learnings/\(escape(learningId))/undo"
+        )
         request.httpMethod = "POST"
         return try await send(request, as: NextWord.self).word
     }
@@ -201,13 +244,13 @@ public actor EmmioClient {
     /// `hideWord` is `false` here so the full meaning is shown, matching the
     /// recognition card's "reveal the answer" step.
     public func translation(
-        courseId: String, word: String, hideWord: Bool = false
+        learningId: String, word: String, hideWord: Bool = false
     ) async throws -> Translation {
         let items = [
             URLQueryItem(name: "word", value: word),
             URLQueryItem(name: "hide_word", value: hideWord ? "true" : "false"),
         ]
-        let path = "/api/v1/me/courses/\(escape(courseId))/translation"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/translation"
         return try await send(
             request(for: path, query: items), as: Translation.self
         )
@@ -218,19 +261,19 @@ public actor EmmioClient {
     /// `sentence` on the result is `nil` when no translated example exists. A
     /// slow lookup: fetch it after the card is presented, not before.
     public func sentence(
-        courseId: String, word: String
+        learningId: String, word: String
     ) async throws -> Sentence {
         let items = [URLQueryItem(name: "word", value: word)]
-        let path = "/api/v1/me/courses/\(escape(courseId))/sentence"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/sentence"
         return try await send(request(for: path, query: items), as: Sentence.self)
     }
 
     /// Fetch a pronunciation recording for a word, or `nil` when there is
     /// none — no recording found, no audio configured, or playback disabled
-    /// for the course (all reported by the server as 404).
-    public func audio(courseId: String, word: String) async throws -> Data? {
+    /// for the learning (all reported by the server as 404).
+    public func audio(learningId: String, word: String) async throws -> Data? {
         let items = [URLQueryItem(name: "word", value: word)]
-        let path = "/api/v1/me/courses/\(escape(courseId))/audio"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/audio"
         do {
             return try await perform(request(for: path, query: items))
         } catch EmmioError.http(404, _) {
@@ -248,7 +291,7 @@ public actor EmmioClient {
     ///     its log row; the answer is recorded either way.
     ///   - seconds: how long the card was on screen, stored as provenance.
     public func answer(
-        courseId: String,
+        learningId: String,
         word: String,
         response: LearnResponse,
         questionType: QuestionType = .know,
@@ -265,20 +308,22 @@ public actor EmmioClient {
         if let sessionId { body["session_id"] = sessionId }
         if let seconds { body["seconds"] = seconds }
 
-        var request = self.request(for: "/api/v1/me/courses/\(escape(courseId))/answer")
+        var request = self.request(
+            for: "/api/v1/me/learnings/\(escape(learningId))/answer"
+        )
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         try await sendNoContent(request)
     }
 
-    /// Open a learning session on a course: answers carrying the returned
-    /// identifier are grouped into one session log row when it closes. Also
-    /// warms the server's cached course, making the first question fast.
-    public func openCourseSession(
-        courseId: String, type: String = "repeat_and_learn_new"
+    /// Open a learning session: answers carrying the returned identifier are
+    /// grouped into one session log row when it closes. Also warms the
+    /// server's cached learning, making the first question fast.
+    public func openLearningSession(
+        learningId: String, type: String = "repeat_and_learn_new"
     ) async throws -> String {
-        let path = "/api/v1/me/courses/\(escape(courseId))/sessions"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/sessions"
         var request = self.request(for: path)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -291,10 +336,10 @@ public actor EmmioClient {
     /// Close a learning session, writing its log row. Idempotent: closing an
     /// unknown or already-closed session is a safe no-op, and a session that
     /// is never closed is finalized by the server when it expires.
-    public func closeCourseSession(
-        courseId: String, sessionId: String
+    public func closeLearningSession(
+        learningId: String, sessionId: String
     ) async throws {
-        let path = "/api/v1/me/courses/\(escape(courseId))/sessions/"
+        let path = "/api/v1/me/learnings/\(escape(learningId))/sessions/"
             + "\(escape(sessionId))/close"
         var request = self.request(for: path)
         request.httpMethod = "POST"

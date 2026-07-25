@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from emmio import postgres
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning, LearningSession
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import WordSelector, WordStates, create_selector
@@ -317,8 +317,8 @@ class LexiconSessionRegistry:
 
 
 @dataclass
-class CourseSession:
-    """An open explicit learning session on one course."""
+class OpenLearningSession:
+    """An open explicit learning session on one learning."""
 
     session_id: str
     type: str
@@ -333,18 +333,18 @@ class LearningEntry:
 
     learning: Learning
     stamp: int
-    session: CourseSession | None = None
+    session: OpenLearningSession | None = None
     lock: Any = field(default_factory=threading.RLock)
     """Reentrant lock serializing use (`threading.RLock`)."""
 
 
 class LearningRegistry:
-    """Cached `Learning` instances, one per (user, course).
+    """Cached `Learning` instances, one per (user, learning).
 
-    `Learning.from_config` replays every record of the course; caching the
+    `Learning.from_config` replays every record of the learning; caching the
     instance makes that a per-session cost instead of a per-request one. The
-    optional explicit `CourseSession` groups answers into a `learn_sessions`
-    row, like the CLI teacher does.
+    optional explicit `OpenLearningSession` groups answers into a
+    `learning_sessions` row, like the CLI teacher does.
     """
 
     def __init__(self) -> None:
@@ -354,31 +354,31 @@ class LearningRegistry:
         self._lock = threading.Lock()
 
     def entry(
-        self, user_id: str, course_id: str, config: dict
+        self, user_id: str, learning_id: str, config: dict
     ) -> LearningEntry:
-        """Get the cached course, reloading it if stale or missing."""
+        """Get the cached learning, reloading it if stale or missing."""
         with self._lock:
-            entry = self._entries.get((user_id, course_id))
+            entry = self._entries.get((user_id, learning_id))
             if entry is not None:
-                self._entries.move_to_end((user_id, course_id))
-        stamp: int = postgres.count_learn_records(user_id, course_id)
+                self._entries.move_to_end((user_id, learning_id))
+        stamp: int = postgres.count_learning_records(user_id, learning_id)
         if entry is not None:
             with entry.lock:
                 if entry.stamp == stamp:
                     self._expire_session(entry)
                     return entry
-                learning = self._load(user_id, course_id, config)
+                learning = self._load(user_id, learning_id, config)
                 entry.learning = learning
                 entry.stamp = len(learning.process.records)
                 self._expire_session(entry)
                 return entry
-        learning = self._load(user_id, course_id, config)
+        learning = self._load(user_id, learning_id, config)
         entry = LearningEntry(
             learning=learning, stamp=len(learning.process.records)
         )
         evicted: list[LearningEntry] = []
         with self._lock:
-            self._entries[(user_id, course_id)] = entry
+            self._entries[(user_id, learning_id)] = entry
             while len(self._entries) > MAX_SESSIONS:
                 _key, old = self._entries.popitem(last=False)
                 evicted.append(old)
@@ -388,21 +388,21 @@ class LearningRegistry:
         return entry
 
     @staticmethod
-    def _load(user_id: str, course_id: str, config: dict) -> Learning:
-        """Load the course from the database (path is vestigial)."""
+    def _load(user_id: str, learning_id: str, config: dict) -> Learning:
+        """Load the learning from the database (path is vestigial)."""
         return Learning.from_config(
-            Path(), LearnConfig(**config), course_id, user_id
+            Path(), LearningConfig(**config), learning_id, user_id
         )
 
     def open_session(
-        self, user_id: str, course_id: str, config: dict, type_: str
-    ) -> CourseSession:
+        self, user_id: str, learning_id: str, config: dict, type_: str
+    ) -> OpenLearningSession:
         """Open an explicit session, closing a previous open one."""
-        entry: LearningEntry = self.entry(user_id, course_id, config)
+        entry: LearningEntry = self.entry(user_id, learning_id, config)
         now: datetime = datetime.now(UTC)
         with entry.lock:
             self._close_session(entry)
-            entry.session = CourseSession(
+            entry.session = OpenLearningSession(
                 session_id=_new_session_id(),
                 type=type_,
                 start=now,
@@ -411,11 +411,11 @@ class LearningRegistry:
             return entry.session
 
     def close_session(
-        self, user_id: str, course_id: str, session_id: str
+        self, user_id: str, learning_id: str, session_id: str
     ) -> None:
         """Close the explicit session if it is the open one; idempotent."""
         with self._lock:
-            entry = self._entries.get((user_id, course_id))
+            entry = self._entries.get((user_id, learning_id))
         if entry is None:
             return
         with entry.lock:
@@ -425,13 +425,13 @@ class LearningRegistry:
             ):
                 self._close_session(entry)
 
-    def invalidate(self, user_id: str, course_id: str) -> None:
-        """Drop the cached course (undo bypassed it, settings changed)."""
+    def invalidate(self, user_id: str, learning_id: str) -> None:
+        """Drop the cached learning (undo bypassed it, settings changed)."""
         with self._lock:
-            self._entries.pop((user_id, course_id), None)
+            self._entries.pop((user_id, learning_id), None)
 
     def invalidate_user(self, user_id: str) -> None:
-        """Silently drop every cached course of a deleted user."""
+        """Silently drop every cached learning of a deleted user."""
         with self._lock:
             for key in [key for key in self._entries if key[0] == user_id]:
                 self._entries.pop(key)
@@ -480,4 +480,4 @@ LEXICON_SESSIONS: LexiconSessionRegistry = LexiconSessionRegistry()
 """Process-wide registry of open lexicon checking sessions."""
 
 LEARNING_REGISTRY: LearningRegistry = LearningRegistry()
-"""Process-wide cache of loaded courses and their open sessions."""
+"""Process-wide cache of loaded learnings and their open sessions."""

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from emmio import postgres
 from emmio.core import Record, Session
 from emmio.language import Language
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.user.core import UserArtifact
 
 __author__ = "Sergey Vartanov"
@@ -277,7 +277,7 @@ def update_knowledge(
 class Learning(UserArtifact):
     """Learning process."""
 
-    config: LearnConfig
+    config: LearningConfig
     """Learning configuration."""
 
     knowledge: dict[str, Knowledge]
@@ -303,7 +303,7 @@ class Learning(UserArtifact):
 
     @classmethod
     def from_config(
-        cls, path: Path, config: LearnConfig, id_: str, user_id: str
+        cls, path: Path, config: LearningConfig, id_: str, user_id: str
     ) -> Self:
         """Create a learning process from a configuration.
 
@@ -398,6 +398,7 @@ class Learning(UserArtifact):
             self.id_,
             self.config.name,
             self.learning_language.get_code(),
+            self.config.course_id,
             records,
             sessions,
         )

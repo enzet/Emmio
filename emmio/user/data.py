@@ -93,15 +93,15 @@ class UserData:
     def get_learn_data(self) -> LearnData:
         """Lazy-loads learning data.
 
-        Course configuration is read from the database (the single source of
-        truth), not the on-disk `config.json`.
+        Learning configuration is read from the database (the single source
+        of truth), not the on-disk `config.json`.
         """
         if not self._learn_data:
             logger.info("Loading `%s` learning data...", self.user_id)
             postgres.ensure_user(self.user_id, self.user_name)
             self._learn_data = LearnData.from_config(
                 self.path / LEARN_DIRECTORY_NAME,
-                postgres.get_learn_configs(self.user_id),
+                postgres.get_learning_configs(self.user_id),
                 self.user_id,
             )
         return self._learn_data

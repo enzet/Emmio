@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Add a learning</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="new-learning">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a id="back-to-course" href="courses">← Course</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="add-learning-heading">Add a learning</h1>
+            <form id="add-learning-form" aria-labelledby="add-learning-heading">
+                <fieldset>
+                    <legend>What to learn</legend>
+                    <label class="checkbox">
+                        <input
+                            type="radio"
+                            name="learning-type"
+                            class="learning-type"
+                            value="word"
+                            checked
+                        />
+                        Words
+                    </label>
+                    <label class="checkbox">
+                        <input
+                            type="radio"
+                            name="learning-type"
+                            class="learning-type"
+                            value="symbol"
+                        />
+                        Alphabet
+                    </label>
+                </fieldset>
+                <div class="learning-word-fields">
+                    drawing new words from
+                    <select
+                        id="add-learning-frequency-list"
+                        class="learning-frequency-list"
+                        required
+                    ></select><br />
+                    with definitions in
+                    <select
+                        id="add-learning-targets"
+                        class="translation-languages"
+                        required
+                    ></select> language,<br />
+                    skipping words already known in
+                    <select
+                        id="add-learning-lexicon"
+                        class="learning-lexicon"
+                    ></select><br />
+                    asking about unseen words in
+                    <select
+                        id="add-learning-ask-lexicon"
+                        class="learning-ask-lexicon"
+                    ></select><br />
+                    named
+                    <input
+                        id="add-learning-name"
+                        class="learning-name"
+                        type="text"
+                        placeholder="optional, defaults to the language name"
+                    /><br />
+                    up to
+                    <input
+                        id="add-learning-max-for-day"
+                        class="learning-max-for-day"
+                        type="number"
+                        min="0"
+                        value="10"
+                        required
+                    /> new words a day<br />
+                </div>
+                <label class="checkbox">
+                    <input
+                        id="add-learning-play-audio"
+                        class="learning-play-audio"
+                        type="checkbox"
+                        checked
+                    />
+                    Play pronunciation audio
+                </label>
+                <fieldset>
+                    <legend>Question types</legend>
+                    <div
+                        id="add-learning-question-types"
+                        class="learning-question-types"
+                    ></div>
+                </fieldset>
+                <button type="submit">Create learning</button>
+            </form>
+            <p id="add-learning-status" role="status"></p>
+        </main>
+    </body>
+</html>

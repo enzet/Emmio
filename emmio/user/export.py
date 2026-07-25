@@ -16,7 +16,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from emmio import postgres
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning
 from emmio.lexicon.config import LexiconConfig
 from emmio.lexicon.core import Lexicon
@@ -38,7 +38,7 @@ exported on request.
                      included: only a one-way hash is ever stored, and it is of
                      no use to you.
   config.json        Your Emmio configuration (preferences), if present.
-  learn/<id>.json    One file per learning course, with every answer you gave
+  learn/<id>.json    One file per learning, with every answer you gave
                      and every study session.
   lexicon/<id>.json  One file per lexicon, with every word you judged known or
                      unknown and every checking session.
@@ -84,19 +84,21 @@ def build_archive(user_id: str, data_dir: Path, output: Path) -> Path:
         if config_path.exists():
             shutil.copyfile(config_path, root / "config.json")
 
-        # Learning courses, from the database.
+        # Learnings, from the database.
         learn_path: Path = root / "learn"
         learn_path.mkdir()
-        for course_id, config in postgres.get_learn_configs(user_id).items():
+        for learning_id, config in postgres.get_learning_configs(
+            user_id
+        ).items():
             learning: Learning = Learning.from_config(
-                learn_path, LearnConfig(**config), course_id, user_id
+                learn_path, LearningConfig(**config), learning_id, user_id
             )
-            (learn_path / f"{course_id}.json").write_text(
+            (learn_path / f"{learning_id}.json").write_text(
                 learning.dump_json() + "\n", encoding="utf-8"
             )
             logger.info(
                 "Learning `%s`: %d records.",
-                course_id,
+                learning_id,
                 len(learning.process.records),
             )
 

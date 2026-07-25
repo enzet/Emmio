@@ -1,10 +1,10 @@
 -- Emmio PostgreSQL schema.
 --
--- A course/lexicon is a stable identity per language; operational configuration
--- (frequency lists, dictionaries, sentence corpora) lives in the `config`
--- JSONB columns. The database is the single source of truth for all user
--- configuration; `config.json` files are only written by exports for Git
--- history, never read.
+-- A learning/lexicon is a stable identity per language; operational
+-- configuration (frequency lists, dictionaries, sentence corpora) lives in
+-- the `config` JSONB columns. The database is the single source of truth for
+-- all user configuration; `config.json` files are only written by exports
+-- for Git history, never read.
 
 -- Users.
 
@@ -24,28 +24,45 @@ CREATE TABLE IF NOT EXISTS users (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Learning.
+-- Courses and learning.
 
--- Stable identity for a learning course, owned by a user. `course_id` is unique
--- per user, so different users may both have a `fr` course.
---
--- Unlike a lexicon, a course has no statistical estimate that depends on how
--- questions are picked, so there is no immutable selection/frequency-list tier:
--- only `learning_language` is identity. Everything else (scheme, dictionaries,
--- sentences, audio, base languages, limits, ...) is mutable preference and
--- lives in `config`. Per-answer provenance is in `learn_records.extra`.
-CREATE TABLE IF NOT EXISTS learn_courses (
-    id                SERIAL PRIMARY KEY,
-    user_id           INT NOT NULL REFERENCES users(id),
-    course_id         TEXT NOT NULL,
-    name              TEXT NOT NULL,
-    learning_language TEXT NOT NULL,
-    config            JSONB NOT NULL DEFAULT '{}',
+-- Stable identity for a course: a language-level set (e.g. "Armenian") that
+-- groups one or more learnings (vocabulary, alphabet, irregular verbs, ...).
+-- `course_id` is unique per user. A course has no configuration of its own
+-- beyond identity: everything else lives on its learnings.
+CREATE TABLE IF NOT EXISTS courses (
+    id        SERIAL PRIMARY KEY,
+    user_id   INT NOT NULL REFERENCES users(id),
+    course_id TEXT NOT NULL,
+    name      TEXT NOT NULL,
+    language  TEXT NOT NULL,
     UNIQUE (user_id, course_id)
 );
 
+-- Stable identity for a learning (one drillable unit: vocabulary, an
+-- alphabet, irregular verbs, ...), owned by a user and belonging to a course.
+-- `learning_id` is unique per user, so different users may both have an `fr`
+-- learning.
+--
+-- Unlike a lexicon, a learning has no statistical estimate that depends on
+-- how questions are picked, so there is no immutable selection/frequency-list
+-- tier: only `learning_language` is identity. Everything else (scheme,
+-- dictionaries, sentences, audio, base languages, limits, ...) is mutable
+-- preference and lives in `config`. Per-answer provenance is in
+-- `learning_records.extra`.
+CREATE TABLE IF NOT EXISTS learnings (
+    id                SERIAL PRIMARY KEY,
+    user_id           INT NOT NULL REFERENCES users(id),
+    learning_id       TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    learning_language TEXT NOT NULL,
+    course_id         INT NOT NULL REFERENCES courses(id),
+    config            JSONB NOT NULL DEFAULT '{}',
+    UNIQUE (user_id, learning_id)
+);
+
 -- One row per user response. Self-describing: extra captures question
--- context, so records stay interpretable when course configuration changes.
+-- context, so records stay interpretable when learning configuration changes.
 --
 -- extra key dictionary (keys omitted when value is the default):
 --   `t`  question type; absent = default (translation check)
@@ -56,9 +73,9 @@ CREATE TABLE IF NOT EXISTS learn_courses (
 --   `ai` audio_id (text); only for audio questions
 --   `di` dictionary_id (text); only when non-default dictionary was used
 --   `o`  options (text list); only for quiz questions
-CREATE TABLE IF NOT EXISTS learn_records (
+CREATE TABLE IF NOT EXISTS learning_records (
     id            BIGSERIAL PRIMARY KEY,
-    course_id     INT NOT NULL REFERENCES learn_courses(id),
+    learning_id   INT NOT NULL REFERENCES learnings(id),
     question_id   TEXT NOT NULL,
     response      CHAR(1) NOT NULL,
     -- `y` right, `n` wrong, `s` skip, `p` postpone.
@@ -67,21 +84,21 @@ CREATE TABLE IF NOT EXISTS learn_records (
     extra         JSONB
 );
 
-CREATE TABLE IF NOT EXISTS learn_sessions (
-    id        SERIAL PRIMARY KEY,
-    course_id INT NOT NULL REFERENCES learn_courses(id),
-    type      TEXT NOT NULL,
-    start     TIMESTAMPTZ NOT NULL,
-    "end"     TIMESTAMPTZ,
-    actions   INT
+CREATE TABLE IF NOT EXISTS learning_sessions (
+    id          SERIAL PRIMARY KEY,
+    learning_id INT NOT NULL REFERENCES learnings(id),
+    type        TEXT NOT NULL,
+    start       TIMESTAMPTZ NOT NULL,
+    "end"       TIMESTAMPTZ,
+    actions     INT
 );
 
-CREATE INDEX IF NOT EXISTS learn_records_course_time
-    ON learn_records (course_id, response_time);
-CREATE INDEX IF NOT EXISTS learn_records_course_question
-    ON learn_records (course_id, question_id);
-CREATE INDEX IF NOT EXISTS learn_sessions_course_start
-    ON learn_sessions (course_id, start);
+CREATE INDEX IF NOT EXISTS learning_records_learning_time
+    ON learning_records (learning_id, response_time);
+CREATE INDEX IF NOT EXISTS learning_records_learning_question
+    ON learning_records (learning_id, question_id);
+CREATE INDEX IF NOT EXISTS learning_sessions_learning_start
+    ON learning_sessions (learning_id, start);
 
 -- Lexicon.
 

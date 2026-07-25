@@ -1,5 +1,5 @@
-// The authenticated home: the user's courses, each opening a learning
-// session, plus a sheet to create a new one.
+// The authenticated home: the user's courses (language-level sets), each
+// opening its learnings, plus a sheet to create a new one.
 
 import EmmioKit
 import SwiftUI
@@ -21,7 +21,7 @@ struct CourseListView: View {
                 NavigationLink(value: course) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(course.name).font(.headline)
-                        Text("\(course.words) words · \(course.answers) answers")
+                        Text("\(course.learningCount) learning(s)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -40,7 +40,7 @@ struct CourseListView: View {
         }
         .navigationTitle("Courses")
         .navigationDestination(for: CourseSummary.self) { course in
-            LearnView(course: course)
+            CourseDetailView(course: course)
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

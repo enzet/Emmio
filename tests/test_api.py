@@ -17,7 +17,7 @@ from emmio.api.app import app
 from emmio.api.sessions import LEXICON_SESSIONS
 from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
-from emmio.learn.config import LearnConfig
+from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
@@ -153,6 +153,17 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _create_course(token: str, language: str, name: str | None = None) -> str:
+    """Create an empty course for `language` and return its `course_id`."""
+    response = client.post(
+        "/api/v1/me/courses",
+        json={"name": name or language, "language": language},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    return str(response.json()["course_id"])
+
+
 def test_register_returns_user() -> None:
     """Registration creates an account and echoes it back."""
 
@@ -277,8 +288,9 @@ def test_me_courses_are_scoped_to_token_user() -> None:
 
     alice_token = _register_and_login("alice", "alice@example.com")
     _register_and_login("bob", "bob@example.com")
-    # Saving with empty records still creates the (owned) course.
-    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+    # Saving with empty records still creates the (owned) learning.
+    postgres.create_course("alice", "fr", "French", "fr")
+    postgres.save_learning("alice", "fr", "French", "fr", "fr", [], [])
 
     response = client.get("/api/v1/me/courses", headers=_auth(alice_token))
 
@@ -291,7 +303,8 @@ def test_users_cannot_see_each_others_data() -> None:
 
     _register_and_login("alice", "alice@example.com")
     bob_token = _register_and_login("bob", "bob@example.com")
-    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+    postgres.create_course("alice", "fr", "French", "fr")
+    postgres.save_learning("alice", "fr", "French", "fr", "fr", [], [])
 
     response = client.get("/api/v1/me/courses", headers=_auth(bob_token))
 
@@ -847,19 +860,25 @@ def test_update_lexicon_settings_rejects_malformed_identifier() -> None:
 
 @pytest.mark.usefixtures("fake_languages")
 def test_create_course_stores_learnable_config() -> None:
-    """A created course draws new words from the language's frequency list."""
+    """A created learning draws new words from the language's frequency list."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = client.post(
+        "/api/v1/me/courses",
+        json={"name": "Ukrainian", "language": "uk"},
+        headers=_auth(token),
+    ).json()["course_id"]
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "translation_languages": ["en", "ru"]},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"translation_languages": ["en", "ru"]},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    assert response.json()["course_id"] == "uk"
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    assert learning_id == "uk"
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["learning_language"] == "uk"
     assert config["base_languages"] == ["en", "ru"]
@@ -877,14 +896,15 @@ def test_update_course_settings_regenerates_translation_config() -> None:
     """Editing translation targets rewrites dictionaries, sentences, audio."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "translation_languages": ["en"]},
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"translation_languages": ["en"]},
         headers=_auth(token),
-    )
+    ).json()["learning_id"]
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={
             "name": "My Ukrainian",
             "translation_languages": ["en", "ru"],
@@ -900,7 +920,7 @@ def test_update_course_settings_regenerates_translation_config() -> None:
     assert body["max_for_day"] == 25
     assert body["extra_symbols"] == "ґєії'’"
 
-    config = postgres.get_learn_config("alice", "uk")
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["base_languages"] == ["en", "ru"]
     assert config["dictionaries"] == [
@@ -915,14 +935,15 @@ def test_update_course_settings_partial_leaves_others() -> None:
     """A partial update changes only the provided field."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "translation_languages": ["en"]},
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"translation_languages": ["en"]},
         headers=_auth(token),
-    )
+    ).json()["learning_id"]
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={"max_for_day": 5, "play_audio": False},
         headers=_auth(token),
     )
@@ -931,7 +952,7 @@ def test_update_course_settings_partial_leaves_others() -> None:
     body = response.json()
     assert body["translation_languages"] == ["en"]
     assert body["play_audio"] is False
-    config = postgres.get_learn_config("alice", "uk")
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["base_languages"] == ["en"]  # Untouched.
     assert config["max_for_day"] == 5
@@ -939,32 +960,104 @@ def test_update_course_settings_partial_leaves_others() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_delete_course_removes_it() -> None:
-    """Deleting a course removes it; a second delete is a 404."""
+def test_delete_learning_removes_it() -> None:
+    """Deleting a learning removes it; a second delete is a 404."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "translation_languages": ["en"]},
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"translation_languages": ["en"]},
         headers=_auth(token),
+    ).json()["learning_id"]
+
+    first = client.delete(
+        f"/api/v1/me/learnings/{learning_id}", headers=_auth(token)
     )
-
-    first = client.delete("/api/v1/me/courses/uk", headers=_auth(token))
     assert first.status_code == 204
-    assert postgres.get_learn_config("alice", "uk") is None
+    assert postgres.get_learning_config("alice", learning_id) is None
 
-    second = client.delete("/api/v1/me/courses/uk", headers=_auth(token))
+    second = client.delete(
+        f"/api/v1/me/learnings/{learning_id}", headers=_auth(token)
+    )
     assert second.status_code == 404
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_for_unknown_language_is_bad_request() -> None:
-    """A language without a frequency list cannot be made into a course."""
+def test_delete_course_removes_it() -> None:
+    """Deleting an empty course removes it; a second delete is a 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
+
+    first = client.delete(
+        f"/api/v1/me/courses/{course_id}", headers=_auth(token)
+    )
+    assert first.status_code == 204
+    assert postgres.get_course("alice", course_id) is None
+
+    second = client.delete(
+        f"/api/v1/me/courses/{course_id}", headers=_auth(token)
+    )
+    assert second.status_code == 404
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_delete_course_is_blocked_while_it_has_learnings() -> None:
+    """A course with learnings cannot be deleted until they are removed."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"translation_languages": ["en"]},
+        headers=_auth(token),
+    ).json()["learning_id"]
+
+    blocked = client.delete(
+        f"/api/v1/me/courses/{course_id}", headers=_auth(token)
+    )
+    assert blocked.status_code == 409
+    assert postgres.get_course("alice", course_id) is not None
+
+    client.delete(f"/api/v1/me/learnings/{learning_id}", headers=_auth(token))
+    allowed = client.delete(
+        f"/api/v1/me/courses/{course_id}", headers=_auth(token)
+    )
+    assert allowed.status_code == 204
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_course_for_unknown_language_is_unprocessable() -> None:
+    """An unrecognized language code cannot be made into a course.
+
+    Course creation only validates the language code itself (not the
+    frequency-list inventory checked at learning creation); an unknown code
+    is rejected with 422, matching every other unprocessable-entity case.
+    """
 
     token = _register_and_login("alice", "alice@example.com")
 
     response = client.post(
-        "/api/v1/me/courses", json={"language": "xx"}, headers=_auth(token)
+        "/api/v1/me/courses",
+        json={"name": "X", "language": "xx"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_learning_without_frequency_list_is_bad_request() -> None:
+    """A known language without a frequency list cannot become a learning."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "fr")
+
+    response = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
     )
 
     assert response.status_code == 400
@@ -977,10 +1070,14 @@ def test_create_course_suffixes_duplicate_ids() -> None:
     token = _register_and_login("alice", "alice@example.com")
 
     first = client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+        "/api/v1/me/courses",
+        json={"name": "Ukrainian", "language": "uk"},
+        headers=_auth(token),
     )
     second = client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+        "/api/v1/me/courses",
+        json={"name": "Ukrainian", "language": "uk"},
+        headers=_auth(token),
     )
 
     assert first.json()["course_id"] == "uk"
@@ -988,35 +1085,60 @@ def test_create_course_suffixes_duplicate_ids() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_with_lexicon_stores_check_lexicons() -> None:
+def test_create_learning_suffixes_duplicate_ids() -> None:
+    """A second learning for the same language gets a suffixed id."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
+
+    first = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    )
+    second = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    )
+
+    assert first.json()["learning_id"] == "uk"
+    assert second.json()["learning_id"] == "uk_2"
+
+
+@pytest.mark.usefixtures("fake_languages")
+def test_create_learning_with_lexicon_stores_check_lexicons() -> None:
     """Passing `lexicon_id` wires the lexicon into the new-question scheme."""
 
     token = _register_and_login("alice", "alice@example.com")
     client.post(
         "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
     )
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "lexicon_id": "uk"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"lexicon_id": "uk"},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["scheme"]["new_question"]["check_lexicons"] == [{"id": "uk"}]
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_with_unknown_lexicon_is_bad_request() -> None:
+def test_create_learning_with_unknown_lexicon_is_bad_request() -> None:
     """A `lexicon_id` that does not belong to the user is rejected."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "lexicon_id": "does-not-exist"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"lexicon_id": "does-not-exist"},
         headers=_auth(token),
     )
 
@@ -1024,7 +1146,7 @@ def test_create_course_with_unknown_lexicon_is_bad_request() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_with_mismatched_lexicon_language_is_bad_request() -> (
+def test_create_learning_with_mismatched_lexicon_language_is_bad_request() -> (
     None
 ):
     """A `lexicon_id` for a different language is rejected."""
@@ -1033,10 +1155,11 @@ def test_create_course_with_mismatched_lexicon_language_is_bad_request() -> (
     client.post(
         "/api/v1/me/lexicons", json={"language": "ru"}, headers=_auth(token)
     )
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "lexicon_id": "ru"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"lexicon_id": "ru"},
         headers=_auth(token),
     )
 
@@ -1070,7 +1193,7 @@ def test_frequency_lists_endpoint_flags_the_default_option(
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_stores_the_chosen_frequency_list(
+def test_create_learning_stores_the_chosen_frequency_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Passing `frequency_list` overrides the language's default list."""
@@ -1086,22 +1209,24 @@ def test_create_course_stores_the_chosen_frequency_list(
     fake: Any = _FakeData(languages, extra_frequency_options=extra)
     monkeypatch.setattr(app_module, "get_data", lambda: fake)
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "frequency_list": {"id": "uk_list_alt"}},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"frequency_list": {"id": "uk_list_alt"}},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["scheme"]["new_question"]["pick_from"] == [
         {"id": "uk_list_alt"}
     ]
 
 
-def test_create_course_with_unknown_frequency_list_is_bad_request(
+def test_create_learning_with_unknown_frequency_list_is_bad_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A `frequency_list` not offered for the language is rejected."""
@@ -1109,10 +1234,11 @@ def test_create_course_with_unknown_frequency_list_is_bad_request(
     fake: Any = _FakeData({"uk": {"id": "uk_list"}})
     monkeypatch.setattr(app_module, "get_data", lambda: fake)
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "frequency_list": {"id": "does-not-exist"}},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"frequency_list": {"id": "does-not-exist"}},
         headers=_auth(token),
     )
 
@@ -1132,21 +1258,23 @@ def test_alphabet_languages_lists_known_alphabets() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_symbol_course_stores_course_type() -> None:
-    """A `symbol` course skips the frequency list and stores its own kind."""
+def test_create_symbol_learning_stores_learning_type() -> None:
+    """A `symbol` learning skips the frequency list and stores its own kind."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "course_type": "symbol"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"learning_type": "symbol"},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
-    assert config["course_type"] == "symbol"
+    assert config["learning_type"] == "symbol"
     assert config["name"] == f"{Language.from_code('uk').get_name()} alphabet"
     assert config["dictionaries"] == []
     assert config["sentences"] == []
@@ -1154,16 +1282,17 @@ def test_create_symbol_course_stores_course_type() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_symbol_course_does_not_require_frequency_list() -> None:
-    """A `symbol` course works for a language with no frequency list at all."""
+def test_create_symbol_learning_does_not_require_frequency_list() -> None:
+    """A `symbol` learning works for a language with no frequency list."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "fr")
 
     # "fr" is not in `fake_languages`'s frequency-list inventory, so this
-    # would 400 for a `word` course (see the unknown-language test above).
+    # would 400 for a `word` learning (see the earlier test above).
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "fr", "course_type": "symbol"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"learning_type": "symbol"},
         headers=_auth(token),
     )
 
@@ -1171,51 +1300,66 @@ def test_create_symbol_course_does_not_require_frequency_list() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_my_courses_lists_course_type() -> None:
-    """`/me/courses` reports each course's `course_type`."""
+def test_course_detail_lists_learning_type() -> None:
+    """`/me/courses/{course_id}` reports each learning's `learning_type`."""
 
     token = _register_and_login("alice", "alice@example.com")
+    uk_course = _create_course(token, "uk")
     client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
+        f"/api/v1/me/courses/{uk_course}/learnings",
+        json={},
+        headers=_auth(token),
     )
+    la_course = _create_course(token, "la")
     client.post(
-        "/api/v1/me/courses",
-        json={"language": "la", "course_type": "symbol"},
+        f"/api/v1/me/courses/{la_course}/learnings",
+        json={"learning_type": "symbol"},
         headers=_auth(token),
     )
 
-    response = client.get("/api/v1/me/courses", headers=_auth(token))
+    uk_detail = client.get(
+        f"/api/v1/me/courses/{uk_course}", headers=_auth(token)
+    )
+    la_detail = client.get(
+        f"/api/v1/me/courses/{la_course}", headers=_auth(token)
+    )
 
-    assert response.status_code == 200
-    types = {
-        course["course_id"]: course["course_type"] for course in response.json()
-    }
-    assert types == {"uk": "word", "la": "symbol"}
+    assert uk_detail.status_code == 200
+    assert uk_detail.json()["learnings"][0]["learning_type"] == "word"
+    assert la_detail.json()["learnings"][0]["learning_type"] == "symbol"
 
 
-def test_my_courses_defaults_course_type_for_legacy_rows() -> None:
-    """A course stored before `course_type` existed lists as `word`."""
+def test_course_detail_defaults_learning_type_for_legacy_rows() -> None:
+    """A learning stored before `learning_type` existed lists as `word`."""
 
     token = _register_and_login("alice", "alice@example.com")
-    # Saving with empty records still creates the (owned) course; its config
-    # predates the `course_type` field, so the JSONB key is simply absent.
-    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+    # Saving with empty records still creates the (owned) learning; its
+    # config predates the `learning_type` field, so the JSONB key is absent.
+    postgres.create_course("alice", "fr", "French", "fr")
+    postgres.save_learning("alice", "fr", "French", "fr", "fr", [], [])
 
-    response = client.get("/api/v1/me/courses", headers=_auth(token))
+    response = client.get("/api/v1/me/courses/fr", headers=_auth(token))
 
     assert response.status_code == 200
-    assert response.json()[0]["course_type"] == "word"
+    assert response.json()["learnings"][0]["learning_type"] == "word"
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_symbol_course_for_unknown_language_is_bad_request() -> None:
-    """A `symbol` course for a language without a known alphabet is a 400."""
+def test_create_symbol_learning_for_unknown_language_is_bad_request() -> None:
+    """A `symbol` learning for a language without a known alphabet is a 400.
+
+    The course's language is stored directly (bypassing the course-creation
+    endpoint's own language validation, which would otherwise reject an
+    unknown code with 422 before a learning could ever be added) so the
+    learning endpoint's own alphabet check can be exercised on its own.
+    """
 
     token = _register_and_login("alice", "alice@example.com")
+    postgres.create_course("alice", "zzzzz", "Zzzzz", "zzzzz")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "zzzzz", "course_type": "symbol"},
+        "/api/v1/me/courses/zzzzz/learnings",
+        json={"learning_type": "symbol"},
         headers=_auth(token),
     )
 
@@ -1223,22 +1367,23 @@ def test_create_symbol_course_for_unknown_language_is_bad_request() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_get_course_settings_includes_course_type() -> None:
-    """Settings expose the immutable `course_type`."""
+def test_get_learning_settings_includes_learning_type() -> None:
+    """Settings expose the immutable `learning_type`."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "course_type": "symbol"},
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"learning_type": "symbol"},
         headers=_auth(token),
-    )
+    ).json()["learning_id"]
 
     response = client.get(
-        "/api/v1/me/courses/uk/settings", headers=_auth(token)
+        f"/api/v1/me/learnings/{learning_id}/settings", headers=_auth(token)
     )
 
     assert response.status_code == 200
-    assert response.json()["course_type"] == "symbol"
+    assert response.json()["learning_type"] == "symbol"
 
 
 def test_new_question_for_symbol_course_uses_alphabet(
@@ -1247,10 +1392,10 @@ def test_new_question_for_symbol_course_uses_alphabet(
     """A `symbol` course's new-word candidates come from the alphabet."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", course_type="symbol", scheme={"new_question": {}})
+    _make_learning("alice", learning_type="symbol", scheme={"new_question": {}})
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeSelectionData([]))
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     assert response.status_code == 200
     body = response.json()
@@ -1272,15 +1417,15 @@ def test_question_types_are_listed() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_stores_name_max_for_day_play_audio_and_types() -> None:
+def test_create_learning_stores_name_max_for_day_play_audio_and_types() -> None:
     """Creation-time name, daily cap, audio toggle, and question types stick."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
+        f"/api/v1/me/courses/{course_id}/learnings",
         json={
-            "language": "uk",
             "name": "  My Ukrainian  ",
             "max_for_day": 3,
             "play_audio": False,
@@ -1290,7 +1435,8 @@ def test_create_course_stores_name_max_for_day_play_audio_and_types() -> None:
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["name"] == "My Ukrainian"
     assert config["max_for_day"] == 3
@@ -1299,32 +1445,35 @@ def test_create_course_stores_name_max_for_day_play_audio_and_types() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_blank_name_falls_back_to_language_name() -> None:
+def test_create_learning_blank_name_falls_back_to_language_name() -> None:
     """A blank/omitted `name` still falls back to the language's own name."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "name": "   "},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"name": "   "},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["name"] == Language.from_code("uk").get_name()
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_rejects_unsupported_question_type() -> None:
+def test_create_learning_rejects_unsupported_question_type() -> None:
     """An unknown `question_types` entry is a 400, not silently stored."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "question_types": ["know", "bogus"]},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"question_types": ["know", "bogus"]},
         headers=_auth(token),
     )
 
@@ -1332,36 +1481,39 @@ def test_create_course_rejects_unsupported_question_type() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_with_ask_lexicon_stores_it() -> None:
+def test_create_learning_with_ask_lexicon_stores_it() -> None:
     """`ask_lexicon_id` wires a separate `ask_lexicon` reference."""
 
     token = _register_and_login("alice", "alice@example.com")
     client.post(
         "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
     )
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "ask_lexicon_id": "uk"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"ask_lexicon_id": "uk"},
         headers=_auth(token),
     )
 
     assert response.status_code == 201
-    config = postgres.get_learn_config("alice", "uk")
+    learning_id = response.json()["learning_id"]
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["scheme"]["new_question"]["ask_lexicon"] == {"id": "uk"}
     assert "check_lexicons" not in config["scheme"]["new_question"]
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_create_course_with_unknown_ask_lexicon_is_bad_request() -> None:
+def test_create_learning_with_unknown_ask_lexicon_is_bad_request() -> None:
     """An `ask_lexicon_id` that does not belong to the user is rejected."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
 
     response = client.post(
-        "/api/v1/me/courses",
-        json={"language": "uk", "ask_lexicon_id": "does-not-exist"},
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={"ask_lexicon_id": "does-not-exist"},
         headers=_auth(token),
     )
 
@@ -1369,16 +1521,19 @@ def test_create_course_with_unknown_ask_lexicon_is_bad_request() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_get_course_settings_defaults_question_types_and_lexicons() -> None:
+def test_get_learning_settings_defaults_question_types_and_lexicons() -> None:
     """With nothing configured, all question types are allowed, no lexicons."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
 
     response = client.get(
-        "/api/v1/me/courses/uk/settings", headers=_auth(token)
+        f"/api/v1/me/learnings/{learning_id}/settings", headers=_auth(token)
     )
 
     assert response.status_code == 200
@@ -1394,19 +1549,22 @@ def test_get_course_settings_defaults_question_types_and_lexicons() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_update_course_settings_sets_question_types_and_lexicons() -> None:
+def test_update_learning_settings_sets_question_types_and_lexicons() -> None:
     """Settings can add question types and both lexicon references."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
     client.post(
         "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
     )
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={
             "question_types": ["know", "choice"],
             "lexicon_id": "uk",
@@ -1421,7 +1579,7 @@ def test_update_course_settings_sets_question_types_and_lexicons() -> None:
     assert body["lexicon_id"] == "uk"
     assert body["ask_lexicon_id"] == "uk"
 
-    config = postgres.get_learn_config("alice", "uk")
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert config["scheme"]["question_types"] == ["know", "choice"]
     assert config["scheme"]["new_question"]["check_lexicons"] == [{"id": "uk"}]
@@ -1429,26 +1587,26 @@ def test_update_course_settings_sets_question_types_and_lexicons() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_update_course_settings_clears_question_types_and_lexicons() -> None:
+def test_update_learning_settings_clears_question_types_and_lexicons() -> None:
     """An empty list/string clears a previously set field back to unset."""
 
     token = _register_and_login("alice", "alice@example.com")
     client.post(
         "/api/v1/me/lexicons", json={"language": "uk"}, headers=_auth(token)
     )
-    client.post(
-        "/api/v1/me/courses",
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
         json={
-            "language": "uk",
             "question_types": ["know"],
             "lexicon_id": "uk",
             "ask_lexicon_id": "uk",
         },
         headers=_auth(token),
-    )
+    ).json()["learning_id"]
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={"question_types": [], "lexicon_id": "", "ask_lexicon_id": ""},
         headers=_auth(token),
     )
@@ -1464,7 +1622,7 @@ def test_update_course_settings_clears_question_types_and_lexicons() -> None:
     assert body["lexicon_id"] is None
     assert body["ask_lexicon_id"] is None
 
-    config = postgres.get_learn_config("alice", "uk")
+    config = postgres.get_learning_config("alice", learning_id)
     assert config is not None
     assert "question_types" not in config["scheme"]
     assert "check_lexicons" not in config["scheme"]["new_question"]
@@ -1472,16 +1630,19 @@ def test_update_course_settings_clears_question_types_and_lexicons() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_update_course_settings_rejects_unsupported_question_type() -> None:
+def test_update_learning_settings_rejects_unsupported_question_type() -> None:
     """An unknown question type in a settings update is a 400."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={"question_types": ["bogus"]},
         headers=_auth(token),
     )
@@ -1490,16 +1651,19 @@ def test_update_course_settings_rejects_unsupported_question_type() -> None:
 
 
 @pytest.mark.usefixtures("fake_languages")
-def test_update_course_settings_rejects_unknown_lexicon() -> None:
+def test_update_learning_settings_rejects_unknown_lexicon() -> None:
     """A `lexicon_id`/`ask_lexicon_id` not belonging to the user is a 400."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
 
     response = client.patch(
-        "/api/v1/me/courses/uk/settings",
+        f"/api/v1/me/learnings/{learning_id}/settings",
         json={"lexicon_id": "does-not-exist"},
         headers=_auth(token),
     )
@@ -1653,7 +1817,8 @@ def test_delete_me_removes_user_and_data() -> None:
 
     token = _register_and_login("alice", "alice@example.com")
     postgres.save_lexicon("alice", "de", "de", [], [])
-    postgres.save_learning("alice", "fr", "French", "fr", [], [])
+    postgres.create_course("alice", "fr", "French", "fr")
+    postgres.save_learning("alice", "fr", "French", "fr", "fr", [], [])
     # An actual answer creates a word and record, exercising the cascade order.
     client.post(
         "/api/v1/me/lexicons/de/answer",
@@ -1667,6 +1832,7 @@ def test_delete_me_removes_user_and_data() -> None:
     assert not postgres.user_exists("alice")
     assert postgres.list_lexicons("alice") == []
     assert postgres.list_courses("alice") == []
+    assert postgres.list_learnings("alice") == []
 
 
 def test_delete_me_leaves_other_users_intact() -> None:
@@ -1708,25 +1874,29 @@ class _FakeSelectionData:
         return _FakeWordList(self._words)
 
 
-def _make_course(
+def _make_learning(
     user_id: str,
-    course_id: str = "eo",
+    learning_id: str = "eo",
     *,
     scheme: dict | None = None,
-    course_type: str | None = None,
+    learning_type: str | None = None,
 ) -> None:
-    """Store a minimal learning course with the given (or no) scheme."""
+    """Store a minimal learning, in its own course, with the given scheme."""
+
+    if postgres.get_course(user_id, learning_id) is None:
+        postgres.create_course(user_id, learning_id, learning_id, "eo")
 
     config: dict[str, Any] = {
         "name": "Esperanto",
+        "course_id": learning_id,
         "learning_language": "eo",
         "base_languages": ["en"],
         "scheme": scheme,
         "dictionaries": [],
     }
-    if course_type is not None:
-        config["course_type"] = course_type
-    postgres.store_learn_config(user_id, course_id, config)
+    if learning_type is not None:
+        config["learning_type"] = learning_type
+    postgres.store_learning_config(user_id, learning_id, config)
 
 
 def _new_question_scheme(
@@ -1747,7 +1917,9 @@ def test_new_question_for_unknown_course_is_not_found() -> None:
 
     token = _register_and_login("alice", "alice@example.com")
 
-    response = client.get("/api/v1/me/courses/ghost/new", headers=_auth(token))
+    response = client.get(
+        "/api/v1/me/learnings/ghost/new", headers=_auth(token)
+    )
 
     assert response.status_code == 404
 
@@ -1756,9 +1928,9 @@ def test_new_question_without_scheme_returns_none() -> None:
     """A course with no new-question scheme offers no new word."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme=None)
+    _make_learning("alice", scheme=None)
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     assert response.status_code == 200
     body = response.json()
@@ -1772,7 +1944,7 @@ def test_new_question_skips_known_and_learning(
     """Words already learned or known in a check lexicon are skipped."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course(
+    _make_learning(
         "alice",
         scheme=_new_question_scheme(check_lexicons=["cl"], ask_lexicon="al"),
     )
@@ -1786,6 +1958,7 @@ def test_new_question_skips_known_and_learning(
         "eo",
         "Esperanto",
         "eo",
+        "eo",
         [("beta", "y", datetime.now(UTC), None, None)],
         [],
     )
@@ -1795,7 +1968,7 @@ def test_new_question_skips_known_and_learning(
         lambda: _FakeSelectionData(["alpha", "beta", "gamma"]),
     )
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     assert response.status_code == 200
     body = response.json()
@@ -1811,7 +1984,7 @@ def test_new_question_dont_in_check_learns_directly(
     """A "don't know" in a check lexicon admits the word without asking."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course(
+    _make_learning(
         "alice",
         scheme=_new_question_scheme(check_lexicons=["cl"], ask_lexicon="al"),
     )
@@ -1822,7 +1995,7 @@ def test_new_question_dont_in_check_learns_directly(
         app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
     )
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     body = response.json()
     assert body["word"] == "gamma"
@@ -1835,12 +2008,12 @@ def test_new_question_first_exposure_is_know(
     """A new word's first exposure is a `know` card when the course allows."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme=_new_question_scheme())
+    _make_learning("alice", scheme=_new_question_scheme())
     monkeypatch.setattr(
         app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
     )
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     body = response.json()
     assert body["word"] == "gamma"
@@ -1854,12 +2027,12 @@ def test_new_question_first_exposure_respects_question_types(
 
     token = _register_and_login("alice", "alice@example.com")
     scheme = _new_question_scheme() | {"question_types": ["type_word"]}
-    _make_course("alice", scheme=scheme)
+    _make_learning("alice", scheme=scheme)
     monkeypatch.setattr(
         app_module, "get_data", lambda: _FakeSelectionData(["gamma"])
     )
 
-    response = client.get("/api/v1/me/courses/eo/new", headers=_auth(token))
+    response = client.get("/api/v1/me/learnings/eo/new", headers=_auth(token))
 
     body = response.json()
     assert body["word"] == "gamma"
@@ -1872,13 +2045,13 @@ def test_new_question_excludes_queued_words(
     """`exclude` skips words the client already has in hand."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme=_new_question_scheme())
+    _make_learning("alice", scheme=_new_question_scheme())
     monkeypatch.setattr(
         app_module, "get_data", lambda: _FakeSelectionData(["alpha", "beta"])
     )
 
     response = client.get(
-        "/api/v1/me/courses/eo/new",
+        "/api/v1/me/learnings/eo/new",
         params={"exclude": ["alpha"]},
         headers=_auth(token),
     )
@@ -1892,10 +2065,10 @@ def test_course_sentence_without_sources_is_null() -> None:
     """A course with no sentence sources returns no example sentence."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme=None)
+    _make_learning("alice", scheme=None)
 
     response = client.get(
-        "/api/v1/me/courses/eo/sentence",
+        "/api/v1/me/learnings/eo/sentence",
         params={"word": "saluton"},
         headers=_auth(token),
     )
@@ -1937,11 +2110,13 @@ def test_course_sentence_requires_base_language_translation(
     """Only translated examples are used; the word is blanked, one shown."""
 
     token = _register_and_login("alice", "alice@example.com")
-    postgres.store_learn_config(
+    postgres.create_course("alice", "fr", "French", "fr")
+    postgres.store_learning_config(
         "alice",
         "fr",
         {
             "name": "French",
+            "course_id": "fr",
             "learning_language": "fr",
             "base_languages": ["en"],
             "scheme": None,
@@ -1974,7 +2149,7 @@ def test_course_sentence_requires_base_language_translation(
     )
 
     response = client.get(
-        "/api/v1/me/courses/fr/sentence",
+        "/api/v1/me/learnings/fr/sentence",
         params={"word": "chat"},
         headers=_auth(token),
     )
@@ -1992,10 +2167,10 @@ def test_course_answer_stores_question_provenance() -> None:
     """An answer records the question type, example shown, and time taken."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
 
     response = client.post(
-        "/api/v1/me/courses/eo/answer",
+        "/api/v1/me/learnings/eo/answer",
         json={
             "word": "saluton",
             "response": "y",
@@ -2020,10 +2195,10 @@ def test_course_answer_provenance_defaults() -> None:
     """Without a sentence or timing, only the question type is recorded."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
 
     client.post(
-        "/api/v1/me/courses/eo/answer",
+        "/api/v1/me/learnings/eo/answer",
         json={"word": "saluton", "response": "y"},
         headers=_auth(token),
     )
@@ -2038,17 +2213,17 @@ def test_learning_model_round_trips_question_type() -> None:
     """The `Learning` model surfaces `qt`, so the data export preserves it."""
 
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
     client.post(
-        "/api/v1/me/courses/eo/answer",
+        "/api/v1/me/learnings/eo/answer",
         json={"word": "saluton", "response": "y", "question_type": "type_word"},
         headers=_auth(token),
     )
 
-    config = postgres.get_learn_config("alice", "eo")
+    config = postgres.get_learning_config("alice", "eo")
     assert config is not None
     learning = Learning.from_config(
-        Path(), LearnConfig(**config), "eo", "alice"
+        Path(), LearningConfig(**config), "eo", "alice"
     )
     assert learning.process.records[-1].question_type == "type_word"
 
@@ -2067,19 +2242,25 @@ class _FakeQuestionData:
 
 
 def _add_due_word(
-    course_id: str,
+    learning_id: str,
     word: str,
     responses: list[str],
     age: timedelta = timedelta(hours=2),
 ) -> None:
-    """Add a learning word whose records make it due now, in the past."""
+    """Add a learning word whose records make it due now, in the past.
+
+    Assumes the parent course was already created (with the same id) by a
+    prior `_make_learning` call, as every caller here does.
+    """
 
     base = datetime.now(UTC) - age
-    records = [
+    records: list[postgres.LearnRecordRow] = [
         (word, response, base + timedelta(minutes=index), None, None)
         for index, response in enumerate(responses)
     ]
-    postgres.save_learning("alice", course_id, "Esperanto", "eo", records, [])
+    postgres.save_learning(
+        "alice", learning_id, "Esperanto", "eo", learning_id, records, []
+    )
 
 
 def test_question_is_none_when_nothing_due(
@@ -2089,10 +2270,10 @@ def test_question_is_none_when_nothing_due(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     assert response.status_code == 200
@@ -2106,11 +2287,11 @@ def test_question_uses_know_for_a_new_review_word(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
     _add_due_word("eo", "saluton", ["n"])
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2125,11 +2306,11 @@ def test_question_types_config_restricts_the_type(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _make_learning("alice", scheme={"question_types": ["type_word"]})
     _add_due_word("eo", "saluton", ["n"])
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2144,12 +2325,12 @@ def test_question_falls_back_to_know_for_a_stale_word(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")
+    _make_learning("alice")
     # A streak of three would normally earn `type_word`.
     _add_due_word("eo", "saluton", ["y", "y", "y"], age=timedelta(weeks=3))
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2168,11 +2349,11 @@ def test_question_stale_fallback_needs_know_enabled(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _make_learning("alice", scheme={"question_types": ["type_word"]})
     _add_due_word("eo", "saluton", ["y", "y", "y"], age=timedelta(weeks=3))
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     assert response.json()["type"] == "type_word"
@@ -2185,11 +2366,11 @@ def test_question_accepts_simplified_spellings(
 
     monkeypatch.setattr(app_module, "get_data", lambda: _FakeQuestionData())
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme={"question_types": ["type_word"]})
+    _make_learning("alice", scheme={"question_types": ["type_word"]})
     _add_due_word("eo", "anstataŭ", ["n"])
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2215,12 +2396,12 @@ def test_question_builds_a_choice_with_options(
 
     monkeypatch.setattr(app_module, "_short_translation", fake_short)
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice", scheme={"question_types": ["choice"]})
+    _make_learning("alice", scheme={"question_types": ["choice"]})
     for word in ["a", "b", "c", "d"]:
         _add_due_word("eo", word, ["n"])
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2249,12 +2430,12 @@ def test_question_groups_words_into_connect(
 
     monkeypatch.setattr(app_module, "_short_translation", fake_short)
     token = _register_and_login("alice", "alice@example.com")
-    _make_course("alice")  # All types enabled.
+    _make_learning("alice")  # All types enabled.
     for word in ["a", "b", "c", "d"]:
         _add_due_word("eo", word, ["n"])
 
     response = client.get(
-        "/api/v1/me/courses/eo/question", headers=_auth(token)
+        "/api/v1/me/learnings/eo/question", headers=_auth(token)
     )
 
     body = response.json()
@@ -2508,11 +2689,14 @@ def test_course_session_groups_answers_into_a_row() -> None:
     """A learning session groups answers into one `learn_sessions` row."""
 
     token = _register_and_login("alice", "alice@example.com")
-    client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
     opened = client.post(
-        "/api/v1/me/courses/uk/sessions",
+        f"/api/v1/me/learnings/{learning_id}/sessions",
         json={"type": "repeat"},
         headers=_auth(token),
     )
@@ -2521,7 +2705,7 @@ def test_course_session_groups_answers_into_a_row() -> None:
 
     for word, response_code in (("хата", "y"), ("вода", "n")):
         answer = client.post(
-            "/api/v1/me/courses/uk/answer",
+            f"/api/v1/me/learnings/{learning_id}/answer",
             json={
                 "word": word,
                 "response": response_code,
@@ -2532,12 +2716,12 @@ def test_course_session_groups_answers_into_a_row() -> None:
         assert answer.status_code == 204
 
     closed = client.post(
-        f"/api/v1/me/courses/uk/sessions/{session_id}/close",
+        f"/api/v1/me/learnings/{learning_id}/sessions/{session_id}/close",
         headers=_auth(token),
     )
     assert closed.status_code == 204
 
-    records, sessions = postgres.load_learning("alice", "uk")
+    records, sessions = postgres.load_learning("alice", learning_id)
     assert len(records) == 2
     assert len(sessions) == 1
     session_type, start, end, actions = sessions[0]
@@ -2549,20 +2733,23 @@ def test_course_session_groups_answers_into_a_row() -> None:
 
 @pytest.mark.usefixtures("fake_languages")
 def test_course_answer_updates_cached_schedule() -> None:
-    """An answer through the cached course updates its stats in place."""
+    """An answer through the cached learning updates its stats in place."""
 
     token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk")
+    learning_id = client.post(
+        f"/api/v1/me/courses/{course_id}/learnings",
+        json={},
+        headers=_auth(token),
+    ).json()["learning_id"]
     client.post(
-        "/api/v1/me/courses", json={"language": "uk"}, headers=_auth(token)
-    )
-    client.post(
-        "/api/v1/me/courses/uk/answer",
+        f"/api/v1/me/learnings/{learning_id}/answer",
         json={"word": "хата", "response": "n"},
         headers=_auth(token),
     )
 
     stats = client.get(
-        "/api/v1/me/courses/uk/stats", headers=_auth(token)
+        f"/api/v1/me/learnings/{learning_id}/stats", headers=_auth(token)
     ).json()
     assert stats["answers"] == 1
     assert stats["actions"] == 1

@@ -392,46 +392,141 @@ def delete_user(user_id: str) -> bool:
 
         # Learning data, deepest first.
         cursor.execute(
-            "DELETE FROM learn_records r USING learn_courses c "
-            "WHERE r.course_id = c.id AND c.user_id = %s",
+            "DELETE FROM learning_records r USING learnings l "
+            "WHERE r.learning_id = l.id AND l.user_id = %s",
             (user_db_id,),
         )
         cursor.execute(
-            "DELETE FROM learn_sessions s USING learn_courses c "
-            "WHERE s.course_id = c.id AND c.user_id = %s",
+            "DELETE FROM learning_sessions s USING learnings l "
+            "WHERE s.learning_id = l.id AND l.user_id = %s",
             (user_db_id,),
         )
         cursor.execute(
-            "DELETE FROM learn_courses WHERE user_id = %s", (user_db_id,)
+            "DELETE FROM learnings WHERE user_id = %s", (user_db_id,)
         )
+        cursor.execute("DELETE FROM courses WHERE user_id = %s", (user_db_id,))
 
         cursor.execute("DELETE FROM users WHERE id = %s", (user_db_id,))
     return True
 
 
-def list_courses(user_id: str) -> list[tuple[str, str, str, int, int, str]]:
-    """Get a user's courses with short info.
+def list_learnings(
+    user_id: str, course_id: str | None = None
+) -> list[tuple[str, str, str, int, int, str]]:
+    """Get a user's learnings with short info.
 
     :param user_id: owning user login, e.g. `john`
-    :return: (course id, name, learning language, distinct words studied,
-        total answers, course type) tuples, ordered by course id. Course type
-        is `word` for rows stored before `course_type` existed.
+    :param course_id: if given, only learnings belonging to this course
+    :return: (learning id, name, learning language, distinct words studied,
+        total answers, learning type) tuples, ordered by learning id. Type
+        is `word` for rows stored before `learning_type` existed.
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT c.course_id, c.name, c.learning_language, "
-            "(SELECT count(DISTINCT r.question_id) FROM learn_records r "
-            "WHERE r.course_id = c.id), "
-            "(SELECT count(*) FROM learn_records r WHERE r.course_id = c.id), "
-            "COALESCE(c.config->>'course_type', 'word') "
-            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s ORDER BY c.course_id",
-            (user_id,),
+            "SELECT l.learning_id, l.name, l.learning_language, "
+            "(SELECT count(DISTINCT r.question_id) FROM learning_records r "
+            "WHERE r.learning_id = l.id), "
+            "(SELECT count(*) FROM learning_records r "
+            "WHERE r.learning_id = l.id), "
+            "COALESCE(l.config->>'learning_type', 'word') "
+            "FROM learnings l "
+            "JOIN users u ON u.id = l.user_id "
+            "JOIN courses c ON c.id = l.course_id "
+            "WHERE u.user_id = %s AND (%s::text IS NULL OR c.course_id = %s) "
+            "ORDER BY l.learning_id",
+            (user_id, course_id, course_id),
         )
         return [
             (row[0], row[1], row[2], row[3], row[4], row[5])
             for row in cursor.fetchall()
         ]
+
+
+def list_courses(user_id: str) -> list[tuple[str, str, str, int]]:
+    """Get a user's courses (language-level sets) with short info.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: (course id, name, language, number of learnings) tuples, ordered
+        by course id
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT c.course_id, c.name, c.language, "
+            "(SELECT count(*) FROM learnings l WHERE l.course_id = c.id) "
+            "FROM courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s ORDER BY c.course_id",
+            (user_id,),
+        )
+        return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
+
+
+def get_course(user_id: str, course_id: str) -> tuple[str, str] | None:
+    """Get a course's (name, language), or `None` if it does not exist.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `armenian`
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT c.name, c.language "
+            "FROM courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s",
+            (user_id, course_id),
+        )
+        return (row[0], row[1]) if (row := cursor.fetchone()) else None
+
+
+def create_course(
+    user_id: str, course_id: str, name: str, language: str
+) -> None:
+    """Create a new, empty course (language-level set).
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `armenian`
+    :param name: display name, e.g. `Armenian`
+    :param language: language code, e.g. `hy`
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "INSERT INTO courses (user_id, course_id, name, language) "
+            "VALUES (%s, %s, %s, %s)",
+            (user_db_id, course_id, name, language),
+        )
+
+
+def delete_course(user_id: str, course_id: str) -> bool:
+    """Delete an empty course.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `armenian`
+    :return: whether a course was deleted (`False` if none existed)
+    :raise ValueError: if the course still has learnings
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT c.id FROM courses c JOIN users u ON u.id = c.user_id "
+            "WHERE u.user_id = %s AND c.course_id = %s",
+            (user_id, course_id),
+        )
+        if not (row := cursor.fetchone()):
+            return False
+        course_db_id: int = int(row[0])
+
+        cursor.execute(
+            "SELECT count(*) FROM learnings WHERE course_id = %s",
+            (course_db_id,),
+        )
+        count_row = cursor.fetchone()
+        if count_row and int(count_row[0]) > 0:
+            message: str = (
+                f"Course `{course_id}` still has {count_row[0]} learning(s); "
+                "delete them first."
+            )
+            raise ValueError(message)
+
+        cursor.execute("DELETE FROM courses WHERE id = %s", (course_db_id,))
+    return True
 
 
 def list_lexicons(
@@ -801,8 +896,8 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
         )
 
 
-LEARN_CONFIG_KEYS: tuple[str, ...] = (
-    "course_type",
+LEARNING_CONFIG_KEYS: tuple[str, ...] = (
+    "learning_type",
     "base_languages",
     "is_active",
     "scheme",
@@ -814,128 +909,140 @@ LEARN_CONFIG_KEYS: tuple[str, ...] = (
     "ask_lexicon",
     "max_for_day",
 )
-"""Mutable `LearnConfig` fields stored in the `config` JSONB.
+"""Mutable `LearningConfig` fields stored in the `config` JSONB.
 
-Identity fields (`name`, `learning_language`) are columns instead.
+Identity fields (`name`, `learning_language`, `course_id`) are columns
+instead.
 """
 
 
-def learn_config_jsonb(config: dict) -> dict:
-    """Extract the mutable part of a flat learn configuration for storage.
+def learning_config_jsonb(config: dict) -> dict:
+    """Extract the mutable part of a flat learning configuration for storage.
 
-    :param config: flat learn configuration (the `LearnConfig` fields)
+    :param config: flat learning configuration (the `LearningConfig` fields)
     :return: the subset stored in the `config` JSONB column
     """
-    return {key: config[key] for key in LEARN_CONFIG_KEYS if key in config}
+    return {key: config[key] for key in LEARNING_CONFIG_KEYS if key in config}
 
 
-def _assemble_learn_config(
-    name: str, learning_language: str, config: dict | None
+def _assemble_learning_config(
+    name: str, learning_language: str, course_id: str, config: dict | None
 ) -> dict:
-    """Build a flat learn configuration from the database columns plus JSONB."""
+    """Build a flat learning config from the database columns plus JSONB."""
     return {
         "name": name,
         "learning_language": learning_language,
+        "course_id": course_id,
         **(config or {}),
     }
 
 
-def get_learn_config(user_id: str, course_id: str) -> dict | None:
-    """Get a course's reassembled configuration dictionary.
+def get_learning_config(user_id: str, learning_id: str) -> dict | None:
+    """Get a learning's reassembled configuration dictionary.
 
     Return `None` if it does not exist.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
+    :param learning_id: learning identifier, e.g. `fr`
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT c.name, c.learning_language, c.config "
-            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s",
-            (user_id, course_id),
+            "SELECT l.name, l.learning_language, c.course_id, l.config "
+            "FROM learnings l "
+            "JOIN users u ON u.id = l.user_id "
+            "JOIN courses c ON c.id = l.course_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s",
+            (user_id, learning_id),
         )
         if row := cursor.fetchone():
-            return _assemble_learn_config(row[0], row[1], row[2])
+            return _assemble_learning_config(row[0], row[1], row[2], row[3])
         return None
 
 
-def get_learn_configs(user_id: str) -> dict[str, dict]:
-    """Get reassembled configuration dictionaries for all of a user's courses.
+def get_learning_configs(user_id: str) -> dict[str, dict]:
+    """Get reassembled configuration dictionaries for all of a user's learnings.
 
     :param user_id: owning user login, e.g. `john`
-    :return: mapping from course identifier to its config dict
+    :return: mapping from learning identifier to its config dict
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT c.course_id, c.name, c.learning_language, c.config "
-            "FROM learn_courses c JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s ORDER BY c.course_id",
+            "SELECT l.learning_id, l.name, l.learning_language, "
+            "c.course_id, l.config "
+            "FROM learnings l "
+            "JOIN users u ON u.id = l.user_id "
+            "JOIN courses c ON c.id = l.course_id "
+            "WHERE u.user_id = %s ORDER BY l.learning_id",
             (user_id,),
         )
         return {
-            row[0]: _assemble_learn_config(row[1], row[2], row[3])
+            row[0]: _assemble_learning_config(row[1], row[2], row[3], row[4])
             for row in cursor.fetchall()
         }
 
 
-def store_learn_config(user_id: str, course_id: str, config: dict) -> None:
-    """Create or update a course's configuration.
+def store_learning_config(user_id: str, learning_id: str, config: dict) -> None:
+    """Create or update a learning's configuration.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
-    :param config: flat learn config (the `LearnConfig` fields)
+    :param learning_id: learning identifier, e.g. `fr`
+    :param config: flat learning config (the `LearningConfig` fields)
     """
     with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
+        course_db_id: int = _get_course_db_id(
+            cursor, user_db_id, config["course_id"]
+        )
         cursor.execute(
-            "INSERT INTO learn_courses "
-            "(user_id, course_id, name, learning_language, config) "
-            "VALUES (%s, %s, %s, %s, %s) "
-            "ON CONFLICT (user_id, course_id) DO UPDATE SET "
+            "INSERT INTO learnings "
+            "(user_id, learning_id, name, learning_language, course_id, "
+            "config) "
+            "VALUES (%s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (user_id, learning_id) DO UPDATE SET "
             "name = excluded.name, "
             "learning_language = excluded.learning_language, "
             "config = excluded.config",
             (
                 user_db_id,
-                course_id,
+                learning_id,
                 config["name"],
                 config["learning_language"],
-                Jsonb(learn_config_jsonb(config)),
+                course_db_id,
+                Jsonb(learning_config_jsonb(config)),
             ),
         )
 
 
-def delete_course(user_id: str, course_id: str) -> bool:
-    """Delete a single course and all its records and sessions.
+def delete_learning(user_id: str, learning_id: str) -> bool:
+    """Delete a single learning and all its records and sessions.
 
     The schema has no `ON DELETE CASCADE`, so child rows are removed in
     dependency order inside one transaction; either all of it goes or none.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
-    :return: whether a course was deleted (`False` if none existed)
+    :param learning_id: learning identifier, e.g. `fr`
+    :return: whether a learning was deleted (`False` if none existed)
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT c.id FROM learn_courses c JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s",
-            (user_id, course_id),
+            "SELECT l.id FROM learnings l JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s",
+            (user_id, learning_id),
         )
         if not (row := cursor.fetchone()):
             return False
-        course_db_id: int = int(row[0])
+        learning_db_id: int = int(row[0])
 
-        # Deepest first: records and sessions before the course row.
+        # Deepest first: records and sessions before the learning row.
         cursor.execute(
-            "DELETE FROM learn_records WHERE course_id = %s", (course_db_id,)
+            "DELETE FROM learning_records WHERE learning_id = %s",
+            (learning_db_id,),
         )
         cursor.execute(
-            "DELETE FROM learn_sessions WHERE course_id = %s", (course_db_id,)
+            "DELETE FROM learning_sessions WHERE learning_id = %s",
+            (learning_db_id,),
         )
-        cursor.execute(
-            "DELETE FROM learn_courses WHERE id = %s", (course_db_id,)
-        )
+        cursor.execute("DELETE FROM learnings WHERE id = %s", (learning_db_id,))
     return True
 
 
@@ -1050,9 +1157,9 @@ def get_last_lexicon_answers(
 
 
 def get_last_learn_answers(
-    user_id: str, course_id: str, questions: list[str]
+    user_id: str, learning_id: str, questions: list[str]
 ) -> dict[str, tuple[str, datetime]]:
-    """Get each given question's most recent answer in a course.
+    """Get each given question's most recent answer in a learning.
 
     :return: mapping question -> (response code, response time); unanswered
         questions are absent
@@ -1063,13 +1170,13 @@ def get_last_learn_answers(
         cursor.execute(
             "SELECT DISTINCT ON (r.question_id) "
             "r.question_id, r.response, r.response_time "
-            "FROM learn_records r "
-            "JOIN learn_courses c ON c.id = r.course_id "
-            "JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s "
+            "FROM learning_records r "
+            "JOIN learnings l ON l.id = r.learning_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s "
             "AND r.question_id = ANY(%s) "
             "ORDER BY r.question_id, r.response_time DESC, r.id DESC",
-            (user_id, course_id, questions),
+            (user_id, learning_id, questions),
         )
         return {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
 
@@ -1172,23 +1279,23 @@ def count_lexicon_records(user_id: str, language: str) -> int:
         return int(row[0]) if row else 0
 
 
-def count_learn_records(user_id: str, course_id: str) -> int:
-    """Count learning records of a user's course.
+def count_learning_records(user_id: str, learning_id: str) -> int:
+    """Count learning records of a user's learning.
 
     The freshness stamp for a cached `Learning` instance: every write path
     (answer, undo) changes the count.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
+    :param learning_id: learning identifier, e.g. `fr`
     """
     with db_cursor() as cursor:
         cursor.execute(
             "SELECT count(*) "
-            "FROM learn_records r "
-            "JOIN learn_courses c ON c.id = r.course_id "
-            "JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s",
-            (user_id, course_id),
+            "FROM learning_records r "
+            "JOIN learnings l ON l.id = r.learning_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s",
+            (user_id, learning_id),
         )
         row = cursor.fetchone()
         return int(row[0]) if row else 0
@@ -1253,24 +1360,45 @@ def _get_user_db_id(cursor: psycopg.Cursor, user_id: str) -> int:
 
 
 def _get_course_db_id(
-    cursor: psycopg.Cursor,
-    user_db_id: int,
-    course_id: str,
-    name: str,
-    language: str,
+    cursor: psycopg.Cursor, user_db_id: int, course_id: str
 ) -> int:
-    """Get internal course identifier, creating the course if needed."""
+    """Get internal course identifier, raising if the course does not exist.
+
+    Unlike learnings, courses are never auto-created: they must be created
+    explicitly (`create_course`) before a learning can be added to them.
+    """
 
     cursor.execute(
-        "SELECT id FROM learn_courses WHERE user_id = %s AND course_id = %s",
+        "SELECT id FROM courses WHERE user_id = %s AND course_id = %s",
         (user_db_id, course_id),
     )
     if row := cursor.fetchone():
         return int(row[0])
+    message: str = f"Unknown course `{course_id}`; create it first."
+    raise ValueError(message)
+
+
+def _get_learning_db_id(
+    cursor: psycopg.Cursor,
+    user_db_id: int,
+    learning_id: str,
+    name: str,
+    language: str,
+    course_db_id: int,
+) -> int:
+    """Get internal learning identifier, creating the learning if needed."""
+
     cursor.execute(
-        "INSERT INTO learn_courses (user_id, course_id, name, "
-        "learning_language) VALUES (%s, %s, %s, %s) RETURNING id",
-        (user_db_id, course_id, name, language),
+        "SELECT id FROM learnings WHERE user_id = %s AND learning_id = %s",
+        (user_db_id, learning_id),
+    )
+    if row := cursor.fetchone():
+        return int(row[0])
+    cursor.execute(
+        "INSERT INTO learnings (user_id, learning_id, name, "
+        "learning_language, course_id) VALUES (%s, %s, %s, %s, %s) "
+        "RETURNING id",
+        (user_db_id, learning_id, name, language, course_db_id),
     )
     row = cursor.fetchone()
     assert row is not None
@@ -1299,24 +1427,24 @@ def _get_lexicon_db_id(
 
 
 def load_learning(
-    user_id: str, course_id: str
+    user_id: str, learning_id: str
 ) -> tuple[list[LearnRecordRow], list[LearnSessionRow]]:
-    """Load all learning records and sessions of a user's course.
+    """Load all learning records and sessions of a user's learning.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
+    :param learning_id: learning identifier, e.g. `fr`
     :return: (records, sessions) in insertion order; empty lists if the
-        course is not in the database
+        learning is not in the database
     """
     with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.question_id, r.response, r.response_time, "
             "r.request_time, r.extra "
-            "FROM learn_records r "
-            "JOIN learn_courses c ON c.id = r.course_id "
-            "JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s ORDER BY r.id",
-            (user_id, course_id),
+            "FROM learning_records r "
+            "JOIN learnings l ON l.id = r.learning_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s ORDER BY r.id",
+            (user_id, learning_id),
         )
         records: list[LearnRecordRow] = [
             (row[0], row[1], row[2], row[3], row[4])
@@ -1324,11 +1452,11 @@ def load_learning(
         ]
         cursor.execute(
             'SELECT s.type, s.start, s."end", s.actions '
-            "FROM learn_sessions s "
-            "JOIN learn_courses c ON c.id = s.course_id "
-            "JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s ORDER BY s.id",
-            (user_id, course_id),
+            "FROM learning_sessions s "
+            "JOIN learnings l ON l.id = s.learning_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s ORDER BY s.id",
+            (user_id, learning_id),
         )
         sessions: list[LearnSessionRow] = [
             (row[0], row[1], row[2], row[3]) for row in cursor.fetchall()
@@ -1336,60 +1464,66 @@ def load_learning(
     return records, sessions
 
 
-def delete_last_learn_record(user_id: str, course_id: str) -> str | None:
-    """Delete the most recent answer in a course and return its word.
+def delete_last_learn_record(user_id: str, learning_id: str) -> str | None:
+    """Delete the most recent answer in a learning and return its word.
 
     Undoes a single repetition answer. Learning keeps no per-word cache (its
     state is derived from the records on load), so only the record is removed.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
+    :param learning_id: learning identifier, e.g. `fr`
     :return: the word whose answer was removed, or `None` if there is nothing
         to undo
     """
     with db_cursor() as cursor:
         cursor.execute(
             "SELECT r.id, r.question_id "
-            "FROM learn_records r "
-            "JOIN learn_courses c ON c.id = r.course_id "
-            "JOIN users u ON u.id = c.user_id "
-            "WHERE u.user_id = %s AND c.course_id = %s "
+            "FROM learning_records r "
+            "JOIN learnings l ON l.id = r.learning_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.learning_id = %s "
             "ORDER BY r.response_time DESC, r.id DESC LIMIT 1",
-            (user_id, course_id),
+            (user_id, learning_id),
         )
         if not (row := cursor.fetchone()):
             return None
         record_id, question_id = row
-        cursor.execute("DELETE FROM learn_records WHERE id = %s", (record_id,))
+        cursor.execute(
+            "DELETE FROM learning_records WHERE id = %s", (record_id,)
+        )
     return str(question_id)
 
 
 def save_learning(
     user_id: str,
-    course_id: str,
+    learning_id: str,
     name: str,
     language: str,
+    course_id: str,
     records: list[LearnRecordRow],
     sessions: list[LearnSessionRow],
 ) -> None:
-    """Append learning records and sessions of a user's course.
+    """Append learning records and sessions of a user's learning.
 
     :param user_id: owning user login, e.g. `john`
-    :param course_id: course identifier, e.g. `fr`
-    :param name: course name, used if the course is to be created
-    :param language: learning language code, used if the course is to be
+    :param learning_id: learning identifier, e.g. `fr`
+    :param name: learning name, used if the learning is to be created
+    :param language: learning language code, used if the learning is to be
         created
+    :param course_id: identifier of the parent course, used if the learning
+        is to be created; the course must already exist
     :param records: new records, not yet stored in the database
     :param sessions: new sessions, not yet stored in the database
     """
     with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
-        db_id: int = _get_course_db_id(
-            cursor, user_db_id, course_id, name, language
+        course_db_id: int = _get_course_db_id(cursor, user_db_id, course_id)
+        db_id: int = _get_learning_db_id(
+            cursor, user_db_id, learning_id, name, language, course_db_id
         )
         cursor.executemany(
-            "INSERT INTO learn_records (course_id, question_id, response, "
-            "response_time, request_time, extra) "
+            "INSERT INTO learning_records (learning_id, question_id, "
+            "response, response_time, request_time, extra) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
             [
                 (
@@ -1410,8 +1544,8 @@ def save_learning(
             ],
         )
         cursor.executemany(
-            "INSERT INTO learn_sessions "
-            '(course_id, type, start, "end", actions) '
+            "INSERT INTO learning_sessions "
+            '(learning_id, type, start, "end", actions) '
             "VALUES (%s, %s, %s, %s, %s)",
             [
                 (db_id, type_, start, end, actions)

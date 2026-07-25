@@ -429,7 +429,7 @@ p#sentence-translation {
 
 label {
     display: block;
-    font-size: 80%;
+    /* font-size: 80%; */
     padding-bottom: 0.1rem;
 }
 p#translation-button {
@@ -609,7 +609,8 @@ a.button {
     text-decoration: underline;
     font-size: 85%;
 }
-td.courses-cell a {
+td.courses-cell a,
+td.courses-cell span.course-empty {
     padding-right: 0.5rem;
 }
 a.lexicon-link {
@@ -721,6 +722,17 @@ button.wrong {
     border-color: var(--wrong-border);
 }
 
-#add-lexicon-form, #add-course-form {
+#add-lexicon-form, #add-learning-form {
     line-height: 1.5;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+#add-lexicon-form fieldset, #add-learning-form fieldset {
+    line-height: 1;
+    /* margin: 1rem 0; */
+}
+#add-lexicon-form input, #add-learning-form input {
+    display: inline-block;
 }
