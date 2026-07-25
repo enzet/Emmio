@@ -66,6 +66,7 @@
     --surface-border: #0003;
     --input-bg: #EEE;
     --danger: red;
+    --link: blue;
     --press-bg: #0001; /* Pressed-button feedback. */
     --press-shadow: #0002;
     --correct-bg: #DFF5DF;
@@ -89,6 +90,7 @@ html[data-theme="dark"] {
     --surface-border: #FFF3;
     --input-bg: #2A2A30;
     --danger: #FF7B72;
+    --link: #8888FF;
     --press-bg: #FFF1;
     --press-shadow: #0006;
     --correct-bg: #1D3A22;
@@ -128,6 +130,10 @@ body {
     background-color: var(--bg);
     color: var(--fg);
     font-size: 11pt;
+}
+
+a {
+    color: var(--link);
 }
 
 /* Keep the status line and undo bar pinned to the bottom of the page. */
@@ -479,6 +485,12 @@ button#show-translation {
     margin: 1rem auto;
 }
 
+/* The translation is rendered as soon as it loads, blurred until "Show
+   translation" is pressed, so self-checking never has to wait on a fetch. */
+.blurred {
+    filter: blur(15px);
+}
+
 .dictionary-body {
     font-family: serif;
 }
@@ -559,14 +571,26 @@ header .profile-link {
 table {
     border-collapse: collapse;
 }
+table tr th {
+    font-weight: normal;
+    font-size: 85%;
+    text-align: left;
+}
 table tr td, th {
     padding: 0.3rem 0.7rem;
-    border: 1px inset;
+    border: none;
+    border-bottom: 1px inset;
 }
 
 span.language-code {
     font-family: monospace;
     margin-right: 0.5rem;
+}
+
+/* A course/learning/lexicon identifier shown as text (as opposed to its
+   human-facing name), e.g. a fallback list label or a session heading. */
+.identifier {
+    font-family: monospace;
 }
 
 /* Render definition lists (profile details, lexicon/course stats) as a
@@ -603,11 +627,16 @@ kbd {
     opacity: 50%;
     font-size: 80%;
 }
+span.abbr {
+    font-size: 90%;
+    letter-spacing: 0.07rem;
+    font-variant-numeric: lining-nums;
+}
 /* A plain link, undecorated as a button; `modern.css` dresses it up. */
 a.button {
     color: var(--fg);
     text-decoration: underline;
-    font-size: 85%;
+    /* font-size: 85%; */
 }
 td.courses-cell a,
 td.courses-cell span.course-empty {
@@ -654,11 +683,16 @@ div#answers[hidden] {
 }
 /* The word shown for the new-word know/don't-know check. */
 p#ask-word,
-p.word {
-    font-size: 320%;
+p.word, p.symbol {
     text-align: center;
     font-weight: 700;
     margin: 0.5rem 0;
+}
+p.word {
+    font-size: 320%;
+}
+p.symbol {
+    font-size: 1000%;
 }
 p#word.top {
     color: green;

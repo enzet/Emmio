@@ -106,15 +106,31 @@ function formatRate(rate, sd, digits) {
     return text;
 }
 
-function emmioLevel(rate) {
-    if (rate === null || rate < 2) return "below A1"
-    if (rate < 3) return "A1";
-    if (rate < 4) return "A2";
-    if (rate < 5) return "B1";
-    if (rate < 6) return "B2";
-    if (rate < 7) return "C1";
-    if (rate < 8) return "C2";
-    return "over C2";
+function emmioLevel(rate, cell) {
+    var level = "";
+    if (rate === null || rate < 2) {
+        cell.append("below ");
+        level = "A1";
+    } else if (rate < 3) {
+        level = "A1";
+    } else if (rate < 4) {
+        level = "A2";
+    } else if (rate < 5) {
+        level = "B1";
+    } else if (rate < 6) {
+        level = "B2";
+    } else if (rate < 7) {
+        level = "C1";
+    } else if (rate < 8) {
+        level = "C2";
+    } else {
+        cell.append("over ");
+        level = "C2";
+    }
+    var span = document.createElement("span");
+    span.setAttribute("class", "abbr");
+    span.textContent = level;
+    cell.append(span);
 }
 
 // Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
@@ -145,6 +161,15 @@ function loadingDots() {
         dots.append(dot);
     }
     return dots;
+}
+
+// A course/learning/lexicon identifier (as opposed to its human-facing
+// name), rendered in monospace so it reads as a code, not prose.
+function identifierSpan(id) {
+    const span = document.createElement("span");
+    span.className = "identifier";
+    span.textContent = id;
+    return span;
 }
 
 // Fill a `<select>` with one `<option>` per language, sorted by display name.
@@ -284,11 +309,16 @@ async function initHome() {
         const row = document.createElement("tr");
 
         const nameCell = document.createElement("td");
+        const nameLink = document.createElement("a");
+        nameLink.href = `language?language=${encodeURIComponent(language)}`;
         const code = document.createElement("span");
         code.className = "language-code";
         code.textContent = language;
-        nameCell.appendChild(code);
-        nameCell.appendChild(document.createTextNode(languageName(language)));
+        nameLink.appendChild(code);
+        nameLink.appendChild(
+            document.createTextNode(languageName(language)),
+        );
+        nameCell.appendChild(nameLink);
         row.appendChild(nameCell);
 
         const rateCell = document.createElement("td");
@@ -301,7 +331,11 @@ async function initHome() {
 
         // Emmio-specific language level derived from the rate.
         const levelCell = document.createElement("td");
-        levelCell.textContent = entry ? emmioLevel(entry.rate) : "—";
+        if (entry) {
+            emmioLevel(entry.rate, levelCell);
+        } else {
+            levelCell.textContent = "—";
+        }
         row.appendChild(levelCell);
 
         // Lexicon column: a link to the main lexicon, then a "Check" button
@@ -311,11 +345,14 @@ async function initHome() {
         const lexiconCell = document.createElement("td");
         if (entry) {
             const lexiconLink = document.createElement("a");
-            lexiconLink.className = "lexicon-link";
+            lexiconLink.className = "lexicon-link strategy-text";
             lexiconLink.href = `lexicon?lexicon=${encodeURIComponent(
                 entry.lexicon_id,
             )}`;
-            lexiconLink.textContent = entry.lexicon_id;
+            if (entry.selection) {
+                lexiconLink.append(strategyIconPrefix(entry.selection));
+            }
+            lexiconLink.append(identifierSpan(entry.lexicon_id));
             lexiconCell.appendChild(lexiconLink);
         }
         if (entry && entry.check_available) {
@@ -392,6 +429,100 @@ async function initHome() {
         const figure = document.getElementById("lexicon-graph");
         figure.innerHTML = await graphResponse.text();
         figure.hidden = false;
+    }
+}
+
+// Language page: every lexicon and course for one language, gathered in one
+// place. The dashboard links each language name here instead of listing
+// everything inline.
+async function initLanguage() {
+    requireAuth();
+
+    const language = new URLSearchParams(location.search).get("language");
+    document.getElementById("language-heading").textContent =
+        `Language: ${languageName(language)}`;
+
+    const lexiconsStatus = document.getElementById("lexicons-status");
+    const lexiconTable = document.getElementById("lexicon-table");
+    const lexiconRows = document.getElementById("lexicon-rows");
+    const lexiconResponse = await api("/me/lexicons");
+    const lexicons = (
+        lexiconResponse.ok ? await lexiconResponse.json() : []
+    ).filter((lexicon) => lexicon.language === language);
+
+    if (lexicons.length === 0) {
+        lexiconsStatus.textContent = "No lexicons for this language yet.";
+    } else {
+        lexiconsStatus.textContent = "";
+        lexiconTable.hidden = false;
+    }
+    for (const lexicon of lexicons) {
+        const row = document.createElement("tr");
+
+        const idCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `lexicon?lexicon=${encodeURIComponent(
+            lexicon.lexicon_id,
+        )}`;
+        // A leading star marks the main lexicon for its language.
+        if (lexicon.is_main) link.append("★ ");
+        if (lexicon.name) {
+            link.append(lexicon.name);
+            link.title = lexicon.lexicon_id;
+        } else {
+            link.append(identifierSpan(lexicon.lexicon_id));
+        }
+        idCell.appendChild(link);
+        row.appendChild(idCell);
+
+        const selectionCell = document.createElement("td");
+        selectionCell.className = "strategy-text";
+        selectionCell.textContent = lexicon.selection
+            ? strategyIconPrefix(lexicon.selection) + lexicon.selection
+            : "";
+        row.appendChild(selectionCell);
+
+        for (const value of [
+            formatRate(lexicon.rate, lexicon.sd, 1),
+            lexicon.words,
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        }
+
+        lexiconRows.appendChild(row);
+    }
+
+    const coursesStatus = document.getElementById("courses-status");
+    const courseTable = document.getElementById("course-table");
+    const courseRows = document.getElementById("course-rows");
+    const courseResponse = await api("/me/courses");
+    const courses = (
+        courseResponse.ok ? await courseResponse.json() : []
+    ).filter((course) => course.language === language);
+
+    if (courses.length === 0) {
+        coursesStatus.textContent = "No courses for this language yet.";
+    } else {
+        coursesStatus.textContent = "";
+        courseTable.hidden = false;
+    }
+    for (const course of courses) {
+        const row = document.createElement("tr");
+
+        const idCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `course?course=${encodeURIComponent(course.course_id)}`;
+        link.textContent = course.name;
+        idCell.appendChild(link);
+        row.appendChild(idCell);
+
+        const learningCountCell = document.createElement("td");
+        learningCountCell.textContent = course.learning_count;
+        row.appendChild(learningCountCell);
+
+        courseRows.appendChild(row);
     }
 }
 
@@ -903,10 +1034,13 @@ async function initLexicons() {
             lexicon.lexicon_id,
         )}`;
         // A leading star marks the main lexicon for its language.
-        link.textContent =
-            (lexicon.is_main ? "★ " : "") +
-            (lexicon.name || lexicon.lexicon_id);
-        if (lexicon.name) link.title = lexicon.lexicon_id;
+        if (lexicon.is_main) link.append("★ ");
+        if (lexicon.name) {
+            link.append(lexicon.name);
+            link.title = lexicon.lexicon_id;
+        } else {
+            link.append(identifierSpan(lexicon.lexicon_id));
+        }
         idCell.appendChild(link);
         row.appendChild(idCell);
 
@@ -940,8 +1074,9 @@ async function initLexicon() {
     requireAuth();
 
     const lexiconId = new URLSearchParams(location.search).get("lexicon");
-    document.getElementById("lexicon-heading").textContent =
-        `Lexicon: ${lexiconId}`;
+    document
+        .getElementById("lexicon-heading")
+        .replaceChildren("Lexicon: ", identifierSpan(lexiconId));
 
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
@@ -1113,8 +1248,15 @@ async function setupLexiconSettings(lexiconId) {
                 )}`;
                 return;
             }
-            document.getElementById("lexicon-heading").textContent =
-                saved.name || `Lexicon: ${saved.lexicon_id}`;
+            const heading = document.getElementById("lexicon-heading");
+            if (saved.name) {
+                heading.textContent = saved.name;
+            } else {
+                heading.replaceChildren(
+                    "Lexicon: ",
+                    identifierSpan(saved.lexicon_id),
+                );
+            }
             settingsStatus.textContent = "Saved.";
         } else {
             const { detail } = await result.json().catch(() => ({}));
@@ -1721,8 +1863,8 @@ async function runSession(base, doneText) {
     // React to one of `item`'s dictionaries resolving: enable the reveal
     // button once any has content, or — if every dictionary resolved with
     // nothing — replace the button with a "No translation found." notice.
-    // Re-renders if the word is already revealed. Ignored once the user has
-    // moved to another word.
+    // The translation itself renders regardless of `revealed` (blurred until
+    // then via CSS). Ignored once the user has moved to another word.
     function onTranslationProgress(item) {
         if (current !== item) return;
         const results = item.results || [];
@@ -1734,7 +1876,7 @@ async function runSession(base, doneText) {
             showButton.hidden = true;
             noTranslation.hidden = false;
         }
-        if (revealed) renderRevealed(item);
+        renderTranslation(item);
     }
 
     // Render one block per dictionary entry into the translation area.
@@ -1826,6 +1968,7 @@ async function runSession(base, doneText) {
 
     function render() {
         translation.replaceChildren();
+        translation.classList.add("blurred");
         revealed = false;
         showButton.hidden = false;
         showButton.disabled = true;
@@ -2013,20 +2156,22 @@ async function runSession(base, doneText) {
         render();
     }
 
-    // Reveal the current word's translation. From here on the area re-renders
-    // as each remaining dictionary resolves (see `onTranslationProgress`).
+    // Reveal the current word's translation by lifting the blur; the content
+    // itself is already rendered (see `renderTranslation`/`render`).
     function showTranslation() {
         if (!current) return;
         revealed = true;
-        if (!current.results) attachTranslation(current);
-        renderRevealed(current);
+        translation.classList.remove("blurred");
+        showButton.hidden = true;
     }
 
     // Render every dictionary that has resolved so far for `item`, in
     // configured order (so a fast dictionary that resolves later still keeps
     // its place). Shows "Loading…" until the first arrives and "No
-    // translation found." once every dictionary has resolved empty.
-    function renderRevealed(item) {
+    // translation found." once every dictionary has resolved empty. Runs
+    // whether or not the translation is revealed — blur (removed by
+    // `showTranslation`) is what actually hides it from the user.
+    function renderTranslation(item) {
         if (current !== item) return;
         translation.replaceChildren();
         const results = item.results || [];
@@ -2433,7 +2578,8 @@ async function runLearnSession(base) {
     }
 
     // Know: see the word, self-assess Know/Don't-know; either way the full
-    // meaning is then revealed before continuing.
+    // meaning is shown throughout, blurred until "Show translation" is
+    // pressed or the word is self-assessed.
     function renderKnow() {
         showBox("know");
         status.textContent = "";
@@ -2448,19 +2594,17 @@ async function runLearnSession(base) {
         knowWord.textContent = current.word;
         knowShowBar.hidden = false;
         knowAnswers.hidden = false;
-        knowMeaning.hidden = true;
-        knowMeaning.replaceChildren();
+        knowMeaning.hidden = false;
+        knowMeaning.classList.add("blurred");
+        knowMeaning.replaceChildren(loadingDots());
         knowContinueBar.hidden = true;
         current.pendingResponse = null;
-        current.revealed = false;
         presentedAt = Date.now();
+        void loadKnowMeaning(current);
     }
-    // Fetch and show the card's full meaning (word shown) so the user
-    // learns/confirms it.
-    async function revealKnowMeaning(item) {
-        knowShowBar.hidden = true;
-        knowMeaning.hidden = false;
-        knowMeaning.textContent = "Loading…";
+    // Fetch the card's full meaning (word shown) into the (blurred) meaning
+    // area, so it is ready the instant it needs to be legible.
+    async function loadKnowMeaning(item) {
         const groups = [];
         await Promise.all(
             dictionaries.map(async ({ index }) => {
@@ -2478,15 +2622,16 @@ async function runLearnSession(base) {
         knowMeaning.replaceChildren();
         if (groups.length) appendDictionaries(knowMeaning, groups);
         else knowMeaning.textContent = "No translation found.";
-        item.revealed = true;
     }
     // Peek at the translation before self-assessing (as on the lexicon check
-    // page); records nothing, the Know/Don't-know buttons stay.
-    async function knowShowTranslation() {
+    // page): just lifts the blur, records nothing, the Know/Don't-know
+    // buttons stay.
+    function knowShowTranslation() {
         if (!current || current.type !== "know" || current.pendingResponse) {
             return;
         }
-        await revealKnowMeaning(current);
+        knowMeaning.classList.remove("blurred");
+        knowShowBar.hidden = true;
     }
     async function knowSelfAssess(knows) {
         if (!current || current.type !== "know" || current.pendingResponse) {
@@ -2495,9 +2640,9 @@ async function runLearnSession(base) {
         current.pendingResponse = knows ? "y" : "n";
         knowAnswers.hidden = true;
         knowShowBar.hidden = true;
+        knowMeaning.classList.remove("blurred");
         await postAnswer(current.word, current.pendingResponse);
         const item = current;
-        if (!item.revealed) await revealKnowMeaning(item);
         if (current !== item) return;
         knowContinueBar.hidden = false;
         knowContinue.focus();
@@ -2859,6 +3004,8 @@ async function runLearnSession(base) {
         const settings = await settingsResponse.json();
         playAudio = settings.play_audio;
         renderSymbolButtons(settings.extra_symbols || "");
+        knowWord.className =
+            settings.learning_type === "symbol" ? "symbol" : "word";
     }
     await advance();
 }
@@ -2868,8 +3015,9 @@ async function runLearnSession(base) {
 async function initCheck() {
     requireAuth();
     const id = new URLSearchParams(location.search).get("lexicon");
-    document.getElementById("lexicon-heading").textContent =
-        `${id}`;
+    document.getElementById("lexicon-heading").replaceChildren(
+        identifierSpan(id),
+    );
     await runSession(
         `/me/lexicons/${encodeURIComponent(id)}`,
         "No more words to check.",
@@ -2881,7 +3029,9 @@ async function initCheck() {
 async function initLearn() {
     requireAuth();
     const id = new URLSearchParams(location.search).get("learning");
-    document.getElementById("learn-heading").textContent = `Learn: ${id}`;
+    document
+        .getElementById("learn-heading")
+        .replaceChildren("Learn: ", identifierSpan(id));
     await runLearnSession(`/me/learnings/${encodeURIComponent(id)}`);
 }
 
@@ -2950,6 +3100,31 @@ async function initCourse() {
         `Course: ${course.name}`;
     document.getElementById("add-learning-link").href =
         `new-learning?course=${encodeURIComponent(courseId)}`;
+
+    // Settings: currently just the course's name (its language is fixed).
+    const settingsSection = document.getElementById("settings-section");
+    const settingsForm = document.getElementById("settings-form");
+    const nameInput = document.getElementById("setting-name");
+    const settingsStatus = document.getElementById("settings-status");
+    nameInput.value = course.name;
+    settingsSection.hidden = false;
+    settingsForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        settingsStatus.textContent = "Saving…";
+        const result = await api(
+            `/me/courses/${encodeURIComponent(courseId)}`,
+            { method: "PATCH", body: { name: nameInput.value.trim() } },
+        );
+        if (result.ok) {
+            const updated = await result.json();
+            document.getElementById("course-heading").textContent =
+                `Course: ${updated.name}`;
+            settingsStatus.textContent = "Saved.";
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            settingsStatus.textContent = detail || "Could not save settings.";
+        }
+    });
 
     if (course.learnings.length > 0) table.hidden = false;
     for (const learning of course.learnings) {
@@ -3330,6 +3505,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (page === "login") initLogin();
     else if (page === "register") initRegister();
     else if (page === "home") initHome();
+    else if (page === "language") initLanguage();
     else if (page === "lexicons") initLexicons();
     else if (page === "lexicon") initLexicon();
     else if (page === "new-lexicon") initNewLexicon();

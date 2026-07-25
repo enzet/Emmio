@@ -440,6 +440,39 @@ def get_course(
     )
 
 
+class UpdateCourseRequest(BaseModel):
+    """Partial update to a course's settings; currently just its name."""
+
+    name: str
+
+
+@app.patch("/api/v1/me/courses/{course_id}")
+def update_course(
+    course_id: str,
+    request: UpdateCourseRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> CourseSummary:
+    """Rename a course. Its language is fixed at creation and never changes."""
+    name: str = request.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Course name cannot be empty.",
+        )
+    if not postgres.update_course_name(user_id, course_id, name):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown course `{course_id}`.",
+        )
+    _, language = _course_or_404(user_id, course_id)
+    return CourseSummary(
+        course_id=course_id,
+        name=name,
+        language=language,
+        learning_count=len(postgres.list_learnings(user_id, course_id)),
+    )
+
+
 @app.delete(
     "/api/v1/me/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT
 )
@@ -2573,6 +2606,7 @@ class LanguageRate(BaseModel):
 
     language: str
     lexicon_id: str  # The main lexicon the rate comes from.
+    selection: str | None  # The main lexicon's selection strategy, if known.
     rate: float | None  # Vocabulary rate, or None if not enough data.
     sd: float | None  # Standard deviation of the rate estimate.
     check_available: bool  # Whether checking is allowed right now.
@@ -2622,6 +2656,7 @@ def get_my_languages(
             LanguageRate(
                 language=language,
                 lexicon_id=lexicon_id,
+                selection=selection,
                 rate=rate,
                 sd=sd,
                 check_available=goal.check_available,

@@ -495,6 +495,24 @@ def create_course(
         )
 
 
+def update_course_name(user_id: str, course_id: str, name: str) -> bool:
+    """Rename a course.
+
+    :param user_id: owning user login, e.g. `john`
+    :param course_id: course identifier, e.g. `armenian`
+    :param name: new display name, e.g. `Armenian`
+    :return: whether a course was renamed (`False` if none existed)
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "UPDATE courses c SET name = %s "
+            "FROM users u WHERE u.id = c.user_id "
+            "AND u.user_id = %s AND c.course_id = %s",
+            (name, user_id, course_id),
+        )
+        return cursor.rowcount > 0
+
+
 def delete_course(user_id: str, course_id: str) -> bool:
     """Delete an empty course.
 

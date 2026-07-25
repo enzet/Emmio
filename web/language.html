@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Language</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" defer></script>
+    </head>
+    <body data-page="language">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="lexicons">Lexicons</a>
+                <a href="courses">Courses</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="language-heading">Language</h1>
+
+            <section>
+                <h2>Lexicons</h2>
+                <p id="lexicons-status" role="status"></p>
+                <table id="lexicon-table" hidden>
+                    <thead>
+                        <tr>
+                            <th scope="col">Lexicon</th>
+                            <th scope="col">Selection</th>
+                            <th scope="col">Rate</th>
+                            <th scope="col">Words</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lexicon-rows"></tbody>
+                </table>
+                <p>
+                    <a id="add-lexicon-link" href="new-lexicon" class="button"
+                        >+ Add a lexicon</a
+                    >
+                </p>
+            </section>
+
+            <section>
+                <h2>Courses</h2>
+                <p id="courses-status" role="status"></p>
+                <table id="course-table" hidden>
+                    <thead>
+                        <tr>
+                            <th scope="col">Course</th>
+                            <th scope="col">Learnings</th>
+                        </tr>
+                    </thead>
+                    <tbody id="course-rows"></tbody>
+                </table>
+                <p>
+                    <a id="add-course-link" href="new-course" class="button"
+                        >+ Add a course</a
+                    >
+                </p>
+            </section>
+        </main>
+        <footer>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>

@@ -498,6 +498,7 @@ def test_tables_show_strategy_matched_rate_for_stratified_lexicon() -> None:
     assert len(languages) == 1
     assert languages[0]["rate"] == pytest.approx(expected["rate"])
     assert languages[0]["sd"] == pytest.approx(0.0)
+    assert languages[0]["selection"] == "stratified"
 
     stats = client.get(
         "/api/v1/me/lexicons/uk/stats", headers=_auth(token)
@@ -1003,6 +1004,53 @@ def test_delete_course_removes_it() -> None:
         f"/api/v1/me/courses/{course_id}", headers=_auth(token)
     )
     assert second.status_code == 404
+
+
+def test_update_course_renames_it() -> None:
+    """Renaming a course updates its stored name and returns it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk", name="Old name")
+
+    response = client.patch(
+        f"/api/v1/me/courses/{course_id}",
+        json={"name": " New name "},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "New name"
+    assert postgres.get_course("alice", course_id) == ("New name", "uk")
+
+
+def test_update_course_rejects_blank_name() -> None:
+    """A blank (or whitespace-only) name is rejected without changing it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    course_id = _create_course(token, "uk", name="Old name")
+
+    response = client.patch(
+        f"/api/v1/me/courses/{course_id}",
+        json={"name": "   "},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 400
+    assert postgres.get_course("alice", course_id) == ("Old name", "uk")
+
+
+def test_update_course_for_unknown_course_is_not_found() -> None:
+    """Renaming a course the user does not have is a 404."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.patch(
+        "/api/v1/me/courses/does-not-exist",
+        json={"name": "New name"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 404
 
 
 @pytest.mark.usefixtures("fake_languages")
