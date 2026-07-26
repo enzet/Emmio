@@ -2021,6 +2021,7 @@ async function runSession(base, doneText) {
     let current = null; // The item on screen.
     let revealed = false; // Whether the current word's translation is shown.
     let language = null; // ISO code of the session's language (from `/next`).
+    let answering = false; // Guards a second click landing before advance().
 
     // Live "r = 7.23 ± 0.14" estimate, computed server-side by the estimator
     // matching the lexicon's selection strategy and refreshed after every
@@ -2297,7 +2298,7 @@ async function runSession(base, doneText) {
         }
         const word = encodeURIComponent(current.word);
         const langName = languageName(language);
-        const query = `translate ${langName} word "${current.word}"`;
+        const query = `Translate ${langName} word "${current.word}".`;
         googleLink.href =
             `https://www.google.com/search?q=${encodeURIComponent(query)}`;
         yandexLink.href =
@@ -2375,8 +2376,11 @@ async function runSession(base, doneText) {
     }
 
     async function answer(response, toSkip = false) {
-        if (!current) return;
+        if (!current || answering) return;
+        answering = true;
         const answered = current.word;
+        // Hide already answered word.
+        word.replaceChildren(loadingDots());
         // Remember the response and strategy context so an undo can both
         // rewind the session counters and re-present the word annotated.
         history.push({
@@ -2395,18 +2399,22 @@ async function runSession(base, doneText) {
                 response === "know",
             );
         }
-        await api(`${base}/answer`, {
-            method: "POST",
-            body: { word: answered, response, to_skip: toSkip },
-        });
-        if (await refreshRateEstimate()) {
-            // The trailing-window precision goal is met: the checking
-            // process is done, so hand the session back automatically.
-            status.textContent = "Goal reached — nice work!";
-            location.href = "lexicons";
-            return;
+        try {
+            await api(`${base}/answer`, {
+                method: "POST",
+                body: { word: answered, response, to_skip: toSkip },
+            });
+            if (await refreshRateEstimate()) {
+                // The trailing-window precision goal is met: the checking
+                // process is done, so hand the session back automatically.
+                status.textContent = "Goal reached — nice work!";
+                location.href = "lexicons";
+                return;
+            }
+            await advance();
+        } finally {
+            answering = false;
         }
-        await advance();
     }
 
     // Remove the most recent answer and re-present that word to re-answer it.
@@ -3079,7 +3087,7 @@ async function runLearnSession(base) {
         }
         const encoded = encodeURIComponent(current.word);
         const langName = languageName(language);
-        const query = `translate ${langName} word "${current.word}"`;
+        const query = `Translate ${langName} word "${current.word}".`;
         googleLink.href =
             `https://www.google.com/search?q=${encodeURIComponent(query)}`;
         yandexLink.href =
