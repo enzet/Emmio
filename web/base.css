@@ -611,8 +611,9 @@ header .profile-link {
    (`#trajectory`) — a hover crosshair plus tooltip, growing from live data
    instead of a server-rendered image. Unlike `#trajectory` each line is set
    inline per path (from `HISTORY_CHART_PALETTE` in app.js) rather than a
-   shared CSS variable, since several lines share the chart; the legend
-   below the chart spells out which is which. */
+   shared CSS variable, since several lines share the chart; which line is
+   which is instead conveyed by hovering it (or its table row), which
+   highlights the matching row (or line) in sync. */
 #lexicon-history {
     position: relative; /* Anchors the hover tooltip. */
     margin: 1rem 0 0.3rem;
@@ -625,12 +626,28 @@ header .profile-link {
 }
 #lexicon-history .band {
     opacity: 0.1;
+    transition: opacity 0.15s ease;
 }
 #lexicon-history .line {
     stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
+    transition:
+        stroke-width 0.15s ease,
+        opacity 0.15s ease;
+}
+/* Table-row/chart-line hover sync (dashboard): hovering a language's row
+   highlights its line here, and vice versa (`highlight()` /
+   `onHoverLanguage` in `createLanguageHistoryChart`). */
+#lexicon-history .line.active {
+    stroke-width: 2.5;
+}
+#lexicon-history .band.dimmed {
+    opacity: 0.03;
+}
+#lexicon-history .line.dimmed {
+    opacity: 0.25;
 }
 #lexicon-history .grid {
     stroke: var(--faint);
@@ -664,18 +681,13 @@ header .profile-link {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
-#lexicon-history-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.2rem 0.8rem;
-    font-size: 0.85rem;
-}
-#lexicon-history-legend span.swatch {
-    display: inline-block;
-    width: 0.7em;
-    height: 0.7em;
-    border-radius: 50%;
-    margin-right: 0.3em;
+/* Hovering a language's row here also highlights its line in
+   `#lexicon-history` above (and vice versa: `row-highlighted` is toggled by
+   the chart's `onHoverLanguage` callback in app.js). Shared with the plain
+   `:hover` state so both triggers look the same. */
+#languages-rows tr:hover,
+#languages-rows tr.row-highlighted {
+    background-color: var(--surface);
 }
 
 table {

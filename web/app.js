@@ -315,6 +315,11 @@ async function initHome() {
     // re-rendering the whole table.
     const pendingCells = new Map();
 
+    // Set once the history chart exists (it needs the history fetch below),
+    // so a row's hover listener — wired up now, while rows first render —
+    // can still reach it later.
+    let chart = null;
+
     // Render one language row. `summary` is its main-lexicon identity (from
     // `/me/languages/summary`) or `null` when the language only has courses;
     // `courseList` are its courses.
@@ -358,6 +363,15 @@ async function initHome() {
 
         if (summary) {
             pendingCells.set(language, { rateCell, levelCell, lexiconCell });
+            // Sync with the history chart: hovering this row highlights its
+            // line there, and (wired the other way, in the chart itself)
+            // hovering its line here highlights this row.
+            row.addEventListener("mouseenter", () => {
+                if (chart) chart.highlight(language);
+            });
+            row.addEventListener("mouseleave", () => {
+                if (chart) chart.highlight(null);
+            });
         }
 
         // Courses for this language, each linking to its detail page; a
@@ -470,11 +484,17 @@ async function initHome() {
     // convergence chart, rather than a server-rendered image.
     const historyResponse = await api("/me/lexicons/history");
     if (historyResponse.ok) {
-        const chart = createLanguageHistoryChart(
+        chart = createLanguageHistoryChart(
             document.getElementById("lexicon-history"),
             document.getElementById("lexicon-history-svg"),
             document.getElementById("lexicon-history-tooltip"),
-            document.getElementById("lexicon-history-legend"),
+            (language) => {
+                for (const row of ratedRows.values()) {
+                    row.classList.remove("row-highlighted");
+                }
+                const row = language && ratedRows.get(language);
+                if (row) row.classList.add("row-highlighted");
+            },
         );
         chart.setData(await historyResponse.json());
     }
@@ -1619,8 +1639,10 @@ function createTrajectoryChart(figure, svg, tooltip) {
 // instead of sharing one CSS variable, since several lines share the chart.
 // Deliberately not the language's own display color (`Language.color`,
 // used elsewhere, e.g. `.language-code`): those aren't chosen as a set for
-// mutual contrast, so two languages can end up close in hue. A legend below
-// the chart spells out which line is which language.
+// mutual contrast, so two languages can end up close in hue. There's no
+// legend spelling out which line is which — hovering a language's row in
+// the dashboard table (or a line here) highlights the other via
+// `onHoverLanguage`/`highlight()` below.
 const HISTORY_CHART_PALETTE = [
     "#2A78D6", // blue
     "#D6552A", // orange
@@ -1632,12 +1654,33 @@ const HISTORY_CHART_PALETTE = [
     "#6E8C2A", // olive
 ];
 
-function createLanguageHistoryChart(figure, svg, tooltip, legend) {
+// `onHoverLanguage`, if given, is called with a language code when the
+// pointer settles nearest that language's line, and with `null` when the
+// pointer leaves — lets a caller (the dashboard) highlight the matching
+// table row in sync, the other half of `highlight()` below.
+function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
     const SVG_NS = "http://www.w3.org/2000/svg";
-    const MARGIN = { top: 10, right: 20, bottom: 20, left: 40 };
+    // Left/right are a thin safety margin (avoids clipping the focus dot and
+    // tick-label text at the very edge) rather than real padding: the axis
+    // value labels sit inside the plot, over the gridlines, instead of in a
+    // reserved-blank column to their left. Languages aren't spelled out here
+    // at all (that's what the row-hover sync — `onHoverLanguage`/
+    // `highlight()` — is for), so there's no legend to make room for either.
+    const MARGIN = { top: 10, right: 4, bottom: 20, left: 4 };
 
     let series = []; // [{ language, color, points: [{ date, rate, sd }] }].
     let scale = null; // Last render's scales, for the hover layer.
+    let activeLanguage = null; // Set by `highlight()`; survives a re-render.
+
+    // Dim every line/band except `language`'s (or, for `null`, undo that).
+    function applyHighlight(language) {
+        for (const path of svg.querySelectorAll(".line, .band")) {
+            const isActive =
+                language !== null && path.dataset.language === language;
+            path.classList.toggle("active", isActive);
+            path.classList.toggle("dimmed", language !== null && !isActive);
+        }
+    }
 
     // The hover layer is created once and re-appended after every rebuild
     // (setting `innerHTML` wipes the SVG).
@@ -1651,6 +1694,7 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
         crosshair.style.visibility = "hidden";
         focusDot.style.visibility = "hidden";
         tooltip.hidden = true;
+        if (onHoverLanguage) onHoverLanguage(null);
     }
 
     function tickLabel(value) {
@@ -1729,16 +1773,36 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
 
         const parts = [];
 
-        // Horizontal hairline gridlines with their rate labels, one per
-        // integer between the axis floor and ceiling.
+        // Horizontal hairline gridlines with their rate labels. With no left
+        // margin reserved for them, the labels sit just above their own
+        // gridline instead, inset from the left edge (the same trick used
+        // for the leftmost/rightmost date label below).
         for (let value = yMin; value <= yMax; value += 1) {
             const line = y(value);
             parts.push(
                 `<line class="grid" x1="${plot.left}" y1="${line}"` +
                     ` x2="${plot.right}" y2="${line}"/>`,
-                `<text class="tick-label" x="${plot.left - 6}" y="${line}"` +
-                    ` text-anchor="end" dominant-baseline="middle">` +
+                `<text class="tick-label" x="${plot.left + 4}"` +
+                    ` y="${line - 3}" text-anchor="start">` +
                     `${tickLabel(value)}</text>`,
+            );
+        }
+
+        // A tick label at `t`, anchored to stay inside the plot even at the
+        // very first/last tick (where centering on `x(t)` would run past the
+        // edge, now that there's no left/right margin to absorb that).
+        function dateTickLabel(t, index, count, text) {
+            const anchor =
+                index === 0 ? "start" : index === count - 1 ? "end" : "middle";
+            const labelX =
+                anchor === "start"
+                    ? plot.left
+                    : anchor === "end"
+                      ? plot.right
+                      : x(t);
+            return (
+                `<text class="tick-label" x="${labelX}" y="${height - 4}"` +
+                ` text-anchor="${anchor}">${text}</text>`
             );
         }
 
@@ -1753,7 +1817,7 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
         const months = monthStarts(minDate, maxDate);
         if (months.length >= 2) {
             let previousYear = null;
-            for (const t of months) {
+            months.forEach((t, index) => {
                 const date = new Date(t);
                 const options =
                     date.getFullYear() === previousYear
@@ -1761,19 +1825,25 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
                         : { month: "short", year: "numeric" };
                 previousYear = date.getFullYear();
                 parts.push(
-                    `<text class="tick-label" x="${x(t)}"` +
-                        ` y="${height - 4}" text-anchor="middle">` +
-                        `${date.toLocaleDateString(undefined, options)}</text>`,
+                    dateTickLabel(
+                        t,
+                        index,
+                        months.length,
+                        date.toLocaleDateString(undefined, options),
+                    ),
                 );
-            }
+            });
         } else {
             const dateSteps = 4;
             for (let step = 0; step <= dateSteps; step += 1) {
                 const t = minDate + (step / dateSteps) * (maxDate - minDate);
                 parts.push(
-                    `<text class="tick-label" x="${x(t)}"` +
-                        ` y="${height - 4}" text-anchor="middle">` +
-                        `${dateLabel(new Date(t))}</text>`,
+                    dateTickLabel(
+                        t,
+                        step,
+                        dateSteps + 1,
+                        dateLabel(new Date(t)),
+                    ),
                 );
             }
         }
@@ -1789,17 +1859,21 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
                 .map((p) => `${x(p.date.getTime())},${y(p.rate - (p.sd || 0))}`)
                 .join(" L ");
             parts.push(
-                `<path class="band" d="M ${upper} L ${lower} Z"` +
-                    ` fill="${one.color}"/>`,
-                `<path class="line" d="M ${one.points
-                    .map((p) => `${x(p.date.getTime())},${y(p.rate)}`)
-                    .join(" L ")}" stroke="${one.color}"/>`,
+                `<path class="band" data-language="${one.language}"` +
+                    ` d="M ${upper} L ${lower} Z" fill="${one.color}"/>`,
+                `<path class="line" data-language="${one.language}"` +
+                    ` d="M ${one.points
+                        .map((p) => `${x(p.date.getTime())},${y(p.rate)}`)
+                        .join(" L ")}" stroke="${one.color}"/>`,
             );
         }
 
         svg.innerHTML = parts.join("");
         svg.append(crosshair, focusDot);
         hideHover();
+        // `innerHTML` above wiped any highlight classes; restore them (a
+        // table-row hover can outlive a resize-triggered re-render).
+        applyHighlight(activeLanguage);
     }
 
     // Crosshair and tooltip: the whole SVG is the hit target, the reader aims
@@ -1821,6 +1895,7 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
             }
         }
         if (!nearest) return;
+        if (onHoverLanguage) onHoverLanguage(nearestSeries.language);
         const cx = scale.x(nearest.date.getTime());
         const cy = scale.y(nearest.rate);
         crosshair.setAttribute("x1", cx);
@@ -1862,17 +1937,15 @@ function createLanguageHistoryChart(figure, svg, tooltip, legend) {
                     sd: point.sd,
                 })),
             }));
-            legend.replaceChildren();
-            for (const one of series) {
-                if (one.points.length < 2) continue;
-                const item = document.createElement("span");
-                const swatch = document.createElement("span");
-                swatch.className = "swatch";
-                swatch.style.backgroundColor = one.color;
-                item.append(swatch, languageName(one.language));
-                legend.append(item);
-            }
             render();
+        },
+
+        // Highlight `language`'s line and dim the rest, or (for `null`)
+        // clear the highlight — the table-row-hover half of the two-way
+        // sync `onHoverLanguage` provides for the chart-hover half.
+        highlight(language) {
+            activeLanguage = language;
+            applyHighlight(language);
         },
     };
 }
