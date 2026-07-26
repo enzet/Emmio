@@ -278,12 +278,19 @@ async function initHome() {
     const status = document.getElementById("languages-status");
     const table = document.getElementById("languages-table");
     const rows = document.getElementById("languages-rows");
-    const response = await api("/me/languages");
-    const languages = await response.json();
 
-    // The user's courses, grouped by language, so each language row can list
-    // the courses available to study for it.
-    const coursesResponse = await api("/me/courses");
+    // `/me/languages` estimates every main lexicon's rate, which can take up
+    // to a second each on a cache miss (see the server's
+    // `_row_rate_estimate`) — too slow to block the table's first paint on.
+    // Fetch the cheap parts first (language identity, from
+    // `/me/languages/summary`, plus courses) so the table can render
+    // immediately with placeholders in the rate/level/lexicon columns; the
+    // real rate estimate is fetched after and fills those in once ready.
+    const [summaryResponse, coursesResponse] = await Promise.all([
+        api("/me/languages/summary"),
+        api("/me/courses"),
+    ]);
+    const summaries = summaryResponse.ok ? await summaryResponse.json() : [];
     const courses = coursesResponse.ok ? await coursesResponse.json() : [];
     const coursesByLanguage = new Map();
     for (const course of courses) {
@@ -295,7 +302,7 @@ async function initHome() {
     // Nothing yet: welcome the user and offer to create their first lexicon.
     // The dashboard shows for any language the user has a main lexicon *or* a
     // course for.
-    if (languages.length === 0 && courses.length === 0) {
+    if (summaries.length === 0 && courses.length === 0) {
         document.getElementById("welcome").hidden = false;
         return;
     }
@@ -303,9 +310,15 @@ async function initHome() {
     status.textContent = "";
     table.hidden = false;
 
-    // Render one language row. `entry` is its main-lexicon stats (`/me/languages`)
-    // or `null` when the language only has courses; `courseList` are its courses.
-    function renderLanguageRow(language, entry, courseList) {
+    // Cells still waiting on their rate estimate, keyed by language, so the
+    // follow-up `/me/languages` response can fill them in without
+    // re-rendering the whole table.
+    const pendingCells = new Map();
+
+    // Render one language row. `summary` is its main-lexicon identity (from
+    // `/me/languages/summary`) or `null` when the language only has courses;
+    // `courseList` are its courses.
+    function renderLanguageRow(language, summary, courseList) {
         const row = document.createElement("tr");
 
         const nameCell = document.createElement("td");
@@ -322,49 +335,30 @@ async function initHome() {
         row.appendChild(nameCell);
 
         const rateCell = document.createElement("td");
-        rateCell.textContent = entry
-            ? formatRate(entry.rate, entry.sd, 2)
-            : "—";
+        rateCell.textContent = summary ? "…" : "—";
         rateCell.style.fontVariantNumeric = "tabular-nums";
         rateCell.style.textAlign = "right";
         row.appendChild(rateCell);
 
-        // Emmio-specific language level derived from the rate.
+        // Emmio-specific language level, derived from the rate once it
+        // arrives.
         const levelCell = document.createElement("td");
-        if (entry) {
-            emmioLevel(entry.rate, levelCell);
-        } else {
-            levelCell.textContent = "—";
-        }
+        levelCell.textContent = summary ? "…" : "—";
+        levelCell.style.fontVariantNumeric = "tabular-nums";
         levelCell.style.textAlign = "right";
         row.appendChild(levelCell);
 
         // Lexicon column: a link to the main lexicon, then a "Check" button
         // while checking is available, otherwise the time until it unlocks
         // again (the precision goal was met, and rechecking is paused for a
-        // week).
+        // week). The check-available state isn't known until the rate
+        // estimate arrives, so the link itself is filled in then too.
         const lexiconCell = document.createElement("td");
-        if (entry) {
-            const lexiconLink = document.createElement("a");
-            lexiconLink.className = "lexicon-link strategy-text";
-            lexiconLink.href = `lexicon?lexicon=${encodeURIComponent(
-                entry.lexicon_id,
-            )}`;
-            if (entry.selection) {
-                lexiconLink.append(strategyIconPrefix(entry.selection));
-            }
-            lexiconLink.append(identifierSpan(entry.lexicon_id));
-            if (entry && entry.check_available) {
-                const check = document.createElement("sup");
-                check.setAttribute("class", "notification")
-                // Possible link:
-                // `check?lexicon=${encodeURIComponent(entry.lexicon_id)}`.
-                check.appendChild(document.createTextNode("⚫︎"));
-                lexiconLink.appendChild(check);
-            }
-            lexiconCell.appendChild(lexiconLink);
-        }
         row.appendChild(lexiconCell);
+
+        if (summary) {
+            pendingCells.set(language, { rateCell, levelCell, lexiconCell });
+        }
 
         // Courses for this language, each linking to its detail page; a
         // course with no learnings yet offers to add one directly.
@@ -397,25 +391,80 @@ async function initHome() {
         row.appendChild(coursesCell);
 
         rows.appendChild(row);
+        return row;
     }
 
-    // Languages with a main lexicon first (already sorted by rate), then the
-    // course-only ones, alphabetically.
+    // Languages with a main lexicon first (order to be refined by rate once
+    // it arrives), then the course-only ones, alphabetically. `sectionEnd`
+    // marks the boundary between the two groups, so the rated rows can later
+    // be re-sorted in place (moved before it) without disturbing the
+    // course-only rows after it.
     const rated = new Set();
-    for (const entry of languages) {
-        rated.add(entry.language);
-        renderLanguageRow(
-            entry.language,
-            entry,
-            coursesByLanguage.get(entry.language) || [],
+    const ratedRows = new Map();
+    for (const summary of summaries) {
+        rated.add(summary.language);
+        ratedRows.set(
+            summary.language,
+            renderLanguageRow(
+                summary.language,
+                summary,
+                coursesByLanguage.get(summary.language) || [],
+            ),
         );
     }
+    const sectionEnd = document.createComment("course-only");
+    rows.appendChild(sectionEnd);
     const courseOnly = [...coursesByLanguage.keys()]
         .filter((language) => !rated.has(language))
         .sort((a, b) => languageName(a).localeCompare(languageName(b)));
     for (const language of courseOnly) {
         renderLanguageRow(language, null, coursesByLanguage.get(language));
     }
+
+    // Fill in the rate/level/lexicon-check columns, and re-sort the rated
+    // rows by rate (descending, matching the server's own ordering), once
+    // the slower per-lexicon estimate is ready.
+    api("/me/languages").then(async (response) => {
+        if (!response.ok) return;
+        const languages = await response.json();
+        const sorted = [...languages].sort(
+            (a, b) => (b.rate ?? -Infinity) - (a.rate ?? -Infinity),
+        );
+        for (const entry of sorted) {
+            const cells = pendingCells.get(entry.language);
+            if (!cells) continue;
+            const { rateCell, levelCell, lexiconCell } = cells;
+
+            rateCell.textContent = formatRate(entry.rate, entry.sd, 2);
+
+            levelCell.textContent = "";
+            emmioLevel(entry.rate, levelCell);
+
+            const lexiconLink = document.createElement("a");
+            lexiconLink.className = "lexicon-link strategy-text";
+            lexiconLink.href = `lexicon?lexicon=${encodeURIComponent(
+                entry.lexicon_id,
+            )}`;
+            if (entry.selection) {
+                lexiconLink.append(strategyIconPrefix(entry.selection));
+            }
+            lexiconLink.append(identifierSpan(entry.lexicon_id));
+            if (entry.check_available) {
+                const check = document.createElement("sup");
+                check.setAttribute("class", "notification")
+                // Possible link:
+                // `check?lexicon=${encodeURIComponent(entry.lexicon_id)}`.
+                check.appendChild(document.createTextNode("⚫︎"));
+                lexiconLink.appendChild(check);
+            }
+            lexiconCell.replaceChildren(lexiconLink);
+
+            // Move this row right before the course-only section, in rate
+            // order.
+            rows.insertBefore(ratedRows.get(entry.language), sectionEnd);
+        }
+    });
+
     // Vocabulary-level history of the main lexicons, one line per language —
     // drawn client-side by the same mechanism as the check page's
     // convergence chart, rather than a server-rendered image.
@@ -440,6 +489,8 @@ async function initLanguage() {
     const language = new URLSearchParams(location.search).get("language");
     document.getElementById("language-heading").textContent =
         `Language: ${languageName(language)}`;
+    document.getElementById("add-lexicon-link").href =
+        `new-lexicon?language=${encodeURIComponent(language)}`;
 
     const lexiconsStatus = document.getElementById("lexicons-status");
     const lexiconTable = document.getElementById("lexicon-table");
@@ -647,7 +698,18 @@ async function setupCreateLexicon(formId, selectId, statusId) {
         return;
     }
 
-    fillLanguageSelect(select, available);
+    // Arriving from a language page preselects that language, rather than
+    // making the user pick it again from scratch.
+    const linkedLanguage = new URLSearchParams(location.search).get(
+        "language",
+    );
+    fillLanguageSelect(
+        select,
+        available,
+        available.some((entry) => entry.language === linkedLanguage)
+            ? linkedLanguage
+            : undefined,
+    );
 
     const frequencyLists = await frequencyListResponse.json();
     fillFrequencyListSelect(frequencyListSelect, frequencyLists, select.value);

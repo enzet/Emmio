@@ -2641,6 +2641,40 @@ class LanguageRate(BaseModel):
     recheck_available_at: datetime | None  # When "Check" unlocks, if not now.
 
 
+class LanguageSummary(BaseModel):
+    """A language's main-lexicon identity, without its rate estimate.
+
+    The cheap counterpart to `LanguageRate`: no per-lexicon rate estimate is
+    computed, so this is safe to fetch first and render immediately.
+    """
+
+    language: str
+    lexicon_id: str
+    selection: str | None
+
+
+@app.get("/api/v1/me/languages/summary")
+def get_my_languages_summary(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[LanguageSummary]:
+    """List the user's main-lexicon languages, without the rate estimate.
+
+    A fast counterpart to `/me/languages`: it skips `_row_rate_estimate`
+    entirely (see its cache-miss cost note above `_row_rate_estimate`), so
+    the dashboard can fetch this first and render the languages table
+    immediately, then fetch `/me/languages` to fill in the rate, level, and
+    check-availability columns once they're ready.
+    """
+    return [
+        LanguageSummary(
+            language=language, lexicon_id=lexicon_id, selection=selection
+        )
+        for language, lexicon_id, selection, _ in postgres.get_main_lexicons(
+            user_id
+        )
+    ]
+
+
 @app.get("/api/v1/me/languages")
 def get_my_languages(
     user_id: Annotated[str, Depends(get_current_user)],

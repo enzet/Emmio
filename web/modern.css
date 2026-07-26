@@ -261,6 +261,12 @@ html[data-style="modern"] th {
     border-bottom: 1px solid var(--border);
     padding: 0.45rem 0.8rem;
 }
+html[data-style="modern"] table tr :first-child {
+    padding-left: 0;
+}
+html[data-style="modern"] table tr :last-child {
+    padding-right: 0;
+}
 html[data-style="modern"] th {
     color: var(--muted);
     font-weight: 500;

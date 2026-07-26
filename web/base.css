@@ -692,6 +692,12 @@ table tr td, th {
     border-bottom: 1px inset;
     font-variant-numeric: tabular-nums;
 }
+table tr :first-child {
+    padding-left: 0;
+}
+table tr :last-child {
+    padding-right: 0;
+}
 
 span.language-code {
     font-family: "Iosevka Custom", monospace;
@@ -742,7 +748,6 @@ kbd {
 span.abbr {
     font-size: 90%;
     letter-spacing: 0.07rem;
-    font-variant-numeric: lining-nums;
 }
 sup.notification {
     font-size: 30%;
