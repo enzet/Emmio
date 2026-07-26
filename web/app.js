@@ -325,7 +325,6 @@ async function initHome() {
         rateCell.textContent = entry
             ? formatRate(entry.rate, entry.sd, 2)
             : "—";
-        rateCell.style.textAlign = "right";
         rateCell.style.fontVariantNumeric = "tabular-nums";
         rateCell.style.textAlign = "right";
         row.appendChild(rateCell);

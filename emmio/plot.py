@@ -353,7 +353,7 @@ class Graph:
             text,
             point,
             font_size=12,
-            font_family="SF Pro",
+            font_family="Inter",
             fill=color,
             text_anchor=anchor,
         )
