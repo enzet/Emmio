@@ -2008,6 +2008,7 @@ async function runSession(base, doneText) {
     const sentence = document.getElementById("sentence");
 
     const showButton = document.getElementById("show-translation");
+    const showButtonLabel = document.getElementById("show-translation-label");
     const noTranslation = document.getElementById("no-translation");
     const externalLinks = document.getElementById("external-links");
     const googleLink = document.getElementById("google-link");
@@ -2260,6 +2261,7 @@ async function runSession(base, doneText) {
         revealed = false;
         showButton.hidden = false;
         showButton.disabled = true;
+        showButtonLabel.textContent = "Show translation";
         noTranslation.hidden = true;
         undoBar.hidden = history.length === 0;
         if (history.length) {
@@ -2356,13 +2358,26 @@ async function runSession(base, doneText) {
         }
     }
 
+    // Show the "next word is loading" placeholder everywhere the previous
+    // word's content lingers: the word itself, its translation, and its
+    // sentence. Used whenever the next word isn't ready to show yet, so
+    // nothing stale is left behind — e.g. an old translation still visible
+    // while the word slot has already moved on (or vice versa), which reads
+    // as "did my answer actually not go through?".
+    function showLoadingPlaceholder() {
+        word.replaceChildren(loadingDots());
+        translation.classList.remove("blurred");
+        translation.replaceChildren(loadingDots());
+        sentence.replaceChildren(loadingDots());
+    }
+
     // Move to the next queued word, topping the queue back up in the
     // background so the wait is hidden behind the user's reading time.
     async function advance() {
         if (queue.length === 0) {
-            // No word prefetched yet (first load, or the buffer ran dry): show
-            // the dots in the word slot while `/next` is in flight.
-            word.replaceChildren(loadingDots());
+            // No word prefetched yet (first load, or the buffer ran dry):
+            // show the placeholder while `/next` is in flight.
+            showLoadingPlaceholder();
             status.textContent = "";
             await fill();
             // The awaited refill may have started before the last answer was
@@ -2379,8 +2394,8 @@ async function runSession(base, doneText) {
         if (!current || answering) return;
         answering = true;
         const answered = current.word;
-        // Hide already answered word.
-        word.replaceChildren(loadingDots());
+        // Hide already answered word, translation, and sentence.
+        showLoadingPlaceholder();
         // Remember the response and strategy context so an undo can both
         // rewind the session counters and re-present the word annotated.
         history.push({
@@ -2451,13 +2466,17 @@ async function runSession(base, doneText) {
         render();
     }
 
-    // Reveal the current word's translation by lifting the blur; the content
-    // itself is already rendered (see `renderTranslation`/`render`).
-    function showTranslation() {
+    // Toggle the current word's translation between blurred and revealed;
+    // the content itself is already rendered (see `renderTranslation`/
+    // `render`), so this only flips the blur and the button's label — the
+    // button stays put so the same key/click hides it again.
+    function toggleTranslation() {
         if (!current) return;
-        revealed = true;
-        translation.classList.remove("blurred");
-        showButton.hidden = true;
+        revealed = !revealed;
+        translation.classList.toggle("blurred", !revealed);
+        showButtonLabel.textContent = revealed
+            ? "Hide translation"
+            : "Show translation";
     }
 
     // Render every dictionary that has resolved so far for `item`, in
@@ -2490,11 +2509,11 @@ async function runSession(base, doneText) {
     }
     document
         .getElementById("show-translation")
-        .addEventListener("click", showTranslation);
+        .addEventListener("click", toggleTranslation);
     document.getElementById("undo").addEventListener("click", undo);
 
     // Keyboard shortcuts: each button's `data-key` triggers a click (matches
-    // the CLI), plus space to reveal the translation.
+    // the CLI), plus space to toggle the translation.
     function shortcutButton(event) {
         if (event.ctrlKey || event.metaKey || event.altKey) return null;
         if (event.target.matches("input, textarea, select")) return null;
@@ -2580,6 +2599,7 @@ async function runLearnSession(base) {
     const knowWord = document.getElementById("know-word");
     const knowShowBar = document.getElementById("know-show-bar");
     const knowShow = document.getElementById("know-show");
+    const knowShowLabel = document.getElementById("know-show-label");
     const knowAnswers = document.getElementById("know-answers");
     const knowMeaning = document.getElementById("know-meaning");
     const knowContinueBar = document.getElementById("know-continue-bar");
@@ -2888,6 +2908,7 @@ async function runLearnSession(base) {
                 : "Do you know this word?";
         knowWord.textContent = current.word;
         knowShowBar.hidden = false;
+        knowShowLabel.textContent = "Show translation";
         knowAnswers.hidden = false;
         knowMeaning.hidden = false;
         knowMeaning.classList.add("blurred");
@@ -2919,14 +2940,16 @@ async function runLearnSession(base) {
         else knowMeaning.textContent = "No translation found.";
     }
     // Peek at the translation before self-assessing (as on the lexicon check
-    // page): just lifts the blur, records nothing, the Know/Don't-know
-    // buttons stay.
+    // page): toggles the blur, records nothing, the Know/Don't-know buttons
+    // stay. The button itself stays put so the same key/click hides it again.
     function knowShowTranslation() {
         if (!current || current.type !== "know" || current.pendingResponse) {
             return;
         }
-        knowMeaning.classList.remove("blurred");
-        knowShowBar.hidden = true;
+        const stillBlurred = knowMeaning.classList.toggle("blurred");
+        knowShowLabel.textContent = stillBlurred
+            ? "Show translation"
+            : "Hide translation";
     }
     async function knowSelfAssess(knows) {
         if (!current || current.type !== "know" || current.pendingResponse) {
