@@ -30,13 +30,28 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
-| `app.js`        | Token storage, the `fetch` helper, and per-page logic.       |
+| `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
-`app.js` dispatches on `<body data-page="...">`, so each page is plain HTML that
-just includes the one script. Lexicon checking uses `runSession()` (a yes/no
-flow: next → reveal translation → answer). Learning uses `runLearnSession()`,
-which renders whichever review question type the server's `/question` endpoint
-chose:
+`app.js` is loaded as an ES module (`<script type="module">`) and only holds
+the dispatch table; the actual logic lives under `js/`, one module per concern:
+
+| Module                  | Role                                                            |
+|--------------------------|------------------------------------------------------------------|
+| `js/api.js`              | Token storage, the `fetch` helper, `requireAuth`.                |
+| `js/format.js`           | Formatting/DOM helpers shared by every page (rate, dates, `<select>` fill, …). |
+| `js/charts.js`           | The inline-SVG charts: rate trajectory, language history, strata wheel. |
+| `js/forms.js`            | Shared "create a lexicon / course / learning" form wiring.       |
+| `js/check-session.js`    | `runSession()` (lexicon checking) and the check page.             |
+| `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
+| `js/auth-pages.js`       | Landing, login, register.                                        |
+| `js/home-pages.js`       | Dashboard and the per-language page.                              |
+| `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
+| `js/course-pages.js`     | Course list, course detail + learning settings, add-a-course/learning. |
+| `js/profile.js`          | Profile page.                                                    |
+
+Lexicon checking uses `runSession()` (a yes/no flow: next → reveal translation
+→ answer). Learning uses `runLearnSession()`, which renders whichever review
+question type the server's `/question` endpoint chose:
 
 - **type the word** — meaning (word blanked) + a translated example shown; type
   the word, auto-accepted on match against the server's `accepted`.
