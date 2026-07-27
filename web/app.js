@@ -1630,29 +1630,17 @@ function createTrajectoryChart(figure, svg, tooltip) {
     };
 }
 
-// Dashboard vocabulary-level history: one r line (plus ± SD band) per
-// language, over calendar time. Same drawing approach as
+// Dashboard vocabulary-level history: one r line per language, over
+// calendar time. Same drawing approach as
 // `createTrajectoryChart` (inline SVG, hover crosshair and tooltip), but
 // there is no live session to grow it from — `setData` renders a fixed
-// snapshot fetched once — and each language gets a color from a fixed chart
-// palette (by position, cycling if there are more languages than colors)
-// instead of sharing one CSS variable, since several lines share the chart.
-// Deliberately not the language's own display color (`Language.color`,
-// used elsewhere, e.g. `.language-code`): those aren't chosen as a set for
-// mutual contrast, so two languages can end up close in hue. There's no
-// legend spelling out which line is which — hovering a language's row in
-// the dashboard table (or a line here) highlights the other via
-// `onHoverLanguage`/`highlight()` below.
-const HISTORY_CHART_PALETTE = [
-    "#2A78D6", // blue
-    "#D6552A", // orange
-    "#1BAF7A", // green
-    "#B03ADB", // purple
-    "#D6B22A", // gold
-    "#2AAFD6", // cyan
-    "#D62A6E", // rose
-    "#6E8C2A", // olive
-];
+// snapshot fetched once. Every line is plain (`--fg`, i.e. black-ish) by
+// default; there's no legend or per-language color spelling out which line
+// is which — hovering a language's row in the dashboard table (or a line
+// here) highlights the other, turning it blue, via `onHoverLanguage`/
+// `highlight()` below. SD bands aren't drawn here (unlike the trajectory
+// chart): with every language sharing one plain color, an SD band per line
+// would be hard to tell apart from its neighbors'.
 
 // `onHoverLanguage`, if given, is called with a language code when the
 // pointer settles nearest that language's line, and with `null` when the
@@ -1668,13 +1656,14 @@ function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
     // `highlight()` — is for), so there's no legend to make room for either.
     const MARGIN = { top: 10, right: 4, bottom: 20, left: 4 };
 
-    let series = []; // [{ language, color, points: [{ date, rate, sd }] }].
+    let series = []; // [{ language, points: [{ date, rate, sd }] }].
     let scale = null; // Last render's scales, for the hover layer.
     let activeLanguage = null; // Set by `highlight()`; survives a re-render.
 
-    // Dim every line/band except `language`'s (or, for `null`, undo that).
+    // Dim every line except `language`'s, which instead turns blue (or, for
+    // `null`, undo both).
     function applyHighlight(language) {
-        for (const path of svg.querySelectorAll(".line, .band")) {
+        for (const path of svg.querySelectorAll(".line")) {
             const isActive =
                 language !== null && path.dataset.language === language;
             path.classList.toggle("active", isActive);
@@ -1774,16 +1763,18 @@ function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
         const parts = [];
 
         // Horizontal hairline gridlines with their rate labels. With no left
-        // margin reserved for them, the labels sit just above their own
+        // margin reserved for them, the labels sit just below their own
         // gridline instead, inset from the left edge (the same trick used
-        // for the leftmost/rightmost date label below).
+        // for the leftmost/rightmost date label below). The "0" tick is
+        // skipped: it would coincide with the baseline drawn below anyway.
         for (let value = yMin; value <= yMax; value += 1) {
+            if (value === 0) continue;
             const line = y(value);
             parts.push(
                 `<line class="grid" x1="${plot.left}" y1="${line}"` +
                     ` x2="${plot.right}" y2="${line}"/>`,
-                `<text class="tick-label" x="${plot.left + 4}"` +
-                    ` y="${line - 3}" text-anchor="start">` +
+                `<text class="tick-label" x="${plot.left + 0}"` +
+                    ` y="${line + 16}" text-anchor="start">` +
                     `${tickLabel(value)}</text>`,
             );
         }
@@ -1848,23 +1839,13 @@ function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
             }
         }
 
-        // One r line with its ± SD band per language, each in its own color.
+        // One r line per language (no SD band — see the note above this
+        // function).
         for (const one of known) {
-            const upper = one.points
-                .map((p) => `${x(p.date.getTime())},${y(p.rate + (p.sd || 0))}`)
-                .join(" L ");
-            const lower = one.points
-                .slice()
-                .reverse()
-                .map((p) => `${x(p.date.getTime())},${y(p.rate - (p.sd || 0))}`)
-                .join(" L ");
             parts.push(
-                `<path class="band" data-language="${one.language}"` +
-                    ` d="M ${upper} L ${lower} Z" fill="${one.color}"/>`,
-                `<path class="line" data-language="${one.language}"` +
-                    ` d="M ${one.points
-                        .map((p) => `${x(p.date.getTime())},${y(p.rate)}`)
-                        .join(" L ")}" stroke="${one.color}"/>`,
+                `<path class="line" data-language="${one.language}" d="M ${one.points
+                    .map((p) => `${x(p.date.getTime())},${y(p.rate)}`)
+                    .join(" L ")}"/>`,
             );
         }
 
@@ -1905,7 +1886,6 @@ function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
         crosshair.style.visibility = "visible";
         focusDot.setAttribute("cx", cx);
         focusDot.setAttribute("cy", cy);
-        focusDot.setAttribute("fill", nearestSeries.color);
         focusDot.style.visibility = "visible";
         tooltip.textContent =
             `${languageName(nearestSeries.language)}: r = ` +
@@ -1925,12 +1905,8 @@ function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage) {
         // Seed (and only ever seed) the chart with every language's history,
         // fetched once on page load.
         setData(histories) {
-            series = histories.map((entry, index) => ({
+            series = histories.map((entry) => ({
                 language: entry.language,
-                color:
-                    HISTORY_CHART_PALETTE[
-                        index % HISTORY_CHART_PALETTE.length
-                    ],
                 points: entry.points.map((point) => ({
                     date: new Date(point.date),
                     rate: point.rate,

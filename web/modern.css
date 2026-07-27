@@ -26,6 +26,8 @@ html[data-style="modern"] {
     --wrong-fg: #C22F3D;
     --selected-bg: #EDF4FE;
     --selected-border: #A8C7F0;
+    --history-highlight: #2A78D6;
+    --row-highlight: #FFF3B0;
 }
 html[data-style="modern"][data-theme="dark"] {
     --bg: #0A0A0A;
@@ -47,6 +49,8 @@ html[data-style="modern"][data-theme="dark"] {
     --wrong-fg: #F2A2AA;
     --selected-bg: #16233A;
     --selected-border: #3D5A8C;
+    --history-highlight: #5B9DFF;
+    --row-highlight: #4D4423;
 }
 
 /* The off-white ink (#F3F5F7) needs its own inversion factor for the

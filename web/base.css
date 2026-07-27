@@ -110,6 +110,8 @@
     --wrong-fg: #900;
     --selected-bg: #E6EEFF;
     --selected-border: #88A;
+    --history-highlight: #0000FF; /* Dashboard graph's hovered/active line. */
+    --row-highlight: #FFFFDD; /* Dashboard languages table's hovered row. */
 }
 html[data-theme="dark"] {
     color-scheme: dark;
@@ -134,6 +136,8 @@ html[data-theme="dark"] {
     --wrong-fg: #F2A2A2;
     --selected-bg: #24304C;
     --selected-border: #667;
+    --history-highlight: #8888FF;
+    --row-highlight: #444422;
 }
 
 /* The logo is a black-filled SVG loaded via `<img>`, so its `fill` cannot be
@@ -171,7 +175,7 @@ body {
         Helvetica,
         Arial,
         sans-serif;
-    font-size: 10pt;
+    font-size: 10.5pt;
 }
 
 a {
@@ -609,11 +613,12 @@ header .profile-link {
 /* Vocabulary-level history on the dashboard: one line per language, drawn
    client-side by the same mechanism as the check page's convergence chart
    (`#trajectory`) — a hover crosshair plus tooltip, growing from live data
-   instead of a server-rendered image. Unlike `#trajectory` each line is set
-   inline per path (from `HISTORY_CHART_PALETTE` in app.js) rather than a
-   shared CSS variable, since several lines share the chart; which line is
-   which is instead conveyed by hovering it (or its table row), which
-   highlights the matching row (or line) in sync. */
+   instead of a server-rendered image. Every line is plain `--fg`; which one
+   is which is instead conveyed by hovering it (or its table row), which
+   highlights the matching row (or line) in sync, turning the line
+   `--history-highlight` blue. No SD bands (unlike `#trajectory`): with every
+   language sharing one plain color, a band per line couldn't be told apart
+   from its neighbors'. */
 #lexicon-history {
     position: relative; /* Anchors the hover tooltip. */
     margin: 1rem 0 0.3rem;
@@ -624,27 +629,23 @@ header .profile-link {
     width: 100%;
     height: 35rem;
 }
-#lexicon-history .band {
-    opacity: 0.1;
-    transition: opacity 0.15s ease;
-}
 #lexicon-history .line {
+    stroke: var(--fg);
     stroke-width: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
     transition:
         stroke-width 0.15s ease,
+        stroke 0.15s ease,
         opacity 0.15s ease;
 }
 /* Table-row/chart-line hover sync (dashboard): hovering a language's row
    highlights its line here, and vice versa (`highlight()` /
    `onHoverLanguage` in `createLanguageHistoryChart`). */
 #lexicon-history .line.active {
+    stroke: var(--history-highlight);
     stroke-width: 2.5;
-}
-#lexicon-history .band.dimmed {
-    opacity: 0.03;
 }
 #lexicon-history .line.dimmed {
     opacity: 0.25;
@@ -667,6 +668,7 @@ header .profile-link {
     stroke-width: 1;
 }
 #lexicon-history .focus-dot {
+    fill: var(--history-highlight);
     stroke: var(--bg); /* Surface ring, keeps the dot legible on the line. */
     stroke-width: 2;
 }
@@ -687,7 +689,7 @@ header .profile-link {
    `:hover` state so both triggers look the same. */
 #languages-rows tr:hover,
 #languages-rows tr.row-highlighted {
-    background-color: var(--surface);
+    background-color: var(--row-highlight);
 }
 
 table {
@@ -769,10 +771,6 @@ a.button {
     color: var(--fg);
     text-decoration: underline;
     /* font-size: 85%; */
-}
-td.courses-cell a,
-td.courses-cell span.course-empty {
-    padding-right: 0.5rem;
 }
 /* The learning typing field, centered under the blanked word. */
 input#answer-input {
