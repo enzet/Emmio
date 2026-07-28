@@ -666,7 +666,7 @@ def test_compute_rate_history_frequency_matches_classic_windows() -> None:
     records.insert(200, ("junk", "N"))  # Resolutions are not answers.
     dated: list[tuple[datetime, str, str]] = _dated(records)
 
-    date_ranges, rates, sds = compute_rate_history(
+    queries, date_ranges, rates, sds = compute_rate_history(
         LexiconSelection.FREQUENCY, None, dated
     )
 
@@ -679,6 +679,12 @@ def test_compute_rate_history_frequency_matches_classic_windows() -> None:
     assert date_ranges == expected_ranges
     assert rates == expected_rates
     assert all(sd == pytest.approx(1.0 / (math.log(2) * 10.0)) for sd in sds)
+    # Every point's `queries` is the 1-based position of its window's end
+    # date within the full (unfiltered) log.
+    by_date: dict[datetime, int] = {
+        date: position for position, (date, _, _) in enumerate(dated, start=1)
+    }
+    assert queries == [by_date[end] for _, end in date_ranges]
 
 
 def test_compute_rate_history_frequency_threshold_sets_window() -> None:
@@ -688,7 +694,7 @@ def test_compute_rate_history_frequency_threshold_sets_window() -> None:
     )
     sd_threshold: float = 1.0 / (math.log(2) * math.sqrt(25))
 
-    date_ranges, rates, sds = compute_rate_history(
+    _, date_ranges, rates, sds = compute_rate_history(
         LexiconSelection.FREQUENCY, None, dated, sd_threshold=sd_threshold
     )
 
@@ -710,7 +716,7 @@ def test_compute_rate_history_stratified_census() -> None:
         [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K")]
     )
 
-    date_ranges, rates, sds = compute_rate_history(
+    queries, date_ranges, rates, sds = compute_rate_history(
         LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
     )
 
@@ -719,6 +725,7 @@ def test_compute_rate_history_stratified_census() -> None:
     assert rates == [pytest.approx(-math.log2(2 / 15))]
     assert sds == [0.0]
     assert date_ranges == [(dated[0][0], dated[3][0])]
+    assert queries == [4]  # The census completes at the 4th record.
 
 
 def test_compute_rate_history_stratified_reask_uses_latest_answer() -> None:
@@ -730,7 +737,7 @@ def test_compute_rate_history_stratified_reask_uses_latest_answer() -> None:
         [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("d", "D")]
     )
 
-    date_ranges, rates, sds = compute_rate_history(
+    queries, date_ranges, rates, sds = compute_rate_history(
         LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
     )
 
@@ -740,6 +747,7 @@ def test_compute_rate_history_stratified_reask_uses_latest_answer() -> None:
     assert rates[1] == pytest.approx(-math.log2(3 / 15))
     assert sds[1] == 0.0
     assert date_ranges[1] == (dated[0][0], dated[4][0])
+    assert queries[1] == 5  # The re-ask is the 5th record.
 
 
 def test_compute_rate_history_stratified_window_skips_superseded() -> None:
@@ -751,7 +759,7 @@ def test_compute_rate_history_stratified_window_skips_superseded() -> None:
         [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("a", "K")]
     )
 
-    date_ranges, rates, _ = compute_rate_history(
+    queries, date_ranges, rates, _ = compute_rate_history(
         LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
     )
 
@@ -760,6 +768,7 @@ def test_compute_rate_history_stratified_window_skips_superseded() -> None:
     assert len(rates) == 2
     assert rates[1] == pytest.approx(-math.log2(2 / 15))
     assert date_ranges[1] == (dated[1][0], dated[4][0])
+    assert queries[1] == 5  # The re-ask of `a` is the 5th record.
 
 
 def test_compute_rate_history_stratified_resolution_is_permanent() -> None:
@@ -771,7 +780,7 @@ def test_compute_rate_history_stratified_resolution_is_permanent() -> None:
         [("a", "K"), ("b", "K"), ("c", "D"), ("d", "K"), ("d", "N"), ("b", "K")]
     )
 
-    date_ranges, rates, sds = compute_rate_history(
+    queries, date_ranges, rates, sds = compute_rate_history(
         LexiconSelection.STRATIFIED, frequency_list, dated, n_strata=2
     )
 
@@ -782,6 +791,7 @@ def test_compute_rate_history_stratified_resolution_is_permanent() -> None:
     assert rates[1] == pytest.approx(-math.log2(7 / 45))
     assert sds[1] == 0.0
     assert date_ranges[1] == (dated[0][0], dated[5][0])
+    assert queries[1] == 6  # The re-ask of `b` is the 6th record.
 
 
 def test_compute_rate_history_no_backend_for_logistic() -> None:

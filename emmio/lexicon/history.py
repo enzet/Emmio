@@ -1,27 +1,26 @@
 """Windowed rate history: the vocabulary rate as it changes through time.
 
-Every selection strategy gets its history the same way: a sliding window
-over the chronological answer log, kept as small as the strategy-matched
-estimator allows while its standard deviation stays under a threshold. A
-small window follows the learner's progress closely; the threshold keeps
-every point equally trustworthy across strategies, so their curves are
-comparable on one graph.
+Every selection strategy gets its history the same way: a sliding window over
+the chronological answer log, kept as small as the strategy-matched estimator
+allows while its standard deviation stays under a threshold. A small window
+follows the learner's progress closely; the threshold keeps every point equally
+trustworthy across strategies, so their curves are comparable on one graph.
 
 The frequency (FWR) backend reuses `compute_lexicon_rate`: its windows of a
 fixed number of "don't know" answers are exactly the SD-threshold windows for
-that estimator, whose SD = 1 / (ln 2 · √n₋) depends on the unknown count
-alone. The classic 100-don't-know research method is the special case
-`sd_threshold = DEFAULT_SD_THRESHOLD`.
+that estimator, whose SD = 1 / (ln 2 · √n₋) depends on the unknown count alone.
+The classic 100-don't-know research method is the special case `sd_threshold =
+DEFAULT_SD_THRESHOLD`.
 
-The stratified (SFWR) backend maintains the estimator's per-stratum
-aggregates incrementally and moves the window with two pointers: each answer
-enters the window once and leaves at most once, and every check against the
-threshold is an O(K) evaluation of `_stratified_rate_from_aggregates`, so a
-whole history costs O(N · K) — nothing is ever recomputed from scratch.
+The stratified (SFWR) backend maintains the estimator's per-stratum aggregates
+incrementally and moves the window with two pointers: each answer enters the
+window once and leaves at most once, and every check against the threshold is an
+O(K) evaluation of `_stratified_rate_from_aggregates`, so a whole history costs
+O(N · K) — nothing is ever recomputed from scratch.
 
 The threshold and logistic estimators have no windowed history yet: their
-bootstrapped SDs admit no O(1) update, so they need a warm-started window
-search instead of two pointers.
+bootstrapped SDs admit no O(1) update, so they need a warm-started window search
+instead of two pointers.
 """
 
 import math
@@ -53,8 +52,14 @@ know" answers has SD = 1 / (ln 2 · √100), so under this threshold the
 frequency backend reproduces the traditional 100-don't-know windows exactly.
 """
 
-RateHistory = tuple[list[tuple[datetime, datetime]], list[float], list[float]]
-"""A rate history: window (start, end) dates, rates and SDs, index-aligned."""
+RateHistory = tuple[
+    list[int], list[tuple[datetime, datetime]], list[float], list[float]
+]
+"""A rate history.
+
+1-based record positions, window (start, end) dates, rates and SDs,
+index-aligned.
+"""
 
 
 def compute_rate_history(
@@ -81,7 +86,8 @@ def compute_rate_history(
     :param sd_threshold: largest standard deviation a history point may have
     :param n_strata: number of log-uniform strata K for the stratified
         estimator
-    :return: window date ranges, rates and their SDs, index-aligned
+    :return: 1-based positions in `records`, window date ranges, rates and
+        their SDs, index-aligned
     :raises NotImplementedError: for estimators without a windowed history
     :raises ValueError: if a model-based estimator gets no frequency list
     """
@@ -99,6 +105,29 @@ def compute_rate_history(
     raise NotImplementedError(message)
 
 
+def latest_windowed_rate(
+    selection: LexiconSelection,
+    frequency_list: FrequencyList | None,
+    records: list[tuple[datetime, str, str]],
+    sd_threshold: float = DEFAULT_SD_THRESHOLD,
+    n_strata: int = DEFAULT_N_STRATA,
+) -> tuple[float, float] | None:
+    """Get the last point of `compute_rate_history`, the live counterpart.
+
+    `None` while the log has never yet supported the target precision, same
+    as `compute_rate_history` before its first emitted point.
+
+    :raises NotImplementedError: for estimators without a windowed history
+    :raises ValueError: if a model-based estimator gets no frequency list
+    """
+    _, _, rates, sds = compute_rate_history(
+        selection, frequency_list, records, sd_threshold, n_strata
+    )
+    if not rates:
+        return None
+    return rates[-1], sds[-1]
+
+
 def _frequency_history(
     records: list[tuple[datetime, str, str]], sd_threshold: float
 ) -> RateHistory:
@@ -107,19 +136,33 @@ def _frequency_history(
     SD(r̂) = 1 / (ln 2 · √n₋) depends only on the window's "don't know"
     count, so the smallest window under the threshold is the one with the
     smallest sufficient n₋ — exactly the fixed-unknown-count windows of
-    `compute_lexicon_rate`.
+    `compute_lexicon_rate`. Positions are recovered by re-deriving the same
+    "don't know" indices `compute_lexicon_rate` uses internally and mapping
+    them back through `data`'s own positions in the full, unfiltered `records`.
     """
     precision: int = math.ceil((1.0 / (sd_threshold * math.log(2))) ** 2 - 1e-9)
     know: str = LexiconResponse.KNOW.to_code()
     dont: str = LexiconResponse.DONT.to_code()
-    data: list[tuple[datetime, int]] = [
-        (date, 1 if code == know else 0)
-        for date, _, code in records
-        if code in (know, dont)
+    data: list[tuple[datetime, int]] = []
+    positions: list[int] = []  # 1-based position in `records` per `data` entry
+    for position, (date, _, code) in enumerate(records, start=1):
+        if code in (know, dont):
+            data.append((date, 1 if code == know else 0))
+            positions.append(position)
+
+    unknown_indices: list[int] = [
+        index for index, (_, response) in enumerate(data) if response == 0
     ]
+    if len(unknown_indices) < precision:
+        return [], [], [], []
+
     date_ranges, rates = compute_lexicon_rate(data, precision)
+    queries: list[int] = [
+        positions[unknown_indices[index + precision - 1]]
+        for index in range(len(rates))
+    ]
     sd: float = 1.0 / (math.log(2) * math.sqrt(precision))
-    return date_ranges, rates, [sd] * len(rates)
+    return queries, date_ranges, rates, [sd] * len(rates)
 
 
 def _stratified_history(
@@ -160,6 +203,7 @@ def _stratified_history(
     resolved_words: set[str] = set()
     left: int = 0
 
+    queries: list[int] = []
     date_ranges: list[tuple[datetime, datetime]] = []
     rates: list[float] = []
     sds: list[float] = []
@@ -195,7 +239,7 @@ def _stratified_history(
         del active[word]
         remove(k, p_i, label)
 
-    for date, word, code in records:
+    for position, (date, word, code) in enumerate(records, start=1):
         index: int = frequency_list.get_index(word)
         if index == -1:
             continue  # A word outside the list is invisible to the estimator.
@@ -246,8 +290,9 @@ def _stratified_history(
             del active[entries[left][1]]
             left += 1
 
+        queries.append(position)
         date_ranges.append((entries[left][0], date))
         rates.append(estimate[0])
         sds.append(estimate[1])
 
-    return date_ranges, rates, sds
+    return queries, date_ranges, rates, sds

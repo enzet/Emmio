@@ -149,6 +149,12 @@ export async function initLexicon() {
                 : formatRate(s.rate, s.sd, 2),
         ],
         [
+            "Vocabulary rate (last 3 months)",
+            s.trailing_rate === null
+                ? "not enough recent data"
+                : formatRate(s.trailing_rate, s.trailing_sd, 2),
+        ],
+        [
             "Precision goal (last 3 months)",
             s.achieved ? "Achieved" : "Not yet achieved",
         ],

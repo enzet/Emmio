@@ -25,6 +25,7 @@ from emmio.lexicon.core import (
     StratifiedSelector,
     stratum_of_rank,
 )
+from emmio.lexicon.history import DEFAULT_SD_THRESHOLD
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -508,6 +509,78 @@ def test_tables_show_strategy_matched_rate_for_stratified_lexicon() -> None:
 
 
 @pytest.mark.usefixtures("fake_uk_list")
+def test_rate_estimate_falls_back_before_stratified_window_is_reached() -> None:
+    """Show the full-history estimate before the moving window is reached.
+
+    Once enough strata are covered, `rate-estimate` and the windowed
+    `/lexicons/history` agree, the same switch-over
+    `_prefer_windowed_estimates` gives the trajectory chart.
+    """
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+
+    # One word per mass-carrying stratum (with `n_strata=10` over 30 words,
+    # stratum 1 carries no rank and is skipped): enough for every stratum to
+    # have a tested word, so the full-history estimator has an answer, but
+    # each stratum's coverage is far too sparse for the moving window's SD to
+    # reach the 0.1443 target.
+    cover_indices: list[int] = [0, 1, 2, 3, 5, 7, 10, 15, 21]
+    for index in cover_indices:
+        word = _UK_WORDS[index]
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={
+                "word": word,
+                "response": "dont" if index % 3 == 0 else "know",
+            },
+            headers=_auth(token),
+        )
+
+    early = client.get(
+        "/api/v1/me/lexicons/uk/rate-estimate", headers=_auth(token)
+    ).json()
+    assert early["rate"] is not None  # The full-history fallback, not blank.
+    assert early["sd"] > DEFAULT_SD_THRESHOLD
+
+    history = client.get(
+        "/api/v1/me/lexicons/history", headers=_auth(token)
+    ).json()
+    assert history == []  # The window has not achieved its target SD yet.
+
+    trajectory = client.get(
+        "/api/v1/me/lexicons/uk/rate-trajectory", headers=_auth(token)
+    ).json()
+    last_checkpoint = trajectory["checkpoints"][-1]
+    assert last_checkpoint["rate"] == pytest.approx(early["rate"])
+
+    # Answer every remaining word: a full census pins the window's SD at 0,
+    # so `rate-estimate` now switches to the windowed estimate.
+    for index, word in enumerate(_UK_WORDS):
+        if index in cover_indices:
+            continue
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={"word": word, "response": "know" if index < 20 else "dont"},
+            headers=_auth(token),
+        )
+
+    late = client.get(
+        "/api/v1/me/lexicons/uk/rate-estimate", headers=_auth(token)
+    ).json()
+    assert late["sd"] == pytest.approx(0.0)
+
+    history = client.get(
+        "/api/v1/me/lexicons/history", headers=_auth(token)
+    ).json()
+    assert history[0]["points"][-1]["rate"] == pytest.approx(late["rate"])
+
+    trajectory = client.get(
+        "/api/v1/me/lexicons/uk/rate-trajectory", headers=_auth(token)
+    ).json()
+    assert trajectory["checkpoints"][-1]["rate"] == pytest.approx(late["rate"])
+
+
+@pytest.mark.usefixtures("fake_uk_list")
 def test_lexicons_history_lists_one_series_per_language() -> None:
     """The dashboard history chart gets one point series per language."""
 
@@ -742,6 +815,43 @@ def test_lexicon_settings_and_stats_report_frequency_list_name() -> None:
         "/api/v1/me/lexicons/uk/stats", headers=_auth(token)
     ).json()
     assert stats["frequency_list_name"] == "uk_list"
+
+
+def test_lexicon_stats_report_trailing_three_month_rate() -> None:
+    """`/stats` exposes the trailing-window rate `achieved` is judged on."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.store_lexicon_config(
+        "alice", "de", {"language": "de", "selection": "frequency"}
+    )
+
+    stats = client.get(
+        "/api/v1/me/lexicons/de/stats", headers=_auth(token)
+    ).json()
+    assert stats["rate"] is None
+    assert stats["trailing_rate"] is None
+    assert stats["trailing_sd"] is None
+
+    # 5 unknowns among 20 answers, all just now: theta = 1/4, so r = 2, and
+    # every answer is within the trailing 3-month window.
+    for index in range(20):
+        client.post(
+            "/api/v1/me/lexicons/de/answer",
+            json={
+                "word": f"wort{index}",
+                "response": "dont" if index % 4 == 3 else "know",
+            },
+            headers=_auth(token),
+        )
+
+    stats = client.get(
+        "/api/v1/me/lexicons/de/stats", headers=_auth(token)
+    ).json()
+    assert stats["trailing_rate"] == pytest.approx(stats["rate"])
+    assert stats["trailing_sd"] == pytest.approx(stats["sd"])
+    assert stats["achieved"] == (
+        stats["trailing_sd"] <= 1.0 / (math.log(2) * math.sqrt(100))
+    )
 
 
 @pytest.mark.usefixtures("fake_languages")

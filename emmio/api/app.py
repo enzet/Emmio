@@ -62,7 +62,7 @@ from emmio.lexicon.core import (
     stratum_of_rank,
 )
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
-from emmio.lexicon.history import compute_rate_history
+from emmio.lexicon.history import compute_rate_history, latest_windowed_rate
 from emmio.lexicon.replay import replay
 from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
@@ -557,6 +557,33 @@ def _frequency_list_or_none(
     )
 
 
+def _stratified_rate_windowed_or_full(
+    user_id: str,
+    lexicon_id: str,
+    selection: LexiconSelection,
+    frequency_list: FrequencyList,
+    records: list[tuple[datetime, str, str]],
+) -> tuple[float, float] | None:
+    """Estimate with the moving window, falling back to the full one.
+
+    Mirrors the frequency estimator's own early-session fallback (its
+    partial-log branch in `estimate_rate_frequency`): before the window first
+    reaches the target SD, the full-history, latest-state-per-word estimate
+    keeps a wider, less trustworthy number on screen instead of a blank
+    field. `get_lexicon_selector_states` is fetched lazily since it is only
+    needed for that fallback.
+    """
+    windowed: tuple[float, float] | None = latest_windowed_rate(
+        selection, frequency_list, records
+    )
+    if windowed is not None:
+        return windowed
+    states: dict[str, tuple[str | None, bool | None]] = (
+        postgres.get_lexicon_selector_states(user_id, lexicon_id)
+    )
+    return estimate_rate_with_sd(selection, frequency_list, states)
+
+
 def _compute_row_rate_estimate(
     user_id: str,
     lexicon_id: str,
@@ -583,6 +610,13 @@ def _compute_row_rate_estimate(
     )
     if frequency_list is None:
         return None
+    if method == RateEstimator.STRATIFIED:
+        records: list[tuple[datetime, str, str]] = (
+            postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
+        )
+        return _stratified_rate_windowed_or_full(
+            user_id, lexicon_id, parsed, frequency_list, records
+        )
     states: dict[str, tuple[str | None, bool | None]] = (
         postgres.get_lexicon_selector_states(user_id, lexicon_id)
     )
@@ -2302,12 +2336,14 @@ def get_lexicon_rate_estimate(
 ) -> RateEstimate:
     """Estimate the lexicon's vocabulary rate with its standard deviation.
 
-    Unlike the plain `rate` field of the stats endpoints (which applies the
-    frequency-weighted sliding window to every log), this dispatches to the
-    estimator matching the lexicon's selection strategy — the window estimate
-    is unbiased only over frequency-weighted draws. Refreshed by the check
-    page after every answer, which also uses `achieved` to end the session and
-    return to the lexicon list once the trailing-window precision goal is met.
+    Dispatches to the estimator matching the lexicon's selection strategy, the
+    same as the stats/list endpoints' `rate` field (`_row_rate_estimate`) —
+    unlike the windowed rate history (`compute_lexicon_rate`, behind
+    `/lexicons/history`), which applies the frequency-weighted sliding window
+    regardless of strategy and is unbiased only over frequency-weighted draws.
+    Refreshed by the check page after every answer, which also uses `achieved`
+    to end the session and return to the lexicon list once the
+    trailing-window precision goal is met.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     selection: LexiconSelection = LexiconSelection(config["selection"])
@@ -2319,10 +2355,18 @@ def get_lexicon_rate_estimate(
         )
 
     frequency_list: FrequencyList | None = None
+    dated_records: list[tuple[datetime, str, str]] = (
+        postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
+    )
     if method == RateEstimator.FREQUENCY:
         estimate: tuple[float, float] | None = estimate_rate_with_sd(
             selection,
             sequence=postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
+        )
+    elif method == RateEstimator.STRATIFIED:
+        frequency_list = _frequency_list_or_error(config, lexicon_id)
+        estimate = _stratified_rate_windowed_or_full(
+            user_id, lexicon_id, selection, frequency_list, dated_records
         )
     else:
         # The model-based estimators place every word by frequency rank, so
@@ -2338,9 +2382,7 @@ def get_lexicon_rate_estimate(
 
     rate, sd = _rate_and_sd(estimate)
     goal: LexiconGoalState = compute_lexicon_goal_state(
-        selection,
-        frequency_list,
-        postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
+        selection, frequency_list, dated_records
     )
     return RateEstimate(
         rate=rate,
@@ -2405,6 +2447,45 @@ long answer history stays a single fast request.
 """
 
 
+def _prefer_windowed_estimates(
+    checkpoints: list[int],
+    estimates: list[tuple[float, float] | None],
+    windowed_queries: list[int],
+    windowed_rates: list[float],
+    windowed_sds: list[float],
+) -> list[tuple[float, float] | None]:
+    """Overlay a windowed rate history onto a full-history replay.
+
+    Once the moving window first reaches its target SD, its estimate
+    replaces the full-history one at every checkpoint from that answer on;
+    earlier checkpoints keep the full-history replay's own estimate, the
+    same early-session fallback `_stratified_rate_windowed_or_full` uses for
+    the live rate.
+
+    :param checkpoints: 1-based answer numbers the replay stopped at
+    :param estimates: the replay's own per-checkpoint (r̂, SD), index-aligned
+        with `checkpoints`
+    :param windowed_queries: 1-based answer numbers of the windowed history's
+        own points, strictly increasing
+    :param windowed_rates: the windowed history's rates, index-aligned with
+        `windowed_queries`
+    :param windowed_sds: the windowed history's SDs, index-aligned with
+        `windowed_queries`
+    """
+    result: list[tuple[float, float] | None] = []
+    pos: int = 0
+    n: int = len(windowed_queries)
+    for checkpoint, estimate in zip(checkpoints, estimates, strict=True):
+        while pos < n and windowed_queries[pos] <= checkpoint:
+            pos += 1
+        result.append(
+            (windowed_rates[pos - 1], windowed_sds[pos - 1])
+            if pos > 0
+            else estimate
+        )
+    return result
+
+
 @app.get("/api/v1/me/lexicons/{lexicon_id}/rate-trajectory")
 def get_lexicon_rate_trajectory(
     lexicon_id: str, user_id: Annotated[str, Depends(get_current_user)]
@@ -2414,7 +2495,10 @@ def get_lexicon_rate_trajectory(
     Re-runs the same strategy-matched estimator `rate-estimate` uses after
     every `step` answers of the recorded log, so the check page can seed
     its convergence chart with the history and then grow it live from the
-    per-answer estimates.
+    per-answer estimates. For `stratified`, checkpoints from the moving
+    window's first achieved point onward use that windowed estimate instead
+    (`_prefer_windowed_estimates`), matching `rate-estimate`'s own
+    windowed-or-full fallback.
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     selection: LexiconSelection = LexiconSelection(config["selection"])
@@ -2429,11 +2513,26 @@ def get_lexicon_rate_trajectory(
     if method != RateEstimator.FREQUENCY:
         frequency_list = _frequency_list_or_error(config, lexicon_id)
 
-    records: list[tuple[str, str]] = postgres.get_lexicon_record_log(
-        user_id, lexicon_id
+    dated_records: list[tuple[datetime, str, str]] = (
+        postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
     )
+    records: list[tuple[str, str]] = [
+        (word, code) for _, word, code in dated_records
+    ]
     step: int = max(1, -(-len(records) // MAX_TRAJECTORY_CHECKPOINTS))
     checkpoints, estimates = replay(records, selection, frequency_list, step)
+
+    if method == RateEstimator.STRATIFIED:
+        # Once the moving window first reaches its target SD, its narrower
+        # estimate replaces the full-history replay from that answer on —
+        # the trajectory's own version of `_stratified_rate_windowed_or_full`,
+        # so the chart's last point always agrees with the live rate.
+        w_queries, _, w_rates, w_sds = compute_rate_history(
+            selection, frequency_list, dated_records
+        )
+        estimates = _prefer_windowed_estimates(
+            checkpoints, estimates, w_queries, w_rates, w_sds
+        )
 
     # The check page's stratum wheel: every know/don't-know answer with its
     # word's stratum, in answer order.
@@ -2564,6 +2663,16 @@ class LexiconStats(BaseModel):
     dont_last_week: int  # "Don't know" answers in the last 7 days.
     rate: float | None  # Vocabulary rate, or None if not enough data.
     sd: float | None  # Standard deviation of the rate estimate.
+    trailing_rate: float | None
+    """Vocabulary rate over the trailing 3 months only, or `None`.
+
+    The same estimate `achieved` is judged against (`LexiconGoalState.rate`):
+    unlike `rate`, a know/don't-know answer older than `WINDOW_DAYS` does not
+    count, so this reflects only knowledge still considered fresh. `None`
+    while that trailing window alone does not yet support an estimate, even
+    if `rate` (over the whole history) does.
+    """
+    trailing_sd: float | None  # Standard deviation of `trailing_rate`.
     is_main: bool  # Main lexicon for its language.
     achieved: bool  # Whether the trailing 3-month precision goal is met.
     check_available: bool  # Whether checking is allowed right now.
@@ -2622,6 +2731,8 @@ def get_lexicon_stats(
         dont_last_week=lexicon.count_unknowns(now - timedelta(days=7), now),
         rate=rate,
         sd=sd,
+        trailing_rate=goal.rate,
+        trailing_sd=goal.sd,
         is_main=postgres.is_main_lexicon(user_id, lexicon_id),
         achieved=goal.achieved,
         check_available=goal.check_available,
@@ -2826,7 +2937,7 @@ def get_lexicons_history(
         if not records:
             continue
         try:
-            date_ranges, rates, sds = compute_rate_history(
+            _, date_ranges, rates, sds = compute_rate_history(
                 selection, frequency_list, records
             )
         except NotImplementedError:
