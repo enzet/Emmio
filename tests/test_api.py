@@ -651,9 +651,43 @@ def test_lexicons_history_collapses_to_one_point_per_month() -> None:
 
     assert response.status_code == 200
     points = response.json()[0]["points"]
-    months = [datetime.fromisoformat(point["date"]).month for point in points]
+    dates = [datetime.fromisoformat(point["date"]) for point in points]
+    months = [date.month for date in dates]
     assert len(points) < len(records)
     assert months == sorted(set(months))
+    assert all(date.day == 1 for date in dates)  # A uniform monthly grid.
+
+
+def test_lexicons_history_year_interval_uses_yearly_grid() -> None:
+    """The `interval=year` query param resamples onto a yearly grid instead."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "frequency")
+
+    base = datetime(2023, 6, 15, tzinfo=UTC)
+    records: list[postgres.LexiconRecordRow] = [
+        (
+            f"word{year}-{index}",
+            "D" if index % 2 else "K",
+            base + timedelta(days=365 * year, hours=index),
+            None,
+        )
+        for year in range(4)
+        for index in range(150)
+    ]
+    postgres.save_lexicon("alice", "uk", "uk", records, [])
+
+    response = client.get(
+        "/api/v1/me/lexicons/history?interval=year", headers=_auth(token)
+    )
+
+    assert response.status_code == 200
+    points = response.json()[0]["points"]
+    dates = [datetime.fromisoformat(point["date"]) for point in points]
+    years = [date.year for date in dates]
+    assert len(points) < len(records)
+    assert years == sorted(set(years))
+    assert all(date.month == 1 and date.day == 1 for date in dates)
 
 
 def test_lexicons_history_keeps_every_point_within_one_month() -> None:

@@ -205,23 +205,46 @@ export async function initHome() {
 
     // Vocabulary-level history of the main lexicons, one line per language —
     // drawn client-side by the same mechanism as the check page's
-    // convergence chart, rather than a server-rendered image.
-    const historyResponse = await api("/me/lexicons/history");
-    if (historyResponse.ok) {
-        chart = createLanguageHistoryChart(
-            document.getElementById("lexicon-history"),
-            document.getElementById("lexicon-history-svg"),
-            document.getElementById("lexicon-history-tooltip"),
-            (language) => {
-                for (const row of ratedRows.values()) {
-                    row.classList.remove("row-highlighted");
-                }
-                const row = language && ratedRows.get(language);
-                if (row) row.classList.add("row-highlighted");
-            },
+    // convergence chart, rather than a server-rendered image. The
+    // month/year buttons above the chart re-fetch at the chosen grid
+    // spacing (the resampling itself is server-side, `_grid_points`).
+    const intervalButtons = document.querySelectorAll(
+        "#lexicon-history-interval button",
+    );
+
+    async function loadHistory(interval) {
+        const historyResponse = await api(
+            `/me/lexicons/history?interval=${interval}`,
         );
-        chart.setData(await historyResponse.json());
+        if (!historyResponse.ok) return;
+        if (!chart) {
+            chart = createLanguageHistoryChart(
+                document.getElementById("lexicon-history"),
+                document.getElementById("lexicon-history-svg"),
+                document.getElementById("lexicon-history-tooltip"),
+                (language) => {
+                    for (const row of ratedRows.values()) {
+                        row.classList.remove("row-highlighted");
+                    }
+                    const row = language && ratedRows.get(language);
+                    if (row) row.classList.add("row-highlighted");
+                },
+            );
+        }
+        chart.setData(await historyResponse.json(), interval);
     }
+
+    for (const button of intervalButtons) {
+        button.addEventListener("click", () => {
+            if (button.getAttribute("aria-pressed") === "true") return;
+            for (const other of intervalButtons) {
+                other.setAttribute("aria-pressed", String(other === button));
+            }
+            loadHistory(button.dataset.interval);
+        });
+    }
+
+    await loadHistory("month");
 }
 
 // Language page: every lexicon and course for one language, gathered in one

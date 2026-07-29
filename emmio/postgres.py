@@ -684,42 +684,13 @@ def clear_main_lexicon(user_id: str, lexicon_id: str) -> None:
         )
 
 
-def get_lexicon_answer_sequences(
-    user_id: str,
-) -> dict[str, list[tuple[datetime, int]]]:
-    """Get each lexicon's chronological know / don't-know answers.
-
-    One query for all of a user's lexicons, used to compute the vocabulary
-    rate without loading full lexicon objects.
-
-    :param user_id: owning user login, e.g. `john`
-    :return: mapping from lexicon id to a time-ordered list of
-        (response time, 1 for "know" / 0 for "don't know")
-    """
-    result: dict[str, list[tuple[datetime, int]]] = {}
-    with db_cursor() as cursor:
-        cursor.execute(
-            "SELECT l.lexicon_id, r.response_time, r.response "
-            "FROM lexicon_records r "
-            "JOIN lexicon_words w ON w.id = r.word_id "
-            "JOIN lexicons l ON l.id = w.lexicon_id "
-            "JOIN users u ON u.id = l.user_id "
-            "WHERE u.user_id = %s AND r.response IN ('K', 'D') "
-            "ORDER BY l.lexicon_id, r.id",
-            (user_id,),
-        )
-        for lexicon_id, response_time, response in cursor.fetchall():
-            result.setdefault(lexicon_id, []).append(
-                (response_time, 1 if response == "K" else 0)
-            )
-    return result
-
-
 def get_lexicon_answer_sequence(user_id: str, lexicon_id: str) -> list[int]:
     """Get one lexicon's chronological know / don't-know answers.
 
-    The single-lexicon variant of `get_lexicon_answer_sequences`, without the
-    response times: just what a rate estimator needs after every answer.
+    Just what a rate estimator needs: no response times, and scoped to one
+    lexicon so a cached estimate (see `_row_rate_estimate` in the API layer)
+    never pays for loading a user's full, potentially tens-of-thousands-of-
+    rows answer history to serve a list endpoint.
 
     :param user_id: owning user login, e.g. `john`
     :param lexicon_id: lexicon identifier, e.g. `fr`

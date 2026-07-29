@@ -263,12 +263,13 @@ export function createTrajectoryChart(figure, svg, tooltip) {
 }
 
 // Dashboard vocabulary-level history: one r line per language over calendar
-// time, drawn like `createTrajectoryChart` but from a fixed snapshot
-// (`setData`, fetched once) rather than a growing live session. Every line
-// is plain (no legend/per-language color) — hovering a language's dashboard
-// row or a line here highlights the other via `onHoverLanguage`/
-// `highlight()`. No SD bands: they'd be indistinguishable across languages
-// sharing one plain color.
+// time, drawn like `createTrajectoryChart` but from a fetched snapshot
+// (`setData`, reloaded whenever the month/year interval toggle changes)
+// rather than a growing live session. Every line is plain (no
+// legend/per-language color) — hovering a language's dashboard row or a
+// line here highlights the other via `onHoverLanguage`/`highlight()`. No SD
+// bands: they'd be indistinguishable across languages sharing one plain
+// color.
 //
 // `onHoverLanguage`, if given, is called with a language code when the
 // pointer settles nearest that line, and `null` when it leaves.
@@ -280,6 +281,7 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
     const MARGIN = { top: 10, right: 4, bottom: 20, left: 4 };
 
     let series = []; // [{ language, points: [{ date, rate, sd }] }].
+    let interval = "month"; // Grid spacing of `series`' points, from `setData`.
     let scale = null; // Last render's scales, for the hover layer.
     let activeLanguage = null; // Set by `highlight()`; survives a re-render.
 
@@ -315,24 +317,58 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
             : String(Number(value.toFixed(2)));
     }
 
+    // `_grid_points` assigns every resampled point's date at UTC midnight
+    // (the backend's calendar, not the viewer's), so every date computed or
+    // displayed here uses UTC fields/`timeZone: "UTC"` too — mixing in the
+    // viewer's local timezone would drift the grid by the UTC offset, which
+    // in the worst case (an offset large enough to cross a day boundary)
+    // makes `monthStarts`/`yearStarts` miss a tick entirely.
     function dateLabel(date) {
-        return date.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-        });
+        return interval === "year"
+            ? String(date.getUTCFullYear())
+            : date.toLocaleDateString(undefined, {
+                  timeZone: "UTC",
+                  month: "short",
+                  day: "numeric",
+              });
     }
 
     // The first of each month from `minDate` to `maxDate`, as timestamps.
     function monthStarts(minDate, maxDate) {
         const first = new Date(minDate);
-        let cursor = new Date(first.getFullYear(), first.getMonth(), 1);
-        if (cursor.getTime() < minDate) {
-            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        let cursor = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1);
+        if (cursor < minDate) {
+            cursor = Date.UTC(
+                first.getUTCFullYear(),
+                first.getUTCMonth() + 1,
+                1,
+            );
         }
         const ticks = [];
-        while (cursor.getTime() <= maxDate) {
-            ticks.push(cursor.getTime());
-            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        while (cursor <= maxDate) {
+            ticks.push(cursor);
+            const date = new Date(cursor);
+            cursor = Date.UTC(
+                date.getUTCFullYear(),
+                date.getUTCMonth() + 1,
+                1,
+            );
+        }
+        return ticks;
+    }
+
+    // The first of each year from `minDate` to `maxDate`, as timestamps —
+    // `monthStarts`' counterpart for `interval === "year"`.
+    function yearStarts(minDate, maxDate) {
+        const first = new Date(minDate);
+        let cursor = Date.UTC(first.getUTCFullYear(), 0, 1);
+        if (cursor < minDate) {
+            cursor = Date.UTC(first.getUTCFullYear() + 1, 0, 1);
+        }
+        const ticks = [];
+        while (cursor <= maxDate) {
+            ticks.push(cursor);
+            cursor = Date.UTC(new Date(cursor).getUTCFullYear() + 1, 0, 1);
         }
         return ticks;
     }
@@ -418,31 +454,34 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
             );
         }
 
-        // The baseline and date ticks: one per month by default, falling
-        // back to a few evenly spaced day ticks when the range is under a
-        // month (one month-start tick or none).
+        // The baseline and date ticks: one per month (or per year, in
+        // `interval === "year"`) by default, falling back to a few evenly
+        // spaced day ticks when the range is under one grid step (one
+        // interval-start tick or none).
         parts.push(
             `<line class="grid" x1="${plot.left}" y1="${plot.bottom}"` +
                 ` x2="${plot.right}" y2="${plot.bottom}"/>`,
         );
-        const months = monthStarts(minDate, maxDate);
-        if (months.length >= 2) {
+        const ticks =
+            interval === "year"
+                ? yearStarts(minDate, maxDate)
+                : monthStarts(minDate, maxDate);
+        if (ticks.length >= 2) {
             let previousYear = null;
-            months.forEach((t, index) => {
+            ticks.forEach((t, index) => {
                 const date = new Date(t);
-                const options =
-                    date.getFullYear() === previousYear
-                        ? { month: "short" }
-                        : { month: "short", year: "numeric" };
-                previousYear = date.getFullYear();
-                parts.push(
-                    dateTickLabel(
-                        t,
-                        index,
-                        months.length,
-                        date.toLocaleDateString(undefined, options),
-                    ),
-                );
+                const label =
+                    interval === "year"
+                        ? String(date.getUTCFullYear())
+                        : date.toLocaleDateString(undefined, {
+                              timeZone: "UTC",
+                              month: "short",
+                              ...(date.getUTCFullYear() === previousYear
+                                  ? {}
+                                  : { year: "numeric" }),
+                          });
+                previousYear = date.getUTCFullYear();
+                parts.push(dateTickLabel(t, index, ticks.length, label));
             });
         } else {
             const dateSteps = 4;
@@ -522,9 +561,11 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
     window.addEventListener("resize", render);
 
     return {
-        // Seed (and only ever seed) the chart with every language's history,
-        // fetched once on page load.
-        setData(histories) {
+        // Load every language's history, fetched on page load and again
+        // whenever the interval toggle (month/year) re-fetches at a
+        // different grid spacing.
+        setData(histories, newInterval = "month") {
+            interval = newInterval;
             series = histories.map((entry) => ({
                 language: entry.language,
                 points: entry.points.map((point) => ({

@@ -18,10 +18,10 @@ import random
 import shutil
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import jwt
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
@@ -504,7 +504,7 @@ def _row_rate_estimate(
     lexicon_id: str,
     selection: str | None,
     frequency_list_config: dict | None,
-    sequence: list[int],
+    get_sequence: Callable[[], list[int]],
     version: int | None = None,
 ) -> tuple[float, float] | None:
     """Estimate a list row's rate with the strategy-matched estimator.
@@ -519,8 +519,10 @@ def _row_rate_estimate(
     :param selection: the lexicon's stored selection strategy code
     :param frequency_list_config: the lexicon's frequency list usage
         configuration, required by the model-based estimators
-    :param sequence: chronological responses (1 "know" / 0 "don't"),
-        required by the frequency estimator
+    :param get_sequence: loads chronological responses (1 "know" / 0
+        "don't"), needed only by the frequency estimator; called at most
+        once, and not at all on a cache hit, since a lexicon's full answer
+        log can run into the tens of thousands of rows
     :param version: the user's newest lexicon record id, keying
         `_ROW_RATE_CACHE`; None bypasses the cache
     :return: (r̂, SD), or None if there is not enough data or the lexicon
@@ -532,11 +534,58 @@ def _row_rate_estimate(
         if hit is not None and hit[0] == version:
             return hit[1]
     estimate: tuple[float, float] | None = _compute_row_rate_estimate(
-        user_id, lexicon_id, selection, frequency_list_config, sequence
+        user_id, lexicon_id, selection, frequency_list_config, get_sequence
     )
     if version is not None:
         _ROW_RATE_CACHE[key] = (version, estimate)
     return estimate
+
+
+_GOAL_STATE_CACHE: dict[
+    tuple[str, str], tuple[tuple[int | None, date], LexiconGoalState]
+] = {}
+"""Goal states by (user, lexicon), versioned by newest record and today.
+
+Mirrors `_ROW_RATE_CACHE`: `compute_lexicon_goal_state` reloads the full
+per-lexicon record log and reruns the windowed estimator, costing as much as
+the plain rate estimate it sits next to in the dashboard table but with no
+cache of its own until now — the table's remaining slow part on a rate-cache
+hit. Its trailing window's cutoff is `now - WINDOW_DAYS`, so unlike the plain
+rate the result can drift as time alone passes (an old answer ages out of
+the window with no new record); folding today's date into the version
+accepts up to a day of that drift in exchange for not recomputing on every
+table load.
+"""
+
+
+def _lexicon_goal_state(
+    user_id: str,
+    lexicon_id: str,
+    selection: LexiconSelection,
+    frequency_list: FrequencyList | None,
+    now: datetime,
+    version: int | None,
+) -> LexiconGoalState:
+    """Get a lexicon's goal state, cached like `_row_rate_estimate`.
+
+    :param version: the user's newest lexicon record id, as in
+        `_row_rate_estimate`; None bypasses the cache
+    """
+    key: tuple[str, str] = (user_id, lexicon_id)
+    cache_version: tuple[int | None, date] = (version, now.date())
+    if version is not None:
+        hit = _GOAL_STATE_CACHE.get(key)
+        if hit is not None and hit[0] == cache_version:
+            return hit[1]
+    state: LexiconGoalState = compute_lexicon_goal_state(
+        selection,
+        frequency_list,
+        postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
+        now,
+    )
+    if version is not None:
+        _GOAL_STATE_CACHE[key] = (cache_version, state)
+    return state
 
 
 def _rate_and_sd(
@@ -589,7 +638,7 @@ def _compute_row_rate_estimate(
     lexicon_id: str,
     selection: str | None,
     frequency_list_config: dict | None,
-    sequence: list[int],
+    get_sequence: Callable[[], list[int]],
 ) -> tuple[float, float] | None:
     """Estimate a list row's rate, uncached (see `_row_rate_estimate`)."""
     if selection is None:
@@ -602,7 +651,7 @@ def _compute_row_rate_estimate(
     if method is None:
         return None
     if method == RateEstimator.FREQUENCY:
-        return estimate_rate_with_sd(parsed, sequence=sequence)
+        return estimate_rate_with_sd(parsed, sequence=get_sequence())
     if not frequency_list_config:
         return None
     frequency_list: FrequencyList | None = get_data().get_frequency_list(
@@ -631,11 +680,13 @@ def get_my_lexicons(
 
     The rate comes from the estimator matching each lexicon's selection
     strategy, as in the single-lexicon `rate-estimate` endpoint; lexicons
-    without enough data (rate `None`) sort to the end.
+    without enough data (rate `None`) sort to the end. The answer sequence
+    a cache-missing lexicon needs is loaded one lexicon at a time
+    (`get_lexicon_answer_sequence`) rather than in the one bulk query this
+    used to issue for every lexicon up front: a user's full answer history
+    can run into the tens of thousands of rows, so on the common
+    all-cache-hit load that bulk fetch cost more than the estimates it fed.
     """
-    sequences: dict[str, list[tuple[datetime, int]]] = (
-        postgres.get_lexicon_answer_sequences(user_id)
-    )
     version: int | None = postgres.get_last_lexicon_record_id(user_id)
     summaries: list[LexiconSummary] = []
     for (
@@ -652,7 +703,9 @@ def get_my_lexicons(
             lexicon_id,
             selection,
             frequency_list_config,
-            [response for _, response in sequences.get(lexicon_id, [])],
+            lambda lid=lexicon_id: postgres.get_lexicon_answer_sequence(
+                user_id, lid
+            ),
             version,
         )
         rate, sd = _rate_and_sd(estimate)
@@ -2708,7 +2761,7 @@ def get_lexicon_stats(
         lexicon_id,
         config["selection"],
         config["frequency_list"],
-        postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
+        lambda: postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
     )
     rate, sd = _rate_and_sd(estimate)
     goal: LexiconGoalState = compute_lexicon_goal_state(
@@ -2793,11 +2846,15 @@ def get_my_languages(
     """List the user's languages and their level (the main lexicon's rate).
 
     The rate comes from the estimator matching each main lexicon's selection
-    strategy, as in the single-lexicon `rate-estimate` endpoint.
+    strategy, as in the single-lexicon `rate-estimate` endpoint. Both the
+    rate (`_row_rate_estimate`) and the goal state behind `check_available`
+    (`_lexicon_goal_state`) are cached per lexicon, so a repeat table load
+    with no new answers touches neither a lexicon's answer sequence nor its
+    record log — just the two whole-user queries below plus a handful of
+    cache-dict lookups, instead of pulling a user's full (potentially
+    tens-of-thousands-of-rows) answer history on every load regardless of
+    whether the cache could have answered without it.
     """
-    sequences: dict[str, list[tuple[datetime, int]]] = (
-        postgres.get_lexicon_answer_sequences(user_id)
-    )
     version: int | None = postgres.get_last_lexicon_record_id(user_id)
     now: datetime = datetime.now(UTC)
     rates: list[LanguageRate] = []
@@ -2807,23 +2864,26 @@ def get_my_languages(
         selection,
         frequency_list_config,
     ) in postgres.get_main_lexicons(user_id):
-        sequence = sequences.get(lexicon_id, [])
         estimate: tuple[float, float] | None = _row_rate_estimate(
             user_id,
             lexicon_id,
             selection,
             frequency_list_config,
-            [response for _, response in sequence],
+            lambda lid=lexicon_id: postgres.get_lexicon_answer_sequence(
+                user_id, lid
+            ),
             version,
         )
         rate, sd = _rate_and_sd(estimate)
-        goal: LexiconGoalState = compute_lexicon_goal_state(
+        goal: LexiconGoalState = _lexicon_goal_state(
+            user_id,
+            lexicon_id,
             LexiconSelection(selection)
             if selection
             else LexiconSelection.UNKNOWN,
             _frequency_list_or_none(frequency_list_config),
-            postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
             now,
+            version,
         )
         rates.append(
             LanguageRate(
@@ -2858,48 +2918,88 @@ class LanguageHistory(BaseModel):
     points: list[LanguageHistoryPoint]
 
 
-def _monthly_points(
+HistoryInterval = Literal["month", "year"]
+
+
+def _interval_start(date: datetime, interval: HistoryInterval) -> datetime:
+    date = date.replace(hour=0, minute=0, second=0, microsecond=0, day=1)
+    return date.replace(month=1) if interval == "year" else date
+
+
+def _next_interval(date: datetime, interval: HistoryInterval) -> datetime:
+    if interval == "year":
+        return date.replace(year=date.year + 1)
+    return (
+        date.replace(year=date.year + 1, month=1)
+        if date.month == 12
+        else date.replace(month=date.month + 1)
+    )
+
+
+def _grid_points(
     date_ranges: list[tuple[datetime, datetime]],
     rates: list[float],
     sds: list[float],
+    interval: HistoryInterval = "month",
 ) -> list[LanguageHistoryPoint]:
-    """Collapse a windowed rate history to one point per calendar month.
+    """Resample a windowed rate history onto a uniform monthly or yearly grid.
 
     `compute_rate_history` emits a new window every time the log first
     supports the required precision again — for a regular reviewer that can
-    be weekly or even more often, much finer than the dashboard chart's
-    month-interval x-axis. Keeping only the last (most recent) window ending
-    in each month matches the line's resolution to what the axis actually
-    shows. A history under two calendar months returns every raw point
-    instead, the same threshold the chart's own tick labels fall back at,
-    so a young lexicon still gets a legible line rather than one lone point.
+    be weekly or even more often, and always at whatever date the log
+    happens to land on, not evenly spaced. Snapping each raw point's own
+    date to its containing month (or year) would still plot at irregular x
+    positions within each interval; instead, every point on the chart sits
+    at a first-of-interval checkpoint, valued at the latest window that had
+    already closed before that checkpoint — the window moves from one
+    checkpoint to the next rather than following the log. The grid stops at
+    the calendar interval of the last raw point rather than the real
+    current one, so a lexicon that has gone quiet does not grow an
+    ever-longer flat tail of checkpoints repeating its last known rate. A
+    history under two intervals returns every raw point instead, the same
+    threshold the chart's own tick labels fall back at, so a young lexicon
+    still gets a legible line rather than one lone point.
     """
     raw = [
         LanguageHistoryPoint(date=end, rate=rate, sd=sd)
         for (_, end), rate, sd in zip(date_ranges, rates, sds, strict=True)
     ]
-    by_month: dict[tuple[int, int], LanguageHistoryPoint] = {
-        (point.date.year, point.date.month): point for point in raw
-    }
-    monthly = [by_month[key] for key in sorted(by_month)]
-    return monthly if len(monthly) >= 2 else raw
+    if len(raw) < 2:
+        return raw
+
+    grid: list[LanguageHistoryPoint] = []
+    index = 0  # Latest raw point known to end before `boundary`.
+    boundary = _interval_start(raw[0].date, interval)
+    last_boundary = _interval_start(raw[-1].date, interval)
+    while boundary <= last_boundary:
+        while index + 1 < len(raw) and raw[index + 1].date < boundary:
+            index += 1
+        if raw[index].date < boundary:
+            grid.append(
+                LanguageHistoryPoint(
+                    date=boundary, rate=raw[index].rate, sd=raw[index].sd
+                )
+            )
+        boundary = _next_interval(boundary, interval)
+    return grid if len(grid) >= 2 else raw
 
 
 @app.get("/api/v1/me/lexicons/history")
 def get_lexicons_history(
     user_id: Annotated[str, Depends(get_current_user)],
+    interval: HistoryInterval = "month",
 ) -> list[LanguageHistory]:
     """List the windowed rate history of the user's main lexicons.
 
     Each language's points come from the windowed, strategy-matched estimator
-    (`compute_rate_history`), collapsed to one per month (`_monthly_points`)
-    once there is more than a month of history. Languages whose estimator
-    has no windowed history yet (threshold, logistic) and lexicons whose
-    configured frequency list cannot be loaded are omitted. The client (the
-    dashboard's history chart, the same mechanism the lexicon check page's
-    convergence chart uses) draws the lines itself, one per language,
-    coloring each from its own chart palette rather than the language's own
-    display color.
+    (`compute_rate_history`), resampled onto a uniform first-of-`interval`
+    grid (`_grid_points`) once there is more than one interval of history.
+    Languages whose estimator has no windowed history yet (threshold,
+    logistic) and lexicons whose configured frequency list cannot be loaded
+    are omitted. The client (the dashboard's history chart, the same
+    mechanism the lexicon check page's convergence chart uses) draws the
+    lines itself, one per language, coloring each from its own chart palette
+    rather than the language's own display color.
     """
     result: list[LanguageHistory] = []
     for (
@@ -2947,7 +3047,7 @@ def get_lexicons_history(
         result.append(
             LanguageHistory(
                 language=language.get_code(),
-                points=_monthly_points(date_ranges, rates, sds),
+                points=_grid_points(date_ranges, rates, sds, interval),
             )
         )
     return result
