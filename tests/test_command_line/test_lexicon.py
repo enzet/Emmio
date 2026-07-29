@@ -1,7 +1,6 @@
 """Test `lexicon` command."""
 
 import json
-from textwrap import dedent
 
 import pytest
 
@@ -52,21 +51,19 @@ def test_existing_user_empty_data(capsys: pytest.CaptureFixture[str]) -> None:
             "q",  # Quit.
         ],
         expected_output=HEADER
-        + dedent(
-            """
-            Lexicon for Norwegian Bokmål
-            hei
-            Last response was: knows at least one meaning of the word.
-            <Show translation>
-            Norwegian Bokmål-English Dictionary
-            hei
-            hi
-            Do you know at least one meaning of this word?
-            [Y] Yes  [N] No  [B] Proper  [S] Yes, skip  [-] Not a word  [Q] Quit
-            knows at least one meaning of the word
-            Precision: 0.00
-            Rate so far is: unknown
-            Words: 1
-            """
-        ),
+        + """
+Lexicon for Norwegian Bokmål
+hei
+Last response was: knows at least one meaning of the word.
+<Show translation>
+Norwegian Bokmål-English Dictionary
+hei
+hi
+Do you know at least one meaning of this word?
+[Y] Yes  [N] No  [C] Class  [B] Proper  [S] Yes, skip  [-] Not a word  [Q] Quit
+knows at least one meaning of the word
+Precision: 0.00
+Rate so far is: unknown
+Words: 1
+""",
     )

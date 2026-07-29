@@ -703,11 +703,11 @@ def get_lexicon_answer_sequence(user_id: str, lexicon_id: str) -> list[int]:
             "JOIN lexicons l ON l.id = w.lexicon_id "
             "JOIN users u ON u.id = l.user_id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s "
-            "AND r.response IN ('K', 'D') "
+            "AND r.response IN ('K', 'C', 'D') "
             "ORDER BY r.id",
             (user_id, lexicon_id),
         )
-        return [1 if row[0] == "K" else 0 for row in cursor.fetchall()]
+        return [0 if row[0] == "D" else 1 for row in cursor.fetchall()]
 
 
 def get_lexicon_record_log(

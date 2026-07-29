@@ -142,12 +142,13 @@ def _frequency_history(
     """
     precision: int = math.ceil((1.0 / (sd_threshold * math.log(2))) ** 2 - 1e-9)
     know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
     data: list[tuple[datetime, int]] = []
     positions: list[int] = []  # 1-based position in `records` per `data` entry
     for position, (date, _, code) in enumerate(records, start=1):
-        if code in (know, dont):
-            data.append((date, 1 if code == know else 0))
+        if code in (know, know_class, dont):
+            data.append((date, 0 if code == dont else 1))
             positions.append(position)
 
     unknown_indices: list[int] = [
@@ -182,6 +183,7 @@ def _stratified_history(
     never expire with the window.
     """
     know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
     shares = _shares_by_rank(frequency_list)
     size: int = len(frequency_list)
@@ -246,7 +248,7 @@ def _stratified_history(
         k: int = stratum_of_rank(index + 1, size, n_strata)
         p_i: float = float(shares[index])
 
-        if code not in (know, dont):
+        if code not in (know, know_class, dont):
             if word in active:
                 deactivate(active[word])
             if word not in resolved_words:
@@ -254,7 +256,7 @@ def _stratified_history(
                 n_resolved[k] += 1
             continue
 
-        label: int = 0 if code == know else 1
+        label: int = 1 if code == dont else 0
         if word in resolved_words:
             # A later answer overrides a stale resolution.
             resolved_words.discard(word)

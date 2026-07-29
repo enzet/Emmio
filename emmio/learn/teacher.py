@@ -540,6 +540,22 @@ class Teacher:
                 else:
                     self.interface.print("No lexicon specified.")
 
+            if answer.startswith("/know_class "):
+                _, command_word = answer.split(" ")
+                # TODO(enzet): sanitize user input.
+                if self.learning_lexicon:
+                    self.learning_lexicon.register(
+                        command_word,
+                        self.interface,
+                        LexiconResponse.KNOW_SEMANTIC_CLASS,
+                        to_skip=False,
+                        request_time=None,
+                        answer_type=AnswerType.USER_ANSWER,
+                    )
+                    self.learning_lexicon.write()
+                else:
+                    self.interface.print("No lexicon specified.")
+
             if answer.startswith("/not_a_word "):
                 _, command_word = answer.split(" ")
                 # TODO(enzet): sanitize user input.

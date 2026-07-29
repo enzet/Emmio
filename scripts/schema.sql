@@ -150,8 +150,8 @@ CREATE TABLE IF NOT EXISTS lexicon_words (
 -- Full history: one row per response, user and auto alike.
 --
 -- response codes:
---   `K` `know`, `D` `dont`, `N` `not_a_word`, 'B' `dont_but_proper_noun_too`,
---   `?` `know_or_not_a_word`, `U` `unknown`.
+--   `K` `know`, `C` `know_semantic_class`, `D` `dont`, `N` `not_a_word`,
+--   'B' `dont_but_proper_noun_too`, `?` `know_or_not_a_word`, `U` `unknown`.
 --
 -- extra key dictionary (keys omitted when value is the default):
 --   `at` answer type; absent = user answer

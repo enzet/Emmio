@@ -64,6 +64,7 @@ def replay(
     :return: (checkpoint query numbers, per-checkpoint estimates)
     """
     know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
     states: WordStates = {}
     sequence: list[int] = []
@@ -76,7 +77,7 @@ def replay(
         disable=not show_progress,
     ):
         states[word] = (code, None)
-        if code == know:
+        if code in (know, know_class):
             sequence.append(1)
         elif code == dont:
             sequence.append(0)

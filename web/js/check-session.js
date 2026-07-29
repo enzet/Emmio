@@ -404,13 +404,18 @@ async function runSession(base, doneText) {
             stratum: current.stratum,
         });
         counts.checked += 1;
-        if (response === "know") counts.know += 1;
-        else if (response === "dont") counts.dont += 1;
-        if (response === "know" || response === "dont") {
+        if (response === "know" || response === "know_semantic_class") {
+            counts.know += 1;
+        } else if (response === "dont") counts.dont += 1;
+        if (
+            response === "know" ||
+            response === "know_semantic_class" ||
+            response === "dont"
+        ) {
             strataChart?.noteAnswer(
                 counts.checked,
                 current.stratum,
-                response === "know",
+                response !== "dont",
             );
         }
         try {
@@ -441,14 +446,19 @@ async function runSession(base, doneText) {
         if (!undone) return;
         const entry = history.pop();
         counts.checked -= 1;
-        if (entry.response === "know") counts.know -= 1;
-        else if (entry.response === "dont") counts.dont -= 1;
+        if (entry.response === "know" || entry.response === "know_semantic_class") {
+            counts.know -= 1;
+        } else if (entry.response === "dont") counts.dont -= 1;
         chart?.noteUndo(counts.checked);
-        if (entry.response === "know" || entry.response === "dont") {
+        if (
+            entry.response === "know" ||
+            entry.response === "know_semantic_class" ||
+            entry.response === "dont"
+        ) {
             strataChart?.noteUndo(
                 counts.checked,
                 entry.stratum,
-                entry.response === "know",
+                entry.response !== "dont",
             );
         }
         if (current) queue.unshift(current);

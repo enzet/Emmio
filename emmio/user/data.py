@@ -167,7 +167,10 @@ class UserData:
         if learning_responses:
             return True
         for lexicon_response in lexicon_responses:
-            if lexicon_response == LexiconResponse.KNOW:
+            if lexicon_response in (
+                LexiconResponse.KNOW,
+                LexiconResponse.KNOW_SEMANTIC_CLASS,
+            ):
                 return True
 
         return False

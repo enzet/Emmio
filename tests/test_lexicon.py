@@ -243,6 +243,29 @@ def test_register(lexicon: Lexicon) -> None:
     assert lexicon.get("apple") == LexiconResponse.KNOW
 
 
+def test_know_semantic_class_code_round_trip() -> None:
+    """`KNOW_SEMANTIC_CLASS` persists as `C` and round-trips through it."""
+
+    assert LexiconResponse.KNOW_SEMANTIC_CLASS.to_code() == "C"
+    assert LexiconResponse.from_code("C") == LexiconResponse.KNOW_SEMANTIC_CLASS
+
+
+def test_register_know_semantic_class_counts_as_know(lexicon: Lexicon) -> None:
+    """Recognizing a word's class but not its exact meaning counts as known."""
+
+    lexicon.register(
+        word="strawberry",
+        interface=TerminalInterface(use_input=False),
+        response=LexiconResponse.KNOW_SEMANTIC_CLASS,
+        to_skip=False,
+        time=dt(2000, 1, 1),
+        request_time=dt(2000, 1, 1),
+    )
+    assert lexicon.responses == [1]
+    assert lexicon.know("strawberry")
+    assert lexicon.get("strawberry") == LexiconResponse.KNOW_SEMANTIC_CLASS
+
+
 def register(lexicon: Lexicon, args: list[int]) -> None:
     """Register a word in the lexicon."""
 

@@ -1694,6 +1694,7 @@ class NextWords(BaseModel):
 # Short human labels for stored response codes, for the "last answer" hint.
 _LEXICON_RESPONSE_LABELS: dict[str, str] = {
     LexiconResponse.KNOW.to_code(): "know",
+    LexiconResponse.KNOW_SEMANTIC_CLASS.to_code(): "know class",
     LexiconResponse.DONT.to_code(): "don't know",
     LexiconResponse.DONT_BUT_PROPER_NOUN_TOO.to_code(): "proper noun",
     LexiconResponse.NOT_A_WORD.to_code(): "not a word",
@@ -2592,18 +2593,19 @@ def get_lexicon_rate_trajectory(
     strata: list[StratumAnswer] | None = None
     if selection == LexiconSelection.STRATIFIED and frequency_list is not None:
         know: str = LexiconResponse.KNOW.to_code()
+        know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
         dont: str = LexiconResponse.DONT.to_code()
         size: int = len(frequency_list)
         strata = []
         for word, code in records:
-            if code not in (know, dont):
+            if code not in (know, know_class, dont):
                 continue
             index: int = frequency_list.get_index(word)
             if index < 0:
                 continue
             strata.append(
                 StratumAnswer(
-                    stratum=stratum_of_rank(index + 1, size), know=code == know
+                    stratum=stratum_of_rank(index + 1, size), know=code != dont
                 )
             )
 
@@ -2749,7 +2751,8 @@ def get_lexicon_stats(
     )
     now: datetime = datetime.now(UTC)
     known: int = sum(
-        knowledge.knowing == LexiconResponse.KNOW
+        knowledge.knowing
+        in (LexiconResponse.KNOW, LexiconResponse.KNOW_SEMANTIC_CLASS)
         for knowledge in lexicon.words.values()
     )
     dont_know: int = sum(

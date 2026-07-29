@@ -85,6 +85,7 @@ def _windowed_sequence_and_states(
     :return: (windowed chronological 1/0 sequence, windowed word states)
     """
     know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
 
     latest: dict[str, tuple[datetime, str]] = {}
@@ -92,13 +93,13 @@ def _windowed_sequence_and_states(
         latest[word] = (date, code)
 
     sequence: list[int] = [
-        1 if code == know else 0
+        0 if code == dont else 1
         for date, _, code in records
-        if code in (know, dont) and date >= cutoff
+        if code in (know, know_class, dont) and date >= cutoff
     ]
     states: WordStates = {}
     for word, (date, code) in latest.items():
-        if code in (know, dont):
+        if code in (know, know_class, dont):
             if date >= cutoff:
                 states[word] = (code, None)
         else:

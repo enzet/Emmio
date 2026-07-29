@@ -52,6 +52,15 @@ class LexiconResponse(Enum):
     KNOW = "know"
     """User knows at least one meaning of the word."""
 
+    KNOW_SEMANTIC_CLASS = "know_semantic_class"
+    """User recognizes the semantic class of the word, but not its precise
+    meaning.
+
+    E.g. for the word "strawberry" user may know that it is a plant or a
+    berry, but doesn't know exactly which berry it is or how it precisely
+    translates to their native language.
+    """
+
     DONT = "dont"
     """User doesn't know any meaning of the word."""
 
@@ -80,6 +89,8 @@ class LexiconResponse(Enum):
         match self:
             case self.KNOW:
                 return "K"
+            case self.KNOW_SEMANTIC_CLASS:
+                return "C"
             case self.DONT:
                 return "D"
             case self.NOT_A_WORD:
@@ -109,6 +120,8 @@ class LexiconResponse(Enum):
         match self:
             case self.KNOW:
                 return "K"
+            case self.KNOW_SEMANTIC_CLASS:
+                return "C"
             case self.DONT:
                 return "D"
             case self.KNOW_OR_NOT_A_WORD:
@@ -126,6 +139,8 @@ class LexiconResponse(Enum):
         match self:
             case self.KNOW:
                 return "knows at least one meaning of the word"
+            case self.KNOW_SEMANTIC_CLASS:
+                return "knows the semantic class, but not the precise meaning"
             case self.DONT:
                 return "does not know any meaning of the word"
             case self.KNOW_OR_NOT_A_WORD:
@@ -437,7 +452,7 @@ def _state_category(code: str | None) -> int:
         state, but is neither tested nor a candidate: not a word, proper noun,
         or an explicit state without a response)
     """
-    if code == "K":
+    if code in ("K", "C"):
         return 0
     if code == "D":
         return 1
@@ -1610,6 +1625,7 @@ def estimate_rate_with_sd(
     # words with a state are iterated; the untested words enter the
     # estimators through aggregates memoized on the frequency list.
     know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
     shares: np.ndarray = _shares_by_rank(frequency_list)
     size: int = len(frequency_list)
@@ -1620,7 +1636,7 @@ def estimate_rate_with_sd(
         if index == -1:
             continue
         p_i: float = float(shares[index])
-        if state[0] == know:
+        if state[0] in (know, know_class):
             tested.append((index + 1, p_i, 0))
         elif state[0] == dont:
             tested.append((index + 1, p_i, 1))
@@ -1813,10 +1829,14 @@ class Lexicon(UserArtifact):
         # Fill data.
 
         for record in log.records:
-            if record.response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
+            if record.response in [
+                LexiconResponse.KNOW,
+                LexiconResponse.KNOW_SEMANTIC_CLASS,
+                LexiconResponse.DONT,
+            ]:
                 dates.append(record.time)
                 responses.append(
-                    1 if record.response == LexiconResponse.KNOW else 0
+                    0 if record.response == LexiconResponse.DONT else 1
                 )
 
                 if start is None:
@@ -1881,6 +1901,7 @@ class Lexicon(UserArtifact):
             return False
         return self.words[word].knowing in [
             LexiconResponse.KNOW,
+            LexiconResponse.KNOW_SEMANTIC_CLASS,
             LexiconResponse.DONT_BUT_PROPER_NOUN_TOO,
         ]
 
@@ -1930,9 +1951,13 @@ class Lexicon(UserArtifact):
                 request_time=request_time,
             )
         )
-        if response in [LexiconResponse.KNOW, LexiconResponse.DONT]:
+        if response in [
+            LexiconResponse.KNOW,
+            LexiconResponse.KNOW_SEMANTIC_CLASS,
+            LexiconResponse.DONT,
+        ]:
             self.dates.append(time)
-            self.responses.append(1 if response == LexiconResponse.KNOW else 0)
+            self.responses.append(0 if response == LexiconResponse.DONT else 1)
 
             if not self.start or time < self.start:
                 self.start = time
@@ -2190,6 +2215,7 @@ class LexiconChecker:
             [
                 ("Yes", "y"),
                 ("No", "n"),
+                ("Class", "c"),
                 ("Proper", "b"),
                 ("Yes, skip", "s"),
                 ("Not a word", "-"),
@@ -2205,6 +2231,8 @@ class LexiconChecker:
                 response = LexiconResponse.KNOW
             case "No":
                 response = LexiconResponse.DONT
+            case "Class":
+                response = LexiconResponse.KNOW_SEMANTIC_CLASS
             case "Proper":
                 response = LexiconResponse.DONT_BUT_PROPER_NOUN_TOO
             case "Yes, skip":
@@ -2220,7 +2248,10 @@ class LexiconChecker:
         self.interface.print(Colorized(response.get_message(), "#AAAAAA"))
 
         if skip_in_future is None:
-            if response == LexiconResponse.KNOW:
+            if response in (
+                LexiconResponse.KNOW,
+                LexiconResponse.KNOW_SEMANTIC_CLASS,
+            ):
                 skip_in_future = self.skip_known
             elif response == LexiconResponse.DONT:
                 skip_in_future = self.skip_unknown
@@ -2480,7 +2511,10 @@ class LexiconChecker:
                 continue
             p_i: float = frequency_list.get_occurrences(word) / total
             response: LexiconResponse = self.lexicon.get(word)
-            if response == LexiconResponse.KNOW:
+            if response in (
+                LexiconResponse.KNOW,
+                LexiconResponse.KNOW_SEMANTIC_CLASS,
+            ):
                 tested_ranks.append(rank)
                 tested_labels.append(0)
             elif response == LexiconResponse.DONT:
@@ -2640,7 +2674,11 @@ class LexiconChecker:
                 skip_marker
                 or (
                     self.skip_known
-                    and last_record.response == LexiconResponse.KNOW
+                    and last_record.response
+                    in (
+                        LexiconResponse.KNOW,
+                        LexiconResponse.KNOW_SEMANTIC_CLASS,
+                    )
                 )
                 or (
                     self.skip_unknown
