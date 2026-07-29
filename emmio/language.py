@@ -384,6 +384,7 @@ GEORGIAN_LETTERS: str = (
 # Whole Unicode blocks, used as best-effort alphabets for languages written in
 # these scripts (the same technique as Arabic, Korean, and Japanese above).
 CYRILLIC_LETTERS: str = letter_range("\u0400", "\u04ff")  # Bulgarian, etc.
+SHAVIAN_LETTERS: str = letter_range("\U00010450", "\U0001047f")
 DEVANAGARI_LETTERS: str = letter_range("\u0900", "\u097f")  # Hindi.
 BENGALI_LETTERS: str = letter_range("\u0980", "\u09ff")
 TAMIL_LETTERS: str = letter_range("\u0b80", "\u0bff")
@@ -917,6 +918,12 @@ class KnownLanguages:
         Color("#8B2E2E"),  # A distinct brick red, unused by any real language.
         CYRILLIC_LETTERS,
         name="Cyrillic script",
+    )
+    SHAVIAN_SCRIPT: Script = Script(
+        "shaw",
+        Color("#4A6FA5"),  # A distinct blue, unused by any real language.
+        SHAVIAN_LETTERS,
+        name="Shavian",
     )
 
 

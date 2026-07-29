@@ -1,0 +1,8 @@
+{
+    "shaw_alphabet": {
+        "type": "structured",
+        "file_name": "shaw_alphabet.json",
+        "name": "Shavian alphabet",
+        "from_language": "shaw"
+    }
+}

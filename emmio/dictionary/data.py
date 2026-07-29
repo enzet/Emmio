@@ -25,6 +25,13 @@ from emmio.language import Language
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+_BUNDLED_PATH: Path = Path(__file__).resolve().parent.parent / (
+    "data/dictionaries"
+)
+"""Small, hand-authored dictionaries shipped with the package and tracked in
+git (e.g. alphabet letter names), as opposed to the user's own directory,
+which also holds large downloaded or private ones (e.g. Kaikki caches)."""
+
 
 @dataclass
 class DictionaryData(ArtifactData):
@@ -74,21 +81,27 @@ class DictionaryData(ArtifactData):
     def from_config(cls, path: Path) -> Self:
         """Initialize dictionaries from a directory.
 
-        :param path: path to the directory with dictionaries
-        """
-        config: dict[str, Any] = ArtifactData.read_config(path)
+        Merges two sources: the package's bundled `_BUNDLED_PATH` (small,
+        hand-authored, git-tracked, e.g. alphabet letter names) and `path`
+        (the user's own directory, typically `~/.emmio/dictionaries`, for
+        local or downloaded ones). An entry in `path` with the same id
+        overrides the bundled one.
 
+        :param path: path to the user's directory with dictionaries
+        """
         dictionaries: dict[str, Dictionary] = {}
-        for id_, data in config.items():
-            dictionary_config = DictionaryConfig(**data)
-            builder = (
-                StructuredDictionary
-                if dictionary_config.type == "structured"
-                else SimpleDictionary
-            )
-            dictionaries[id_] = builder.from_config(
-                path, id_, dictionary_config
-            )
+        for source in (_BUNDLED_PATH, path):
+            config: dict[str, Any] = ArtifactData.read_config(source)
+            for id_, data in config.items():
+                dictionary_config = DictionaryConfig(**data)
+                builder = (
+                    StructuredDictionary
+                    if dictionary_config.type == "structured"
+                    else SimpleDictionary
+                )
+                dictionaries[id_] = builder.from_config(
+                    source, id_, dictionary_config
+                )
         return cls(path, dictionaries)
 
     def has_kaikki(self, language: Language) -> bool:
