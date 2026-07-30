@@ -32,3 +32,16 @@ TATOEBA_LANGUAGES: frozenset[str] = frozenset(_load("tatoeba.json"))
 
 KAIKKI_LANGUAGES: frozenset[str] = frozenset(_load("kaikki.json"))
 """Codes of languages with a downloadable Kaikki (en.wiktionary) dictionary."""
+
+NON_PROPER_NOUNS: dict[str, frozenset[str]] = {
+    code: frozenset(words)
+    for code, words in _load("non_proper_nouns.json").items()
+}
+"""Map each language code to words that are frequently capitalized but are
+not proper nouns (honorific titles, fragments of multi-word proper nouns like
+French `unis` in `les États-Unis`, etc.).
+
+Curated exceptions to the `cap_ratio`-based proper-noun heuristic used by
+`freqlist` and by `LexiconChecker`'s automatic not-a-word assumption (see
+`emmio.lexicon.core`). Case-folded, lowercase, matching `freqlist`'s output.
+"""

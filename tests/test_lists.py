@@ -97,6 +97,44 @@ def test_read_csv() -> None:
         )
 
 
+def test_read_list_with_cap_ratio(tmp_path: Path) -> None:
+    """`from_list_file` parses `freqlist`'s optional third `cap_ratio` field.
+
+    `NA` (undefined ratio) and plain `word count` lines (the pre-`cap_ratio`
+    format) both leave `get_cap_ratio` returning `None`, so old and new
+    frequency lists remain interchangeable.
+    """
+    file_name: str = "list.txt"
+    (tmp_path / file_name).write_text(
+        dedent(
+            """
+            captain 3 0.33
+            paris 2 1.00
+            london 1 NA
+            dog 1
+            """
+        ).strip()
+        + "\n"
+    )
+
+    frequency_list: FrequencyList = FrequencyList.from_config(
+        path=tmp_path,
+        config=FrequencyListConfig(
+            path=file_name,
+            file_format=FrequencyListFileFormat.LIST,
+            language="en",
+            is_stripped=False,
+        ),
+    )
+
+    assert frequency_list.get_occurrences("captain") == 3
+    assert frequency_list.get_cap_ratio("captain") == pytest.approx(0.33)
+    assert frequency_list.get_cap_ratio("paris") == pytest.approx(1.0)
+    assert frequency_list.get_cap_ratio("london") is None
+    assert frequency_list.get_cap_ratio("dog") is None
+    assert frequency_list.get_cap_ratio("missing") is None
+
+
 def _make_list(data: dict[str, int]) -> FrequencyList:
     """Build an in-memory frequency list."""
     return FrequencyList(

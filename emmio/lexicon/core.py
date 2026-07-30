@@ -21,6 +21,7 @@ from scipy.optimize import minimize
 from scipy.special import expit  # pylint: disable=no-name-in-module
 
 from emmio import postgres
+from emmio.catalog import NON_PROPER_NOUNS
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
     Dictionary,
@@ -178,6 +179,14 @@ class AnswerType(Enum):
     words in the language, but the word is not in any of them.
     """
 
+    ASSUME__NOT_A_WORD__PROPER = "assume_not_a_word_proper"
+    """It was automatically assumed that the word is a proper noun.
+
+    We assume that if the word not being in the start of a sentence is
+    capitalzed more than in 80% and not in `NON_PROPER_NOUNS` list, it is a
+    proper noun.
+    """
+
     PROPAGATE__SKIP = "propagate_skip"
     """Previous answer was propagated because of a special flag set by the user.
 
@@ -217,6 +226,8 @@ class AnswerType(Enum):
                 return "aa"
             case self.ASSUME__NOT_A_WORD__DICTIONARY:
                 return "ad"
+            case self.ASSUME__NOT_A_WORD__PROPER:
+                return "ap"
             case self.PROPAGATE__SKIP:
                 return "ps"
             case self.PROPAGATE__NOT_A_WORD:
@@ -2168,6 +2179,14 @@ MIN_SIZE_TESTED_RANKS = 10
 MIN_R_BOOTS = 10
 MIN_N_UNKNOWN = 5
 
+PROPER_NOUN_CAP_RATIO_THRESHOLD: float = 0.8
+"""`cap_ratio` above which a word is assumed to be a proper noun.
+
+Matches `freqlist`'s own `--proper-noun-threshold` default, which was chosen
+empirically to maximize F1 against dictionary-labeled ground truth on a real
+OpenSubtitles sample. See `AnswerType.ASSUME__NOT_A_WORD__PROPER`.
+"""
+
 
 @dataclass
 class LexiconChecker:
@@ -2324,6 +2343,7 @@ class LexiconChecker:
         stop_at: int | None,
         stop_at_wrong: int | None,
         record: Callable[[str, str | None], None] | None = None,
+        frequency_list: FrequencyList | None = None,
     ) -> str:
         """Run the interactive checking loop with a pluggable word picker.
 
@@ -2338,6 +2358,10 @@ class LexiconChecker:
         :param stop_at: stop after a number of actions
         :param stop_at_wrong: stop after a number of unknown words
         :param record: selector feedback for every word that gained a state
+        :param frequency_list: source of `cap_ratio`, for the automatic
+            proper-noun not-a-word assumption in `do_skip`; `None` disables
+            that check (e.g. lists loaded without `freqlist`'s cap_ratio
+            column)
         :return: exit code
         """
         session: LexiconLogSession = LexiconLogSession(start=datetime.now(UTC))
@@ -2351,7 +2375,7 @@ class LexiconChecker:
             if picked_word is None:
                 break
 
-            if self.do_skip(picked_word, other_lexicons):
+            if self.do_skip(picked_word, other_lexicons, frequency_list):
                 self._record_state(record, picked_word)
                 continue
 
@@ -2413,7 +2437,11 @@ class LexiconChecker:
             return picked_word
 
         return await self._check_loop(
-            other_lexicons, pick_next, stop_at, stop_at_wrong
+            other_lexicons,
+            pick_next,
+            stop_at,
+            stop_at_wrong,
+            frequency_list=frequency_list,
         )
 
     async def check_random(
@@ -2445,7 +2473,11 @@ class LexiconChecker:
             return picked_word
 
         return await self._check_loop(
-            other_lexicons, pick_next, stop_at, stop_at_wrong
+            other_lexicons,
+            pick_next,
+            stop_at,
+            stop_at_wrong,
+            frequency_list=frequency_list,
         )
 
     async def check_top(
@@ -2484,7 +2516,11 @@ class LexiconChecker:
             return None
 
         return await self._check_loop(
-            other_lexicons, pick_next, stop_at, stop_at_wrong
+            other_lexicons,
+            pick_next,
+            stop_at,
+            stop_at_wrong,
+            frequency_list=frequency_list,
         )
 
     def estimate_r(
@@ -2590,6 +2626,7 @@ class LexiconChecker:
             stop_at,
             stop_at_wrong,
             record=selector.record,
+            frequency_list=frequency_list,
         )
 
     async def check_stratified(
@@ -2637,15 +2674,21 @@ class LexiconChecker:
             stop_at,
             stop_at_wrong,
             record=selector.record,
+            frequency_list=frequency_list,
         )
 
     def do_skip(
-        self, picked_word: str, other_lexicons: list["Lexicon"]
+        self,
+        picked_word: str,
+        other_lexicons: list["Lexicon"],
+        frequency_list: FrequencyList | None = None,
     ) -> bool:
         """Check whether the word should be skipped.
 
         :param picked_word: word to check
         :param other_lexicons: other user lexicons of the same language
+        :param frequency_list: source of `cap_ratio`, for the automatic
+            proper-noun not-a-word assumption; `None` disables that check
 
         :return: whether the word should be skipped
         """
@@ -2750,5 +2793,30 @@ class LexiconChecker:
                 answer_type=AnswerType.ASSUME__NOT_A_WORD__ALPHABET,
             )
             return True
+
+        # Mark word as "not a word" (specifically, a proper noun) if it is
+        # capitalized far more often than not outside sentence starts, and
+        # is not a known exception (an honorific title or a fragment of a
+        # multi-word proper noun, e.g. French `unis` in `les États-Unis`).
+
+        if frequency_list is not None:
+            cap_ratio: float | None = frequency_list.get_cap_ratio(picked_word)
+            non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
+                self.lexicon.language.get_code(), frozenset()
+            )
+            if (
+                cap_ratio is not None
+                and cap_ratio > PROPER_NOUN_CAP_RATIO_THRESHOLD
+                and picked_word not in non_proper_nouns
+            ):
+                self.lexicon.register(
+                    picked_word,
+                    self.interface,
+                    LexiconResponse.NOT_A_WORD,
+                    to_skip=None,
+                    request_time=None,
+                    answer_type=AnswerType.ASSUME__NOT_A_WORD__PROPER,
+                )
+                return True
 
         return False

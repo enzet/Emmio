@@ -1,6 +1,7 @@
 """Frequency list."""
 
 import bisect
+import contextlib
 import json
 import logging
 import random
@@ -55,6 +56,17 @@ class FrequencyList(List):
     frequency masses, per-rank probability arrays) keyed by their own tuples.
     Cleared whenever the list mutates; safe because loaded lists are shared
     and long-lived (see `ListsData.get_frequency_list`).
+    """
+
+    cap_ratios: dict[str, float] = field(default_factory=dict, repr=False)
+    """Mapping from words to their `cap_ratio`.
+
+    `cap_ratio` is the fraction of a word's non-sentence-initial occurrences
+    that are capitalized, as computed by the `freqlist` tool. Only populated
+    when the list was loaded from `freqlist`'s three-column
+    `word count cap_ratio` output (see `from_list_file`); empty otherwise. A
+    word absent here either predates that format or has an undefined ratio
+    (`NA`, i.e. it never occurred outside a sentence start).
     """
 
     @classmethod
@@ -137,6 +149,13 @@ class FrequencyList(List):
     def get_all_occurrences(self) -> int:
         """Get number of all words in the text."""
         return self._occurrences
+
+    def get_cap_ratio(self, word: str) -> float | None:
+        """Get the word's `cap_ratio`, or `None` if it is not known.
+
+        See `cap_ratios` for what the value means and when it is populated.
+        """
+        return self.cap_ratios.get(word)
 
     def get_words(self) -> list[str]:
         """Get all unique words."""
@@ -269,18 +288,22 @@ class FrequencyList(List):
 
         logger.debug("Loading frequency list from list file `%s`.", file_path)
         data: dict[str, int] = {}
+        cap_ratios: dict[str, float] = {}
 
         with file_path.open(encoding="utf-8") as input_file:
             while line := input_file.readline():
-                try:
-                    position: int = line.find(" ")
-                    word: str = line[:position]
-                    occurrences: int = int(line[position + 1 :])
-                    data[word] = occurrences
-                except ValueError:
-                    pass
+                # Lines are `word count` or `word count cap_ratio` (the
+                # latter written by the `freqlist` tool); the third field is
+                # optional and, when present, may be `NA`.
+                parts: list[str] = line.split()
+                if len(parts) < 2:
+                    continue
+                with contextlib.suppress(ValueError):
+                    data[parts[0]] = int(parts[1])
+                    if len(parts) >= 3 and parts[2] != "NA":
+                        cap_ratios[parts[0]] = float(parts[2])
 
-        return cls(path, config, data)
+        return cls(path, config, data, cap_ratios=cap_ratios)
 
     @classmethod
     def from_url(

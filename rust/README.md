@@ -2,7 +2,11 @@
 
 Unicode-aware frequency list generator.
 
-Output format is `word count` per line, most frequent first).
+Output format is `word count cap_ratio` per line, most frequent first
+(`cap_ratio` is `NA` if the word never occurs outside a sentence start; see
+Capitalization and proper-noun detection below). The first two fields match
+the [FrequencyWords](https://github.com/hermitdave/FrequencyWords) project's
+format, so it remains a drop-in source for Emmio's `FrequencyWordsList`.
 
 ## Build
 
@@ -35,8 +39,14 @@ Options:
 - `--keep-numbers` — keep tokens containing digits (dropped by default).
 - `--keep-case` — disable Unicode lowercasing.
 - `--stats PATH` — also write a capitalization / proper-noun report (see below).
+- `--output-cap PATH` — also write a copy of the output restricted to words
+  with `cap_ratio >= 0.2` (same `word count cap_ratio` format; words with an
+  undefined `cap_ratio`, `NA`, are excluded). A quick way to review
+  proper-noun/honorific-noun candidates without the bulk of the full list.
 - `--proper-noun-threshold R` — off-start title-case fraction to flag a proper
-  noun (default `0.5`).
+  noun (default `0.8`; empirically the best F1 tradeoff against dictionary
+  ground truth on a real OpenSubtitles English sample — `0.5` lets through
+  ~46% false positives, mostly honorific address terms).
 - `--proper-noun-min-count N` — minimum off-start occurrences before flagging
   (default `5`).
 - `--language CODE` — ISO code (e.g. `tr`, `de`, `en`, `hy`) enabling

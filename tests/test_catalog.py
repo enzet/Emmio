@@ -5,6 +5,7 @@ from pathlib import Path
 from emmio.catalog import (
     FREQUENCY_WORDS_YEARS,
     KAIKKI_LANGUAGES,
+    NON_PROPER_NOUNS,
     TATOEBA_LANGUAGES,
 )
 from emmio.language import KnownLanguages
@@ -34,6 +35,25 @@ def test_kaikki_catalog_is_well_formed() -> None:
     assert KAIKKI_LANGUAGES
     assert KAIKKI_LANGUAGES <= _KNOWN
     assert {"tr", "en"} <= KAIKKI_LANGUAGES
+
+
+def test_non_proper_nouns_catalog_is_well_formed() -> None:
+    """Every entry maps a `freqlist`-style code to lowercase words.
+
+    Scoped to `freqlist`'s own language coverage (Tier 1/2.5 of its README),
+    not to Emmio's `KnownLanguages` registry, so codes such as `lv` and `ms`
+    are expected even though Emmio does not yet register those languages.
+    `unis` (a fragment of French `les États-Unis`) is present as a
+    documented example of the category.
+    """
+
+    assert NON_PROPER_NOUNS
+    for code, words in NON_PROPER_NOUNS.items():
+        assert code, code
+        assert isinstance(words, frozenset)
+        for word in words:
+            assert word == word.lower(), word
+    assert "unis" in NON_PROPER_NOUNS["fr"]
 
 
 def test_tatoeba_catalog_is_well_formed() -> None:

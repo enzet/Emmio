@@ -8,10 +8,13 @@ from pathlib import Path
 
 import pytest
 
+from emmio.dictionary.core import DictionaryCollection
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
+    AnswerType,
     Lexicon,
+    LexiconChecker,
     LexiconLog,
     LexiconResponse,
     LogisticSelector,
@@ -35,6 +38,7 @@ from emmio.lists.config import (
     ListUsageConfig,
 )
 from emmio.lists.frequency_list import FrequencyList
+from emmio.sentence.data import SentencesData
 from emmio.ui import TerminalInterface
 
 
@@ -208,23 +212,137 @@ def test_select_next_word_model_strategies_skip_answered() -> None:
         assert select_next_word(frequency_list, set(), strategy, states) == "w5"
 
 
-@pytest.fixture(name="lexicon")
-def fixture_lexicon() -> Lexicon:
-    """Test lexicon checking process."""
+def _make_lexicon(language: str) -> Lexicon:
+    """Build a bare lexicon for the given language code, own log."""
 
     with tempfile.TemporaryDirectory() as temp_directory:
         lexicon_instance: Lexicon = Lexicon.from_config(
             Path(temp_directory),
-            "en",
+            language,
             LexiconConfig(
-                language="en",
-                frequency_list=ListUsageConfig(id="en"),
+                language=language,
+                frequency_list=ListUsageConfig(id=language),
                 selection=LexiconSelection.ARBITRARY,
             ),
             "test",
         )
         lexicon_instance.log = LexiconLog()
         return lexicon_instance
+
+
+@pytest.fixture(name="lexicon")
+def fixture_lexicon() -> Lexicon:
+    """Test lexicon checking process."""
+
+    return _make_lexicon("en")
+
+
+def _make_checker(lexicon_instance: Lexicon) -> LexiconChecker:
+    """Build a `LexiconChecker` around `lexicon_instance`.
+
+    `do_skip` only touches `lexicon`/`interface`/`skip_known`/`skip_unknown`
+    and whatever is passed explicitly (`other_lexicons`, `frequency_list`);
+    the dictionary/sentence collaborators are real-but-empty, since
+    `beartype` enforces their declared types at construction time.
+    """
+    with tempfile.TemporaryDirectory() as temp_directory:
+        sentences_path: Path = Path(temp_directory) / "sentences"
+        (sentences_path / "cache").mkdir(parents=True)
+        return LexiconChecker(
+            interface=TerminalInterface(use_input=False),
+            lexicon=lexicon_instance,
+            dictionaries=DictionaryCollection(),
+            sentences_data=SentencesData.from_config(sentences_path),
+            sentences_usage_configs=[],
+        )
+
+
+def test_answer_type_proper_noun_code_round_trips() -> None:
+    """The proper-noun assume answer type persists and reloads."""
+
+    code = AnswerType.ASSUME__NOT_A_WORD__PROPER.to_code()
+    assert code is not None
+    assert AnswerType.from_code(code) == AnswerType.ASSUME__NOT_A_WORD__PROPER
+
+
+def test_do_skip_assumes_proper_noun_from_cap_ratio(lexicon: Lexicon) -> None:
+    """High `cap_ratio`, not a curated exception: auto-marked not-a-word."""
+
+    frequency_list: FrequencyList = _frequency_list({"paris": 100})
+    frequency_list.cap_ratios["paris"] = 0.95
+
+    checker: LexiconChecker = _make_checker(lexicon)
+    assert checker.do_skip("paris", [], frequency_list) is True
+    assert lexicon.get("paris") == LexiconResponse.NOT_A_WORD
+    assert (
+        lexicon.get_records("paris")[-1].answer_type
+        == AnswerType.ASSUME__NOT_A_WORD__PROPER
+    )
+
+
+def test_do_skip_below_threshold_is_not_assumed(lexicon: Lexicon) -> None:
+    """A word with `cap_ratio` at or below the threshold is left alone."""
+
+    frequency_list: FrequencyList = _frequency_list({"often": 100})
+    frequency_list.cap_ratios["often"] = 0.8
+
+    checker: LexiconChecker = _make_checker(lexicon)
+    assert checker.do_skip("often", [], frequency_list) is False
+    assert not lexicon.has("often")
+
+
+def test_do_skip_respects_non_proper_nouns_exception() -> None:
+    """A curated exception (French `unis`) is never auto-assumed."""
+
+    lexicon_fr: Lexicon = _make_lexicon("fr")
+    frequency_list: FrequencyList = _frequency_list({"unis": 100})
+    frequency_list.cap_ratios["unis"] = 0.95
+
+    checker: LexiconChecker = _make_checker(lexicon_fr)
+    assert checker.do_skip("unis", [], frequency_list) is False
+    assert not lexicon_fr.has("unis")
+
+
+def test_do_skip_without_frequency_list_disables_proper_noun_check(
+    lexicon: Lexicon,
+) -> None:
+    """Without a `frequency_list`, `cap_ratio` is unavailable: never assumed."""
+
+    checker: LexiconChecker = _make_checker(lexicon)
+    assert checker.do_skip("paris", [], None) is False
+    assert not lexicon.has("paris")
+
+
+@pytest.mark.parametrize(
+    ("word", "origin"),
+    [
+        ("paris", AnswerType.ASSUME__NOT_A_WORD__PROPER),
+        ("xyzzy", AnswerType.ASSUME__NOT_A_WORD__ALPHABET),
+    ],
+)
+def test_do_skip_propagates_not_a_word_as_generic(
+    lexicon: Lexicon, word: str, origin: AnswerType
+) -> None:
+    """Propagation always uses the generic answer type."""
+
+    other: Lexicon = _make_lexicon("en")
+    other.register(
+        word=word,
+        interface=TerminalInterface(use_input=False),
+        response=LexiconResponse.NOT_A_WORD,
+        to_skip=None,
+        time=dt(2000, 1, 1),
+        request_time=dt(2000, 1, 1),
+        answer_type=origin,
+    )
+
+    checker: LexiconChecker = _make_checker(lexicon)
+    assert checker.do_skip(word, [other]) is True
+    assert lexicon.get(word) == LexiconResponse.NOT_A_WORD
+    assert (
+        lexicon.get_records(word)[-1].answer_type
+        == AnswerType.PROPAGATE__NOT_A_WORD
+    )
 
 
 def test_register(lexicon: Lexicon) -> None:
