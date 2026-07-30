@@ -1,0 +1,317 @@
+{
+    "af": [
+        "pa",
+        "ma",
+        "oom",
+        "tannie",
+        "meneer"
+    ],
+    "bg": [
+        "бог",
+        "господ",
+        "президент",
+        "министър",
+        "кмет"
+    ],
+    "br": [],
+    "bs": [
+        "bog",
+        "gospod",
+        "kralj",
+        "predsjednik",
+        "papa",
+        "vi"
+    ],
+    "ca": [
+        "déu",
+        "senyor",
+        "majestat",
+        "altesa",
+        "excel·lència",
+        "santedat",
+        "senyoria"
+    ],
+    "cs": [
+        "bůh",
+        "pán",
+        "veličenstvo",
+        "excelence",
+        "vy"
+    ],
+    "da": [
+        "gud",
+        "vorherre",
+        "herre",
+        "frelser",
+        "skaber",
+        "helligånd",
+        "konge",
+        "dronning",
+        "majestæt",
+        "de"
+    ],
+    "de": [],
+    "el": [
+        "θεός",
+        "κύριος",
+        "πρόεδρος",
+        "βασιλιάς",
+        "πάπας",
+        "παναγία",
+        "σεβασμιότατος"
+    ],
+    "en": [
+        "god",
+        "lord",
+        "doctor",
+        "captain",
+        "professor",
+        "general",
+        "colonel",
+        "president",
+        "king",
+        "queen",
+        "pope",
+        "sir",
+        "madam",
+        "mom",
+        "dad"
+    ],
+    "eo": [],
+    "es": [
+        "dios",
+        "señor",
+        "creador",
+        "todopoderoso",
+        "salvador",
+        "majestad",
+        "santidad",
+        "excelencia",
+        "alteza",
+        "señoría"
+    ],
+    "et": [
+        "jumal",
+        "teie",
+        "majesteet",
+        "pühadus"
+    ],
+    "eu": [
+        "jainkoa"
+    ],
+    "fr": [
+        "dieu",
+        "seigneur",
+        "père",
+        "président",
+        "docteur",
+        "capitaine",
+        "général",
+        "colonel",
+        "professeur",
+        "monsieur",
+        "madame",
+        "mademoiselle",
+        "majesté",
+        "sainteté",
+        "altesse"
+    ],
+    "gl": [
+        "deus",
+        "señor",
+        "maxestade",
+        "alteza",
+        "excelencia",
+        "santidade",
+        "señoría"
+    ],
+    "hr": [
+        "bog",
+        "gospod",
+        "gospodin",
+        "kralj",
+        "kraljica",
+        "papa",
+        "predsjednik",
+        "veličanstvo",
+        "ekscelencija",
+        "svetost",
+        "vi"
+    ],
+    "hu": [
+        "isten",
+        "ön"
+    ],
+    "hy": [],
+    "id": [
+        "tuhan",
+        "allah",
+        "presiden",
+        "bapak",
+        "ibu",
+        "kakak",
+        "adik",
+        "saudara",
+        "anda",
+        "tuan",
+        "nyonya"
+    ],
+    "is": [
+        "guð"
+    ],
+    "it": [
+        "dio",
+        "signore",
+        "presidente",
+        "papa",
+        "dottore",
+        "professore",
+        "generale",
+        "cardinale",
+        "vescovo",
+        "ministro"
+    ],
+    "kk": [],
+    "lt": [
+        "dievas",
+        "jūs",
+        "ponas"
+    ],
+    "lv": [
+        "dievs",
+        "jūs"
+    ],
+    "mk": [
+        "господин",
+        "министер",
+        "претседател",
+        "крал",
+        "другар"
+    ],
+    "ms": [
+        "allah",
+        "tuhan",
+        "sultan",
+        "raja",
+        "datuk"
+    ],
+    "nl": [
+        "god",
+        "heer",
+        "majesteit",
+        "hoogheid",
+        "excellentie",
+        "eminentie",
+        "edelachtbare"
+    ],
+    "no": [
+        "gud",
+        "vårherre",
+        "konge",
+        "dronning",
+        "majestet"
+    ],
+    "pl": [
+        "bóg",
+        "pan",
+        "pani",
+        "ekscelencja",
+        "ty"
+    ],
+    "pt": [
+        "deus",
+        "senhor",
+        "criador",
+        "salvador",
+        "majestade",
+        "alteza",
+        "excelência",
+        "santidade",
+        "senhoria",
+        "presidente",
+        "papa",
+        "doutor"
+    ],
+    "pt_br": [
+        "deus",
+        "senhor",
+        "criador",
+        "salvador",
+        "majestade",
+        "alteza",
+        "excelência",
+        "santidade",
+        "senhoria",
+        "presidente",
+        "papa",
+        "doutor"
+    ],
+    "ro": [
+        "dumnezeu",
+        "domnul",
+        "atotputernic",
+        "mântuitor"
+    ],
+    "ru": [
+        "бог",
+        "господь",
+        "всевышний",
+        "творец",
+        "спаситель",
+        "родина"
+    ],
+    "sk": [
+        "boh",
+        "pán",
+        "vy",
+        "ty"
+    ],
+    "sl": [
+        "bog",
+        "gospod",
+        "vi"
+    ],
+    "sq": [
+        "zoti",
+        "perëndia"
+    ],
+    "sr": [
+        "bog",
+        "gospod",
+        "spasitelj",
+        "bogorodica",
+        "svevišnji"
+    ],
+    "sv": [
+        "gud",
+        "kung",
+        "drottning",
+        "majestät",
+        "ni"
+    ],
+    "tl": [
+        "diyos",
+        "panginoon"
+    ],
+    "tr": [
+        "tanrı",
+        "allah",
+        "başkan",
+        "cumhurbaşkanı",
+        "bakan",
+        "vali",
+        "rektör",
+        "general",
+        "mareşal",
+        "yüzbaşı",
+        "doktor",
+        "profesör",
+        "albay"
+    ],
+    "uk": [
+        "бог",
+        "господь",
+        "президент"
+    ],
+    "vi": []
+}
