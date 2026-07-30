@@ -1,12 +1,8 @@
 # freqlist
 
-Unicode-aware frequency list generator for OpenSubtitles (OPUS) monolingual
-dumps. A replacement for `../c/text.c`, which only recognised ASCII and Armenian
-letters.
+Unicode-aware frequency list generator.
 
-Output format matches the [FrequencyWords](https://github.com/hermitdave/FrequencyWords)
-project (`word count` per line, most frequent first), so it is a drop-in source
-for Emmio's `FrequencyWordsList`.
+Output format is `word count` per line, most frequent first).
 
 ## Build
 
@@ -49,6 +45,8 @@ Options:
   whole lines that are bracketed annotations like `[door creaks]` (sound
   descriptions, not speech); a line with only a leading speaker tag
   (`[John] Hello`) is kept.
+- `--stop-at N` — stop after counting `N` words. Checked after each line, so
+  the last line processed is never cut off mid-sentence.
 
 ## Capitalization and proper-noun detection
 

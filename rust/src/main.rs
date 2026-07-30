@@ -74,6 +74,11 @@ struct Args {
     /// flagged as a proper noun (guards against noise from rare words).
     #[arg(long, default_value_t = 5)]
     proper_noun_min_count: u64,
+
+    /// Stop after counting this many words. Checked after each line, so the
+    /// final line is processed in full rather than cut off mid-sentence.
+    #[arg(long)]
+    stop_at: Option<u64>,
 }
 
 /// Source format of the corpus, selecting format-specific line filtering.
@@ -277,6 +282,7 @@ fn run(args: &Args) -> io::Result<()> {
     let reader = open_input(&args.input)?;
 
     let mut lines: u64 = 0;
+    let mut words: u64 = 0;
     for line in reader.lines() {
         let line = line?;
         if is_skipped_line(&line, args.corpus_type) {
@@ -303,6 +309,7 @@ fn run(args: &Args) -> io::Result<()> {
             };
             let stats = counts.entry(key).or_default();
             stats.total += 1;
+            words += 1;
             let titlecased = is_titlecase(segment);
             if titlecased {
                 stats.titlecased += 1;
@@ -317,6 +324,9 @@ fn run(args: &Args) -> io::Result<()> {
         lines += 1;
         if lines % 5_000_000 == 0 {
             eprintln!("Read {lines} lines, {} unique words...", counts.len());
+        }
+        if args.stop_at.is_some_and(|stop_at| words >= stop_at) {
+            break;
         }
     }
 
@@ -371,7 +381,7 @@ fn run(args: &Args) -> io::Result<()> {
     }
 
     eprintln!(
-        "Done: {lines} lines, {} words written to {}.",
+        "Done: {lines} lines, {words} words read, {} unique words written to {}.",
         sorted.len(),
         args.output.display()
     );
