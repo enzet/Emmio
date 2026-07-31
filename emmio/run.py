@@ -10,7 +10,7 @@ from pathlib import Path
 
 from colour import Color
 
-from emmio import inventory, util
+from emmio import inventory, postgres, util
 from emmio.data import Data
 from emmio.graph import Visualizer
 from emmio.language import Language, LanguageNotFoundError
@@ -43,6 +43,26 @@ from emmio.ui import (
 from emmio.user.data import UserData
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+# Category choices offered by `Emmio.curate`, and their single-letter
+# storage codes (see `scripts/schema.sql`, `curated_words.category`).
+CURATION_CATEGORIES: list[tuple[str, str]] = [
+    ("Real word", "w"),
+    ("Proper noun", "p"),
+    ("Misspelling", "m"),
+    ("Foreign word", "f"),
+    ("Not a word", "n"),
+    ("Unsure", "u"),
+    ("Quit", "q"),
+]
+CURATION_CATEGORY_CODES: dict[str, str] = {
+    "Real word": "W",
+    "Proper noun": "P",
+    "Misspelling": "M",
+    "Foreign word": "F",
+    "Not a word": "N",
+    "Unsure": "U",
+}
 
 
 class Emmio:
@@ -135,6 +155,22 @@ class Emmio:
             "--type",
             default="frequency",
             choices=["frequency", "random", "most frequent"],
+        )
+
+        curate_parser = subparsers.add_parser(
+            "curate", help="curate a frequency list's SFWR panel"
+        )
+        curate_parser.add_argument(
+            "language", help="language code of the curated list, e.g. `de`"
+        )
+        curate_parser.add_argument(
+            "frequency_list_id",
+            help=(
+                "source frequency list identifier, e.g. `de_opensubtitles_2024`"
+            ),
+        )
+        curate_parser.add_argument(
+            "--stratum", type=int, help="restrict to one stratum"
         )
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
@@ -524,6 +560,14 @@ class Emmio:
                     key=lambda lexicon: -lexicon.get_last_rate_number(),
                 ),
                 arguments.type,
+            )
+
+        # Command `curate`.
+        elif arguments.command == "curate":
+            self.curate(
+                arguments.language,
+                arguments.frequency_list_id,
+                arguments.stratum,
             )
 
         # Command `stat`.
@@ -1019,6 +1063,59 @@ class Emmio:
                     other_lexicons, frequency_list, None, need
                 )
             break
+
+    def curate(
+        self, language: str, frequency_list_id: str, stratum: int | None
+    ) -> None:
+        """Interactively curate a frequency list's SFWR curated panel.
+
+        Draws the next word this user has not yet voted on — coverage
+        first, so the least-voted word wins — and records their category
+        choice, looping until nothing is left in scope or the user quits.
+        Curation is a property of the list, not the learner (see
+        `research/metric.tex` §"Curation is a property of the list, not the
+        learner"), so this reads/writes the shared `curated_words` table,
+        not anything scoped to this user alone; `self.user_id` is recorded
+        only as the vote's `curator_id`, for attribution and consensus.
+
+        :param language: language code of the curated list, e.g. `de`
+        :param frequency_list_id: source frequency list identifier, e.g.
+            `de_opensubtitles_2024` (see `scripts/build_curated_panel.py`)
+        :param stratum: restrict to one stratum, or `None` for the whole
+            list
+        """
+        list_id: int | None = postgres.get_curated_list_id(
+            language, frequency_list_id
+        )
+        if list_id is None:
+            self.interface.print(
+                f"No curated list for `{language}`/`{frequency_list_id}`. "
+                "Build one first with `scripts/build_curated_panel.py`."
+            )
+            return
+
+        curated_count: int = 0
+        while True:
+            word: str | None = postgres.get_next_curation_candidate(
+                list_id, self.user_id, stratum
+            )
+            if word is None:
+                self.interface.print("Nothing left to curate. Well done!")
+                break
+
+            self.interface.print(Header(word))
+            answer: str = self.interface.choice(
+                CURATION_CATEGORIES, "Category?"
+            )
+            if answer == "Quit":
+                break
+
+            postgres.record_curation_vote(
+                list_id, word, CURATION_CATEGORY_CODES[answer], self.user_id
+            )
+            curated_count += 1
+
+        self.interface.print(f"Curated {curated_count} word(s).")
 
     async def learn(self, learnings: list[Learning]) -> None:
         """Start learning process."""
