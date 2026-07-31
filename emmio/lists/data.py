@@ -101,8 +101,8 @@ class ListsData(ArtifactData):
         """List every frequency list available, across all languages.
 
         Two sources are covered: configured `frequency_list` entries
-        (preferred) and the FrequencyWords (OpenSubtitles) lists, which are
-        plain files named `<language>_opensubtitles_<year>.txt` in the
+        (preferred) and the FrequencyWords lists, which are
+        plain files named `<language>_frequency_words_<year>.txt` in the
         directory rather than entries in the configuration. Unlike
         `get_frequency_list_languages`, every option is kept — e.g. every
         cached FrequencyWords year — so a picker can offer a choice; for a
@@ -135,9 +135,10 @@ class ListsData(ArtifactData):
         # FrequencyWords lists are files, not configuration entries; a
         # language may have more than one cached year, newest first.
         downloaded_years: dict[str, list[int]] = {}
-        for file_path in self.path.glob("*_opensubtitles_*.txt"):
+        for file_path in self.path.glob("*_frequency_words_*.txt"):
             match = re.fullmatch(
-                r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
+                r"(?P<language>.+)_frequency_words_(?P<year>\d+)",
+                file_path.stem,
             )
             if match is None:
                 continue

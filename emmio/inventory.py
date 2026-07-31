@@ -272,8 +272,8 @@ def list_artifacts(base: Path) -> list[Artifact]:
     """List word and frequency list artifacts, downloaded and available.
 
     Three sources: lists (word lists and frequency lists alike) configured in
-    `lists/config.json`, downloaded FrequencyWords (Opensubtitles) lists —
-    plain `<code>_opensubtitles_<year>.txt` files, the same convention
+    `lists/config.json`, downloaded FrequencyWords lists —
+    plain `<code>_frequency_words_<year>.txt` files, the same convention
     `ListsData` uses — and, for every known language with no frequency list
     from the first two, the FrequencyWords list Emmio downloads on first use
     (a word list does not stand in for a frequency list).
@@ -308,9 +308,9 @@ def list_artifacts(base: Path) -> list[Artifact]:
                 list_type=list_type,
             )
         )
-    for file_path in sorted(directory.glob("*_opensubtitles_*.txt")):
+    for file_path in sorted(directory.glob("*_frequency_words_*.txt")):
         match: re.Match | None = re.fullmatch(
-            r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
+            r"(?P<language>.+)_frequency_words_(?P<year>\d+)", file_path.stem
         )
         if match is None:
             continue
@@ -414,7 +414,7 @@ def download_tatoeba(base: Path, language: Language) -> tuple[Path, bool]:
 def download_frequency_words(
     base: Path, language: Language, year: int
 ) -> tuple[Path, bool]:
-    """Download a FrequencyWords (Opensubtitles) frequency list.
+    """Download a FrequencyWords frequency list.
 
     The same file `FrequencyWordsList.from_short_config` fetches implicitly
     on first use, guarded against GitHub's "404: Not Found" body for
@@ -426,7 +426,7 @@ def download_frequency_words(
     """
     directory: Path = base / LISTS_DIRECTORY_NAME
     code: str = language.get_code()
-    file_path: Path = directory / f"{code}_opensubtitles_{year}.txt"
+    file_path: Path = directory / f"{code}_frequency_words_{year}.txt"
     if file_path.exists():
         return file_path, False
 
@@ -515,11 +515,11 @@ def delete_frequency_words(
     code: str = language.get_code()
     if year is not None:
         candidates: list[Path] = [
-            directory / f"{code}_opensubtitles_{year}.txt"
+            directory / f"{code}_frequency_words_{year}.txt"
         ]
         candidates = [path for path in candidates if path.exists()]
     else:
-        candidates = sorted(directory.glob(f"{code}_opensubtitles_*.txt"))
+        candidates = sorted(directory.glob(f"{code}_frequency_words_*.txt"))
     if not candidates:
         message: str = f"No downloaded FrequencyWords list for `{code}`."
         raise InventoryError(message)

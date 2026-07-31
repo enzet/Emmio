@@ -49,7 +49,7 @@ def test_downloaded_artifacts_are_reported(tmp_path: Path) -> None:
     # A downloaded FrequencyWords list is a plain file in `lists`.
     lists_path = tmp_path / "lists"
     lists_path.mkdir()
-    (lists_path / "uk_opensubtitles_2018.txt").write_text("slovo 5\n")
+    (lists_path / "uk_frequency_words_2018.txt").write_text("slovo 5\n")
 
     def by_language(
         artifacts: list[inventory.Artifact], language: str
@@ -103,8 +103,8 @@ def test_artifacts_are_sorted(tmp_path: Path) -> None:
 
     lists_path = tmp_path / "lists"
     lists_path.mkdir()
-    (lists_path / "uk_opensubtitles_2018.txt").write_text("slovo 5\n")
-    (lists_path / "fr_opensubtitles_2018.txt").write_text(
+    (lists_path / "uk_frequency_words_2018.txt").write_text("slovo 5\n")
+    (lists_path / "fr_frequency_words_2018.txt").write_text(
         "mot 7\nchat 5\nchien 3\n"
     )
 
@@ -235,17 +235,17 @@ def test_delete_frequency_words_needs_year_when_several(tmp_path: Path) -> None:
     french = KnownLanguages.FRENCH
     lists_path = tmp_path / "lists"
     lists_path.mkdir()
-    (lists_path / "fr_opensubtitles_2016.txt").write_text("mot 7\n")
-    (lists_path / "fr_opensubtitles_2018.txt").write_text("mot 9\n")
+    (lists_path / "fr_frequency_words_2016.txt").write_text("mot 7\n")
+    (lists_path / "fr_frequency_words_2018.txt").write_text("mot 9\n")
 
     with pytest.raises(inventory.InventoryError, match="2016, 2018"):
         inventory.delete_frequency_words(tmp_path, french, None)
 
     removed, _ = inventory.delete_frequency_words(tmp_path, french, 2016)
-    assert removed == [lists_path / "fr_opensubtitles_2016.txt"]
+    assert removed == [lists_path / "fr_frequency_words_2016.txt"]
     # Only one year remains, so it no longer needs to be spelled out.
     removed, _ = inventory.delete_frequency_words(tmp_path, french, None)
-    assert removed == [lists_path / "fr_opensubtitles_2018.txt"]
+    assert removed == [lists_path / "fr_frequency_words_2018.txt"]
     with pytest.raises(inventory.InventoryError):
         inventory.delete_frequency_words(tmp_path, french, None)
 
@@ -271,7 +271,7 @@ def test_download_frequency_words(
         tmp_path, KnownLanguages.FRENCH, 2018
     )
     assert fetched is True
-    assert path == tmp_path / "lists" / "fr_opensubtitles_2018.txt"
+    assert path == tmp_path / "lists" / "fr_frequency_words_2018.txt"
     # A second call finds the file and does not fetch again.
     assert inventory.download_frequency_words(
         tmp_path, KnownLanguages.FRENCH, 2018
@@ -281,7 +281,7 @@ def test_download_frequency_words(
         inventory.download_frequency_words(
             tmp_path, KnownLanguages.ESPERANTO, 2018
         )
-    assert not (tmp_path / "lists" / "eo_opensubtitles_2018.txt").exists()
+    assert not (tmp_path / "lists" / "eo_frequency_words_2018.txt").exists()
 
 
 def test_download_tatoeba(

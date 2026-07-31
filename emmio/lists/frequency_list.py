@@ -359,9 +359,9 @@ class FrequencyWordsList(FrequencyList):
         return cls.from_config(
             path,
             FrequencyListConfig(
-                name=f"{language.get_name()} Opensubtitles {year}",
+                name=f"{language.get_name()} FrequencyWords {year}",
                 source="FrequencyWords by Hermit Dave",
-                path=f"{language.get_code()}_opensubtitles_{year}.txt",
+                path=f"{language.get_code()}_frequency_words_{year}.txt",
                 file_format=FrequencyListFileFormat.LIST,
                 language=language.get_code(),
                 is_stripped=False,

@@ -114,8 +114,8 @@ def test_frequency_list_options_offer_every_cached_year(tmp_path: Path) -> None:
     """
     lists_path = tmp_path / "lists"
     lists_path.mkdir()
-    (lists_path / "fr_opensubtitles_2016.txt").touch()
-    (lists_path / "fr_opensubtitles_2018.txt").touch()
+    (lists_path / "fr_frequency_words_2016.txt").touch()
+    (lists_path / "fr_frequency_words_2018.txt").touch()
 
     lists = ListsData.from_config(lists_path)
     options = [
