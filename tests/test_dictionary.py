@@ -11,6 +11,7 @@ import pytest
 from emmio.dictionary import data as dictionary_data
 from emmio.dictionary.config import DictionaryConfig, DictionaryUsageConfig
 from emmio.dictionary.core import (
+    Commonality,
     Definition,
     DefinitionValue,
     DictionaryItem,
@@ -38,6 +39,104 @@ def test_dictionary() -> None:
         KnownLanguages.FRENCH,
         KnownLanguages.ENGLISH,
     )
+
+
+def test_commonality_letter() -> None:
+    """A `letter` part of speech is confirmed junk both ways."""
+
+    form = Form("a", part_of_speech="letter")
+    assert form.get_commonality(KnownLanguages.ENGLISH) == Commonality.LETTER
+    assert form.get_commonality(KnownLanguages.ENGLISH).is_confirmed_junk()
+    assert form.is_not_common(KnownLanguages.ENGLISH) is True
+
+
+def test_commonality_common_definition() -> None:
+    """A common definition confirms the word both ways."""
+
+    form = Form(
+        "book",
+        definitions={
+            KnownLanguages.ENGLISH: [Definition([DefinitionValue("a book")])]
+        },
+    )
+    commonality = form.get_commonality(KnownLanguages.ENGLISH)
+    assert commonality == Commonality.COMMON
+    assert not commonality.is_confirmed_junk()
+    assert form.is_not_common(KnownLanguages.ENGLISH) is False
+
+
+def test_commonality_uncommon_definition() -> None:
+    """Definitions exist but none are common: confirmed junk both ways."""
+
+    form = Form(
+        "foo",
+        definitions={
+            KnownLanguages.ENGLISH: [
+                Definition([DefinitionValue("foo")], descriptors=["obsolete"])
+            ]
+        },
+    )
+    commonality = form.get_commonality(KnownLanguages.ENGLISH)
+    assert commonality == Commonality.UNCOMMON_DEFINITION
+    assert commonality.is_confirmed_junk()
+    assert form.is_not_common(KnownLanguages.ENGLISH) is True
+
+
+def test_commonality_form_of_another_word_is_real() -> None:
+    """A linked form is real for curation, "not common" for teaching."""
+
+    form = Form("books", links=[Link("plural form of", "book")])
+    commonality = form.get_commonality(KnownLanguages.ENGLISH)
+    assert commonality == Commonality.FORM_OF_ANOTHER_WORD
+    assert not commonality.is_confirmed_junk()  # Real word for curation.
+    assert form.is_not_common(KnownLanguages.ENGLISH) is True  # Unchanged.
+
+
+def test_commonality_unknown_is_not_evidence() -> None:
+    """No definitions and no links: unresolved, not evidence either way."""
+
+    form = Form("xyzzy")
+    commonality = form.get_commonality(KnownLanguages.ENGLISH)
+    assert commonality == Commonality.UNKNOWN
+    assert not commonality.is_confirmed_junk()
+    assert form.is_not_common(KnownLanguages.ENGLISH) is False
+
+
+def test_dictionary_item_commonality_prefers_confirming_form() -> None:
+    """One confirming form is enough to confirm the whole item."""
+
+    item = DictionaryItem(
+        "bank",
+        [
+            Form("bank", part_of_speech="letter"),  # Junk on its own.
+            Form(
+                "bank",
+                definitions={
+                    KnownLanguages.ENGLISH: [
+                        Definition([DefinitionValue("a financial institution")])
+                    ]
+                },
+            ),
+        ],
+    )
+    assert item.get_commonality(KnownLanguages.ENGLISH) == Commonality.COMMON
+    # Legacy `all()` view: one common form still makes the item common.
+    assert item.is_not_common(KnownLanguages.ENGLISH) is False
+
+
+def test_dictionary_item_commonality_all_junk() -> None:
+    """Only when every form is confirmed junk is the item confirmed junk."""
+
+    item = DictionaryItem("xyz", [Form("xyz", part_of_speech="letter")])
+    assert item.get_commonality(KnownLanguages.ENGLISH) == Commonality.LETTER
+    assert item.is_not_common(KnownLanguages.ENGLISH) is True
+
+
+def test_dictionary_item_commonality_empty_forms_is_unknown() -> None:
+    """An item with no forms is unresolved, not confirmed junk."""
+
+    item = DictionaryItem("xyz", [])
+    assert item.get_commonality(KnownLanguages.ENGLISH) == Commonality.UNKNOWN
 
 
 _ARMENIAN_ALPHABET_ENTRY: dict[str, Any] = {

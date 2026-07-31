@@ -17,6 +17,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, Self, override
 
@@ -181,6 +182,61 @@ class Definition:
         return text
 
 
+class Commonality(Enum):
+    """Why a dictionary form or item is judged common vocabulary, or not."""
+
+    COMMON = "common"
+    """A definition in the target language is explicitly marked common."""
+
+    FORM_OF_ANOTHER_WORD = "form_of_another_word"
+    """No definitions here, but links to another entry: a real word form
+    (e.g. an inflection) whose definition lives elsewhere.
+
+    Under Emmio's word-forms-are-the-unit-of-knowledge convention (distinct
+    entries for `book`/`books`/`booked`), this is a real word, not evidence
+    of junk — see `is_confirmed_junk`. It is still treated as "not common"
+    by `is_not_common` for the unrelated purpose of picking which word to
+    introduce as *new* vocabulary, where preferring a base form over a bare
+    inflection is the desired behavior (see `Teacher.check_common`,
+    `LexiconChecker.check_top`, and `api.app._is_common`).
+    """
+
+    LETTER = "letter"
+    """Dictionary entry is about a single letter/glyph, not a word."""
+
+    UNCOMMON_DEFINITION = "uncommon_definition"
+    """Has definitions in the language, but none are marked common."""
+
+    UNKNOWN = "unknown"
+    """No definitions and no links: not enough information to decide either
+    way. Not evidence of anything — absence of a signal, not a negative
+    signal."""
+
+    def is_not_common(self) -> bool:
+        """Legacy boolean view for new-vocabulary selection.
+
+        True for `LETTER`, `UNCOMMON_DEFINITION`, and `FORM_OF_ANOTHER_WORD`
+        — the last one counts as "not common" only for this purpose, unlike
+        `is_confirmed_junk` (frequency-list curation). `UNKNOWN` is False
+        here too: undecidable was always treated as "keep it," never as
+        "not common."
+        """
+        return self in (
+            Commonality.LETTER,
+            Commonality.UNCOMMON_DEFINITION,
+            Commonality.FORM_OF_ANOTHER_WORD,
+        )
+
+    def is_confirmed_junk(self) -> bool:
+        """Whether this is positive evidence the word is junk (curation).
+
+        Unlike `is_not_common`, `FORM_OF_ANOTHER_WORD` is real evidence of a
+        real word here, and `UNKNOWN` is not evidence of junk either — only
+        `LETTER` and `UNCOMMON_DEFINITION` are positive confirmations.
+        """
+        return self in (Commonality.LETTER, Commonality.UNCOMMON_DEFINITION)
+
+
 @dataclass
 class Form:
     """Word form: noun, verb, etc."""
@@ -224,27 +280,32 @@ class Form:
             [],
         )
 
-    def is_not_common(self, language: Language) -> bool:
-        """Check whether the word is not common.
-
-        Meaning we can deduce from the present definitions that word is not a
-        common word of the language. E.g. it is misspelling, obsolete, or slang.
-
-        Also check whether it is just a form of some another word.
-        """
+    def get_commonality(self, language: Language) -> Commonality:
+        """Judge whether the word is common vocabulary, and why."""
         if self.part_of_speech == "letter":
-            return True
+            return Commonality.LETTER
 
         if language in self.definitions:
             for definition in self.definitions[language]:
                 if definition.is_common():
-                    return False
-            return True
+                    return Commonality.COMMON
+            return Commonality.UNCOMMON_DEFINITION
 
-        # If there are no definitions, but there are links to other forms, we
-        # decide that this is just a form of a word. If there are no definitions
-        # and no links, we cannot decide if the word is not common.
-        return bool(self.links)
+        # No definitions here. A link to another entry means this is a real
+        # word form (e.g. an inflection) whose definition lives elsewhere.
+        if self.links:
+            return Commonality.FORM_OF_ANOTHER_WORD
+
+        return Commonality.UNKNOWN
+
+    def is_not_common(self, language: Language) -> bool:
+        """Check whether the word is not common.
+
+        Legacy boolean view for new-vocabulary selection; see
+        `Commonality.is_not_common` for exactly what it does and does not
+        cover, and `get_commonality` for the underlying reason.
+        """
+        return self.get_commonality(language).is_not_common()
 
     def to_text(
         self,
@@ -469,9 +530,36 @@ class DictionaryItem:
     def is_not_common(self, language: Language) -> bool:
         """Check whether all forms of the word are not common.
 
-        Also check if it is not just a form of some another word.
+        Also check if it is not just a form of some another word. Legacy
+        boolean view for new-vocabulary selection; see `get_commonality` for
+        the reason-carrying equivalent used by frequency-list curation.
         """
         return all(form.is_not_common(language) for form in self.get_forms())
+
+    def get_commonality(self, language: Language) -> Commonality:
+        """Judge whether the word is common vocabulary, and why.
+
+        Aggregates across forms: any form giving positive confirmation
+        (`COMMON` or `FORM_OF_ANOTHER_WORD`) is enough to confirm the whole
+        item as real; failing that, any unresolved (`UNKNOWN`) form leaves
+        the item unresolved; only when every form is confirmed not common
+        (`LETTER` or `UNCOMMON_DEFINITION`) is the item itself confirmed not
+        common — mirrors `is_not_common`'s `all()` aggregation, just with
+        the reason preserved and `FORM_OF_ANOTHER_WORD` no longer treated as
+        junk (see `Commonality.is_confirmed_junk`).
+        """
+        commonalities: list[Commonality] = [
+            form.get_commonality(language) for form in self.get_forms()
+        ]
+        if not commonalities:
+            return Commonality.UNKNOWN
+        if Commonality.COMMON in commonalities:
+            return Commonality.COMMON
+        if Commonality.FORM_OF_ANOTHER_WORD in commonalities:
+            return Commonality.FORM_OF_ANOTHER_WORD
+        if Commonality.UNKNOWN in commonalities:
+            return Commonality.UNKNOWN
+        return commonalities[0]  # Every form confirmed not common.
 
     def get_one_word_definitions(self, language: Language) -> list[str]:
         """Get definitions and translations that contain exactly one word.
