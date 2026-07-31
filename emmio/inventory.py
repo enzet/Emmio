@@ -89,7 +89,8 @@ class Artifact:
     """Human-readable name, e.g. `Kaikki` or a configured list name."""
 
     kind: str
-    """Source: `kaikki`, `tatoeba`, `frequency_words`, `file`, `database`."""
+    """Source: `kaikki`, `tatoeba`, `frequency_words`, `opensubtitles`,
+    `file`, `database`."""
 
     language: str | None
     """ISO 639-1 code, or `None` for language-neutral artifacts."""
@@ -271,12 +272,16 @@ def sentence_artifacts(base: Path) -> list[Artifact]:
 def list_artifacts(base: Path) -> list[Artifact]:
     """List word and frequency list artifacts, downloaded and available.
 
-    Three sources: lists (word lists and frequency lists alike) configured in
-    `lists/config.json`, downloaded FrequencyWords lists —
-    plain `<code>_frequency_words_<year>.txt` files, the same convention
-    `ListsData` uses — and, for every known language with no frequency list
-    from the first two, the FrequencyWords list Emmio downloads on first use
-    (a word list does not stand in for a frequency list).
+    Four sources: lists (word lists and frequency lists alike) configured in
+    `lists/config.json`; downloaded FrequencyWords lists —
+    plain `<code>_frequency_words_<year>.txt` files; Emmio-generated lists —
+    plain `<code>_opensubtitles_<year>.txt` files, produced by running the
+    `freqlist` tool directly against a raw OpenSubtitles corpus rather than
+    downloaded from the FrequencyWords project — both using the same
+    convention `ListsData` uses; and, for every known language with no
+    frequency list from the first three, the FrequencyWords list Emmio
+    downloads on first use (a word list does not stand in for a frequency
+    list).
 
     :param base: the data directory, usually `~/.emmio`
     """
@@ -319,6 +324,23 @@ def list_artifacts(base: Path) -> list[Artifact]:
             _artifact(
                 f"FrequencyWords {match['year']}",
                 "frequency_words",
+                match["language"],
+                base,
+                file_path,
+                list_type="frequency list",
+            )
+        )
+    for file_path in sorted(directory.glob("*_opensubtitles_*.txt")):
+        match = re.fullmatch(
+            r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
+        )
+        if match is None:
+            continue
+        covered.add(match["language"])
+        artifacts.append(
+            _artifact(
+                f"OpenSubtitles {match['year']}",
+                "opensubtitles",
                 match["language"],
                 base,
                 file_path,

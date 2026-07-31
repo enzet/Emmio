@@ -11,6 +11,7 @@ from emmio.core import ArtifactData
 from emmio.language import Language
 from emmio.lists.config import (
     FrequencyListConfig,
+    FrequencyListFileFormat,
     ListUsageConfig,
     WordListConfig,
 )
@@ -79,6 +80,50 @@ class ListsData(ArtifactData):
                                 self.path,
                                 Language.from_code(list_usage_config.language),
                                 list_usage_config.year,
+                            )
+                        )
+                return self.frequency_lists[cache_key]
+            case "opensubtitles":
+                # Emmio-generated (via the `freqlist` tool), directly from a
+                # raw OpenSubtitles corpus — distinct from `frequency_words`,
+                # which are pre-made lists downloaded from the FrequencyWords
+                # project. May carry a `cap_ratio` third column; see
+                # `FrequencyList.from_list_file`.
+                if list_usage_config.language is None:
+                    msg = "Language is required for an OpenSubtitles list."
+                    raise ValueError(msg)
+                if list_usage_config.year is None:
+                    msg = "Year is required for an OpenSubtitles list."
+                    raise ValueError(msg)
+                cache_key = (
+                    f"opensubtitles:{list_usage_config.language}:"
+                    f"{list_usage_config.year}"
+                )
+                if cache_key not in self.frequency_lists:
+                    file_name: str = (
+                        f"{list_usage_config.language}_opensubtitles_"
+                        f"{list_usage_config.year}.txt"
+                    )
+                    with log_duration(
+                        f"load OpenSubtitles-derived frequency list "
+                        f"{list_usage_config.language}/"
+                        f"{list_usage_config.year}",
+                        logger,
+                    ):
+                        self.frequency_lists[cache_key] = (
+                            FrequencyList.from_file(
+                                self.path,
+                                FrequencyListConfig(
+                                    name=(
+                                        "OpenSubtitles "
+                                        f"{list_usage_config.year}"
+                                    ),
+                                    file_format=FrequencyListFileFormat.LIST,
+                                    language=list_usage_config.language,
+                                    path=file_name,
+                                    is_stripped=False,
+                                ),
+                                self.path / file_name,
                             )
                         )
                 return self.frequency_lists[cache_key]
@@ -152,6 +197,36 @@ class ListsData(ArtifactData):
                     "name": f"FrequencyWords ({year})",
                     "config": {
                         "id": "frequency_words",
+                        "language": language,
+                        "year": year,
+                    },
+                }
+                for year in sorted(years, reverse=True)
+            )
+            languages_seen.add(language)
+
+        # Emmio-generated lists (the `freqlist` tool run directly against a
+        # raw OpenSubtitles corpus) are also plain files, not configuration
+        # entries, but under a distinct id (`opensubtitles`) from the
+        # FrequencyWords project's pre-made lists — different provenance,
+        # and these may carry freqlist's `cap_ratio` third column.
+        generated_years: dict[str, list[int]] = {}
+        for file_path in self.path.glob("*_opensubtitles_*.txt"):
+            match = re.fullmatch(
+                r"(?P<language>.+)_opensubtitles_(?P<year>\d+)", file_path.stem
+            )
+            if match is None:
+                continue
+            generated_years.setdefault(match["language"], []).append(
+                int(match["year"])
+            )
+        for language, years in generated_years.items():
+            options.extend(
+                {
+                    "language": language,
+                    "name": f"OpenSubtitles ({year})",
+                    "config": {
+                        "id": "opensubtitles",
                         "language": language,
                         "year": year,
                     },

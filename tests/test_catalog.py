@@ -9,6 +9,7 @@ from emmio.catalog import (
     TATOEBA_LANGUAGES,
 )
 from emmio.language import KnownLanguages
+from emmio.lists.config import ListUsageConfig
 from emmio.lists.data import ListsData
 from emmio.sentence.data import SentencesData
 
@@ -126,6 +127,51 @@ def test_frequency_list_options_offer_every_cached_year(tmp_path: Path) -> None:
 
     assert [option["config"]["year"] for option in options] == [2018, 2016]
     assert options[0]["config"] == lists.get_frequency_list_languages()["fr"]
+
+
+def test_opensubtitles_files_are_recognized_alongside_frequency_words(
+    tmp_path: Path,
+) -> None:
+    """`_opensubtitles_` files get their own `id`, no collision with FW."""
+
+    lists_path = tmp_path / "lists"
+    lists_path.mkdir()
+    (lists_path / "de_opensubtitles_2024.txt").touch()
+    (lists_path / "de_frequency_words_2016.txt").touch()
+
+    lists = ListsData.from_config(lists_path)
+    options = {
+        option["config"]["id"]: option
+        for option in lists.get_frequency_list_options()
+        if option["language"] == "de"
+    }
+
+    assert options.keys() == {"opensubtitles", "frequency_words"}
+    assert options["opensubtitles"]["config"] == {
+        "id": "opensubtitles",
+        "language": "de",
+        "year": 2024,
+    }
+    assert options["opensubtitles"]["name"] == "OpenSubtitles (2024)"
+
+
+def test_get_frequency_list_loads_opensubtitles_file(tmp_path: Path) -> None:
+    """`get_frequency_list` loads an `_opensubtitles_` file with `cap_ratio`."""
+
+    lists_path = tmp_path / "lists"
+    lists_path.mkdir()
+    (lists_path / "de_opensubtitles_2024.txt").write_text(
+        "ich 100 0.01\nkatze 3 1.00\n"
+    )
+
+    lists = ListsData.from_config(lists_path)
+    frequency_list = lists.get_frequency_list(
+        ListUsageConfig(id="opensubtitles", language="de", year=2024)
+    )
+
+    assert frequency_list is not None
+    assert frequency_list.get_occurrences("ich") == 100
+    assert frequency_list.get_cap_ratio("katze") == 1.0
 
 
 def test_supported_languages_includes_downloadable(tmp_path: Path) -> None:

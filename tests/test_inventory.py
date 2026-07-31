@@ -77,6 +77,23 @@ def test_downloaded_artifacts_are_reported(tmp_path: Path) -> None:
     assert by_language(lists, "fr").downloaded is False
 
 
+def test_opensubtitles_generated_list_is_reported(tmp_path: Path) -> None:
+    """An `_opensubtitles_` file is its own kind, not a FrequencyWords list."""
+
+    lists_path = tmp_path / "lists"
+    lists_path.mkdir()
+    (lists_path / "de_opensubtitles_2024.txt").write_text("ich 100 0.01\n")
+
+    german = next(
+        x
+        for x in inventory.list_artifacts(tmp_path)
+        if x.language == "de" and x.kind == "opensubtitles"
+    )
+    assert german.name == "OpenSubtitles 2024"
+    assert german.downloaded is True
+    assert german.path == "lists/de_opensubtitles_2024.txt"
+
+
 def test_configured_artifacts_are_reported(tmp_path: Path) -> None:
     """Artifacts configured in `config.json` files are inventoried."""
 
