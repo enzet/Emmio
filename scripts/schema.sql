@@ -183,3 +183,67 @@ CREATE INDEX IF NOT EXISTS lexicon_words_lexicon_word
     ON lexicon_words (lexicon_id, word);
 CREATE INDEX IF NOT EXISTS lexicon_sessions_lexicon_start
     ON lexicon_sessions (lexicon_id, start);
+
+-- Frequency-list curation (SFWR curated panels).
+--
+-- A curated list is a fixed, pre-reviewed subsample of one specific
+-- frequency list version, generalizing the "spine" from one word per stratum to
+-- `n_c` per stratum.  Not owned by a user: curation is a property of the list,
+-- open to any user, not per-learner.
+--
+-- Only human decisions are stored here. Automatic checks (alphabet,
+-- dictionary, the cap_ratio proper-noun heuristic) stay live in
+-- `LexiconChecker.do_skip` and are never cached in these tables.
+CREATE TABLE IF NOT EXISTS curated_lists (
+    id                SERIAL PRIMARY KEY,
+    language          TEXT NOT NULL,
+    frequency_list_id TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    n_strata          INT NOT NULL DEFAULT 10,
+    UNIQUE (language, frequency_list_id)
+);
+
+-- Each word stored once per curated list. Caches the consensus category
+-- (mode of the word's `curated_word_records`, each curator's latest vote
+-- counted once) for fast lookups without scanning history, mirroring
+-- `lexicon_words`. `panel_order` is set once at insertion (from the
+-- frequency-weighted draw order, or the fallback-promotion order) and never
+-- re-sorted afterward — serving draws uniformly at random among a learner's
+-- remaining unanswered words of a stratum, but the *order new words are
+-- appended in* must stay stable for that random draw to remain valid.
+--
+-- category codes:
+--   `W` real_word, `P` proper_noun, `M` misspelling, `F` foreign_word,
+--   `N` not_a_word (generic), `U` unknown (no settled consensus yet)
+CREATE TABLE IF NOT EXISTS curated_words (
+    id              SERIAL PRIMARY KEY,
+    curated_list_id INT NOT NULL REFERENCES curated_lists(id),
+    word            TEXT NOT NULL,
+    stratum         INT NOT NULL,
+    panel_order     INT NOT NULL,
+    category        CHAR(1) NOT NULL DEFAULT 'U',
+    votes           INT NOT NULL DEFAULT 0,
+    agreement       REAL,
+    added_reason    TEXT NOT NULL,
+    -- 'bootstrap' (initial per-stratum frequency-weighted draw) or
+    -- 'fallback_promoted' (a learner hit it via raw-list fallback sampling).
+    UNIQUE (curated_list_id, word)
+);
+
+-- Full history: every vote from every curator, kept (anyone may curate; the
+-- consensus on `curated_words` is derived from this, never overwritten in
+-- place — see "estimate curation error" in research/app.md).
+CREATE TABLE IF NOT EXISTS curated_word_records (
+    id              BIGSERIAL PRIMARY KEY,
+    curated_word_id INT NOT NULL REFERENCES curated_words(id),
+    category        CHAR(1) NOT NULL,
+    curator_id      INT NOT NULL REFERENCES users(id),
+    curated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS curated_words_list_stratum
+    ON curated_words (curated_list_id, stratum, category);
+CREATE INDEX IF NOT EXISTS curated_words_list_word
+    ON curated_words (curated_list_id, word);
+CREATE INDEX IF NOT EXISTS curated_word_records_word_time
+    ON curated_word_records (curated_word_id, curated_at);

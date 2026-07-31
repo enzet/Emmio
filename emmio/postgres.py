@@ -1635,3 +1635,249 @@ def save_lexicon(
             "VALUES (%s, %s, %s)",
             [(db_id, start, end) for (start, end) in sessions],
         )
+
+
+# Frequency-list curation (SFWR curated panels). See `scripts/schema.sql`
+# and `research/app.md` "Frequency-list curation" for the design.
+
+CuratedWordRow = tuple[str, int, int, str, int, float | None]
+"""Word, stratum, panel_order, category, votes, agreement."""
+
+
+def get_curated_list_id(language: str, frequency_list_id: str) -> int | None:
+    """Get a curated list's internal identifier, or `None` if it has none.
+
+    :param language: language code, e.g. `fr`
+    :param frequency_list_id: source frequency list identifier, e.g.
+        `fr_frequency_words_2018`
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM curated_lists "
+            "WHERE language = %s AND frequency_list_id = %s",
+            (language, frequency_list_id),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else None
+
+
+def create_curated_list(
+    language: str, frequency_list_id: str, name: str, n_strata: int = 10
+) -> int:
+    """Get or create the curated list for a `(language, frequency_list_id)`.
+
+    :param language: language code, e.g. `fr`
+    :param frequency_list_id: source frequency list identifier, e.g.
+        `fr_frequency_words_2018`
+    :param name: display name, used only if the list is created
+    :param n_strata: number of log-uniform strata, used only if created
+    :return: internal identifier of the (possibly pre-existing) list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM curated_lists "
+            "WHERE language = %s AND frequency_list_id = %s",
+            (language, frequency_list_id),
+        )
+        if row := cursor.fetchone():
+            return int(row[0])
+        cursor.execute(
+            "INSERT INTO curated_lists "
+            "(language, frequency_list_id, name, n_strata) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (language, frequency_list_id, name, n_strata),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
+
+
+def add_curated_words(
+    curated_list_id: int, entries: list[tuple[str, int, int, str]]
+) -> None:
+    """Bulk-insert bootstrap or fallback-promoted candidates.
+
+    Words already present in the list are left untouched (`category`,
+    `votes`, and any recorded votes are not reset) — inserting is a no-op
+    for a word that already exists, so this is safe to call again with an
+    overlapping or repeated `entries` list.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param entries: (word, stratum, panel_order, added_reason) tuples;
+        `added_reason` is `"bootstrap"` or `"fallback_promoted"`
+    """
+    if not entries:
+        return
+    with db_cursor() as cursor:
+        cursor.executemany(
+            "INSERT INTO curated_words "
+            "(curated_list_id, word, stratum, panel_order, added_reason) "
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT (curated_list_id, word) DO NOTHING",
+            [
+                (curated_list_id, word, stratum, panel_order, added_reason)
+                for (word, stratum, panel_order, added_reason) in entries
+            ],
+        )
+
+
+def promote_fallback_word(
+    curated_list_id: int, word: str, stratum: int
+) -> bool:
+    """Add a word a learner hit via raw-list fallback sampling to the queue.
+
+    Appended after the stratum's current highest `panel_order`, with
+    `category = 'U'` (unknown, pending review) and
+    `added_reason = 'fallback_promoted'`. A no-op if the word is already in
+    the curated list under any category.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param word: the word to queue for curation
+    :param stratum: the word's stratum in this list
+    :return: whether the word was newly added (`False` if already present)
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO curated_words "
+            "(curated_list_id, word, stratum, panel_order, added_reason) "
+            "SELECT %s, %s, %s, COALESCE(MAX(panel_order), -1) + 1, "
+            "'fallback_promoted' "
+            "FROM curated_words "
+            "WHERE curated_list_id = %s AND stratum = %s "
+            "ON CONFLICT (curated_list_id, word) DO NOTHING "
+            "RETURNING id",
+            (curated_list_id, word, stratum, curated_list_id, stratum),
+        )
+        return cursor.fetchone() is not None
+
+
+def get_curated_words(
+    curated_list_id: int, stratum: int | None = None
+) -> list[CuratedWordRow]:
+    """Get a curated list's words, ordered by stratum then panel order.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param stratum: restrict to one stratum, or `None` for the whole list
+    """
+    with db_cursor() as cursor:
+        if stratum is None:
+            cursor.execute(
+                "SELECT word, stratum, panel_order, category, votes, "
+                "agreement FROM curated_words WHERE curated_list_id = %s "
+                "ORDER BY stratum, panel_order",
+                (curated_list_id,),
+            )
+        else:
+            cursor.execute(
+                "SELECT word, stratum, panel_order, category, votes, "
+                "agreement FROM curated_words "
+                "WHERE curated_list_id = %s AND stratum = %s "
+                "ORDER BY panel_order",
+                (curated_list_id, stratum),
+            )
+        return [
+            (row[0], row[1], row[2], row[3], row[4], row[5])
+            for row in cursor.fetchall()
+        ]
+
+
+def get_next_curation_candidate(
+    curated_list_id: int, user_id: str, stratum: int | None = None
+) -> str | None:
+    """Get the next word this user has not yet voted on.
+
+    Coverage first: the least-voted word wins (ties broken by panel order),
+    so every word gets at least one opinion before any gets a second.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param user_id: the curator's login
+    :param stratum: restrict to one stratum, or `None` for the whole list
+    :return: a word needing this curator's opinion, or `None` if they have
+        voted on everything currently in scope
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "SELECT cw.word FROM curated_words cw "
+            "WHERE cw.curated_list_id = %s "
+            "AND (%s::INT IS NULL OR cw.stratum = %s) "
+            "AND NOT EXISTS ("
+            "    SELECT 1 FROM curated_word_records cwr "
+            "    WHERE cwr.curated_word_id = cw.id "
+            "    AND cwr.curator_id = %s"
+            ") "
+            "ORDER BY cw.votes ASC, cw.panel_order ASC LIMIT 1",
+            (curated_list_id, stratum, stratum, user_db_id),
+        )
+        row = cursor.fetchone()
+        return str(row[0]) if row else None
+
+
+def record_curation_vote(
+    curated_list_id: int, word: str, category: str, user_id: str
+) -> None:
+    """Record one curator's category vote for a word, and recompute consensus.
+
+    Every vote is kept (`curated_word_records`); `curated_words.category` is
+    then set to the mode across each curator's *latest* vote (a curator
+    revising their opinion updates their vote, not double-counts it), with
+    `votes`/`agreement` set to the number of distinct curators and the
+    fraction of them agreeing with the mode.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param word: the word being voted on; must already be in the list (via
+        `add_curated_words` or `promote_fallback_word`)
+    :param category: one of `W`/`P`/`M`/`F`/`N`/`U`
+    :param user_id: the curator's login
+    :raises ValueError: if `word` is not in this curated list
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "SELECT id FROM curated_words "
+            "WHERE curated_list_id = %s AND word = %s",
+            (curated_list_id, word),
+        )
+        if not (row := cursor.fetchone()):
+            message: str = (
+                f"Word `{word}` is not in curated list {curated_list_id}; "
+                "add it first."
+            )
+            raise ValueError(message)
+        curated_word_id: int = int(row[0])
+
+        cursor.execute(
+            "INSERT INTO curated_word_records "
+            "(curated_word_id, category, curator_id) VALUES (%s, %s, %s)",
+            (curated_word_id, category, user_db_id),
+        )
+
+        cursor.execute(
+            "WITH latest AS ("
+            "    SELECT DISTINCT ON (curator_id) category "
+            "    FROM curated_word_records WHERE curated_word_id = %s "
+            "    ORDER BY curator_id, curated_at DESC, id DESC"
+            "), "
+            "tally AS ("
+            "    SELECT category, COUNT(*) AS n FROM latest "
+            "    GROUP BY category"
+            "), "
+            "total AS (SELECT COUNT(*) AS n FROM latest) "
+            "SELECT tally.category, tally.n, total.n FROM tally, total "
+            "ORDER BY tally.n DESC, tally.category LIMIT 1",
+            (curated_word_id,),
+        )
+        consensus = cursor.fetchone()
+        assert consensus is not None
+        mode_category, mode_count, total_count = consensus
+
+        cursor.execute(
+            "UPDATE curated_words "
+            "SET category = %s, votes = %s, agreement = %s WHERE id = %s",
+            (
+                mode_category,
+                total_count,
+                mode_count / total_count,
+                curated_word_id,
+            ),
+        )
