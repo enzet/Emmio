@@ -2,6 +2,8 @@
 
 import argparse
 import logging
+import random
+import re
 import shlex
 from collections import defaultdict
 from collections.abc import Callable
@@ -11,13 +13,17 @@ from pathlib import Path
 from colour import Color
 
 from emmio import inventory, postgres, util
+from emmio.catalog import NON_PROPER_NOUNS
 from emmio.data import Data
+from emmio.dictionary.config import DictionaryUsageConfig
+from emmio.dictionary.core import DictionaryCollection
 from emmio.graph import Visualizer
-from emmio.language import Language, LanguageNotFoundError
+from emmio.language import KnownLanguages, Language, LanguageNotFoundError
 from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import (
+    PROPER_NOUN_CAP_RATIO_THRESHOLD,
     RATE_ESTIMATOR_BY_SELECTION,
     Lexicon,
     LexiconChecker,
@@ -29,10 +35,14 @@ from emmio.listen.listener import Listener
 from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
+from emmio.sentence.config import SentencesUsageConfig
+from emmio.sentence.core import SentenceElement
+from emmio.sentence.data import SentencesData
 from emmio.text.annotate import TextAnnotator
 from emmio.ui import (
     Block,
     Colorized,
+    Element,
     Formatted,
     Header,
     InlineElement,
@@ -604,7 +614,7 @@ class Emmio:
 
         # Command `curate`.
         elif arguments.command == "curate":
-            self.curate(
+            await self.curate(
                 arguments.language,
                 arguments.frequency_list_id,
                 arguments.stratum,
@@ -1205,7 +1215,7 @@ class Emmio:
                 )
             break
 
-    def curate(
+    async def curate(
         self, language: str, frequency_list_id: str, stratum: int | None
     ) -> None:
         """Interactively curate a frequency list's SFWR curated panel.
@@ -1218,6 +1228,21 @@ class Emmio:
         learner"), so this reads/writes the shared `curated_words` table,
         not anything scoped to this user alone; `self.user_id` is recorded
         only as the vote's `curator_id`, for attribution and consensus.
+
+        Before each vote, a dictionary entry and (if available) a Tatoeba
+        example sentence are shown, exactly as `emmio lexicon` would, so the
+        curator does not have to look the word up elsewhere to decide.
+
+        Words with a clear-cut automatic answer are never shown at all: a
+        word outside the language's alphabet, an all-junk dictionary result,
+        or a `cap_ratio` past the proper-noun threshold are all assumed
+        "not a word" or "proper noun" the same way raw (uncurated) lexicon
+        checking already assumes them (see `LexiconChecker.do_skip`); a word
+        with at least one non-junk dictionary entry is assumed "real word".
+        None of this is written to the database — the whole point of
+        curation is to save human judgment for words the automatic checks
+        cannot resolve — so it is simply recomputed each time the list is
+        used, here and later when it feeds a learner's lexicon check.
 
         :param language: language code of the curated list, e.g. `de`
         :param frequency_list_id: source frequency list identifier, e.g.
@@ -1235,16 +1260,124 @@ class Emmio:
             )
             return
 
+        word_language: Language = Language.from_code(language)
+        alphabet: str | None = word_language.get_symbols()
+        non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
+            language, frozenset()
+        )
+        frequency_list: FrequencyList | None = None
+        if (
+            match := re.fullmatch(
+                rf"{re.escape(language)}_"
+                r"(?P<kind>frequency_words|opensubtitles)_(?P<year>\d+)",
+                frequency_list_id,
+            )
+        ) is not None:
+            frequency_list = self.data.get_frequency_list(
+                ListUsageConfig(
+                    id=match["kind"], language=language, year=int(match["year"])
+                )
+            )
+
+        dictionaries: DictionaryCollection = self.data.get_dictionaries(
+            [
+                DictionaryUsageConfig(
+                    id="kaikki",
+                    from_language=language,
+                    name=word_language.get_name(),
+                )
+            ]
+        )
+        # TODO(enzet): get definitions languages from user settings.
+        definitions_languages: list[Language] = [
+            KnownLanguages.ENGLISH,
+            KnownLanguages.RUSSIAN,
+        ]
+        sentences_data: SentencesData = self.data.get_sentences_data()
+        sentences_usage_configs: list[SentencesUsageConfig] = [
+            SentencesUsageConfig(id="tatoeba", language=language)
+        ]
+
         curated_count: int = 0
+        auto_resolved_count: int = 0
+        skipped_this_run: set[str] = set()
         while True:
             word: str | None = postgres.get_next_curation_candidate(
-                list_id, self.user_id, stratum
+                list_id, self.user_id, stratum, exclude=skipped_this_run
             )
             if word is None:
                 self.interface.print("Nothing left to curate. Well done!")
                 break
 
+            if alphabet and any(symbol not in alphabet for symbol in word):
+                skipped_this_run.add(word)
+                auto_resolved_count += 1
+                continue
+
+            if (
+                frequency_list is not None
+                and (cap_ratio := frequency_list.get_cap_ratio(word))
+                is not None
+                and cap_ratio > PROPER_NOUN_CAP_RATIO_THRESHOLD
+                and word not in non_proper_nouns
+            ):
+                skipped_this_run.add(word)
+                auto_resolved_count += 1
+                continue
+
+            items = await dictionaries.get_items(word, word_language)
+            if items and any(
+                not item.get_commonality(word_language).is_confirmed_junk()
+                for item in items
+            ):
+                # At least one entry is not confirmed junk: a real word.
+                skipped_this_run.add(word)
+                auto_resolved_count += 1
+                continue
+            if items and all(
+                item.get_commonality(word_language).is_confirmed_junk()
+                for item in items
+            ):
+                # Every entry is confirmed junk (e.g. a bare letter): not a
+                # word, the same assumption `AnswerType.ASSUME__NOT_A_WORD__
+                # DICTIONARY` makes for raw lexicon checking.
+                skipped_this_run.add(word)
+                auto_resolved_count += 1
+                continue
+
             self.interface.print(Header(word))
+
+            # Only look up an example if Tatoeba sentences are already
+            # cached locally: building that cache means downloading
+            # Tatoeba's full links export, which would stall this
+            # word-by-word loop on whichever word happens to go first.
+            sentence_and_translations = (
+                sentences_data.get(word, sentences_usage_configs, max_number=50)
+                if sentences_data.has_tatoeba_word_cache(word_language)
+                else []
+            )
+            if sentence_and_translations:
+                sentence = random.choice(sentence_and_translations).sentence
+                text: Text = Text()
+                for part, element_type in sentence.get_words(word_language):
+                    if (
+                        element_type == SentenceElement.WORD
+                        and word_language.normalize(part) == word
+                    ):
+                        text.add(Formatted(part, "bold"))
+                    else:
+                        text.add(part)
+                self.interface.print(
+                    Text().add(Colorized("Example: ", "#AAAAAA")).add(text)
+                )
+
+            translation: list[Element] | None = await dictionaries.to_text(
+                word, word_language, definitions_languages
+            )
+            if translation:
+                for element in translation:
+                    self.interface.print(element)
+
             answer: str = self.interface.choice(
                 CURATION_CATEGORIES, "Category?"
             )
@@ -1256,7 +1389,10 @@ class Emmio:
             )
             curated_count += 1
 
-        self.interface.print(f"Curated {curated_count} word(s).")
+        self.interface.print(
+            f"Curated {curated_count} word(s), {auto_resolved_count} "
+            "auto-resolved and left unrecorded."
+        )
 
     async def learn(self, learnings: list[Learning]) -> None:
         """Start learning process."""

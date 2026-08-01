@@ -10,7 +10,7 @@ The connection string is taken from the `EMMIO_DATABASE_URL` or
 """
 
 import os
-from collections.abc import Generator
+from collections.abc import Collection, Generator
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -1797,7 +1797,10 @@ def get_curated_words(
 
 
 def get_next_curation_candidate(
-    curated_list_id: int, user_id: str, stratum: int | None = None
+    curated_list_id: int,
+    user_id: str,
+    stratum: int | None = None,
+    exclude: Collection[str] = (),
 ) -> str | None:
     """Get the next word this user has not yet voted on.
 
@@ -1807,6 +1810,10 @@ def get_next_curation_candidate(
     :param curated_list_id: internal identifier of the curated list
     :param user_id: the curator's login
     :param stratum: restrict to one stratum, or `None` for the whole list
+    :param exclude: words to leave out even though nobody has voted on them
+        yet — for words a caller auto-resolved itself this session (e.g. a
+        confirmed dictionary hit) without writing anything to the database,
+        so nothing here would otherwise stop them from being returned again
     :return: a word needing this curator's opinion, or `None` if they have
         voted on everything currently in scope
     """
@@ -1816,13 +1823,14 @@ def get_next_curation_candidate(
             "SELECT cw.word FROM curated_words cw "
             "WHERE cw.curated_list_id = %s "
             "AND (%s::INT IS NULL OR cw.stratum = %s) "
+            "AND cw.word != ALL(%s) "
             "AND NOT EXISTS ("
             "    SELECT 1 FROM curated_word_records cwr "
             "    WHERE cwr.curated_word_id = cw.id "
             "    AND cwr.curator_id = %s"
             ") "
             "ORDER BY cw.votes ASC, cw.panel_order ASC LIMIT 1",
-            (curated_list_id, stratum, stratum, user_db_id),
+            (curated_list_id, stratum, stratum, list(exclude), user_db_id),
         )
         row = cursor.fetchone()
         return str(row[0]) if row else None

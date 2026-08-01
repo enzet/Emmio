@@ -88,6 +88,19 @@ class SentencesData(ArtifactData):
                 codes.add(code)
         return codes
 
+    def has_tatoeba_word_cache(self, language: Language) -> bool:
+        """Whether Tatoeba sentences for a language are already downloaded.
+
+        `get` builds this cache on first use by downloading Tatoeba's
+        `links.tar.bz2` export, which can take a while — callers that need a
+        quick, non-blocking lookup (e.g. a review loop showing one word at a
+        time) should check this first and skip the example rather than
+        stall on that download.
+        """
+        return (
+            self.path / "cache" / f"words_{language.get_part3()}.json"
+        ).is_file()
+
     def get(
         self,
         word: str,

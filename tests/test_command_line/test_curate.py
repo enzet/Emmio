@@ -52,6 +52,36 @@ def test_curate_quit_records_nothing(
     assert words[0][4] == 0  # No votes recorded.
 
 
+def test_curate_skips_words_outside_the_alphabet(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A word with symbols outside the language's alphabet is never asked.
+
+    It is auto-resolved as "not a word" and left untouched in the
+    database (category `U`, no votes) — only `katze` is actually prompted,
+    so a single `"w"` answer is enough to drain the whole list.
+    """
+
+    initialize()
+    list_id: int = postgres.create_curated_list(
+        "de", "test_de_list", "Test German Curated"
+    )
+    postgres.add_curated_words(
+        list_id, [("日本語", 0, 0, "bootstrap"), ("katze", 0, 1, "bootstrap")]
+    )
+
+    check_main(capsys, user_commands=["curate de test_de_list", "w", "exit"])
+
+    words = {
+        word: (category, votes)
+        for word, _, _, category, votes, _ in postgres.get_curated_words(
+            list_id
+        )
+    }
+    assert words["katze"] == ("W", 1)
+    assert words["日本語"] == ("U", 0)
+
+
 def test_curate_unknown_list_prints_message(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
