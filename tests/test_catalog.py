@@ -174,6 +174,25 @@ def test_get_frequency_list_loads_opensubtitles_file(tmp_path: Path) -> None:
     assert frequency_list.get_cap_ratio("katze") == 1.0
 
 
+def test_get_frequency_list_missing_opensubtitles_file_is_none(
+    tmp_path: Path,
+) -> None:
+    """A missing `_opensubtitles_` file is reported as absent, not a crash.
+
+    Unlike `frequency_words`, there is no download fallback here — the file
+    either already exists or it doesn't.
+    """
+    lists_path = tmp_path / "lists"
+    lists_path.mkdir()
+
+    lists = ListsData.from_config(lists_path)
+    frequency_list = lists.get_frequency_list(
+        ListUsageConfig(id="opensubtitles", language="de", year=2024)
+    )
+
+    assert frequency_list is None
+
+
 def test_supported_languages_includes_downloadable(tmp_path: Path) -> None:
     """`get_supported_languages` reports catalog languages without downloads."""
 

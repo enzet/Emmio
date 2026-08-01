@@ -22,9 +22,11 @@ from emmio.lexicon.core import (
     Lexicon,
     LexiconChecker,
 )
+from emmio.lexicon.curation import DEFAULT_N_C, DEFAULT_N_STRATA, build_panel
 from emmio.lexicon.goal import compute_lexicon_goal_state
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
+from emmio.lists.config import ListUsageConfig
 from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.text.annotate import TextAnnotator
@@ -501,6 +503,44 @@ class Emmio:
         )
         add_sentences_parser.add_argument("--name")
 
+        data_build_panel_parser = data_subparsers.add_parser(
+            "build-panel",
+            help="build or extend an SFWR curated panel from a frequency list",
+        )
+        data_build_panel_parser.add_argument(
+            "kind", choices=["opensubtitles", "frequency_words"]
+        )
+        data_build_panel_parser.add_argument(
+            "language", help="language code, e.g. `de`"
+        )
+        data_build_panel_parser.add_argument(
+            "--year",
+            type=int,
+            help=(
+                "release/generation year; required for `opensubtitles` "
+                "(no catalog to default from), defaults to the best "
+                "FrequencyWords year for `frequency_words`"
+            ),
+        )
+        data_build_panel_parser.add_argument(
+            "--name", help="display name (default: derived)"
+        )
+        data_build_panel_parser.add_argument(
+            "--n-strata",
+            type=int,
+            default=DEFAULT_N_STRATA,
+            help=f"number of log-uniform strata (default {DEFAULT_N_STRATA})",
+        )
+        data_build_panel_parser.add_argument(
+            "--n-c",
+            type=int,
+            default=DEFAULT_N_C,
+            help=f"target words per stratum (default {DEFAULT_N_C})",
+        )
+        data_build_panel_parser.add_argument(
+            "--seed", type=int, help="random seed (default: none)"
+        )
+
         arguments: argparse.Namespace
         if command:
             try:
@@ -704,6 +744,8 @@ class Emmio:
                         self.add_artifact(arguments)
                     else:
                         data_add_parser.print_help()
+                case "build-panel":
+                    self.build_curated_panel(arguments)
                 case _:
                     data_parser.print_help()
 
@@ -1013,6 +1055,105 @@ class Emmio:
             Table(["Language", "Status", "Rate", "Year change"], rows)
         )
 
+    def build_curated_panel(self, arguments: argparse.Namespace) -> None:
+        """Build or extend an SFWR curated panel (command `data build-panel`).
+
+        `--n-c` is a per-stratum target, not a per-call draw count: if the
+        list already exists, only enough new words are drawn to bring each
+        stratum up to `--n-c` (a stratum already at or past target is left
+        alone), so running the same command again with the same `--n-c` is
+        a no-op, and a larger `--n-c` tops every stratum up to the new
+        target instead of redrawing it from scratch.
+
+        Draws the frequency list via the normal discovery mechanism
+        (`ListsData.get_frequency_list`, the same one `emmio lexicon` uses),
+        so the source file must already be in the recognized
+        `<language>_opensubtitles_<year>.txt` /
+        `<language>_frequency_words_<year>.txt` location and naming — no
+        raw file path is accepted here. See `emmio.lexicon.curation` for the
+        stratified draw itself.
+        """
+        language: Language | None = self._artifact_language(arguments.language)
+        if language is None:
+            return
+
+        year: int | None = arguments.year
+        if year is None:
+            if arguments.kind == "frequency_words":
+                year = inventory.frequency_words_year(language)
+            else:
+                self.interface.print(
+                    "`--year` is required for `opensubtitles` (there is no "
+                    "catalog to default it from, unlike `frequency_words`)."
+                )
+                return
+
+        frequency_list: FrequencyList | None = self.data.get_frequency_list(
+            ListUsageConfig(
+                id=arguments.kind, language=arguments.language, year=year
+            )
+        )
+        if frequency_list is None:
+            self.interface.print(
+                f"No `{arguments.kind}` list for `{arguments.language}`/"
+                f"{year}. Expected "
+                f"`{arguments.language}_{arguments.kind}_{year}.txt` in the "
+                "lists directory."
+            )
+            return
+
+        frequency_list_id: str = f"{arguments.language}_{arguments.kind}_{year}"
+        # Matches the display labels `ListsData.get_frequency_list_options`
+        # already uses ("OpenSubtitles (2024)", "FrequencyWords (2018)").
+        kind_label: str = {
+            "opensubtitles": "OpenSubtitles",
+            "frequency_words": "FrequencyWords",
+        }[arguments.kind]
+        name: str = arguments.name or (
+            f"{language.get_name()} {kind_label} {year} Curated"
+        )
+
+        existing_list_id: int | None = postgres.get_curated_list_id(
+            arguments.language, frequency_list_id
+        )
+        n_strata: int = arguments.n_strata
+        existing_by_stratum: dict[int, set[str]] = {}
+        if existing_list_id is not None:
+            n_strata = postgres.get_curated_list_n_strata(existing_list_id)
+            if n_strata != arguments.n_strata:
+                self.interface.print(
+                    f"Curated list `{name}` already exists with {n_strata} "
+                    f"strata; ignoring `--n-strata {arguments.n_strata}` to "
+                    "keep stratum boundaries consistent with words already "
+                    "curated."
+                )
+            for (
+                word,
+                stratum,
+                _panel_order,
+                _category,
+                _votes,
+                _agreement,
+            ) in postgres.get_curated_words(existing_list_id):
+                existing_by_stratum.setdefault(stratum, set()).add(word)
+
+        entries: list[tuple[str, int, int, str]] = build_panel(
+            frequency_list,
+            n_strata,
+            arguments.n_c,
+            arguments.seed,
+            existing_by_stratum,
+        )
+        list_id: int = postgres.create_curated_list(
+            arguments.language, frequency_list_id, name, n_strata
+        )
+        postgres.add_curated_words(list_id, entries)
+        self.interface.print(
+            f"Curated list `{name}` (id {list_id}): {len(entries)} new "
+            f"word(s) added, topping every stratum up to {arguments.n_c} "
+            "words (already-curated words were left untouched)."
+        )
+
     async def run_lexicon(
         self, lexicons: list[Lexicon], lexicon_type: str
     ) -> None:
@@ -1080,7 +1221,7 @@ class Emmio:
 
         :param language: language code of the curated list, e.g. `de`
         :param frequency_list_id: source frequency list identifier, e.g.
-            `de_opensubtitles_2024` (see `scripts/build_curated_panel.py`)
+            `de_opensubtitles_2024` (see `emmio data build-panel`)
         :param stratum: restrict to one stratum, or `None` for the whole
             list
         """
@@ -1090,7 +1231,7 @@ class Emmio:
         if list_id is None:
             self.interface.print(
                 f"No curated list for `{language}`/`{frequency_list_id}`. "
-                "Build one first with `scripts/build_curated_panel.py`."
+                "Build one first with `emmio data build-panel`."
             )
             return
 

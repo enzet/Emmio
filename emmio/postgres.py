@@ -1661,6 +1661,21 @@ def get_curated_list_id(language: str, frequency_list_id: str) -> int | None:
         return int(row[0]) if row else None
 
 
+def get_curated_list_n_strata(curated_list_id: int) -> int:
+    """Get the stratum count a curated list was created with.
+
+    :param curated_list_id: internal identifier of the curated list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT n_strata FROM curated_lists WHERE id = %s",
+            (curated_list_id,),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
+
+
 def create_curated_list(
     language: str, frequency_list_id: str, name: str, n_strata: int = 10
 ) -> int:

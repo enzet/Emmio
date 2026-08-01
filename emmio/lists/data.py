@@ -104,6 +104,8 @@ class ListsData(ArtifactData):
                         f"{list_usage_config.language}_opensubtitles_"
                         f"{list_usage_config.year}.txt"
                     )
+                    if not (self.path / file_name).exists():
+                        return None
                     with log_duration(
                         f"load OpenSubtitles-derived frequency list "
                         f"{list_usage_config.language}/"
