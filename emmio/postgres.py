@@ -1836,6 +1836,36 @@ def get_next_curation_candidate(
         return str(row[0]) if row else None
 
 
+def get_curator_unvoted_words(
+    curated_list_id: int, user_id: str, stratum: int | None = None
+) -> set[str]:
+    """Get every panel word this curator has not yet voted on.
+
+    Unlike `get_next_curation_candidate`, returns the whole set at once —
+    for bulk operations (e.g. importing votes from another source) that
+    need to know up front which panel words are still open, rather than
+    pulling one candidate at a time.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param user_id: the curator's login
+    :param stratum: restrict to one stratum, or `None` for the whole list
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "SELECT cw.word FROM curated_words cw "
+            "WHERE cw.curated_list_id = %s "
+            "AND (%s::INT IS NULL OR cw.stratum = %s) "
+            "AND NOT EXISTS ("
+            "    SELECT 1 FROM curated_word_records cwr "
+            "    WHERE cwr.curated_word_id = cw.id "
+            "    AND cwr.curator_id = %s"
+            ")",
+            (curated_list_id, stratum, stratum, user_db_id),
+        )
+        return {str(row[0]) for row in cursor.fetchall()}
+
+
 def record_curation_vote(
     curated_list_id: int, word: str, category: str, user_id: str
 ) -> None:
@@ -1850,7 +1880,7 @@ def record_curation_vote(
     :param curated_list_id: internal identifier of the curated list
     :param word: the word being voted on; must already be in the list (via
         `add_curated_words` or `promote_fallback_word`)
-    :param category: one of `W`/`P`/`M`/`F`/`N`/`U`
+    :param category: one of `W`/`R`/`B`/`P`/`M`/`F`/`N`/`U`
     :param user_id: the curator's login
     :raises ValueError: if `word` is not in this curated list
     """

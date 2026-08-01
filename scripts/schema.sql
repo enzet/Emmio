@@ -213,8 +213,11 @@ CREATE TABLE IF NOT EXISTS curated_lists (
 -- appended in* must stay stable for that random draw to remain valid.
 --
 -- category codes:
---   `W` real_word, `P` proper_noun, `M` misspelling, `F` foreign_word,
---   `N` not_a_word (generic), `U` unknown (no settled consensus yet)
+--   `W` real_word, `R` real_word_rare (rare/slang/special-terms subcategory
+--   of `W`), `B` real_word_mostly_proper (real, but predominantly used as a
+--   proper noun; another subcategory of `W`), `P` proper_noun,
+--   `M` misspelling, `F` foreign_word, `N` not_a_word (generic),
+--   `U` unknown (no settled consensus yet)
 CREATE TABLE IF NOT EXISTS curated_words (
     id              SERIAL PRIMARY KEY,
     curated_list_id INT NOT NULL REFERENCES curated_lists(id),

@@ -25,8 +25,10 @@ from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import (
     PROPER_NOUN_CAP_RATIO_THRESHOLD,
     RATE_ESTIMATOR_BY_SELECTION,
+    AnswerType,
     Lexicon,
     LexiconChecker,
+    LexiconResponse,
 )
 from emmio.lexicon.curation import DEFAULT_N_C, DEFAULT_N_STRATA, build_panel
 from emmio.lexicon.goal import compute_lexicon_goal_state
@@ -60,6 +62,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 # storage codes (see `scripts/schema.sql`, `curated_words.category`).
 CURATION_CATEGORIES: list[tuple[str, str]] = [
     ("Real word", "w"),
+    ("Real word (rare)", "r"),
+    ("Real word (mostly proper)", "b"),
     ("Proper noun", "p"),
     ("Misspelling", "m"),
     ("Foreign word", "f"),
@@ -69,11 +73,32 @@ CURATION_CATEGORIES: list[tuple[str, str]] = [
 ]
 CURATION_CATEGORY_CODES: dict[str, str] = {
     "Real word": "W",
+    "Real word (rare)": "R",
+    "Real word (mostly proper)": "B",
     "Proper noun": "P",
     "Misspelling": "M",
     "Foreign word": "F",
     "Not a word": "N",
     "Unsure": "U",
+}
+
+# How a past `emmio lexicon` answer maps to a curation category, for
+# `Emmio.import_lexicon_curation_votes`. Per the user: "know" and "don't
+# know" both mean the word is real (only "not a word" means otherwise).
+# "don't but proper noun too" gets its own subcategory (`B`, matching
+# `LexiconResponse.DONT_BUT_PROPER_NOUN_TOO.to_code()`) rather than plain
+# "real word" — it is real, but predominantly used as a proper noun, which
+# is worth keeping distinguishable (e.g. from the drawable pool for lexicon
+# checking, later). `KNOW_SEMANTIC_CLASS` is treated the same as `KNOW` for
+# the same reason it means the word is real. `KNOW_OR_NOT_A_WORD` is
+# deliberately absent — it is genuinely ambiguous between "real" and "not a
+# word", so it is left for a human curator rather than guessed.
+LEXICON_RESPONSE_TO_CURATION_CATEGORY: dict[LexiconResponse, str] = {
+    LexiconResponse.KNOW: "W",
+    LexiconResponse.KNOW_SEMANTIC_CLASS: "W",
+    LexiconResponse.DONT: "W",
+    LexiconResponse.DONT_BUT_PROPER_NOUN_TOO: "B",
+    LexiconResponse.NOT_A_WORD: "N",
 }
 
 
@@ -183,6 +208,18 @@ class Emmio:
         )
         curate_parser.add_argument(
             "--stratum", type=int, help="restrict to one stratum"
+        )
+        curate_parser.add_argument(
+            "--from-lexicon-history",
+            action="store_true",
+            help=(
+                "instead of asking interactively, vote using this user's "
+                "own past `emmio lexicon` answers, for panel words that "
+                "already have such an answer and that this curator has not "
+                "already voted on; words the panel does not have yet are "
+                "never added (only `emmio data build-panel` grows the "
+                "panel)"
+            ),
         )
 
         stat_parser = subparsers.add_parser("stat", help="show statistics")
@@ -614,11 +651,18 @@ class Emmio:
 
         # Command `curate`.
         elif arguments.command == "curate":
-            await self.curate(
-                arguments.language,
-                arguments.frequency_list_id,
-                arguments.stratum,
-            )
+            if arguments.from_lexicon_history:
+                self.import_lexicon_curation_votes(
+                    arguments.language,
+                    arguments.frequency_list_id,
+                    arguments.stratum,
+                )
+            else:
+                await self.curate(
+                    arguments.language,
+                    arguments.frequency_list_id,
+                    arguments.stratum,
+                )
 
         # Command `stat`.
         elif arguments.command == "stat":
@@ -1392,6 +1436,96 @@ class Emmio:
         self.interface.print(
             f"Curated {curated_count} word(s), {auto_resolved_count} "
             "auto-resolved and left unrecorded."
+        )
+
+    def import_lexicon_curation_votes(
+        self, language: str, frequency_list_id: str, stratum: int | None
+    ) -> None:
+        """Vote on curated-panel words using this user's lexicon history.
+
+        `emmio lexicon` answers already encode a curation judgment: `KNOW`,
+        `KNOW_SEMANTIC_CLASS` and `DONT` (recognizing a word without
+        knowing it is still recognizing it as a word) confirm the word is
+        a plain real word; `DONT_BUT_PROPER_NOUN_TOO` confirms it is real
+        too, but its own subcategory (`Real word (mostly proper)`, code
+        `B`); `NOT_A_WORD` confirms it is not real at all (see
+        `LEXICON_RESPONSE_TO_CURATION_CATEGORY`). This reuses that history
+        as curator votes instead of asking the same question again in
+        `emmio curate`.
+
+        Scope is deliberately narrow: only panel words this curator has
+        not already voted on are considered (an earlier explicit
+        `emmio curate` vote is never overwritten), and only the panel's
+        existing words are touched — a word missing from the panel is
+        never added here, whatever its history; growing the panel is
+        `emmio data build-panel`'s job alone. `--stratum` narrows further,
+        the same as it does for `emmio curate`.
+
+        Only genuine `AnswerType.USER_ANSWER` records count — propagated
+        and automatically-assumed answers are excluded, for the same
+        reason `curate` never auto-votes: only human decisions belong in
+        `curated_words`/`curated_word_records`.
+
+        :param language: language code of the curated list, e.g. `de`
+        :param frequency_list_id: source frequency list identifier, e.g.
+            `de_opensubtitles_2024` (see `emmio data build-panel`)
+        :param stratum: restrict to one stratum, or `None` for the whole
+            list
+        """
+        list_id: int | None = postgres.get_curated_list_id(
+            language, frequency_list_id
+        )
+        if list_id is None:
+            self.interface.print(
+                f"No curated list for `{language}`/`{frequency_list_id}`. "
+                "Build one first with `emmio data build-panel`."
+            )
+            return
+
+        unvoted: set[str] = postgres.get_curator_unvoted_words(
+            list_id, self.user_id, stratum
+        )
+        if not unvoted:
+            self.interface.print(
+                "Nothing to import: you have already voted on every panel "
+                "word in scope."
+            )
+            return
+
+        word_language: Language = Language.from_code(language)
+        latest_response: dict[str, LexiconResponse] = {}
+        latest_time: dict[str, datetime] = {}
+        for lexicon in self.user_data.get_lexicons_by_language(word_language):
+            for record in lexicon.log.records:
+                if record.answer_type != AnswerType.USER_ANSWER:
+                    continue
+                if (
+                    record.word not in latest_time
+                    or record.time > latest_time[record.word]
+                ):
+                    latest_time[record.word] = record.time
+                    latest_response[record.word] = record.response
+
+        voted_count: int = 0
+        ambiguous_count: int = 0
+        for word in unvoted:
+            response: LexiconResponse | None = latest_response.get(word)
+            if response is None:
+                continue
+            category: str | None = LEXICON_RESPONSE_TO_CURATION_CATEGORY.get(
+                response
+            )
+            if category is None:
+                ambiguous_count += 1
+                continue
+            postgres.record_curation_vote(list_id, word, category, self.user_id)
+            voted_count += 1
+
+        no_history_count: int = len(unvoted) - voted_count - ambiguous_count
+        self.interface.print(
+            f"Imported {voted_count} vote(s) from lexicon-check history "
+            f"({ambiguous_count} skipped as ambiguous, {no_history_count} "
+            "had no matching history)."
         )
 
     async def learn(self, learnings: list[Learning]) -> None:
