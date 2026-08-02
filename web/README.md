@@ -155,9 +155,15 @@ before the word is taught. The `response` value depends on the resource:
 > request and may return fewer than `count` words (the client just tops up).
 
 
-- Lexicon `/answer`: a `LexiconResponse` — `know`, `dont`,
-  `dont_but_proper_noun_too`, `not_a_word` (plus a "Know and skip" that sets the
-  skip flag).
+- Lexicon `/answer`: a `LexiconResponse` — `know`, `know_semantic_class`,
+  `dont`, or `not_a_word` (plus a "Know and skip" that sets the skip flag).
+  `dont_but_proper_noun_too` is legacy-only, no longer sent by the check
+  page. A `not_a_word` answer may carry an extra `category` field — one of
+  `NOT_TO_CHECK_CATEGORY_CODES` (`emmio/lexicon/core.py`), e.g. `P` for a
+  proper noun — reporting *why*; the server writes that straight into the
+  shared curated panel (`curated_words`/`curated_word_records`) as a real
+  curation vote, the same one `emmio curate` would record, rather than a
+  separate mechanism (see `_record_not_to_check_vote`).
 - Course `/answer`: a `Response` — `y` (right), `n` (wrong), `s` (skip).
 
 ## Scope and limitations

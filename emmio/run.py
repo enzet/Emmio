@@ -23,6 +23,8 @@ from emmio.learn.core import Learning, LearningRecord, Response
 from emmio.learn.teacher import Teacher
 from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import (
+    NOT_TO_CHECK_CATEGORIES,
+    NOT_TO_CHECK_CATEGORY_CODES,
     PROPER_NOUN_CAP_RATIO_THRESHOLD,
     RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
@@ -34,7 +36,7 @@ from emmio.lexicon.curation import DEFAULT_N_C, DEFAULT_N_STRATA, build_panel
 from emmio.lexicon.goal import compute_lexicon_goal_state
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
-from emmio.lists.config import ListUsageConfig
+from emmio.lists.config import ListUsageConfig, frequency_list_identifier
 from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.sentence.config import SentencesUsageConfig
@@ -60,44 +62,38 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 # Category choices offered by `Emmio.curate`, and their single-letter
 # storage codes (see `scripts/schema.sql`, `curated_words.category`).
+# Group (1) is `Real word` alone (words to check); everything from
+# `NOT_TO_CHECK_CATEGORIES` on is group (2) (words not to check, broken
+# down by why) — see `emmio.lexicon.core` for the taxonomy this shares
+# with `LexiconChecker.ask`'s "Not to check" submenu.
 CURATION_CATEGORIES: list[tuple[str, str]] = [
     ("Real word", "w"),
-    ("Real word (rare)", "r"),
-    ("Real word (mostly proper)", "b"),
-    ("Proper noun", "p"),
-    ("Misspelling", "m"),
-    ("Foreign word", "f"),
-    ("Not a word", "n"),
+    *NOT_TO_CHECK_CATEGORIES,
     ("Unsure", "u"),
     ("Quit", "q"),
 ]
 CURATION_CATEGORY_CODES: dict[str, str] = {
     "Real word": "W",
-    "Real word (rare)": "R",
-    "Real word (mostly proper)": "B",
-    "Proper noun": "P",
-    "Misspelling": "M",
-    "Foreign word": "F",
-    "Not a word": "N",
+    **NOT_TO_CHECK_CATEGORY_CODES,
     "Unsure": "U",
 }
 
 # How a past `emmio lexicon` answer maps to a curation category, for
 # `Emmio.import_lexicon_curation_votes`. Per the user: "know" and "don't
-# know" both mean the word is real (only "not a word" means otherwise).
-# "don't but proper noun too" gets its own subcategory (`B`, matching
-# `LexiconResponse.DONT_BUT_PROPER_NOUN_TOO.to_code()`) rather than plain
-# "real word" — it is real, but predominantly used as a proper noun, which
-# is worth keeping distinguishable (e.g. from the drawable pool for lexicon
-# checking, later). `KNOW_SEMANTIC_CLASS` is treated the same as `KNOW` for
-# the same reason it means the word is real. `KNOW_OR_NOT_A_WORD` is
-# deliberately absent — it is genuinely ambiguous between "real" and "not a
-# word", so it is left for a human curator rather than guessed.
+# know" both mean the word is real; "don't but proper noun too" and "not a
+# word" are legacy-only response types (no longer produced by `ask`, which
+# now writes a category (2) vote directly instead — see
+# `LexiconChecker._record_not_to_check_vote`) but old records using them
+# still carry real signal, so they import as "proper noun" and "not a
+# word" respectively. `KNOW_SEMANTIC_CLASS` is treated the same as `KNOW`
+# for the same reason it means the word is real. `KNOW_OR_NOT_A_WORD` is
+# deliberately absent — it is genuinely ambiguous between "real" and "not
+# a word", so it is left for a human curator rather than guessed.
 LEXICON_RESPONSE_TO_CURATION_CATEGORY: dict[LexiconResponse, str] = {
     LexiconResponse.KNOW: "W",
     LexiconResponse.KNOW_SEMANTIC_CLASS: "W",
     LexiconResponse.DONT: "W",
-    LexiconResponse.DONT_BUT_PROPER_NOUN_TOO: "B",
+    LexiconResponse.DONT_BUT_PROPER_NOUN_TOO: "P",
     LexiconResponse.NOT_A_WORD: "N",
 }
 
@@ -1142,10 +1138,11 @@ class Emmio:
                 )
                 return
 
+        list_usage_config: ListUsageConfig = ListUsageConfig(
+            id=arguments.kind, language=arguments.language, year=year
+        )
         frequency_list: FrequencyList | None = self.data.get_frequency_list(
-            ListUsageConfig(
-                id=arguments.kind, language=arguments.language, year=year
-            )
+            list_usage_config
         )
         if frequency_list is None:
             self.interface.print(
@@ -1156,7 +1153,7 @@ class Emmio:
             )
             return
 
-        frequency_list_id: str = f"{arguments.language}_{arguments.kind}_{year}"
+        frequency_list_id: str = frequency_list_identifier(list_usage_config)
         # Matches the display labels `ListsData.get_frequency_list_options`
         # already uses ("OpenSubtitles (2024)", "FrequencyWords (2018)").
         kind_label: str = {
@@ -1446,9 +1443,12 @@ class Emmio:
         `emmio lexicon` answers already encode a curation judgment: `KNOW`,
         `KNOW_SEMANTIC_CLASS` and `DONT` (recognizing a word without
         knowing it is still recognizing it as a word) confirm the word is
-        a plain real word; `DONT_BUT_PROPER_NOUN_TOO` confirms it is real
-        too, but its own subcategory (`Real word (mostly proper)`, code
-        `B`); `NOT_A_WORD` confirms it is not real at all (see
+        real (group (1)); `DONT_BUT_PROPER_NOUN_TOO` and `NOT_A_WORD` are
+        legacy-only response types (`ask` now writes a category (2) vote
+        directly instead of using them, see
+        `LexiconChecker._record_not_to_check_vote`), but old records using
+        them still carry real signal, so they import as `Proper noun` and
+        `Not a word` respectively (see
         `LEXICON_RESPONSE_TO_CURATION_CATEGORY`). This reuses that history
         as curator votes instead of asking the same question again in
         `emmio curate`.

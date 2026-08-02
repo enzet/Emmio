@@ -30,6 +30,7 @@ from emmio.dictionary.core import (
 )
 from emmio.language import KnownLanguages, Language
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
+from emmio.lists.config import ListUsageConfig, frequency_list_identifier
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import Sentence, SentenceElement
@@ -43,6 +44,29 @@ __email__ = "me@enzet.ru"
 logger: logging.Logger = logging.getLogger(__name__)
 
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
+
+# Category (2): reasons a word should not be tested in a lexicon check —
+# see `research/app.md` "Frequency-list curation" for the full taxonomy
+# (group (1) is the single "normal word" category, `curated_words.category
+# = 'W'`, everything else here is group (2)). Shared by `emmio curate`'s
+# manual review (`emmio/run.py`), `LexiconChecker.ask`'s "Not to check"
+# submenu below, and the web check page's equivalent
+# (`emmio/api/app.py`), so all three write the same taxonomy into
+# `curated_words.category`.
+NOT_TO_CHECK_CATEGORIES: list[tuple[str, str]] = [
+    ("Proper noun", "p"),
+    ("Rare/slang/retro word", "r"),
+    ("Misspelling", "m"),
+    ("Foreign word", "f"),
+    ("Not a word", "n"),
+]
+NOT_TO_CHECK_CATEGORY_CODES: dict[str, str] = {
+    "Proper noun": "P",
+    "Rare/slang/retro word": "R",
+    "Misspelling": "M",
+    "Foreign word": "F",
+    "Not a word": "N",
+}
 
 
 class LexiconResponse(Enum):
@@ -2201,11 +2225,77 @@ class LexiconChecker:
     skip_known: bool = False
     skip_unknown: bool = False
 
+    def _ask_not_to_check_category(self) -> str | None:
+        """Ask which "not to check" subgroup a word belongs to.
+
+        :return: the chosen `curated_words.category` code, or `None` if the
+            user backed out to the main know/don't-know question
+        """
+        answer: str = self.interface.choice(
+            [*NOT_TO_CHECK_CATEGORIES, ("Back", "z")],
+            "Which of these does the word fit?",
+        )
+        if answer == "Back":
+            return None
+        return NOT_TO_CHECK_CATEGORY_CODES[answer]
+
+    def _record_not_to_check_vote(
+        self,
+        word: str,
+        category_code: str,
+        frequency_list: FrequencyList | None,
+    ) -> None:
+        """Feed a "not to check" judgment into the shared curated panel.
+
+        Curation is a property of the list, not the learner (see
+        `research/metric.tex`), so this writes straight into
+        `curated_words`/`curated_word_records`, exactly as `emmio curate`
+        would — a learner spotting a proper noun mid-check is just as real
+        a curation vote as one from a dedicated curation session; there is
+        no reason to keep them in two separate systems. The curated list
+        is created on first use if it does not exist yet, and the word is
+        added to it (`promote_fallback_word`, the same mechanism an
+        ordinary raw-list fallback draw already uses) if it is not there
+        yet — panel growth staying demand-driven either way.
+
+        Best-effort: if the lexicon has no frequency list configured, or
+        the word cannot be placed in it, the vote is silently skipped —
+        this is a bonus on top of answering the lexicon-check question,
+        never a prerequisite for it.
+        """
+        list_usage_config: ListUsageConfig | None = (
+            self.lexicon.config.frequency_list
+        )
+        if list_usage_config is None or frequency_list is None:
+            return
+        index: int = frequency_list.get_index(word)
+        if index < 0:
+            return
+
+        frequency_list_id: str = frequency_list_identifier(list_usage_config)
+        language: str = self.lexicon.language.get_code()
+        list_id: int = postgres.create_curated_list(
+            language,
+            frequency_list_id,
+            f"{self.lexicon.language.get_name()} {frequency_list_id} Curated",
+        )
+        n_strata: int = postgres.get_curated_list_n_strata(list_id)
+        stratum: int = stratum_of_rank(index + 1, len(frequency_list), n_strata)
+        postgres.promote_fallback_word(list_id, word, stratum)
+        postgres.record_curation_vote(
+            list_id, word, category_code, self.lexicon.user_id
+        )
+
     async def ask(
-        self, word: str
+        self, word: str, frequency_list: FrequencyList | None = None
     ) -> tuple[bool | None, LexiconResponse | None, Dictionary | None]:
         """Ask user if the word is known.
 
+        :param frequency_list: source of the word's frequency rank, needed
+            only to place a "not to check" vote in the right stratum of
+            the shared curated panel (see `_record_not_to_check_vote`);
+            `None` just disables that, the know/don't-know flow itself is
+            unaffected
         :return: tuple of (skip in the future, response, dictionary)
         """
 
@@ -2230,39 +2320,56 @@ class LexiconChecker:
             for element in translation:
                 self.interface.print(element)
 
-        answer: str = self.interface.choice(
-            [
-                ("Yes", "y"),
-                ("No", "n"),
-                ("Class", "c"),
-                ("Proper", "b"),
-                ("Yes, skip", "s"),
-                ("Not a word", "-"),
-                ("Quit", "q"),
-            ],
-            "Do you know at least one meaning of this word?",
-        )
         response: LexiconResponse
         skip_in_future: bool | None = None
 
-        match answer:
-            case "Yes":
-                response = LexiconResponse.KNOW
-            case "No":
-                response = LexiconResponse.DONT
-            case "Class":
-                response = LexiconResponse.KNOW_SEMANTIC_CLASS
-            case "Proper":
-                response = LexiconResponse.DONT_BUT_PROPER_NOUN_TOO
-            case "Yes, skip":
-                response = LexiconResponse.KNOW
-            case "Not a word":
+        # Looping (instead of a single choice) lets "Not to check" open a
+        # submenu the user can back out of without losing the question.
+        while True:
+            answer: str = self.interface.choice(
+                [
+                    ("Yes", "y"),
+                    ("No", "n"),
+                    ("Class", "c"),
+                    ("Yes, skip", "s"),
+                    ("Not to check", "x"),
+                    ("Quit", "q"),
+                ],
+                "Do you know at least one meaning of this word?",
+            )
+
+            if answer == "Not to check":
+                category_code: str | None = self._ask_not_to_check_category()
+                if category_code is None:
+                    continue  # "Back": re-ask the main question.
+                self._record_not_to_check_vote(
+                    word, category_code, frequency_list
+                )
+                # `dont_but_proper_noun_too`/`not_a_word` as direct answer
+                # choices are retired (kept only to parse legacy data, see
+                # `LexiconResponse`); `NOT_A_WORD` is still what gets
+                # written here — it is the mechanism, not a user-facing
+                # choice, that keeps this word's rate-estimation exclusion
+                # and skip/propagation behavior unchanged. The *reason*
+                # now lives richer, in `curated_words.category`, above.
                 response = LexiconResponse.NOT_A_WORD
-            case "Quit":
-                self.lexicon.write()
-                return False, None, None
-            case _:
-                response = LexiconResponse.DONT
+                break
+
+            match answer:
+                case "Yes":
+                    response = LexiconResponse.KNOW
+                case "No":
+                    response = LexiconResponse.DONT
+                case "Class":
+                    response = LexiconResponse.KNOW_SEMANTIC_CLASS
+                case "Yes, skip":
+                    response = LexiconResponse.KNOW
+                case "Quit":
+                    self.lexicon.write()
+                    return False, None, None
+                case _:
+                    response = LexiconResponse.DONT
+            break
 
         self.interface.print(Colorized(response.get_message(), "#AAAAAA"))
 
@@ -2379,7 +2486,7 @@ class LexiconChecker:
                 self._record_state(record, picked_word)
                 continue
 
-            _, response, _ = await self.ask(picked_word)
+            _, response, _ = await self.ask(picked_word, frequency_list)
             self._record_state(record, picked_word)
             actions += 1
             if response == LexiconResponse.DONT:

@@ -2899,6 +2899,71 @@ def test_lexicon_session_records_a_session_row() -> None:
 
 
 @pytest.mark.usefixtures("fake_uk_list")
+def test_answer_not_to_check_records_curation_vote() -> None:
+    """A `not_a_word` answer with a `category` writes a real curation vote.
+
+    Mirrors the CLI's `LexiconChecker._record_not_to_check_vote`: the word
+    is added to a freshly auto-created curated list (the same
+    `promote_fallback_word` mechanism an ordinary raw-list fallback draw
+    already uses) and voted on with the given category, unified with
+    `emmio curate` rather than a separate mechanism.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+    word = _UK_WORDS[0]
+
+    answer = client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={"word": word, "response": "not_a_word", "category": "P"},
+        headers=_auth(token),
+    )
+    assert answer.status_code == 204
+
+    list_id = postgres.get_curated_list_id("uk", "uk_list")
+    assert list_id is not None
+    words = {
+        curated_word: category
+        for curated_word, _, _, category, _, _ in postgres.get_curated_words(
+            list_id
+        )
+    }
+    assert words == {word: "P"}
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_answer_not_to_check_invalid_category_rejected() -> None:
+    """An unrecognized `category` code is a 422, not a silent write."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+
+    answer = client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={"word": _UK_WORDS[0], "response": "not_a_word", "category": "Z"},
+        headers=_auth(token),
+    )
+    assert answer.status_code == 422
+    assert postgres.get_curated_list_id("uk", "uk_list") is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_answer_category_ignored_without_not_a_word_response() -> None:
+    """A `category` alongside a non-`not_a_word` response is just ignored."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "top")
+
+    answer = client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={"word": _UK_WORDS[0], "response": "know", "category": "P"},
+        headers=_auth(token),
+    )
+    assert answer.status_code == 204
+    assert postgres.get_curated_list_id("uk", "uk_list") is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
 def test_lexicon_session_without_answers_leaves_no_row() -> None:
     """Opening and closing without answering writes no session row."""
 

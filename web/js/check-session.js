@@ -13,6 +13,11 @@ async function runSession(base, doneText) {
     const word = document.getElementById("word");
     const status = document.getElementById("status");
     const answers = document.getElementById("answers");
+    const notToCheckButton = document.getElementById("not-to-check");
+    const notToCheckPanel = document.getElementById(
+        "not-to-check-categories",
+    );
+    const notToCheckBack = document.getElementById("not-to-check-back");
     const translation = document.getElementById("translation");
     const undoBar = document.getElementById("undo-bar");
     const undoWord = document.getElementById("undo-word");
@@ -259,6 +264,16 @@ async function runSession(base, doneText) {
         }
     }
 
+    // Show the primary answer buttons (Know/Don't know/…) by default, or the
+    // "not to check" subcategory buttons instead once that button is
+    // clicked. Never both at once, so a shared shortcut key (e.g. `N` for
+    // both "Don't know" and the "Not a word" subcategory) always resolves to
+    // whichever one is actually visible.
+    function showNotToCheckPanel(show) {
+        answers.hidden = show;
+        notToCheckPanel.hidden = !show;
+    }
+
     function render() {
         translation.replaceChildren();
         translation.classList.add("blurred");
@@ -279,6 +294,9 @@ async function runSession(base, doneText) {
             "top",
             Boolean(current) && current.rank != null && current.rank <= 10000,
         );
+        // A fresh word always starts on the primary buttons, even if the
+        // previous word was left showing the "not to check" subcategories.
+        showNotToCheckPanel(false);
         if (current) {
             word.textContent = current.word;
             status.textContent = "";
@@ -389,12 +407,13 @@ async function runSession(base, doneText) {
         void fill();
     }
 
-    async function answer(response, toSkip = false) {
+    async function answer(response, toSkip = false, category = null) {
         if (!current || answering) return;
         answering = true;
         const answered = current.word;
         // Hide already answered word, translation, and sentence.
         showLoadingPlaceholder();
+        showNotToCheckPanel(false);
         // Remember the response and strategy context so an undo can both
         // rewind the session counters and re-present the word annotated.
         history.push({
@@ -419,10 +438,9 @@ async function runSession(base, doneText) {
             );
         }
         try {
-            await api(`${base}/answer`, {
-                method: "POST",
-                body: { word: answered, response, to_skip: toSkip },
-            });
+            const body = { word: answered, response, to_skip: toSkip };
+            if (category) body.category = category;
+            await api(`${base}/answer`, { method: "POST", body });
             if (await refreshRateEstimate()) {
                 // The trailing-window precision goal is met: the checking
                 // process is done, so hand the session back automatically.
@@ -506,26 +524,51 @@ async function runSession(base, doneText) {
         }
     }
 
-    for (const button of answers.querySelectorAll("button")) {
+    // Buttons with `data-response` answer directly (both panels: the
+    // primary Know/Don't know buttons and the "not to check" subcategory
+    // buttons, which additionally carry `data-category`).
+    for (const button of [
+        ...answers.querySelectorAll("button[data-response]"),
+        ...notToCheckPanel.querySelectorAll("button[data-response]"),
+    ]) {
         button.addEventListener("click", () =>
-            answer(button.dataset.response, button.dataset.skip === "true"),
+            answer(
+                button.dataset.response,
+                button.dataset.skip === "true",
+                button.dataset.category || null,
+            ),
         );
     }
+    // "Not to check" and "Back" only toggle which panel is showing — picking
+    // a reason is what actually answers (see above).
+    notToCheckButton.addEventListener("click", () =>
+        showNotToCheckPanel(true),
+    );
+    notToCheckBack.addEventListener("click", () => showNotToCheckPanel(false));
     document
         .getElementById("show-translation")
         .addEventListener("click", toggleTranslation);
     document.getElementById("undo").addEventListener("click", undo);
 
     // Keyboard shortcuts: each button's `data-key` triggers a click (matches
-    // the CLI), plus space to toggle the translation.
+    // the CLI), plus space to toggle the translation. The primary and "not
+    // to check" panels reuse some keys (e.g. `N` for both "Don't know" and
+    // the "Not a word" subcategory) since only one panel is ever visible at
+    // once — picking the first non-hidden match resolves that correctly.
     function shortcutButton(event) {
         if (event.ctrlKey || event.metaKey || event.altKey) return null;
         if (event.target.matches("input, textarea, select")) return null;
         const key = event.key === " " ? " " : event.key.toLowerCase();
-        const button = document.querySelector(`button[data-key="${key}"]`);
-        // Skip a hidden button (e.g. the reveal button once it has been
-        // replaced by the "No translation found." notice).
-        return button && !button.hidden ? button : null;
+        for (const button of document.querySelectorAll(
+            `button[data-key="${key}"]`,
+        )) {
+            // `closest("[hidden]")`, not `button.hidden`: a button can be
+            // hidden via an ancestor (the whole answers panel, or whichever
+            // of the primary/"not to check" panels is not showing) without
+            // its own `hidden` property being set.
+            if (!button.closest("[hidden]")) return button;
+        }
+        return null;
     }
     // Act on key *release*, not press: a held key auto-repeats keydown, which
     // would rifle one answer (e.g. "yes") through every buffered word. keydown

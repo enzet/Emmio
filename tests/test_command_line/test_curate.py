@@ -19,7 +19,7 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
             ("katze", 0, 0, "bootstrap"),
             ("hund", 0, 1, "bootstrap"),
             ("nimmersatt", 0, 2, "bootstrap"),
-            ("bismarck", 0, 3, "bootstrap"),
+            ("weekend", 0, 3, "bootstrap"),
         ],
     )
 
@@ -27,10 +27,10 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
         capsys,
         user_commands=[
             "curate de test_de_list",  # Start curating.
-            "w",  # "katze" is a real word.
-            "n",  # "hund" is not a word.
-            "r",  # "nimmersatt" is a real word, but rare.
-            "b",  # "bismarck" is real, but mostly a proper noun.
+            "w",  # "katze" is a real word (group 1: to check).
+            "n",  # "hund" is not a word (group 2).
+            "r",  # "nimmersatt" is real, but rare/slang/retro (group 2).
+            "f",  # "weekend" is a foreign word (group 2).
             "exit",  # Quit Emmio.
         ],
     )
@@ -43,7 +43,7 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
         "katze": "W",
         "hund": "N",
         "nimmersatt": "R",
-        "bismarck": "B",
+        "weekend": "F",
     }
 
 
@@ -101,11 +101,13 @@ def test_curate_import_lexicon_history(
     """`--from-lexicon-history` votes using past `emmio lexicon` answers.
 
     Covers the full mapping (`know`/`dont` -> W, `dont_but_proper_noun_too`
-    -> B, `not_a_word` -> N), plus three exclusions: `know_or_not_a_word`
-    is too ambiguous to import, a word with no lexicon history at all is
-    left alone, and a propagated/assumed answer (not a genuine user
-    answer) does not count as history either. A word already voted on by
-    this curator is never touched, even though its own history disagrees.
+    -> P, `not_a_word` -> N — both response types are legacy-only, no
+    longer produced by `ask`, but old records using them still import),
+    plus three exclusions: `know_or_not_a_word` is too ambiguous to
+    import, a word with no lexicon history at all is left alone, and a
+    propagated/assumed answer (not a genuine user answer) does not count
+    as history either. A word already voted on by this curator is never
+    touched, even though its own history disagrees.
     """
 
     initialize(
@@ -195,7 +197,7 @@ def test_curate_import_lexicon_history(
     assert words == {
         "katze": "W",
         "hund": "W",
-        "fuchs": "B",  # "Dont but proper noun too": real, mostly proper.
+        "fuchs": "P",  # "Dont but proper noun too" imports as proper noun.
         "maus": "N",
         "bar": "U",  # Ambiguous response: left uncategorized.
         "adler": "U",  # Only a non-user-answer record: no real history.

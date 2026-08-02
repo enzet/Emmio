@@ -52,6 +52,7 @@ from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
+    NOT_TO_CHECK_CATEGORY_CODES,
     RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
     Lexicon,
@@ -64,7 +65,7 @@ from emmio.lexicon.core import (
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history, latest_windowed_rate
 from emmio.lexicon.replay import replay
-from emmio.lists.config import ListUsageConfig
+from emmio.lists.config import ListUsageConfig, frequency_list_identifier
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -1916,6 +1917,12 @@ class AnswerRequest(BaseModel):
     word: str
     response: str  # A `LexiconResponse` value, e.g. `know` or `dont`.
     to_skip: bool = False  # Skip this word in future checks.
+    category: str | None = None
+    """A `curated_words.category` code (see `NOT_TO_CHECK_CATEGORY_CODES`)
+    reporting *why* the word should not be checked, e.g. `P` for a proper
+    noun. Only meaningful alongside `response = "not_a_word"`; ignored
+    otherwise. See `_record_not_to_check_vote`.
+    """
     session_id: str | None = None
     """Open checking session to fold the answer into, if the client has one.
 
@@ -2301,6 +2308,55 @@ def get_next_lexicon_words(
     )
 
 
+_NOT_TO_CHECK_CODES: frozenset[str] = frozenset(
+    NOT_TO_CHECK_CATEGORY_CODES.values()
+)
+
+
+def _record_not_to_check_vote(
+    word: str,
+    category_code: str,
+    frequency_list_config: dict | None,
+    language: str,
+    user_id: str,
+) -> None:
+    """Feed a "not to check" judgment into the shared curated panel.
+
+    Mirrors `LexiconChecker._record_not_to_check_vote` (the CLI's
+    equivalent) — see there for why this writes straight into
+    `curated_words`/`curated_word_records` instead of a separate
+    mechanism: curation is a property of the list, not the learner, so a
+    web check-page report and an `emmio curate` vote are the same kind of
+    thing. Best-effort: silently does nothing if the lexicon has no
+    frequency list configured, or the word cannot be placed in it.
+    """
+    if frequency_list_config is None:
+        return
+    list_usage_config: ListUsageConfig = ListUsageConfig(
+        **frequency_list_config
+    )
+    frequency_list: FrequencyList | None = get_data().get_frequency_list(
+        list_usage_config
+    )
+    if frequency_list is None:
+        return
+    index: int = frequency_list.get_index(word)
+    if index < 0:
+        return
+
+    frequency_list_id: str = frequency_list_identifier(list_usage_config)
+    list_id: int = postgres.create_curated_list(
+        language,
+        frequency_list_id,
+        f"{Language.from_code(language).get_name()} {frequency_list_id} "
+        "Curated",
+    )
+    n_strata: int = postgres.get_curated_list_n_strata(list_id)
+    stratum: int = stratum_of_rank(index + 1, len(frequency_list), n_strata)
+    postgres.promote_fallback_word(list_id, word, stratum)
+    postgres.record_curation_vote(list_id, word, category_code, user_id)
+
+
 @app.post(
     "/api/v1/me/lexicons/{lexicon_id}/answer",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -2319,6 +2375,19 @@ def answer_lexicon_word(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid response `{request.response}`.",
         ) from error
+    if request.category is not None and response == LexiconResponse.NOT_A_WORD:
+        if request.category not in _NOT_TO_CHECK_CODES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid category `{request.category}`.",
+            )
+        _record_not_to_check_vote(
+            request.word,
+            request.category,
+            config["frequency_list"],
+            config["language"],
+            user_id,
+        )
     now: datetime = datetime.now(UTC)
     record: postgres.LexiconRecordRow = (
         request.word,

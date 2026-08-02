@@ -66,19 +66,53 @@
                     <button type="button" data-response="dont" data-key="n">
                         Don't know <kbd>N</kbd>
                     </button>
+                    <button type="button" id="not-to-check" data-key="x">
+                        Not to check <kbd>X</kbd>
+                    </button>
+                </div>
+                <div id="not-to-check-categories" hidden>
                     <button
                         type="button"
-                        data-response="dont_but_proper_noun_too"
-                        data-key="b"
+                        data-response="not_a_word"
+                        data-category="P"
+                        data-key="p"
                     >
-                        Mostly not a word <kbd>B</kbd>
+                        Proper noun <kbd>P</kbd>
                     </button>
                     <button
                         type="button"
                         data-response="not_a_word"
-                        data-key="-"
+                        data-category="R"
+                        data-key="r"
                     >
-                        Not a word <kbd>-</kbd>
+                        Rare/slang/retro word <kbd>R</kbd>
+                    </button>
+                    <button
+                        type="button"
+                        data-response="not_a_word"
+                        data-category="M"
+                        data-key="m"
+                    >
+                        Misspelling <kbd>M</kbd>
+                    </button>
+                    <button
+                        type="button"
+                        data-response="not_a_word"
+                        data-category="F"
+                        data-key="f"
+                    >
+                        Foreign word <kbd>F</kbd>
+                    </button>
+                    <button
+                        type="button"
+                        data-response="not_a_word"
+                        data-category="N"
+                        data-key="n"
+                    >
+                        Not a word <kbd>N</kbd>
+                    </button>
+                    <button type="button" id="not-to-check-back" data-key="z">
+                        Back <kbd>Z</kbd>
                     </button>
                 </div>
                 <p id="external-links">

@@ -417,9 +417,10 @@ h2 {
 button[data-key="n"], button.danger {
     color: var(--danger);
 }
-div#answers {
+div#answers, div#not-to-check-categories {
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 0.3rem;
 }
 p#sentence, p#question {
@@ -825,7 +826,8 @@ input#answer-input[hidden] + #symbol-buttons {
    win over the explicit `display` rules above: the UA sheet's `[hidden]`
    rule loses to any author rule. */
 input#answer-input[hidden],
-div#answers[hidden] {
+div#answers[hidden],
+div#not-to-check-categories[hidden] {
     display: none;
 }
 /* The word shown for the new-word know/don't-know check. */

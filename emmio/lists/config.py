@@ -20,6 +20,26 @@ class ListUsageConfig(BaseModel):
     """Year of the list."""
 
 
+def frequency_list_identifier(config: ListUsageConfig) -> str:
+    """Get the canonical string identifying one frequency list version.
+
+    This is what `curated_lists.frequency_list_id` is keyed on. For the two
+    self-describing sources — `frequency_words` (downloaded) and
+    `opensubtitles` (self-generated via `freqlist`) — it is
+    `<language>_<id>_<year>`, matching the file naming convention and what
+    `emmio data build-panel` already constructs by hand. For a list
+    configured by hand in `list_configs`, `id` alone is already a stable,
+    unique identifier, so it is returned as-is.
+    """
+    if (
+        config.id in ("frequency_words", "opensubtitles")
+        and config.language is not None
+        and config.year is not None
+    ):
+        return f"{config.language}_{config.id}_{config.year}"
+    return config.id
+
+
 class FrequencyListFileFormat(Enum):
     """File format of the frequency list."""
 
