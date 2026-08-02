@@ -3215,7 +3215,11 @@ def test_course_answer_updates_cached_schedule() -> None:
     assert stats["actions"] == 1
 
 
-# Curation: the web equivalent of `emmio curate`.
+# Curation: the web equivalent of `emmio curate`. Addressed by
+# `(language, frequency_list_id)` everywhere, e.g. `/curation/uk/uk_list/next`
+# — never by the database-internal numeric `curated_lists.id`.
+
+_CURATION_BASE = "/api/v1/curation/uk/uk_list"
 
 
 @pytest.mark.usefixtures("fake_uk_list")
@@ -3236,7 +3240,7 @@ def test_curation_lists_reports_counts() -> None:
     response = client.get("/api/v1/curation/lists", headers=_auth(token))
     assert response.status_code == 200
     [summary] = response.json()
-    assert summary["curated_list_id"] == list_id
+    assert "curated_list_id" not in summary  # DB-internal, never exposed.
     assert summary["language"] == "uk"
     assert summary["frequency_list_id"] == "uk_list"
     assert summary["words"] == 3
@@ -3267,23 +3271,19 @@ def test_curation_next_and_answer_flow() -> None:
         ],
     )
 
-    first = client.get(
-        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
-    ).json()
+    first = client.get(f"{_CURATION_BASE}/next", headers=_auth(token)).json()
     assert first["word"] in _UK_WORDS[:2]
     assert first["stratum"] == 0
     assert first["auto_resolved"] == 0
 
     answer = client.post(
-        f"/api/v1/curation/{list_id}/answer",
+        f"{_CURATION_BASE}/answer",
         json={"word": first["word"], "category": "W"},
         headers=_auth(token),
     )
     assert answer.status_code == 204
 
-    second = client.get(
-        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
-    ).json()
+    second = client.get(f"{_CURATION_BASE}/next", headers=_auth(token)).json()
     assert second["word"] in _UK_WORDS[:2]
     assert second["word"] != first["word"]
 
@@ -3303,9 +3303,7 @@ def test_curation_next_returns_null_when_done() -> None:
     postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
     postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
 
-    response = client.get(
-        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
-    )
+    response = client.get(f"{_CURATION_BASE}/next", headers=_auth(token))
     assert response.status_code == 200
     body = response.json()
     assert body["word"] is None
@@ -3321,7 +3319,7 @@ def test_curation_answer_invalid_category_rejected() -> None:
     postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
 
     response = client.post(
-        f"/api/v1/curation/{list_id}/answer",
+        f"{_CURATION_BASE}/answer",
         json={"word": _UK_WORDS[0], "category": "Z"},
         headers=_auth(token),
     )
@@ -3331,18 +3329,16 @@ def test_curation_answer_invalid_category_rejected() -> None:
 
 
 def test_curation_unknown_list_is_404() -> None:
-    """Every curation endpoint 404s on an unknown `curated_list_id`."""
+    """Every curation endpoint 404s on an unknown `(language, id)` pair."""
 
     token = _register_and_login("alice", "alice@example.com")
+    unknown = "/api/v1/curation/xx/nonexistent"
     assert (
-        client.get(
-            "/api/v1/curation/999999/next", headers=_auth(token)
-        ).status_code
-        == 404
+        client.get(f"{unknown}/next", headers=_auth(token)).status_code == 404
     )
     assert (
         client.post(
-            "/api/v1/curation/999999/answer",
+            f"{unknown}/answer",
             json={"word": "x", "category": "W"},
             headers=_auth(token),
         ).status_code
@@ -3350,17 +3346,13 @@ def test_curation_unknown_list_is_404() -> None:
     )
     assert (
         client.get(
-            "/api/v1/curation/999999/translation",
-            params={"word": "x"},
-            headers=_auth(token),
+            f"{unknown}/translation", params={"word": "x"}, headers=_auth(token)
         ).status_code
         == 404
     )
     assert (
         client.get(
-            "/api/v1/curation/999999/sentence",
-            params={"word": "x"},
-            headers=_auth(token),
+            f"{unknown}/sentence", params={"word": "x"}, headers=_auth(token)
         ).status_code
         == 404
     )
@@ -3375,7 +3367,7 @@ def test_curation_sentence_empty_without_a_cached_example() -> None:
     postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
 
     sentence = client.get(
-        f"/api/v1/curation/{list_id}/sentence",
+        f"{_CURATION_BASE}/sentence",
         params={"word": _UK_WORDS[0]},
         headers=_auth(token),
     )

@@ -3183,9 +3183,15 @@ _CURATION_CATEGORY_LABELS: list[tuple[str, str]] = [
 
 
 class CuratedListSummary(BaseModel):
-    """One curated list, for the picker page."""
+    """One curated list, for the picker page.
 
-    curated_list_id: int
+    Addressed by `(language, frequency_list_id)` everywhere in this API —
+    the same pair `emmio curate <language> <frequency_list_id>` takes, and
+    the schema's actual `UNIQUE (language, frequency_list_id)` key.
+    `curated_lists.id` (a `SERIAL`) is a database-internal implementation
+    detail and is never exposed here.
+    """
+
     language: str
     frequency_list_id: str
     name: str
@@ -3201,7 +3207,6 @@ def get_curation_lists(
     """List every curated list, with this curator's remaining-vote count."""
     return [
         CuratedListSummary(
-            curated_list_id=list_id,
             language=language,
             frequency_list_id=frequency_list_id,
             name=name,
@@ -3233,15 +3238,15 @@ def get_curation_categories(
     ]
 
 
-def _curated_list_or_404(curated_list_id: int) -> tuple[str, str, str, int]:
-    """Get a curated list's `(language, frequency_list_id, name, n_strata)`."""
-    details = postgres.get_curated_list(curated_list_id)
-    if details is None:
+def _curated_list_id_or_404(language: str, frequency_list_id: str) -> int:
+    """Resolve `(language, frequency_list_id)` to the internal numeric id."""
+    list_id = postgres.get_curated_list_id(language, frequency_list_id)
+    if list_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown curated list `{curated_list_id}`.",
+            detail=f"Unknown curated list `{language}/{frequency_list_id}`.",
         )
-    return details
+    return list_id
 
 
 def _curation_dictionaries(language: str) -> list[dict]:
@@ -3279,9 +3284,10 @@ class CurationWordCard(BaseModel):
     them (see `classify_automatically`)."""
 
 
-@app.get("/api/v1/curation/{curated_list_id}/next")
+@app.get("/api/v1/curation/{language}/{frequency_list_id}/next")
 async def get_next_curation_word(
-    curated_list_id: int,
+    language: str,
+    frequency_list_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
     stratum: int | None = None,
 ) -> CurationWordCard:
@@ -3291,9 +3297,7 @@ async def get_next_curation_word(
     resolves are skipped without writing anything, leaving only genuinely
     undecidable words for the human (see `classify_automatically`).
     """
-    language, frequency_list_id, _name, _n_strata = _curated_list_or_404(
-        curated_list_id
-    )
+    curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     word_language: Language = Language.from_code(language)
     alphabet: str | None = word_language.get_symbols()
     non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
@@ -3344,16 +3348,15 @@ async def get_next_curation_word(
     )
 
 
-@app.get("/api/v1/curation/{curated_list_id}/translation")
+@app.get("/api/v1/curation/{language}/{frequency_list_id}/translation")
 async def get_curation_translation(
-    curated_list_id: int,
+    language: str,
+    frequency_list_id: str,
     word: str,
     _user_id: Annotated[str, Depends(get_current_user)],
 ) -> Translation:
     """Get a word's Kaikki translation — the curator's evidence, not a quiz."""
-    language, _frequency_list_id, _name, _n_strata = _curated_list_or_404(
-        curated_list_id
-    )
+    _curated_list_id_or_404(language, frequency_list_id)
     return Translation(
         word=word,
         dictionaries=await _translate(
@@ -3362,16 +3365,15 @@ async def get_curation_translation(
     )
 
 
-@app.get("/api/v1/curation/{curated_list_id}/sentence")
+@app.get("/api/v1/curation/{language}/{frequency_list_id}/sentence")
 def get_curation_sentence(
-    curated_list_id: int,
+    language: str,
+    frequency_list_id: str,
     word: str,
     _user_id: Annotated[str, Depends(get_current_user)],
 ) -> Sentence:
     """Get one Tatoeba example sentence for a word (slow, kept off `/next`)."""
-    language, _frequency_list_id, _name, _n_strata = _curated_list_or_404(
-        curated_list_id
-    )
+    _curated_list_id_or_404(language, frequency_list_id)
     return Sentence(
         word=word,
         sentence=_sentence_html(word, language, _curation_sentences(language)),
@@ -3386,11 +3388,12 @@ class CurationAnswerRequest(BaseModel):
 
 
 @app.post(
-    "/api/v1/curation/{curated_list_id}/answer",
+    "/api/v1/curation/{language}/{frequency_list_id}/answer",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def answer_curation_word(
-    curated_list_id: int,
+    language: str,
+    frequency_list_id: str,
     request: CurationAnswerRequest,
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> None:
@@ -3401,7 +3404,7 @@ def answer_curation_word(
     `postgres.record_curation_vote`) — re-voting updates, never
     duplicates.
     """
-    _curated_list_or_404(curated_list_id)
+    curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     if request.category not in _CURATION_CATEGORY_CODES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

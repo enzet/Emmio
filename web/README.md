@@ -181,10 +181,13 @@ before the word is taught. The `response` value depends on the resource:
 
 `curate.html`/`curate-session.js` is the web equivalent of `emmio curate`: instead of a
 know/don't-know question, the curator picks which category a word belongs to (`GET
-/curation/categories` lists them, so the client never hardcodes the taxonomy). Simpler
-than a checking session — no prefetch queue, since `GET /curation/{id}/next` is a cheap
-query (not an expensive selector draw worth amortizing), and no undo (a curation vote is
-real history from the moment it lands):
+/curation/categories` lists them, so the client never hardcodes the taxonomy). A list is
+addressed by `(language, frequency_list_id)` everywhere — the same pair `emmio curate
+<language> <frequency_list_id>` takes, and the schema's own `UNIQUE (language,
+frequency_list_id)` key — never by the database-internal numeric `curated_lists.id`.
+Simpler than a checking session — no prefetch queue, since `GET
+/curation/{language}/{id}/next` is a cheap query (not an expensive selector draw worth
+amortizing), and no undo (a curation vote is real history from the moment it lands):
 
 ```mermaid
 sequenceDiagram
@@ -192,20 +195,20 @@ sequenceDiagram
     participant A as FastAPI (/api/v1)
 
     B->>A: GET /curation/lists
-    A-->>B: [{ curated_list_id, name, words, unvoted }, ...]
-    Note over B: curated-lists.html links to curate.html?id=<id>
+    A-->>B: [{ language, frequency_list_id, name, words, unvoted }, ...]
+    Note over B: curated-lists.html links to<br/>curate.html?language=<language>&list=<id>
 
     B->>A: GET /curation/categories
     A-->>B: [{ code, label }, ...]  (used to build the answer buttons)
 
     loop per word
-        B->>A: GET /curation/{id}/next
+        B->>A: GET /curation/{language}/{id}/next
         A-->>B: { word, stratum, auto_resolved }  (word is null when done)
-        B->>A: GET /curation/{id}/translation?word=…
+        B->>A: GET /curation/{language}/{id}/translation?word=…
         A-->>B: { dictionaries: [...] }
-        B->>A: GET /curation/{id}/sentence?word=…
+        B->>A: GET /curation/{language}/{id}/sentence?word=…
         A-->>B: { sentence }
-        B->>A: POST /curation/{id}/answer (word, category)
+        B->>A: POST /curation/{language}/{id}/answer (word, category)
         A-->>B: 204 No Content
     end
 ```

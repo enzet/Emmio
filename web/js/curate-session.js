@@ -1,7 +1,11 @@
 import { identifierSpan, languageName, loadingDots } from "./format.js";
 import { api, requireAuth } from "./api.js";
 
-// Curated-list picker: one row per list, linking to `curate?id=<id>`.
+// Curated-list picker: one row per list, linking to
+// `curate?language=<language>&list=<frequency_list_id>` — a curated list is
+// addressed by that pair everywhere in this API (matching the schema's own
+// `UNIQUE (language, frequency_list_id)` key and the CLI's `emmio curate
+// <language> <frequency_list_id>`), never by a database-internal numeric id.
 
 export async function initCuratedLists() {
     requireAuth();
@@ -23,7 +27,9 @@ export async function initCuratedLists() {
 
         const nameCell = document.createElement("td");
         const link = document.createElement("a");
-        link.href = `curate?id=${encodeURIComponent(item.curated_list_id)}`;
+        link.href =
+            `curate?language=${encodeURIComponent(item.language)}` +
+            `&list=${encodeURIComponent(item.frequency_list_id)}`;
         link.textContent = item.name;
         nameCell.appendChild(link);
         row.appendChild(nameCell);
@@ -51,10 +57,15 @@ export async function initCuratedLists() {
 export async function initCurate() {
     requireAuth();
 
-    const id = new URLSearchParams(location.search).get("id");
+    const params = new URLSearchParams(location.search);
+    const language = params.get("language");
+    const frequencyListId = params.get("list");
+    const base =
+        `/curation/${encodeURIComponent(language)}` +
+        `/${encodeURIComponent(frequencyListId)}`;
     document
         .getElementById("curated-list-heading")
-        .replaceChildren(identifierSpan(id));
+        .replaceChildren(identifierSpan(frequencyListId));
 
     const word = document.getElementById("word");
     const sentence = document.getElementById("sentence");
@@ -62,6 +73,11 @@ export async function initCurate() {
     const answers = document.getElementById("answers");
     const status = document.getElementById("status");
     const sessionCounts = document.getElementById("session-counts");
+    const externalLinks = document.getElementById("external-links");
+    const googleLink = document.getElementById("google-link");
+    const yandexLink = document.getElementById("yandex-link");
+    const wiktionaryLink = document.getElementById("wiktionary-link");
+    const kaikkiLink = document.getElementById("kaikki-link");
 
     let current = null; // { word, stratum } of the word on screen.
     let answering = false; // Guards a second click landing before advance().
@@ -91,8 +107,7 @@ export async function initCurate() {
     // request resolves.
     async function loadTranslation(forWord) {
         const response = await api(
-            `/curation/${encodeURIComponent(id)}/translation` +
-                `?word=${encodeURIComponent(forWord)}`,
+            `${base}/translation?word=${encodeURIComponent(forWord)}`,
         );
         if (!response.ok || current?.word !== forWord) return;
         const data = await response.json();
@@ -119,8 +134,7 @@ export async function initCurate() {
 
     async function loadSentence(forWord) {
         const response = await api(
-            `/curation/${encodeURIComponent(id)}/sentence` +
-                `?word=${encodeURIComponent(forWord)}`,
+            `${base}/sentence?word=${encodeURIComponent(forWord)}`,
         );
         if (!response.ok || current?.word !== forWord) return;
         const data = await response.json();
@@ -133,6 +147,36 @@ export async function initCurate() {
         }
     }
 
+    // Point the external lookup links (Google, Yandex, Wiktionary, Kaikki)
+    // at the current word. Hidden when no word is showing. Mirrors
+    // `check-session.js`'s `renderExternalLinks`.
+    function renderExternalLinks() {
+        if (!current) {
+            externalLinks.hidden = true;
+            return;
+        }
+        const forWord = encodeURIComponent(current.word);
+        const langName = languageName(language);
+        const query = `Translate ${langName} word "${current.word}".`;
+        googleLink.href =
+            `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        yandexLink.href =
+            `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
+            `&target_lang=en&text=${forWord}`;
+        // Wiktionary anchors the per-language section by its English name.
+        wiktionaryLink.href =
+            `https://en.wiktionary.org/wiki/${forWord}` +
+            `#${encodeURIComponent(langName.replace(/ /g, "_"))}`;
+        // Kaikki stores each word under <Language>/meaning/<c1>/<c1c2>/<word>.
+        const lower = current.word.toLowerCase();
+        kaikkiLink.href =
+            `https://kaikki.org/dictionary/${encodeURIComponent(langName)}/meaning/` +
+            `${encodeURIComponent(lower.slice(0, 1))}/` +
+            `${encodeURIComponent(lower.slice(0, 2))}/` +
+            `${encodeURIComponent(lower)}.html`;
+        externalLinks.hidden = false;
+    }
+
     async function loadNext() {
         word.replaceChildren(loadingDots());
         sentence.replaceChildren();
@@ -140,17 +184,19 @@ export async function initCurate() {
         answers.hidden = true;
         status.textContent = "";
 
-        const response = await api(`/curation/${encodeURIComponent(id)}/next`);
+        const response = await api(`${base}/next`);
         const card = await response.json();
         if (!card.word) {
             current = null;
             word.textContent = "";
             status.textContent = "Nothing left to curate. Well done!";
+            renderExternalLinks();
             return;
         }
         current = { word: card.word, stratum: card.stratum };
         word.textContent = card.word;
         answers.hidden = false;
+        renderExternalLinks();
         void loadTranslation(card.word);
         void loadSentence(card.word);
     }
@@ -160,7 +206,7 @@ export async function initCurate() {
         answering = true;
         const answered = current.word;
         try {
-            await api(`/curation/${encodeURIComponent(id)}/answer`, {
+            await api(`${base}/answer`, {
                 method: "POST",
                 body: { word: answered, category },
             });
