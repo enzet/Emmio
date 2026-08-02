@@ -30,8 +30,43 @@
         <main>
             <h1 id="curated-list-heading">Curated list</h1>
             <p>
-                <button id="curate-link" type="button">Curate this list</button>
-                <button id="auto-curate" type="button">Auto-curate</button>
+                <span class="with-info">
+                    <button id="curate-link" type="button">Curate this list</button>
+                    <a
+                        id="curate-info-toggle"
+                        href="#"
+                        role="button"
+                        class="info-toggle"
+                        aria-expanded="false"
+                        aria-controls="curate-info"
+                        aria-label="About “Curate this list”"
+                        >ⓘ</a
+                    >
+                </span>
+                <span class="with-info">
+                    <button id="auto-curate" type="button">Auto-curate</button>
+                    <a
+                        id="auto-curate-info-toggle"
+                        href="#"
+                        role="button"
+                        class="info-toggle"
+                        aria-expanded="false"
+                        aria-controls="auto-curate-info"
+                        aria-label="About “Auto-curate”"
+                        >ⓘ</a
+                    >
+                </span>
+            </p>
+            <p id="curate-info" class="hint" hidden>
+                Go through this list's words one at a time and vote on each
+                one's category (real word, proper noun, misspelling, …).
+            </p>
+            <p id="auto-curate-info" class="hint" hidden>
+                Automatically vote on words an automatic check can already
+                resolve — outside the alphabet, a proper noun by
+                capitalization, or clear dictionary evidence — attributed to
+                the “Emmio” curator. Words with no automatic answer are left
+                for a human.
             </p>
             <p id="auto-curate-status" role="status" hidden></p>
             <table id="words-table" hidden>

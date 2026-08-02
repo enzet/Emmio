@@ -79,6 +79,23 @@ export async function initCuratedList() {
             location.href = curateUrl;
         });
 
+    // "(i)" toggles: show/hide the `.hint` paragraph describing what the
+    // adjacent button does. `<a href="#">`, not a `<button>`, so the click
+    // must stop the browser from actually navigating (scrolling to the top
+    // and pushing a history entry).
+    function wireInfoToggle(toggleId, infoId) {
+        const toggle = document.getElementById(toggleId);
+        const info = document.getElementById(infoId);
+        toggle.addEventListener("click", (event) => {
+            event.preventDefault();
+            const shown = info.hidden;
+            info.hidden = !shown;
+            toggle.setAttribute("aria-expanded", String(shown));
+        });
+    }
+    wireInfoToggle("curate-info-toggle", "curate-info");
+    wireInfoToggle("auto-curate-info-toggle", "auto-curate-info");
+
     const status = document.getElementById("status");
     const table = document.getElementById("words-table");
     const rows = document.getElementById("words-rows");

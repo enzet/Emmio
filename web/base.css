@@ -330,6 +330,37 @@ section[aria-labelledby="danger-heading"] {
     margin-top: 0.2rem;
 }
 
+/* Groups a button with its "(i)" description toggle, so the pair stays
+   together (no line break between them) and reads as one unit. */
+span.with-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-right: 0.3rem;
+}
+
+/* Small "(i)" toggle next to a button, showing/hiding a `.hint` description
+   of what the button does. An `<a>`, not a `<button>`, so it needs its own
+   reset rather than inheriting the button skin from `modern.css`. */
+a.info-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    line-height: 1;
+    color: var(--muted);
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+}
+a.info-toggle:hover {
+    color: var(--fg);
+    background-color: var(--input-bg);
+}
+
 main p {
     max-width: 800px;
 }
