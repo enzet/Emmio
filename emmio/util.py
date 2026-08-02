@@ -149,6 +149,11 @@ def download(
             result.release_conn()
 
         pool_manager.clear()
+        # The cache directory is not guaranteed to exist yet: a source may
+        # be downloaded into it for the first time long after its artifact
+        # directory was created (e.g. Tatoeba's `sentences/cache/`, only
+        # ever touched by a download, never by initial setup).
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
         with cache_path.open("wb+") as temp_file:
             temp_file.write(data)
         return data

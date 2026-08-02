@@ -330,6 +330,10 @@ section[aria-labelledby="danger-heading"] {
     margin-top: 0.2rem;
 }
 
+main p {
+    max-width: 800px;
+}
+
 main.check {
     display: flex;
 }

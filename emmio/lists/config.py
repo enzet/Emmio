@@ -1,5 +1,6 @@
 """Configuration of lists."""
 
+import re
 from enum import Enum
 
 from pydantic import BaseModel
@@ -38,6 +39,29 @@ def frequency_list_identifier(config: ListUsageConfig) -> str:
     ):
         return f"{config.language}_{config.id}_{config.year}"
     return config.id
+
+
+def parse_frequency_list_identifier(
+    frequency_list_id: str, language: str
+) -> ListUsageConfig:
+    """Reconstruct a `ListUsageConfig` from its canonical identifier.
+
+    The inverse of `frequency_list_identifier`: tries `<language>_<kind>_
+    <year>` for the two self-describing sources first, falling back to
+    treating the whole identifier as a bare configured-list `id` (no
+    language/year) when that does not match — the same two cases
+    `frequency_list_identifier` itself distinguishes.
+    """
+    match = re.fullmatch(
+        rf"{re.escape(language)}_(?P<kind>frequency_words|opensubtitles)_"
+        r"(?P<year>\d+)",
+        frequency_list_id,
+    )
+    if match is not None:
+        return ListUsageConfig(
+            id=match["kind"], language=language, year=int(match["year"])
+        )
+    return ListUsageConfig(id=frequency_list_id)
 
 
 class FrequencyListFileFormat(Enum):

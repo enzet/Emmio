@@ -3,7 +3,6 @@
 import argparse
 import logging
 import random
-import re
 import shlex
 from collections import defaultdict
 from collections.abc import Callable
@@ -25,18 +24,26 @@ from emmio.learn.visualizer import LearningVisualizer
 from emmio.lexicon.core import (
     NOT_TO_CHECK_CATEGORIES,
     NOT_TO_CHECK_CATEGORY_CODES,
-    PROPER_NOUN_CAP_RATIO_THRESHOLD,
     RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
     Lexicon,
     LexiconChecker,
     LexiconResponse,
 )
-from emmio.lexicon.curation import DEFAULT_N_C, DEFAULT_N_STRATA, build_panel
+from emmio.lexicon.curation import (
+    DEFAULT_N_C,
+    DEFAULT_N_STRATA,
+    build_panel,
+    classify_automatically,
+)
 from emmio.lexicon.goal import compute_lexicon_goal_state
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
-from emmio.lists.config import ListUsageConfig, frequency_list_identifier
+from emmio.lists.config import (
+    ListUsageConfig,
+    frequency_list_identifier,
+    parse_frequency_list_identifier,
+)
 from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.sentence.config import SentencesUsageConfig
@@ -1306,19 +1313,9 @@ class Emmio:
         non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
             language, frozenset()
         )
-        frequency_list: FrequencyList | None = None
-        if (
-            match := re.fullmatch(
-                rf"{re.escape(language)}_"
-                r"(?P<kind>frequency_words|opensubtitles)_(?P<year>\d+)",
-                frequency_list_id,
-            )
-        ) is not None:
-            frequency_list = self.data.get_frequency_list(
-                ListUsageConfig(
-                    id=match["kind"], language=language, year=int(match["year"])
-                )
-            )
+        frequency_list: FrequencyList | None = self.data.get_frequency_list(
+            parse_frequency_list_identifier(frequency_list_id, language)
+        )
 
         dictionaries: DictionaryCollection = self.data.get_dictionaries(
             [
@@ -1350,38 +1347,17 @@ class Emmio:
                 self.interface.print("Nothing left to curate. Well done!")
                 break
 
-            if alphabet and any(symbol not in alphabet for symbol in word):
-                skipped_this_run.add(word)
-                auto_resolved_count += 1
-                continue
-
             if (
-                frequency_list is not None
-                and (cap_ratio := frequency_list.get_cap_ratio(word))
+                await classify_automatically(
+                    word,
+                    word_language,
+                    alphabet,
+                    frequency_list,
+                    non_proper_nouns,
+                    dictionaries,
+                )
                 is not None
-                and cap_ratio > PROPER_NOUN_CAP_RATIO_THRESHOLD
-                and word not in non_proper_nouns
             ):
-                skipped_this_run.add(word)
-                auto_resolved_count += 1
-                continue
-
-            items = await dictionaries.get_items(word, word_language)
-            if items and any(
-                not item.get_commonality(word_language).is_confirmed_junk()
-                for item in items
-            ):
-                # At least one entry is not confirmed junk: a real word.
-                skipped_this_run.add(word)
-                auto_resolved_count += 1
-                continue
-            if items and all(
-                item.get_commonality(word_language).is_confirmed_junk()
-                for item in items
-            ):
-                # Every entry is confirmed junk (e.g. a bare letter): not a
-                # word, the same assumption `AnswerType.ASSUME__NOT_A_WORD__
-                # DICTIONARY` makes for raw lexicon checking.
                 skipped_this_run.add(word)
                 auto_resolved_count += 1
                 continue

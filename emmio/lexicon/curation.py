@@ -22,13 +22,78 @@ import logging
 
 import numpy as np
 
-from emmio.lexicon.core import _stratum_bounds_of_size
+from emmio.dictionary.core import DictionaryCollection
+from emmio.language import Language
+from emmio.lexicon.core import (
+    PROPER_NOUN_CAP_RATIO_THRESHOLD,
+    _stratum_bounds_of_size,
+)
 from emmio.lists.frequency_list import FrequencyList
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 DEFAULT_N_STRATA: int = 10
 DEFAULT_N_C: int = 50
+
+
+async def classify_automatically(
+    word: str,
+    language: Language,
+    alphabet: str | None,
+    frequency_list: FrequencyList | None,
+    non_proper_nouns: frozenset[str],
+    dictionaries: DictionaryCollection,
+) -> str | None:
+    """Get an automatic `curated_words.category` code, or `None`.
+
+    Shared by `emmio curate` and the curation API's "next word" endpoint to
+    decide which panel words to skip without ever writing anything — the
+    whole point of curation is to save human judgment for words these
+    checks cannot resolve, so nothing here is cached; it is simply
+    recomputed every time. A word outside the language's alphabet or with
+    a `cap_ratio` past the proper-noun threshold is assumed "not a
+    word"/"proper noun" the same way raw (uncurated) lexicon checking
+    already assumes them (see `LexiconChecker.do_skip`); dictionary
+    evidence resolves the rest — at least one non-junk entry means "real
+    word", all-junk means "not a word".
+
+    :param word: the word to classify
+    :param language: the word's language
+    :param alphabet: `language.get_symbols()`; `None` disables that check
+    :param frequency_list: source of `cap_ratio`; `None` disables the
+        proper-noun check
+    :param non_proper_nouns: honorific/common-noun exceptions to the
+        proper-noun check, e.g. `NON_PROPER_NOUNS.get(language.get_code())`
+    :param dictionaries: dictionaries to consult (typically just Kaikki)
+    :return: a category code, or `None` if the word is genuinely
+        undecidable and needs a human curator
+    """
+    if alphabet and any(symbol not in alphabet for symbol in word):
+        return "N"
+
+    if (
+        frequency_list is not None
+        and (cap_ratio := frequency_list.get_cap_ratio(word)) is not None
+        and cap_ratio > PROPER_NOUN_CAP_RATIO_THRESHOLD
+        and word not in non_proper_nouns
+    ):
+        return "P"
+
+    items = await dictionaries.get_items(word, language)
+    if items and any(
+        not item.get_commonality(language).is_confirmed_junk() for item in items
+    ):
+        # At least one entry is not confirmed junk: a real word.
+        return "W"
+    if items and all(
+        item.get_commonality(language).is_confirmed_junk() for item in items
+    ):
+        # Every entry is confirmed junk (e.g. a bare letter): not a word,
+        # the same assumption `AnswerType.ASSUME__NOT_A_WORD__DICTIONARY`
+        # makes for raw lexicon checking.
+        return "N"
+
+    return None
 
 
 def draw_stratum_words(

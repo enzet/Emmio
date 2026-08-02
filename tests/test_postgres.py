@@ -40,6 +40,49 @@ def test_get_curated_list_id_missing_returns_none() -> None:
     assert found is not None
 
 
+def test_get_curated_lists_lists_every_list() -> None:
+    """`get_curated_lists` returns every list, for a picker."""
+
+    assert postgres.get_curated_lists() == []
+    fr_id = _make_list()
+    de_id = postgres.create_curated_list(
+        "de", "de_opensubtitles_2024", "German OST 2024 Curated", 10
+    )
+    lists = {row[0]: row for row in postgres.get_curated_lists()}
+    assert lists[fr_id] == (
+        fr_id,
+        "fr",
+        "fr_frequency_words_2018",
+        "French OST 2018 Curated",
+        10,
+    )
+    assert lists[de_id] == (
+        de_id,
+        "de",
+        "de_opensubtitles_2024",
+        "German OST 2024 Curated",
+        10,
+    )
+
+
+def test_get_curated_list_returns_details() -> None:
+    """`get_curated_list` returns one `(language, id, name, n_strata)`."""
+
+    list_id = _make_list(n_strata=5)
+    assert postgres.get_curated_list(list_id) == (
+        "fr",
+        "fr_frequency_words_2018",
+        "French OST 2018 Curated",
+        5,
+    )
+
+
+def test_get_curated_list_missing_returns_none() -> None:
+    """An unknown id is reported as absent, not an error."""
+
+    assert postgres.get_curated_list(999999) is None
+
+
 def test_add_curated_words_is_idempotent() -> None:
     """Re-adding an existing word does not reset its state."""
 

@@ -30,6 +30,8 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
+| `curated-lists.html` | Table of curated lists, with a total/remaining-for-you word count. |
+| `curate.html`   | Curate a list: shows a word, records its category.           |
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
 `app.js` is loaded as an ES module (`<script type="module">`) and only holds
@@ -43,6 +45,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/forms.js`            | Shared "create a lexicon / course / learning" form wiring.       |
 | `js/check-session.js`    | `runSession()` (lexicon checking) and the check page.             |
 | `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
+| `js/curate-session.js`   | The curated-lists picker and the curate page (`emmio curate`'s web equivalent). |
 | `js/auth-pages.js`       | Landing, login, register.                                        |
 | `js/home-pages.js`       | Dashboard and the per-language page.                              |
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
@@ -86,10 +89,18 @@ flowchart LR
         courseList --> course --> learn
     end
 
+    subgraph curation["Curation"]
+        curatedLists["curated-lists.html<br/>list"]
+        curate["curate.html<br/>curate words"]
+        curatedLists --> curate
+    end
+
     login -->|"log in → store token"| home
     home --> lexicons
     home --> courseList
+    home --> curatedLists
     lexicons <-->|"nav"| courseList
+    lexicons <-->|"nav"| curatedLists
 ```
 
 ## Authentication
@@ -165,6 +176,45 @@ before the word is taught. The `response` value depends on the resource:
   curation vote, the same one `emmio curate` would record, rather than a
   separate mechanism (see `_record_not_to_check_vote`).
 - Course `/answer`: a `Response` — `y` (right), `n` (wrong), `s` (skip).
+
+## Curation
+
+`curate.html`/`curate-session.js` is the web equivalent of `emmio curate`: instead of a
+know/don't-know question, the curator picks which category a word belongs to (`GET
+/curation/categories` lists them, so the client never hardcodes the taxonomy). Simpler
+than a checking session — no prefetch queue, since `GET /curation/{id}/next` is a cheap
+query (not an expensive selector draw worth amortizing), and no undo (a curation vote is
+real history from the moment it lands):
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (curate-session.js)
+    participant A as FastAPI (/api/v1)
+
+    B->>A: GET /curation/lists
+    A-->>B: [{ curated_list_id, name, words, unvoted }, ...]
+    Note over B: curated-lists.html links to curate.html?id=<id>
+
+    B->>A: GET /curation/categories
+    A-->>B: [{ code, label }, ...]  (used to build the answer buttons)
+
+    loop per word
+        B->>A: GET /curation/{id}/next
+        A-->>B: { word, stratum, auto_resolved }  (word is null when done)
+        B->>A: GET /curation/{id}/translation?word=…
+        A-->>B: { dictionaries: [...] }
+        B->>A: GET /curation/{id}/sentence?word=…
+        A-->>B: { sentence }
+        B->>A: POST /curation/{id}/answer (word, category)
+        A-->>B: 204 No Content
+    end
+```
+
+`/next` skips words an automatic check already resolves (outside the alphabet, `cap_ratio`
+past the proper-noun threshold, or clear dictionary evidence either way) without writing
+anything — `auto_resolved` in the response is purely informational (e.g. for a "skipped N
+words" status line), not something the client acts on. See
+`emmio.lexicon.curation.classify_automatically`, shared with the CLI's `emmio curate`.
 
 ## Scope and limitations
 

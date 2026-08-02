@@ -1643,6 +1643,39 @@ def save_lexicon(
 CuratedWordRow = tuple[str, int, int, str, int, float | None]
 """Word, stratum, panel_order, category, votes, agreement."""
 
+CuratedListRow = tuple[int, str, str, str, int]
+"""Id, language, frequency_list_id, name, n_strata."""
+
+
+def get_curated_lists() -> list[CuratedListRow]:
+    """Get every curated list, for a picker (e.g. the web curation page)."""
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT id, language, frequency_list_id, name, n_strata "
+            "FROM curated_lists ORDER BY language, frequency_list_id"
+        )
+        return [
+            (int(row[0]), row[1], row[2], row[3], int(row[4]))
+            for row in cursor.fetchall()
+        ]
+
+
+def get_curated_list(curated_list_id: int) -> tuple[str, str, str, int] | None:
+    """Get one curated list's `(language, frequency_list_id, name, n_strata)`.
+
+    :param curated_list_id: internal identifier of the curated list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT language, frequency_list_id, name, n_strata "
+            "FROM curated_lists WHERE id = %s",
+            (curated_list_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return (row[0], row[1], row[2], int(row[3]))
+
 
 def get_curated_list_id(language: str, frequency_list_id: str) -> int | None:
     """Get a curated list's internal identifier, or `None` if it has none.
@@ -1764,6 +1797,22 @@ def promote_fallback_word(
             (curated_list_id, word, stratum, curated_list_id, stratum),
         )
         return cursor.fetchone() is not None
+
+
+def get_curated_word_stratum(curated_list_id: int, word: str) -> int | None:
+    """Get one curated word's stored stratum, or `None` if not in the list.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param word: the word to look up
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT stratum FROM curated_words "
+            "WHERE curated_list_id = %s AND word = %s",
+            (curated_list_id, word),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else None
 
 
 def get_curated_words(

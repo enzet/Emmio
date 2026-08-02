@@ -42,6 +42,7 @@ from emmio.api.sessions import (
 )
 from emmio.audio.config import AudioUsageConfig
 from emmio.audio.transcode import to_browser_playable
+from emmio.catalog import NON_PROPER_NOUNS
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
@@ -62,10 +63,15 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.curation import classify_automatically
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history, latest_windowed_rate
 from emmio.lexicon.replay import replay
-from emmio.lists.config import ListUsageConfig, frequency_list_identifier
+from emmio.lists.config import (
+    ListUsageConfig,
+    frequency_list_identifier,
+    parse_frequency_list_identifier,
+)
 from emmio.lists.frequency_list import FrequencyList
 from emmio.sentence.config import SentencesUsageConfig
 from emmio.sentence.core import Sentence as ExampleSentence
@@ -3147,6 +3153,268 @@ def clear_lexicon_main(
     """Clear this lexicon's main flag; its language then has no main."""
     _lexicon_config_or_404(user_id, lexicon_id)
     postgres.clear_main_lexicon(user_id, lexicon_id)
+
+
+# Curation: reviewing a curated panel's words, the web equivalent of `emmio
+# curate` — plus the lighter-weight "not to check" vote an ordinary lexicon
+# check answer may also carry (see `AnswerRequest.category`/
+# `_record_not_to_check_vote` above; both write into the same
+# `curated_words`/`curated_word_records`, curation being a property of the
+# list, not of how a curator happened to reach a given word). No session
+# concept here, unlike lexicon checking: `get_next_curation_candidate` is a
+# cheap query with no expensive per-learner selector state to cache.
+
+# All valid `curated_words.category` codes, for validating `/answer`: `W`
+# (real word, group 1, "to check") plus every group-2 "not to check" reason,
+# plus `U` (unsure — a curator declining to decide, distinct from silence).
+_CURATION_CATEGORY_CODES: frozenset[str] = frozenset(
+    {"W", "U", *NOT_TO_CHECK_CATEGORY_CODES.values()}
+)
+
+# Curator-facing labels for every code, in menu order — the CLI's
+# `CURATION_CATEGORIES` (`emmio/run.py`), reshaped for the web: group 1
+# first, then group 2 in the same order `NOT_TO_CHECK_CATEGORIES` defines,
+# then "Unsure".
+_CURATION_CATEGORY_LABELS: list[tuple[str, str]] = [
+    ("W", "Real word"),
+    *((code, label) for label, code in NOT_TO_CHECK_CATEGORY_CODES.items()),
+    ("U", "Unsure"),
+]
+
+
+class CuratedListSummary(BaseModel):
+    """One curated list, for the picker page."""
+
+    curated_list_id: int
+    language: str
+    frequency_list_id: str
+    name: str
+    n_strata: int
+    words: int  # Total panel words.
+    unvoted: int  # Panel words this curator has not yet voted on.
+
+
+@app.get("/api/v1/curation/lists")
+def get_curation_lists(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[CuratedListSummary]:
+    """List every curated list, with this curator's remaining-vote count."""
+    return [
+        CuratedListSummary(
+            curated_list_id=list_id,
+            language=language,
+            frequency_list_id=frequency_list_id,
+            name=name,
+            n_strata=n_strata,
+            words=len(postgres.get_curated_words(list_id)),
+            unvoted=len(postgres.get_curator_unvoted_words(list_id, user_id)),
+        )
+        for list_id, language, frequency_list_id, name, n_strata in (
+            postgres.get_curated_lists()
+        )
+    ]
+
+
+class CurationCategoryOption(BaseModel):
+    """One selectable category, for the client to build its buttons from."""
+
+    code: str
+    label: str
+
+
+@app.get("/api/v1/curation/categories")
+def get_curation_categories(
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> list[CurationCategoryOption]:
+    """List every category a curator may choose, in menu order."""
+    return [
+        CurationCategoryOption(code=code, label=label)
+        for code, label in _CURATION_CATEGORY_LABELS
+    ]
+
+
+def _curated_list_or_404(curated_list_id: int) -> tuple[str, str, str, int]:
+    """Get a curated list's `(language, frequency_list_id, name, n_strata)`."""
+    details = postgres.get_curated_list(curated_list_id)
+    if details is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown curated list `{curated_list_id}`.",
+        )
+    return details
+
+
+def _curation_dictionaries(language: str) -> list[dict]:
+    """Get the one dictionary curation always uses: Kaikki, matching the CLI."""
+    return [
+        {
+            "id": "kaikki",
+            "from_language": language,
+            "name": Language.from_code(language).get_name(),
+        }
+    ]
+
+
+def _curation_sentences(language: str) -> list[dict]:
+    """Get the one sentence source curation uses: Tatoeba, if cached."""
+    return [{"id": "tatoeba", "language": language}]
+
+
+# Curator judgments a single request may resolve automatically before
+# either finding one needing a human or giving up — same reasoning as
+# `_DRAW_BUDGET`: caps the work (and the risk of a slow response) a long
+# run of already-resolved-but-unvoted panel words could otherwise cause.
+_CURATION_SKIP_BUDGET: int = 256
+
+
+class CurationWordCard(BaseModel):
+    """One panel word awaiting this curator's vote, or none left."""
+
+    word: str | None
+    stratum: int | None
+    auto_resolved: int
+    """Panel words this request skipped automatically before finding (or
+    failing to find) one needing a human — purely informational, e.g. for
+    a "skipped N auto-resolved words" status line; nothing is written for
+    them (see `classify_automatically`)."""
+
+
+@app.get("/api/v1/curation/{curated_list_id}/next")
+async def get_next_curation_word(
+    curated_list_id: int,
+    user_id: Annotated[str, Depends(get_current_user)],
+    stratum: int | None = None,
+) -> CurationWordCard:
+    """Get the next panel word needing this curator's vote.
+
+    Mirrors `emmio curate` exactly: words an automatic check already
+    resolves are skipped without writing anything, leaving only genuinely
+    undecidable words for the human (see `classify_automatically`).
+    """
+    language, frequency_list_id, _name, _n_strata = _curated_list_or_404(
+        curated_list_id
+    )
+    word_language: Language = Language.from_code(language)
+    alphabet: str | None = word_language.get_symbols()
+    non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
+        language, frozenset()
+    )
+    frequency_list: FrequencyList | None = get_data().get_frequency_list(
+        parse_frequency_list_identifier(frequency_list_id, language)
+    )
+    dictionaries: DictionaryCollection = get_data().get_dictionaries(
+        [
+            DictionaryUsageConfig(
+                id="kaikki",
+                from_language=language,
+                name=word_language.get_name(),
+            )
+        ]
+    )
+
+    skipped: set[str] = set()
+    auto_resolved: int = 0
+    for _ in range(_CURATION_SKIP_BUDGET):
+        word: str | None = postgres.get_next_curation_candidate(
+            curated_list_id, user_id, stratum, exclude=skipped
+        )
+        if word is None:
+            break
+        if (
+            await classify_automatically(
+                word,
+                word_language,
+                alphabet,
+                frequency_list,
+                non_proper_nouns,
+                dictionaries,
+            )
+            is not None
+        ):
+            skipped.add(word)
+            auto_resolved += 1
+            continue
+        return CurationWordCard(
+            word=word,
+            stratum=postgres.get_curated_word_stratum(curated_list_id, word),
+            auto_resolved=auto_resolved,
+        )
+    return CurationWordCard(
+        word=None, stratum=None, auto_resolved=auto_resolved
+    )
+
+
+@app.get("/api/v1/curation/{curated_list_id}/translation")
+async def get_curation_translation(
+    curated_list_id: int,
+    word: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> Translation:
+    """Get a word's Kaikki translation — the curator's evidence, not a quiz."""
+    language, _frequency_list_id, _name, _n_strata = _curated_list_or_404(
+        curated_list_id
+    )
+    return Translation(
+        word=word,
+        dictionaries=await _translate(
+            word, language, _curation_dictionaries(language)
+        ),
+    )
+
+
+@app.get("/api/v1/curation/{curated_list_id}/sentence")
+def get_curation_sentence(
+    curated_list_id: int,
+    word: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> Sentence:
+    """Get one Tatoeba example sentence for a word (slow, kept off `/next`)."""
+    language, _frequency_list_id, _name, _n_strata = _curated_list_or_404(
+        curated_list_id
+    )
+    return Sentence(
+        word=word,
+        sentence=_sentence_html(word, language, _curation_sentences(language)),
+    )
+
+
+class CurationAnswerRequest(BaseModel):
+    """A curator's category vote for one word."""
+
+    word: str
+    category: str  # A `curated_words.category` code, e.g. `W` or `P`.
+
+
+@app.post(
+    "/api/v1/curation/{curated_list_id}/answer",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def answer_curation_word(
+    curated_list_id: int,
+    request: CurationAnswerRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> None:
+    """Record a curator's vote for one panel word.
+
+    Every vote is kept (`curated_word_records`); the consensus cached on
+    `curated_words` is the mode of each curator's *latest* vote (see
+    `postgres.record_curation_vote`) — re-voting updates, never
+    duplicates.
+    """
+    _curated_list_or_404(curated_list_id)
+    if request.category not in _CURATION_CATEGORY_CODES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid category `{request.category}`.",
+        )
+    try:
+        postgres.record_curation_vote(
+            curated_list_id, request.word, request.category, user_id
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+        ) from error
 
 
 # Learning. Only the spaced-repetition review of words already being learned is

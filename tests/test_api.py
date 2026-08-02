@@ -82,6 +82,15 @@ class _FakeData:
         # Only Wikimedia Commons here; no local providers in the fake.
         return [{"id": "wikimedia_commons", "language": language}]
 
+    def get_dictionaries(self, usage_configs: list) -> DictionaryCollection:  # noqa: ARG002
+        # No real Kaikki lookups in tests; every word is "no evidence".
+        return DictionaryCollection([])
+
+    def get_sentences_data(self) -> "_FakeSentencesData":
+        # No real Tatoeba lookups in tests (would try to download on a
+        # cold cache); every word has no example.
+        return _FakeSentencesData([])
+
 
 @pytest.fixture
 def fake_languages(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict]:
@@ -3204,3 +3213,171 @@ def test_course_answer_updates_cached_schedule() -> None:
     ).json()
     assert stats["answers"] == 1
     assert stats["actions"] == 1
+
+
+# Curation: the web equivalent of `emmio curate`.
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_lists_reports_counts() -> None:
+    """`/curation/lists` reports panel size and this curator's remaining."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:3])
+        ],
+    )
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+
+    response = client.get("/api/v1/curation/lists", headers=_auth(token))
+    assert response.status_code == 200
+    [summary] = response.json()
+    assert summary["curated_list_id"] == list_id
+    assert summary["language"] == "uk"
+    assert summary["frequency_list_id"] == "uk_list"
+    assert summary["words"] == 3
+    assert summary["unvoted"] == 2  # One already voted on.
+
+
+def test_curation_categories_lists_every_code() -> None:
+    """`/curation/categories` lists the full taxonomy, group 1 then group 2."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.get("/api/v1/curation/categories", headers=_auth(token))
+    assert response.status_code == 200
+    codes = [option["code"] for option in response.json()]
+    assert codes == ["W", "P", "R", "M", "F", "N", "U"]
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_next_and_answer_flow() -> None:
+    """`/next` serves an unvoted word; `/answer` votes and advances `/next`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:2])
+        ],
+    )
+
+    first = client.get(
+        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
+    ).json()
+    assert first["word"] in _UK_WORDS[:2]
+    assert first["stratum"] == 0
+    assert first["auto_resolved"] == 0
+
+    answer = client.post(
+        f"/api/v1/curation/{list_id}/answer",
+        json={"word": first["word"], "category": "W"},
+        headers=_auth(token),
+    )
+    assert answer.status_code == 204
+
+    second = client.get(
+        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
+    ).json()
+    assert second["word"] in _UK_WORDS[:2]
+    assert second["word"] != first["word"]
+
+    words = {
+        word: category
+        for word, _, _, category, _, _ in postgres.get_curated_words(list_id)
+    }
+    assert words[first["word"]] == "W"
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_next_returns_null_when_done() -> None:
+    """`/next` reports no word left once every panel word has been voted on."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+
+    response = client.get(
+        f"/api/v1/curation/{list_id}/next", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] is None
+    assert body["stratum"] is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_answer_invalid_category_rejected() -> None:
+    """An unrecognized category code is a 422, not a silent write."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+
+    response = client.post(
+        f"/api/v1/curation/{list_id}/answer",
+        json={"word": _UK_WORDS[0], "category": "Z"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 422
+    words = postgres.get_curated_words(list_id)
+    assert words[0][3] == "U"  # Untouched.
+
+
+def test_curation_unknown_list_is_404() -> None:
+    """Every curation endpoint 404s on an unknown `curated_list_id`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    assert (
+        client.get(
+            "/api/v1/curation/999999/next", headers=_auth(token)
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/curation/999999/answer",
+            json={"word": "x", "category": "W"},
+            headers=_auth(token),
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            "/api/v1/curation/999999/translation",
+            params={"word": "x"},
+            headers=_auth(token),
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            "/api/v1/curation/999999/sentence",
+            params={"word": "x"},
+            headers=_auth(token),
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_sentence_empty_without_a_cached_example() -> None:
+    """No Tatoeba example available: empty, not an error."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+
+    sentence = client.get(
+        f"/api/v1/curation/{list_id}/sentence",
+        params={"word": _UK_WORDS[0]},
+        headers=_auth(token),
+    )
+    assert sentence.status_code == 200
+    assert sentence.json()["sentence"] is None

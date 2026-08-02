@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Curated lists</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            href="/data/fonts/InterVariable.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin
+        />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" type="module"></script>
+    </head>
+    <body data-page="curated-lists">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="lexicons">Lexicons</a>
+                <a href="courses">Courses</a>
+                <a href="curated-lists">Curated lists</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1>Curated lists</h1>
+            <p>
+                Review a frequency list's words: is each one real vocabulary
+                worth testing learners on, or a proper noun, rare word,
+                misspelling, or foreign word that should not be? See
+                <code>emmio data build-panel</code> for building a new list
+                from the command line.
+            </p>
+            <table id="curated-list-table" hidden>
+                <thead>
+                    <tr>
+                        <th scope="col">List</th>
+                        <th scope="col">Language</th>
+                        <th scope="col">Words</th>
+                        <th scope="col">Left for you</th>
+                    </tr>
+                </thead>
+                <tbody id="curated-list-rows"></tbody>
+            </table>
+        </main>
+        <footer>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Curate</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            href="/data/fonts/InterVariable.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin
+        />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" type="module"></script>
+    </head>
+    <body data-page="curate">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="curated-lists">← Curated lists</a>
+                <span id="curated-list-heading">Curate</span>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main class="check">
+            <section aria-labelledby="word-heading">
+                <p id="word"></p>
+                <p id="sentence"></p>
+                <div id="translation"></div>
+            </section>
+            <section>
+                <p id="question">Which category does the word fit?</p>
+                <div id="answers"></div>
+            </section>
+        </main>
+        <footer>
+            <div id="session-status">
+                <span id="session-counts" hidden></span>
+            </div>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>
