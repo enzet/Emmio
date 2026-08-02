@@ -2,10 +2,11 @@ import { identifierSpan, languageName, loadingDots } from "./format.js";
 import { api, requireAuth } from "./api.js";
 
 // Curated-list picker: one row per list, linking to
-// `curate?language=<language>&list=<frequency_list_id>` — a curated list is
-// addressed by that pair everywhere in this API (matching the schema's own
-// `UNIQUE (language, frequency_list_id)` key and the CLI's `emmio curate
-// <language> <frequency_list_id>`), never by a database-internal numeric id.
+// `curated-list?language=<language>&list=<frequency_list_id>` — a curated
+// list is addressed by that pair everywhere in this API (matching the
+// schema's own `UNIQUE (language, frequency_list_id)` key and the CLI's
+// `emmio curate <language> <frequency_list_id>`), never by a
+// database-internal numeric id.
 
 export async function initCuratedLists() {
     requireAuth();
@@ -28,7 +29,7 @@ export async function initCuratedLists() {
         const nameCell = document.createElement("td");
         const link = document.createElement("a");
         link.href =
-            `curate?language=${encodeURIComponent(item.language)}` +
+            `curated-list?language=${encodeURIComponent(item.language)}` +
             `&list=${encodeURIComponent(item.frequency_list_id)}`;
         link.textContent = item.name;
         nameCell.appendChild(link);
@@ -47,6 +48,174 @@ export async function initCuratedLists() {
 
         rows.appendChild(row);
     }
+}
+
+// Curated-list detail: a paginated table of every word in the list, with
+// its current curation status — a read-only overview alongside the
+// word-by-word `curate.html` flow, the same relationship `lexicon.html`
+// (stats) has to `check.html` (the checking flow).
+
+const WORDS_PAGE_SIZE = 100;
+
+export async function initCuratedList() {
+    requireAuth();
+
+    const params = new URLSearchParams(location.search);
+    const language = params.get("language");
+    const frequencyListId = params.get("list");
+    const base =
+        `/curation/${encodeURIComponent(language)}` +
+        `/${encodeURIComponent(frequencyListId)}`;
+
+    document
+        .getElementById("curated-list-heading")
+        .replaceChildren(identifierSpan(frequencyListId));
+    const curateUrl =
+        `curate?language=${encodeURIComponent(language)}` +
+        `&list=${encodeURIComponent(frequencyListId)}`;
+    document
+        .getElementById("curate-link")
+        .addEventListener("click", () => {
+            location.href = curateUrl;
+        });
+
+    const status = document.getElementById("status");
+    const table = document.getElementById("words-table");
+    const rows = document.getElementById("words-rows");
+    const pagination = document.getElementById("pagination");
+    const pageIndicator = document.getElementById("page-indicator");
+    const prevButton = document.getElementById("prev-page");
+    const nextButton = document.getElementById("next-page");
+    const autoCurateButton = document.getElementById("auto-curate");
+    const autoCurateStatus = document.getElementById("auto-curate-status");
+
+    let page = 1;
+
+    async function loadPage() {
+        status.textContent = "Loading…";
+        const response = await api(
+            `${base}/words?page=${page}&page_size=${WORDS_PAGE_SIZE}`,
+        );
+        if (!response.ok) {
+            status.textContent = "Could not load words.";
+            table.hidden = true;
+            pagination.hidden = true;
+            return;
+        }
+        const data = await response.json();
+
+        rows.replaceChildren();
+        for (const entry of data.words) {
+            const row = document.createElement("tr");
+
+            const wordCell = document.createElement("td");
+            wordCell.textContent = entry.word;
+            row.appendChild(wordCell);
+
+            const strataCell = document.createElement("td");
+            strataCell.textContent = entry.stratum;
+            strataCell.style.textAlign = "right";
+            row.appendChild(strataCell);
+
+            const categoryCell = document.createElement("td");
+            categoryCell.textContent = entry.category_label;
+            row.appendChild(categoryCell);
+
+            const votesCell = document.createElement("td");
+            votesCell.textContent = entry.votes;
+            votesCell.style.textAlign = "right";
+            row.appendChild(votesCell);
+
+            const agreementCell = document.createElement("td");
+            agreementCell.textContent =
+                entry.agreement == null
+                    ? "—"
+                    : `${Math.round(entry.agreement * 100)}%`;
+            agreementCell.style.textAlign = "right";
+            row.appendChild(agreementCell);
+
+            rows.appendChild(row);
+        }
+
+        if (data.total === 0) {
+            status.textContent = "No words in this list yet.";
+            table.hidden = true;
+            pagination.hidden = true;
+            return;
+        }
+        status.textContent = "";
+        table.hidden = false;
+
+        const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+        pageIndicator.textContent = `Page ${page} of ${totalPages} (${data.total} words)`;
+        prevButton.disabled = page <= 1;
+        nextButton.disabled = page >= totalPages;
+        pagination.hidden = false;
+    }
+
+    prevButton.addEventListener("click", () => {
+        if (page > 1) {
+            page -= 1;
+            void loadPage();
+        }
+    });
+    nextButton.addEventListener("click", () => {
+        page += 1;
+        void loadPage();
+    });
+
+    // Each `/auto-curate` call is one server-side budget-capped pass (see
+    // `_AUTO_CURATE_BUDGET`); repeat until a pass makes no further progress
+    // (`resolved === 0`) rather than looping until `remaining` hits 0 —
+    // some words have no automatic evidence either way and are left for a
+    // human, so `remaining` can plateau above 0 forever. `MAX_PASSES` is
+    // just a defensive cap against an unforeseen bug looping forever.
+    const MAX_PASSES = 20;
+    autoCurateButton.addEventListener("click", async () => {
+        autoCurateButton.disabled = true;
+        autoCurateStatus.hidden = false;
+        let totalResolved = 0;
+        let failed = false;
+        for (let pass = 0; pass < MAX_PASSES; pass += 1) {
+            autoCurateStatus.textContent =
+                totalResolved > 0
+                    ? `Auto-curated ${totalResolved} word(s) so far…`
+                    : "Auto-curating…";
+            const response = await api(`${base}/auto-curate`, {
+                method: "POST",
+            });
+            if (!response.ok) {
+                failed = true;
+                break;
+            }
+            const result = await response.json();
+            totalResolved += result.resolved;
+            if (result.resolved === 0) {
+                autoCurateStatus.textContent =
+                    totalResolved > 0
+                        ? `Auto-curated ${totalResolved} word(s). ` +
+                          `${result.remaining} word(s) need a human.`
+                        : `Nothing could be auto-curated — all ` +
+                          `${result.remaining} remaining word(s) need a human.`;
+                break;
+            }
+        }
+        const stillRunning = autoCurateStatus.textContent.endsWith("…");
+        if (failed) {
+            autoCurateStatus.textContent = "Auto-curate failed.";
+        } else if (totalResolved > 0 && stillRunning) {
+            // Exited via MAX_PASSES rather than running dry: still useful
+            // progress, worth a final summary instead of a stale "…" line.
+            autoCurateStatus.textContent =
+                `Auto-curated ${totalResolved} word(s) so far — ` +
+                "click again for more.";
+        }
+        autoCurateButton.disabled = false;
+        page = 1;
+        await loadPage();
+    });
+
+    await loadPage();
 }
 
 // Curation session: the web equivalent of `emmio curate`. Unlike

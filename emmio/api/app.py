@@ -63,7 +63,11 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
-from emmio.lexicon.curation import classify_automatically
+from emmio.lexicon.curation import (
+    EMMIO_CURATOR_NAME,
+    EMMIO_CURATOR_USER_ID,
+    classify_automatically,
+)
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history, latest_windowed_rate
 from emmio.lexicon.replay import replay
@@ -3348,6 +3352,84 @@ async def get_next_curation_word(
     )
 
 
+# Words per page for `/words`. Same order of magnitude as a stratum's target
+# panel size (`DEFAULT_N_C` in `emmio.lexicon.curation`), so a page is a
+# natural, skimmable chunk rather than an arbitrary round number.
+_WORDS_PAGE_SIZE_DEFAULT: int = 100
+_WORDS_PAGE_SIZE_MAX: int = 500
+
+
+class CuratedWordEntry(BaseModel):
+    """One word in a curated list, with its current curation status."""
+
+    word: str
+    stratum: int
+    category: str  # A `curated_words.category` code, e.g. `W` or `U`.
+    category_label: str  # `category`, spelled out.
+    votes: int
+    agreement: float | None
+
+
+class CuratedWordsPage(BaseModel):
+    """One page of a curated list's words, for the review table."""
+
+    words: list[CuratedWordEntry]
+    total: int  # Total words matching `stratum`, across every page.
+    page: int
+    page_size: int
+
+
+@app.get("/api/v1/curation/{language}/{frequency_list_id}/words")
+def get_curation_words(
+    language: str,
+    frequency_list_id: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+    page: int = 1,
+    page_size: int = _WORDS_PAGE_SIZE_DEFAULT,
+    stratum: int | None = None,
+) -> CuratedWordsPage:
+    """Get one page of a curated list's words, with their curation status.
+
+    Ordered the same way the list is served (`stratum`, then `panel_order`
+    within it) — a stable reading order across pages, not just whatever
+    order the database happens to return rows in. `page`/`page_size` are
+    clamped rather than rejected, matching `/me/lexicons/{id}/next`'s
+    `count` handling.
+    """
+    curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
+    page = max(1, page)
+    page_size = max(1, min(page_size, _WORDS_PAGE_SIZE_MAX))
+    offset: int = (page - 1) * page_size
+
+    labels: dict[str, str] = dict(_CURATION_CATEGORY_LABELS)
+    rows = postgres.get_curated_words(
+        curated_list_id, stratum, offset=offset, limit=page_size
+    )
+    return CuratedWordsPage(
+        words=[
+            CuratedWordEntry(
+                word=word,
+                stratum=word_stratum,
+                category=category,
+                category_label=labels.get(category, category),
+                votes=votes,
+                agreement=agreement,
+            )
+            for (
+                word,
+                word_stratum,
+                _panel_order,
+                category,
+                votes,
+                agreement,
+            ) in rows
+        ],
+        total=postgres.count_curated_words(curated_list_id, stratum),
+        page=page,
+        page_size=page_size,
+    )
+
+
 @app.get("/api/v1/curation/{language}/{frequency_list_id}/translation")
 async def get_curation_translation(
     language: str,
@@ -3418,6 +3500,106 @@ def answer_curation_word(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
         ) from error
+
+
+# Words classified and voted on per call, so a large list is auto-curated
+# incrementally (the client calls again for more) rather than risking one
+# huge blocking request — same reasoning as `_CURATION_SKIP_BUDGET`.
+_AUTO_CURATE_BUDGET: int = 256
+
+
+class AutoCurateResult(BaseModel):
+    """Outcome of one auto-curation pass."""
+
+    resolved: int  # Words classified and voted on this call.
+    checked: int  # Words examined this call (resolved + left undecidable).
+    remaining: int
+    """Panel words the "Emmio" curator still has no vote for, after this
+    call. Does not necessarily shrink to 0 by repeating the call: a word
+    with no automatic evidence either way stays undecidable forever (that
+    is the entire point — it is left for a human), so `remaining` can
+    plateau above 0 once every resolvable word is done.
+    """
+
+
+@app.post("/api/v1/curation/{language}/{frequency_list_id}/auto-curate")
+async def auto_curate_words(
+    language: str,
+    frequency_list_id: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> AutoCurateResult:
+    """Auto-curate up to `_AUTO_CURATE_BUDGET` words, voting as "Emmio".
+
+    Uses exactly the evidence `emmio curate`/`/next` already use to
+    silently *skip* a word without writing anything (see
+    `classify_automatically`) — the difference here is that a real vote
+    gets recorded, attributed to the synthetic "Emmio" curator
+    (`EMMIO_CURATOR_USER_ID`) rather than recomputed fresh every time.
+    That curator is created on first use (`postgres.ensure_user`, with no
+    password, so nothing can log in as it) and votes exactly like any
+    other curator: a human voting on the same word later is simply
+    another `curator_id`, and the usual "mode of each curator's latest
+    vote" consensus lets that human override the bot with no special
+    mechanism needed.
+
+    Only words "Emmio" has not already voted on are considered
+    (`get_curator_unvoted_words`, the same call `--from-lexicon-history`
+    uses for a human curator), in panel order, so repeated calls make
+    steady forward progress instead of re-examining an arbitrary subset
+    each time.
+    """
+    curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
+    postgres.ensure_user(EMMIO_CURATOR_USER_ID, EMMIO_CURATOR_NAME)
+
+    word_language: Language = Language.from_code(language)
+    alphabet: str | None = word_language.get_symbols()
+    non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
+        language, frozenset()
+    )
+    frequency_list: FrequencyList | None = get_data().get_frequency_list(
+        parse_frequency_list_identifier(frequency_list_id, language)
+    )
+    dictionaries: DictionaryCollection = get_data().get_dictionaries(
+        [
+            DictionaryUsageConfig(
+                id="kaikki",
+                from_language=language,
+                name=word_language.get_name(),
+            )
+        ]
+    )
+
+    unvoted: set[str] = postgres.get_curator_unvoted_words(
+        curated_list_id, EMMIO_CURATOR_USER_ID
+    )
+    ordered_words: list[str] = [
+        word
+        for word, *_ in postgres.get_curated_words(curated_list_id)
+        if word in unvoted
+    ]
+
+    resolved: int = 0
+    checked: int = 0
+    for word in ordered_words[:_AUTO_CURATE_BUDGET]:
+        checked += 1
+        category: str | None = await classify_automatically(
+            word,
+            word_language,
+            alphabet,
+            frequency_list,
+            non_proper_nouns,
+            dictionaries,
+        )
+        if category is None:
+            continue
+        postgres.record_curation_vote(
+            curated_list_id, word, category, EMMIO_CURATOR_USER_ID
+        )
+        resolved += 1
+
+    return AutoCurateResult(
+        resolved=resolved, checked=checked, remaining=len(unvoted) - resolved
+    )
 
 
 # Learning. Only the spaced-repetition review of words already being learned is

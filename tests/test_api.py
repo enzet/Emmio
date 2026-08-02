@@ -3373,3 +3373,174 @@ def test_curation_sentence_empty_without_a_cached_example() -> None:
     )
     assert sentence.status_code == 200
     assert sentence.json()["sentence"] is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_words_paginates_and_reports_status() -> None:
+    """`/words` pages through the panel, with each word's curation status."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:5])
+        ],
+    )
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+    postgres.record_curation_vote(list_id, _UK_WORDS[1], "N", "alice")
+
+    first_page = client.get(
+        f"{_CURATION_BASE}/words",
+        params={"page": 1, "page_size": 2},
+        headers=_auth(token),
+    ).json()
+    assert [entry["word"] for entry in first_page["words"]] == _UK_WORDS[:2]
+    assert first_page["total"] == 5
+    assert first_page["page"] == 1
+    assert first_page["page_size"] == 2
+
+    known = {entry["word"]: entry for entry in first_page["words"]}
+    assert known[_UK_WORDS[0]]["category"] == "W"
+    assert known[_UK_WORDS[0]]["category_label"] == "Real word"
+    assert known[_UK_WORDS[0]]["votes"] == 1
+    assert known[_UK_WORDS[1]]["category"] == "N"
+    assert known[_UK_WORDS[1]]["category_label"] == "Not a word"
+
+    second_page = client.get(
+        f"{_CURATION_BASE}/words",
+        params={"page": 2, "page_size": 2},
+        headers=_auth(token),
+    ).json()
+    assert [entry["word"] for entry in second_page["words"]] == _UK_WORDS[2:4]
+
+    last_page = client.get(
+        f"{_CURATION_BASE}/words",
+        params={"page": 3, "page_size": 2},
+        headers=_auth(token),
+    ).json()
+    assert [entry["word"] for entry in last_page["words"]] == [_UK_WORDS[4]]
+
+    # A word never voted on: "Unsure" is the untouched default.
+    unvoted = next(
+        entry for entry in last_page["words"] if entry["word"] == _UK_WORDS[4]
+    )
+    assert unvoted["category"] == "U"
+    assert unvoted["category_label"] == "Unsure"
+    assert unvoted["votes"] == 0
+    assert unvoted["agreement"] is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_words_page_number_is_clamped() -> None:
+    """`page < 1` is clamped to 1, not rejected or out of range."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+
+    response = client.get(
+        f"{_CURATION_BASE}/words", params={"page": 0}, headers=_auth(token)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["page"] == 1
+    assert [entry["word"] for entry in body["words"]] == [_UK_WORDS[0]]
+
+
+def test_curation_words_unknown_list_is_404() -> None:
+    """`/words` 404s on an unknown `(language, id)` pair, like the rest."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.get(
+        "/api/v1/curation/xx/nonexistent/words", headers=_auth(token)
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_auto_curate_resolves_alphabet_invalid_words() -> None:
+    """A word outside the alphabet is auto-curated as "not a word"."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            # Valid Cyrillic, but the fake has no dictionary evidence for
+            # it: stays undecidable, left for a human.
+            (_UK_WORDS[0], 0, 0, "bootstrap"),
+            # Outside the Ukrainian alphabet: automatically resolvable.
+            ("latin123", 0, 1, "bootstrap"),
+        ],
+    )
+
+    response = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["checked"] == 2
+    assert body["resolved"] == 1
+    assert body["remaining"] == 1
+
+    words = {
+        word: (category, votes)
+        for word, _, _, category, votes, _ in postgres.get_curated_words(
+            list_id
+        )
+    }
+    assert words["latin123"] == ("N", 1)
+    assert words[_UK_WORDS[0]] == ("U", 0)  # Left untouched, for a human.
+
+    # "Emmio" is a real, distinct, attributable curator, not an anonymous
+    # write — created lazily on first use.
+    assert postgres.user_exists("emmio")
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_auto_curate_is_idempotent_for_resolved_words() -> None:
+    """Re-running does not re-examine or re-vote an already-resolved word."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [("latin123", 0, 0, "bootstrap")])
+
+    first = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    ).json()
+    assert first == {"resolved": 1, "checked": 1, "remaining": 0}
+
+    second = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    ).json()
+    assert second == {"resolved": 0, "checked": 0, "remaining": 0}
+
+    votes = postgres.get_curated_words(list_id)[0][4]
+    assert votes == 1  # Not double-voted.
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_auto_curate_leaves_undecidable_words_for_a_human() -> None:
+    """A word with no automatic evidence either way stays `U`, uncounted."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+
+    response = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    ).json()
+    assert response == {"resolved": 0, "checked": 1, "remaining": 1}
+    assert postgres.get_curated_words(list_id)[0][3] == "U"
+
+
+def test_auto_curate_unknown_list_is_404() -> None:
+    """`/auto-curate` 404s on an unknown `(language, id)` pair, like `/next`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/curation/xx/nonexistent/auto-curate", headers=_auth(token)
+    )
+    assert response.status_code == 404

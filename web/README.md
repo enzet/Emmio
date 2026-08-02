@@ -31,6 +31,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
 | `curated-lists.html` | Table of curated lists, with a total/remaining-for-you word count. |
+| `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
@@ -45,7 +46,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/forms.js`            | Shared "create a lexicon / course / learning" form wiring.       |
 | `js/check-session.js`    | `runSession()` (lexicon checking) and the check page.             |
 | `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
-| `js/curate-session.js`   | The curated-lists picker and the curate page (`emmio curate`'s web equivalent). |
+| `js/curate-session.js`   | The curated-lists picker, the per-list word table, and the curate page (`emmio curate`'s web equivalent). |
 | `js/auth-pages.js`       | Landing, login, register.                                        |
 | `js/home-pages.js`       | Dashboard and the per-language page.                              |
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
@@ -91,8 +92,9 @@ flowchart LR
 
     subgraph curation["Curation"]
         curatedLists["curated-lists.html<br/>list"]
+        curatedList["curated-list.html<br/>words table"]
         curate["curate.html<br/>curate words"]
-        curatedLists --> curate
+        curatedLists --> curatedList --> curate
     end
 
     login -->|"log in → store token"| home
@@ -196,8 +198,23 @@ sequenceDiagram
 
     B->>A: GET /curation/lists
     A-->>B: [{ language, frequency_list_id, name, words, unvoted }, ...]
-    Note over B: curated-lists.html links to<br/>curate.html?language=<language>&list=<id>
+    Note over B: curated-lists.html links to<br/>curated-list.html?language=<language>&list=<id>
 
+    opt browsing the list (curated-list.html)
+        B->>A: GET /curation/{language}/{id}/words?page=1&page_size=100
+        A-->>B: { words: [{ word, stratum, category, category_label,<br/>votes, agreement }, ...], total, page, page_size }
+        Note over B: Previous/Next buttons just change `page` and re-fetch
+    end
+
+    opt "Auto-curate" button (curated-list.html)
+        loop until a pass resolves nothing further
+            B->>A: POST /curation/{language}/{id}/auto-curate
+            A-->>B: { resolved, checked, remaining }
+        end
+        Note over B: reloads the words table
+    end
+
+    Note over B: curated-list.html links to<br/>curate.html?language=<language>&list=<id>
     B->>A: GET /curation/categories
     A-->>B: [{ code, label }, ...]  (used to build the answer buttons)
 
@@ -218,6 +235,25 @@ past the proper-noun threshold, or clear dictionary evidence either way) without
 anything — `auto_resolved` in the response is purely informational (e.g. for a "skipped N
 words" status line), not something the client acts on. See
 `emmio.lexicon.curation.classify_automatically`, shared with the CLI's `emmio curate`.
+
+`/words` is a read-only overview, ordered the same way the panel is served (`stratum`,
+then `panel_order` within it) so paging through it is a stable, meaningful reading order,
+not just insertion order. `page`/`page_size` are clamped rather than rejected (`page < 1`
+becomes `1`; `page_size` is capped), matching `/me/lexicons/{id}/next`'s `count` handling.
+`category`/`category_label`/`votes`/`agreement` are exactly what `curated_words` caches —
+nothing here is computed on the fly.
+
+`/auto-curate` runs `classify_automatically` (the same evidence `/next` uses to silently
+*skip* a word) over words the synthetic `"emmio"` curator has not yet voted on, and
+records real votes for whatever it can resolve — the difference from `/next` is that this
+writes, rather than recomputing the same judgment fresh every time. That curator is
+created lazily, with no password, so nothing can log in as it; a human voting on the same
+word later is just another `curator_id`, and the normal "mode of each curator's latest
+vote" consensus lets them override the bot with no special-casing. Each call is one
+budget-capped pass (`_AUTO_CURATE_BUDGET`), so `curate-session.js` loops client-side,
+calling again until a pass resolves nothing further — `remaining` does not have to reach
+0, since a word with no automatic evidence either way is correctly left for a human
+forever.
 
 ## Scope and limitations
 

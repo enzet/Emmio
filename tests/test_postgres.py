@@ -130,6 +130,43 @@ def test_get_curated_words_filters_by_stratum() -> None:
     ]
 
 
+def test_get_curated_words_paginates() -> None:
+    """`offset`/`limit` page through the words in serving order."""
+
+    list_id = _make_list()
+    postgres.add_curated_words(
+        list_id,
+        [(word, 0, index, "bootstrap") for index, word in enumerate("abcde")],
+    )
+
+    first_page = postgres.get_curated_words(list_id, offset=0, limit=2)
+    assert [w[0] for w in first_page] == ["a", "b"]
+
+    second_page = postgres.get_curated_words(list_id, offset=2, limit=2)
+    assert [w[0] for w in second_page] == ["c", "d"]
+
+    last_page = postgres.get_curated_words(list_id, offset=4, limit=2)
+    assert [w[0] for w in last_page] == ["e"]
+
+    past_the_end = postgres.get_curated_words(list_id, offset=10, limit=2)
+    assert past_the_end == []
+
+    # `limit=None` (the default) is still "no limit".
+    assert len(postgres.get_curated_words(list_id, offset=1)) == 4
+
+
+def test_count_curated_words() -> None:
+    """`count_curated_words` counts without fetching the rows."""
+
+    list_id = _make_list()
+    postgres.add_curated_words(
+        list_id, [("a", 0, 0, "bootstrap"), ("b", 1, 0, "bootstrap")]
+    )
+    assert postgres.count_curated_words(list_id) == 2
+    assert postgres.count_curated_words(list_id, stratum=1) == 1
+    assert postgres.count_curated_words(list_id, stratum=5) == 0
+
+
 def test_promote_fallback_word_appends_after_current_max() -> None:
     """A promoted word gets the next panel_order in its stratum."""
 

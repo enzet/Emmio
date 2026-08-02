@@ -1816,33 +1816,53 @@ def get_curated_word_stratum(curated_list_id: int, word: str) -> int | None:
 
 
 def get_curated_words(
-    curated_list_id: int, stratum: int | None = None
+    curated_list_id: int,
+    stratum: int | None = None,
+    offset: int = 0,
+    limit: int | None = None,
 ) -> list[CuratedWordRow]:
     """Get a curated list's words, ordered by stratum then panel order.
 
     :param curated_list_id: internal identifier of the curated list
     :param stratum: restrict to one stratum, or `None` for the whole list
+    :param offset: number of leading rows to skip, for pagination
+    :param limit: maximum rows to return, or `None` for no limit
     """
     with db_cursor() as cursor:
-        if stratum is None:
-            cursor.execute(
-                "SELECT word, stratum, panel_order, category, votes, "
-                "agreement FROM curated_words WHERE curated_list_id = %s "
-                "ORDER BY stratum, panel_order",
-                (curated_list_id,),
-            )
-        else:
-            cursor.execute(
-                "SELECT word, stratum, panel_order, category, votes, "
-                "agreement FROM curated_words "
-                "WHERE curated_list_id = %s AND stratum = %s "
-                "ORDER BY panel_order",
-                (curated_list_id, stratum),
-            )
+        cursor.execute(
+            "SELECT word, stratum, panel_order, category, votes, "
+            "agreement FROM curated_words WHERE curated_list_id = %s "
+            "AND (%s::INT IS NULL OR stratum = %s) "
+            "ORDER BY stratum, panel_order "
+            "LIMIT %s OFFSET %s",
+            (curated_list_id, stratum, stratum, limit, offset),
+        )
         return [
             (row[0], row[1], row[2], row[3], row[4], row[5])
             for row in cursor.fetchall()
         ]
+
+
+def count_curated_words(
+    curated_list_id: int, stratum: int | None = None
+) -> int:
+    """Count a curated list's words, optionally restricted to one stratum.
+
+    Cheaper than `len(get_curated_words(...))` for a page's "total" count,
+    since it never fetches the rows themselves.
+
+    :param curated_list_id: internal identifier of the curated list
+    :param stratum: restrict to one stratum, or `None` for the whole list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) FROM curated_words WHERE curated_list_id = %s "
+            "AND (%s::INT IS NULL OR stratum = %s)",
+            (curated_list_id, stratum, stratum),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
 
 
 def get_next_curation_candidate(

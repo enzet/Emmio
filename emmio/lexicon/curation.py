@@ -35,6 +35,22 @@ logger: logging.Logger = logging.getLogger(__name__)
 DEFAULT_N_STRATA: int = 10
 DEFAULT_N_C: int = 50
 
+EMMIO_CURATOR_USER_ID: str = "emmio"
+"""Login of the synthetic curator `classify_automatically` votes as.
+
+Unlike a normal account, it is created with no password (see
+`postgres.ensure_user`), so nothing can log in as it — it exists purely as
+an attributable `curator_id`, exactly as auditable and overridable by a
+later human vote as any other curator's (see `postgres.record_curation_vote`'s
+"mode of each curator's latest vote" consensus). This is what keeps
+auto-curation from breaking the "only human decisions are stored" rule:
+the rule was always about attribution, not about excluding automatic
+evidence outright — a vote from a real, visible, named account is exactly
+as legitimate as one from a person, it just happens to be Emmio's.
+"""
+
+EMMIO_CURATOR_NAME: str = "Emmio"
+
 
 async def classify_automatically(
     word: str,

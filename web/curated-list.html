@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Curated list</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            href="/data/fonts/InterVariable.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin
+        />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" type="module"></script>
+    </head>
+    <body data-page="curated-list">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a href="curated-lists">← Curated lists</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="curated-list-heading">Curated list</h1>
+            <p>
+                <button id="curate-link" type="button">Curate this list</button>
+                <button id="auto-curate" type="button">Auto-curate</button>
+            </p>
+            <p id="auto-curate-status" role="status" hidden></p>
+            <table id="words-table" hidden>
+                <thead>
+                    <tr>
+                        <th scope="col">Word</th>
+                        <th scope="col">Stratum</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Votes</th>
+                        <th scope="col">Agreement</th>
+                    </tr>
+                </thead>
+                <tbody id="words-rows"></tbody>
+            </table>
+            <p id="pagination" hidden>
+                <button id="prev-page" type="button">← Previous</button>
+                <span id="page-indicator"></span>
+                <button id="next-page" type="button">Next →</button>
+            </p>
+        </main>
+        <footer>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>
