@@ -182,14 +182,21 @@ before the word is taught. The `response` value depends on the resource:
 ## Curation
 
 `curate.html`/`curate-session.js` is the web equivalent of `emmio curate`: instead of a
-know/don't-know question, the curator picks which category a word belongs to (`GET
-/curation/categories` lists them, so the client never hardcodes the taxonomy). A list is
-addressed by `(language, frequency_list_id)` everywhere — the same pair `emmio curate
-<language> <frequency_list_id>` takes, and the schema's own `UNIQUE (language,
-frequency_list_id)` key — never by the database-internal numeric `curated_lists.id`.
-Simpler than a checking session — no prefetch queue, since `GET
-/curation/{language}/{id}/next` is a cheap query (not an expensive selector draw worth
-amortizing), and no undo (a curation vote is real history from the moment it lands):
+know/don't-know question, the curator picks which category a word belongs to. `GET
+/curation/categories` returns the taxonomy as a tree — group (1) alone, group (2) nested
+under a non-selectable "Not to check" heading (mirroring `NOT_TO_CHECK_TREE`'s own
+nesting, e.g. "Missing spaces"/"Missing diacritics" under "Misspelling"), then "Unsure" —
+which the client renders as a hierarchical `<ul>` of radio buttons sharing `name=
+"category"`, so the client never hardcodes the taxonomy and never has to flatten it by
+hand either. A node with children (e.g. "Misspelling") is still independently selectable
+alongside its own subcategories; selecting any radio fires `change`, answering
+immediately with no separate submit step. A list is addressed by `(language,
+frequency_list_id)` everywhere — the same pair `emmio curate <language>
+<frequency_list_id>` takes, and the schema's own `UNIQUE (language, frequency_list_id)`
+key — never by the database-internal numeric `curated_lists.id`. Simpler than a checking
+session — no prefetch queue, since `GET /curation/{language}/{id}/next` is a cheap query
+(not an expensive selector draw worth amortizing), and no undo (a curation vote is real
+history from the moment it lands):
 
 ```mermaid
 sequenceDiagram
@@ -216,7 +223,7 @@ sequenceDiagram
 
     Note over B: curated-list.html links to<br/>curate.html?language=<language>&list=<id>
     B->>A: GET /curation/categories
-    A-->>B: [{ code, label }, ...]  (used to build the answer buttons)
+    A-->>B: [{ code, label, children: [...] }, ...]  (built into the radio-button tree)
 
     loop per word
         B->>A: GET /curation/{language}/{id}/next

@@ -3247,14 +3247,33 @@ def test_curation_lists_reports_counts() -> None:
     assert summary["unvoted"] == 2  # One already voted on.
 
 
-def test_curation_categories_lists_every_code() -> None:
-    """`/curation/categories` lists the full taxonomy, group 1 then group 2."""
+def test_curation_categories_is_a_tree() -> None:
+    """`/curation/categories`: group 1, group 2 (nested), then "Unsure"."""
 
     token = _register_and_login("alice", "alice@example.com")
     response = client.get("/api/v1/curation/categories", headers=_auth(token))
     assert response.status_code == 200
-    codes = [option["code"] for option in response.json()]
-    assert codes == ["W", "P", "R", "M", "F", "N", "U"]
+    tree = response.json()
+
+    assert [node["code"] for node in tree] == ["W", None, "U"]
+    not_to_check = tree[1]
+    assert not_to_check["label"] == "Not to check"
+    assert [node["code"] for node in not_to_check["children"]] == [
+        "P",
+        "R",
+        "M",
+        "F",
+        "N",
+    ]
+
+    misspelling = not_to_check["children"][2]
+    assert misspelling["label"] == "Misspelling"
+    assert [node["code"] for node in misspelling["children"]] == ["S", "D", "G"]
+    assert misspelling["children"][0]["label"] == "Missing spaces"
+    assert misspelling["children"][1]["label"] == "Missing diacritics"
+    assert misspelling["children"][2]["label"] == "Split into fragments"
+    # Leaves have no further children, but the field is still present.
+    assert misspelling["children"][0]["children"] == []
 
 
 @pytest.mark.usefixtures("fake_uk_list")

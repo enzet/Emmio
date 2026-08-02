@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Any, Self, cast, override
+from typing import Any, NamedTuple, Self, cast, override
 
 import numpy as np
 from pydantic import BaseModel
@@ -45,27 +45,73 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 DATE_FORMAT: str = "%Y.%m.%d %H:%M:%S"
 
+
+class CategoryNode(NamedTuple):
+    """One entry in the category (2) taxonomy, possibly with subcategories.
+
+    `code` is the `curated_words.category` code this node stores when
+    chosen — every node is independently selectable, even one with
+    `children` (e.g. choosing plain `Misspelling` itself is valid, not
+    just its `Missing spaces`/`Missing diacritics` children). `children`
+    is what makes this a tree rather than a flat list: only the web
+    curate page's hierarchical picker (`GET /curation/categories` in
+    `emmio/api/app.py`) actually renders the nesting — the CLI and
+    `check.html`'s submenu still just want a flat menu, which
+    `_flatten_category_tree` below produces from the same source.
+    """
+
+    code: str
+    label: str
+    key: str  # Keyboard shortcut (CLI `Interface.choice`, curate.html).
+    children: tuple["CategoryNode", ...] = ()
+
+
 # Category (2): reasons a word should not be tested in a lexicon check —
 # see `research/app.md` "Frequency-list curation" for the full taxonomy
 # (group (1) is the single "normal word" category, `curated_words.category
 # = 'W'`, everything else here is group (2)). Shared by `emmio curate`'s
 # manual review (`emmio/run.py`), `LexiconChecker.ask`'s "Not to check"
-# submenu below, and the web check page's equivalent
-# (`emmio/api/app.py`), so all three write the same taxonomy into
-# `curated_words.category`.
+# submenu below, and both web curation surfaces (`emmio/api/app.py`), so
+# all four write the same taxonomy into `curated_words.category`.
+NOT_TO_CHECK_TREE: tuple[CategoryNode, ...] = (
+    CategoryNode("P", "Proper noun", "p"),
+    CategoryNode("R", "Rare/slang/retro word", "r"),
+    CategoryNode(
+        "M",
+        "Misspelling",
+        "m",
+        (
+            CategoryNode("S", "Missing spaces", "s"),
+            CategoryNode("D", "Missing diacritics", "d"),
+            CategoryNode("G", "Split into fragments", "g"),
+        ),
+    ),
+    CategoryNode("F", "Foreign word", "f"),
+    CategoryNode("N", "Not a word", "n"),
+)
+
+
+def _flatten_category_tree(
+    tree: tuple[CategoryNode, ...],
+) -> list[CategoryNode]:
+    """Flatten a category tree into a depth-first list of every node."""
+    flat: list[CategoryNode] = []
+    for node in tree:
+        flat.append(node)
+        flat.extend(_flatten_category_tree(node.children))
+    return flat
+
+
+# The flat view of `NOT_TO_CHECK_TREE`, for consumers that just want a
+# plain menu rather than the hierarchy itself: `emmio curate`, `LexiconChecker.
+# ask`'s submenu, and `check.html`'s equivalent. Order is depth-first, so a
+# subcategory (e.g. `Missing spaces`) still appears right after its parent
+# (`Misspelling`).
 NOT_TO_CHECK_CATEGORIES: list[tuple[str, str]] = [
-    ("Proper noun", "p"),
-    ("Rare/slang/retro word", "r"),
-    ("Misspelling", "m"),
-    ("Foreign word", "f"),
-    ("Not a word", "n"),
+    (node.label, node.key) for node in _flatten_category_tree(NOT_TO_CHECK_TREE)
 ]
 NOT_TO_CHECK_CATEGORY_CODES: dict[str, str] = {
-    "Proper noun": "P",
-    "Rare/slang/retro word": "R",
-    "Misspelling": "M",
-    "Foreign word": "F",
-    "Not a word": "N",
+    node.label: node.code for node in _flatten_category_tree(NOT_TO_CHECK_TREE)
 }
 
 

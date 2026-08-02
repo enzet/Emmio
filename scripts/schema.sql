@@ -212,11 +212,17 @@ CREATE TABLE IF NOT EXISTS curated_lists (
 -- remaining unanswered words of a stratum, but the *order new words are
 -- appended in* must stay stable for that random draw to remain valid.
 --
--- category codes, in two groups (see `emmio.lexicon.core.NOT_TO_CHECK_CATEGORIES`):
+-- category codes, in two groups (see `emmio.lexicon.core.NOT_TO_CHECK_TREE`):
 --   group (1), words to check:   `W` real_word
 --   group (2), words not to check, by why:
 --     `P` proper_noun, `R` rare (rare/slang/retro word), `M` misspelling,
---     `F` foreign_word, `N` not_a_word (generic/junk, no more specific
+--     `S` misspelling_missing_spaces (words concatenated with no space
+--     between them, e.g. from subtitle-extraction artifacts; a subcategory
+--     of `M`), `D` misspelling_missing_diacritics (accents/diacritics
+--     stripped, e.g. "uber" for "über"; another subcategory of `M`),
+--     `G` misspelling_split_into_fragments (a single word wrongly split by a
+--     stray space, e.g. "v isitar" for "visitar"; another subcategory of
+--     `M`), `F` foreign_word, `N` not_a_word (generic/junk, no more specific
 --     reason fits)
 --   neither group: `U` unknown (no settled consensus yet)
 CREATE TABLE IF NOT EXISTS curated_words (

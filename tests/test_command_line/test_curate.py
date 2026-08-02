@@ -7,7 +7,7 @@ from tests.test_command_line.test_core import check_main, initialize
 
 
 def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
-    """Answering four candidates records all with the right category."""
+    """Answering seven candidates records all with the right category."""
 
     initialize()
     list_id: int = postgres.create_curated_list(
@@ -20,6 +20,9 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
             ("hund", 0, 1, "bootstrap"),
             ("nimmersatt", 0, 2, "bootstrap"),
             ("weekend", 0, 3, "bootstrap"),
+            ("ichliebedich", 0, 4, "bootstrap"),
+            ("uber", 0, 5, "bootstrap"),
+            ("chsel", 0, 6, "bootstrap"),
         ],
     )
 
@@ -31,6 +34,9 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
             "n",  # "hund" is not a word (group 2).
             "r",  # "nimmersatt" is real, but rare/slang/retro (group 2).
             "f",  # "weekend" is a foreign word (group 2).
+            "s",  # "ichliebedich" is missing spaces (group 2).
+            "d",  # "uber" is missing diacritics, should be "über" (group 2).
+            "g",  # "chsel" is split off "wechsel" (group 2).
             "exit",  # Quit Emmio.
         ],
     )
@@ -44,6 +50,9 @@ def test_curate_votes_are_recorded(capsys: pytest.CaptureFixture[str]) -> None:
         "hund": "N",
         "nimmersatt": "R",
         "weekend": "F",
+        "uber": "D",
+        "ichliebedich": "S",
+        "chsel": "G",
     }
 
 

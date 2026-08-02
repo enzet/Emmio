@@ -54,8 +54,10 @@ from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
     NOT_TO_CHECK_CATEGORY_CODES,
+    NOT_TO_CHECK_TREE,
     RATE_ESTIMATOR_BY_SELECTION,
     AnswerType,
+    CategoryNode,
     Lexicon,
     LexiconResponse,
     RateEstimator,
@@ -3224,21 +3226,51 @@ def get_curation_lists(
     ]
 
 
-class CurationCategoryOption(BaseModel):
-    """One selectable category, for the client to build its buttons from."""
+class CurationCategoryNode(BaseModel):
+    """One entry in the category picker, possibly with nested children.
 
-    code: str
+    `code` is `None` for a non-selectable heading — currently just "Not to
+    check", grouping the group-(2) reasons together — every other node is
+    a real, independently selectable `curated_words.category` code, even
+    one with children of its own (e.g. `Misspelling` itself is a valid
+    choice, not just its `Missing spaces`/`Missing diacritics` children).
+    """
+
+    code: str | None
     label: str
+    children: list["CurationCategoryNode"] = []
+
+
+def _curation_category_node(node: CategoryNode) -> CurationCategoryNode:
+    return CurationCategoryNode(
+        code=node.code,
+        label=node.label,
+        children=[_curation_category_node(child) for child in node.children],
+    )
 
 
 @app.get("/api/v1/curation/categories")
 def get_curation_categories(
     _user_id: Annotated[str, Depends(get_current_user)],
-) -> list[CurationCategoryOption]:
-    """List every category a curator may choose, in menu order."""
+) -> list[CurationCategoryNode]:
+    """Get the category picker tree: group (1), group (2), then "Unsure".
+
+    Group (2) (`NOT_TO_CHECK_TREE`) nests under a non-selectable "Not to
+    check" heading — the client renders this as a hierarchical
+    radio-button list rather than hardcoding the taxonomy, so the tree
+    only has to change in one place (`emmio/lexicon/core.py`) to show up
+    here too.
+    """
     return [
-        CurationCategoryOption(code=code, label=label)
-        for code, label in _CURATION_CATEGORY_LABELS
+        CurationCategoryNode(code="W", label="Real word", children=[]),
+        CurationCategoryNode(
+            code=None,
+            label="Not to check",
+            children=[
+                _curation_category_node(node) for node in NOT_TO_CHECK_TREE
+            ],
+        ),
+        CurationCategoryNode(code="U", label="Unsure", children=[]),
     ]
 
 

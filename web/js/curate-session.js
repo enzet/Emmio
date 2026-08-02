@@ -269,17 +269,84 @@ export async function initCurate() {
     let answering = false; // Guards a second click landing before advance().
     let curatedCount = 0;
 
-    // Render the category buttons once, from the server's own list — so the
-    // taxonomy only has to change in one place (`emmio/lexicon/core.py`'s
-    // `NOT_TO_CHECK_CATEGORIES`) to show up here too.
-    const categoriesResponse = await api("/curation/categories");
-    for (const option of await categoriesResponse.json()) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = option.label;
-        button.addEventListener("click", () => answer(option.code));
-        answers.appendChild(button);
+    // Render the category picker once, from the server's own tree — so the
+    // taxonomy (including the "Misspelling" family's nesting) only has to
+    // change in one place (`emmio/lexicon/core.py`'s `NOT_TO_CHECK_TREE`)
+    // to show up here too. Radio buttons, not the plain buttons `check.html`
+    // uses: a node with children (e.g. `Misspelling`) is still its own
+    // independently selectable option, sitting alongside its subcategories
+    // rather than merely grouping them, which reads more naturally as
+    // "pick one of these related options" than a row of same-looking
+    // buttons — and native `<input type="radio">` gets that grouping (and
+    // its accessibility) for free from `name="category"` alone, regardless
+    // of how deep the `<ul>` nesting is.
+    const allRadios = []; // Every selectable radio, for keyboard shortcuts.
+
+    function buildCategoryList(nodes) {
+        const list = document.createElement("ul");
+        list.className = "category-tree";
+        for (const node of nodes) {
+            const item = document.createElement("li");
+            if (node.code) {
+                const label = document.createElement("label");
+                const radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "category";
+                radio.value = node.code;
+                radio.dataset.key = node.code.toLowerCase();
+                // `change` (not `click`): fires for both mouse selection
+                // and the keyboard-shortcut `.click()` below, and only
+                // once per actual selection.
+                radio.addEventListener("change", () => answer(node.code));
+                allRadios.push(radio);
+                label.append(radio, ` ${node.label} `);
+                const kbd = document.createElement("kbd");
+                kbd.textContent = node.code;
+                label.appendChild(kbd);
+                item.appendChild(label);
+            } else {
+                // A non-selectable heading, e.g. "Not to check" — just
+                // groups its children, never itself a category.
+                const heading = document.createElement("span");
+                heading.className = "category-group-label";
+                heading.textContent = node.label;
+                item.appendChild(heading);
+            }
+            if (node.children.length > 0) {
+                item.appendChild(buildCategoryList(node.children));
+            }
+            list.appendChild(item);
+        }
+        return list;
     }
+
+    const categoriesResponse = await api("/curation/categories");
+    answers.appendChild(buildCategoryList(await categoriesResponse.json()));
+
+    // Keyboard shortcuts: each radio's `data-key` triggers `.click()` (which
+    // checks it and fires `change`, same as a mouse click would), the same
+    // press-on-keyup pattern `check-session.js` uses (acting on keydown
+    // would auto-repeat a held key into several answers).
+    function shortcutRadio(event) {
+        if (answers.hidden) return null;
+        if (event.ctrlKey || event.metaKey || event.altKey) return null;
+        if (event.target.matches("input, textarea, select")) return null;
+        const key = event.key.toLowerCase();
+        return answers.querySelector(`input[data-key="${key}"]`);
+    }
+    const armedKeys = new Set();
+    document.addEventListener("keydown", (event) => {
+        if (!shortcutRadio(event)) return;
+        event.preventDefault();
+        armedKeys.add(event.code);
+    });
+    document.addEventListener("keyup", (event) => {
+        if (!armedKeys.delete(event.code)) return;
+        const radio = shortcutRadio(event);
+        if (!radio) return;
+        event.preventDefault();
+        radio.click();
+    });
 
     function renderStatus() {
         sessionCounts.hidden = curatedCount === 0;
@@ -369,6 +436,10 @@ export async function initCurate() {
         translation.replaceChildren();
         answers.hidden = true;
         status.textContent = "";
+        // The radio group persists across words (built once); without this
+        // the previous word's answer would still show checked, as if
+        // pre-selected for the new word.
+        for (const radio of allRadios) radio.checked = false;
 
         const response = await api(`${base}/next`);
         const card = await response.json();

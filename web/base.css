@@ -462,6 +462,29 @@ p#sentence, p#question {
     text-align: center;
 }
 
+/* The curate page's hierarchical category picker (`ul.category-tree`):
+   a plain nested list, indenting each level of subcategory (e.g.
+   "Missing spaces"/"Missing diacritics" under "Misspelling") under its
+   parent. Left-aligned even though `#answers` centers the tree as a
+   whole — a left-ragged tree reads more naturally than a centered one. */
+ul.category-tree {
+    display: inline-block;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+}
+ul.category-tree ul.category-tree {
+    margin: 0.2rem 0 0.3rem 1.4rem;
+}
+ul.category-tree li {
+    margin: 0.2rem 0;
+}
+.category-group-label {
+    font-weight: 600;
+    color: var(--muted);
+}
+
 /* Animated loading indicator: three dots pulsing in sequence, reused wherever
    the word, sentence, or translation is still loading. Sized in fixed `rem` so
    it stays small even inside the 640%-font word slot; `--muted` colour. */
