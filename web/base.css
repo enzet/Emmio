@@ -271,35 +271,34 @@ html[data-theme="dark"] #trajectory[data-method="threshold"] {
     --series: #BD8100;
 }
 
-/* Stratum wheel, shown for the stratified strategy only: eleven concentric
-   circles fence ten annular bands, one per frequency stratum (innermost
-   holds the most frequent words); a band's width is proportional to how
-   many answers it holds. One dot per answered word, scattered inside its
-   stratum's band — filled for "know", hollow for "don't know". The
-   transitions animate rotation and radius, so dots slide with the wheel
-   as it re-balances. */
+/* Stratum line, shown for the stratified strategy only: a horizontal axis
+   divided into equal segments, one per frequency stratum (leftmost holds
+   the most frequent words). One dot per answered word, stacked above its
+   stratum's segment — filled for "know", hollow for "don't know" — filling
+   upward and widening into a new column once a column is full. The
+   transitions animate `cx`/`cy`, so dots slide into place as answers
+   arrive. */
 #strata {
     margin: 0 auto 0.3rem;
-    max-width: 18rem;
+    max-width: 32rem;
 }
 #strata svg {
     display: block;
     width: 100%;
     height: auto;
 }
-#strata .ring {
-    fill: none;
+#strata .baseline {
     stroke: var(--faint);
     stroke-width: 1;
-    /* Band widths adapt to how many dots each stratum holds. */
-    transition: r 0.5s ease;
+}
+#strata .divider {
+    stroke: var(--faint);
+    stroke-width: 1;
+    /* Segment widths stay equal; only their x shifts if `nStrata` changes. */
+    transition: x1 0.5s ease, x2 0.5s ease;
 }
 #strata .dot {
-    /* Rotate around the wheel center (the viewBox is 300×300). */
-    transform-box: view-box;
-    transform-origin: 150px 150px;
-    /* Slide along the ring (rotation) and with it (radius). */
-    transition: transform 0.5s ease, cx 0.5s ease;
+    transition: cx 0.5s ease, cy 0.5s ease;
     animation: strata-pop 0.4s ease;
 }
 #strata .dot.know {

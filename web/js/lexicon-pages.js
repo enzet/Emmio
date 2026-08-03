@@ -102,9 +102,13 @@ export async function initLexicon() {
     // and rechecking is still paused (see `check_available`).
     const checkLink = document.getElementById("check-link");
     if (s.check_available) {
-        checkLink.href = `check?lexicon=${encodeURIComponent(lexiconId)}`;
+        checkLink.disabled = false;
+        checkLink.textContent = "Check this lexicon";
+        checkLink.addEventListener("click", () => {
+            location.href = `check?lexicon=${encodeURIComponent(lexiconId)}`;
+        });
     } else {
-        checkLink.removeAttribute("href");
+        checkLink.disabled = true;
         checkLink.textContent = s.recheck_available_at
             ? `Check available in ${formatCountdown(
                   new Date(s.recheck_available_at).getTime() - Date.now(),
@@ -114,21 +118,23 @@ export async function initLexicon() {
 
     // "Main" toggle: this lexicon's rate counts as the language's level.
     // Setting it replaces any other main lexicon for the same language.
+    const toggleLabel = document.getElementById("main-toggle-label");
     const toggle = document.getElementById("main-toggle");
+    const toggleText = document.getElementById("main-toggle-text");
     const language = languageName(s.language);
     function renderToggle(isMain) {
-        toggle.textContent = isMain
-            ? `★ Main for ${language} (click to unset)`
-            : `Set as main for ${language}`;
-        toggle.hidden = false;
+        toggle.checked = isMain;
+        toggleText.textContent = `Main for ${language}`;
+        toggleLabel.hidden = false;
     }
     renderToggle(s.is_main);
-    toggle.addEventListener("click", async () => {
-        const isMain = toggle.textContent.startsWith("★");
+    toggle.addEventListener("change", async () => {
+        const isMain = toggle.checked;
         const r = await api(`/me/lexicons/${encodeURIComponent(lexiconId)}/main`, {
-            method: isMain ? "DELETE" : "PUT",
+            method: isMain ? "PUT" : "DELETE",
         });
-        if (r.ok) renderToggle(!isMain);
+        if (r.ok) renderToggle(isMain);
+        else toggle.checked = !isMain; // Revert the optimistic UI flip.
     });
 
     const rows = [

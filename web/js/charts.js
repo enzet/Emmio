@@ -587,89 +587,75 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
     };
 }
 
-// Stratum wheel (check page, stratified strategy only): concentric circles
-// fence annular bands, one per frequency stratum (innermost = most frequent
-// words). Each answered word is a dot scattered in its stratum's band,
-// filled for "know"/hollow for "don't know"; a band's width is proportional
-// to its dot count, so the wheel reads as a density map. CSS transitions on
-// `cx`/`r`/rotation slide dots and boundaries as answers arrive.
+// Stratum line (check page, stratified strategy only): a horizontal axis
+// divided into equal segments, one per frequency stratum (leftmost = most
+// frequent words). Each answered word is a dot stacked above its stratum's
+// segment — filled for "know", hollow for "don't know" — filling upward one
+// column at a time and starting a new column alongside once a column is
+// full, so the stack stays within a fixed height however many answers a
+// segment holds. CSS transitions on `cx`/`cy` slide dots as answers arrive.
 export function createStrataChart(figure, svg) {
     const SVG_NS = "http://www.w3.org/2000/svg";
-    const CENTER = 150; // The viewBox is a fixed 300×300 square.
-    const MIN_RADIUS = 40; // The innermost boundary; keeps the center open.
-    const MAX_RADIUS = 140;
-    const DOT_RADIUS = 3.5;
-    const MIN_BAND = 4; // An empty stratum's band never quite vanishes.
+    const VIEW_WIDTH = 500; // The viewBox is a fixed 500×140 strip.
+    const MARGIN_X = 20; // Left/right inset, so the outermost dividers show.
+    const TOP_MARGIN = 10; // Topmost y a dot's center may reach.
+    const BASELINE = 120; // The axis dots stack up from.
+    const DOT_RADIUS = 4;
+    const PITCH = DOT_RADIUS * 2 + 1.5; // Default row/column spacing.
+    const MAX_ROWS = Math.max(1, Math.floor((BASELINE - TOP_MARGIN) / PITCH));
 
     let nStrata = 0;
     let checkedAtSeed = 0; // Session answers already included in the seed.
     let seeded = false;
-    const ringElements = []; // The band boundary circles, nStrata + 1.
-    const rings = []; // Per stratum: [{ element, know, … }], insertion order.
-    const phases = []; // Per stratum: where its first slot points, so the
-    // bands' slot origins never line up into a radial streak.
+    const dividerElements = []; // The segment boundary lines, nStrata + 1.
+    const segments = []; // Per stratum: [{ element, know }], insertion order.
     const pending = []; // Live answers arriving before the seed.
 
-    // The band boundaries: every stratum gets the minimum band plus a
-    // share of the remaining span proportional to its dot count.
+    // Segment boundary x positions, `nStrata + 1` of them, equally spaced.
     function boundaries() {
-        const total = rings.reduce((sum, dots) => sum + dots.length, 0);
-        const span = MAX_RADIUS - MIN_RADIUS - nStrata * MIN_BAND;
-        const radii = [MIN_RADIUS];
-        for (const dots of rings) {
-            radii.push(
-                radii[radii.length - 1] +
-                    MIN_BAND +
-                    (total ? (span * dots.length) / total : span / nStrata),
-            );
-        }
-        return radii;
+        const span = (VIEW_WIDTH - 2 * MARGIN_X) / nStrata;
+        return Array.from(
+            { length: nStrata + 1 },
+            (_, index) => MARGIN_X + index * span,
+        );
     }
 
-    // Re-place everything: boundary circles at their radii, dots in evenly
-    // spaced slots plus each dot's own stable jitter, scaled to the band's
-    // width and isotropic (equal radial/angular spread) so a thin band
-    // stays an orderly ring while a wide one loosens into a point cloud.
+    // Re-place everything: dividers at their x, dots filling a column above
+    // the baseline (oldest at the bottom) and starting a new column beside
+    // it once `MAX_ROWS` is reached, so a heavily answered stratum widens
+    // instead of growing off the top of the chart.
     function layoutAll() {
-        const radii = boundaries();
-        for (const [index, ring] of ringElements.entries()) {
-            ring.setAttribute("r", radii[index]);
+        const xs = boundaries();
+        for (const [index, divider] of dividerElements.entries()) {
+            divider.setAttribute("x1", xs[index]);
+            divider.setAttribute("x2", xs[index]);
         }
-        for (const [stratum, dots] of rings.entries()) {
-            const middle = (radii[stratum] + radii[stratum + 1]) / 2;
-            const room = Math.max(
-                radii[stratum + 1] - radii[stratum] - 2 * DOT_RADIUS - 2,
-                0,
-            );
-            const slot = 360 / dots.length;
+        const segmentWidth = xs[1] - xs[0];
+        for (const [stratum, dots] of segments.entries()) {
+            const center = (xs[stratum] + xs[stratum + 1]) / 2;
+            const columns = Math.max(1, Math.ceil(dots.length / MAX_ROWS));
+            const colPitch = Math.min(PITCH, segmentWidth / columns);
+            const startX = center - (colPitch * (columns - 1)) / 2;
             for (const [index, dot] of dots.entries()) {
+                const column = Math.floor(index / MAX_ROWS);
+                const row = index % MAX_ROWS;
+                dot.element.setAttribute("cx", startX + column * colPitch);
                 dot.element.setAttribute(
-                    "cx",
-                    CENTER + middle + dot.drift * room * 2,
+                    "cy",
+                    BASELINE - DOT_RADIUS - row * PITCH,
                 );
-                const arc =
-                    ((dot.spin * room) / middle) * (180 / Math.PI);
-                dot.element.style.transform =
-                    `rotate(${phases[stratum] + index * slot + arc}deg)`;
             }
         }
     }
 
-    // Create a dot (its jitter is drawn once and kept, so re-layouts never
-    // make it wander) without adding it to the document: the caller runs
+    // Create a dot without adding it to the document: the caller runs
     // `layoutAll` first, so the dot pops up in place instead of sliding in.
     function place(stratum, know) {
         if (stratum == null || stratum < 0 || stratum >= nStrata) return null;
         const dot = document.createElementNS(SVG_NS, "circle");
         dot.setAttribute("class", `dot ${know ? "know" : "dont"}`);
-        dot.setAttribute("cy", CENTER);
         dot.setAttribute("r", DOT_RADIUS);
-        rings[stratum].push({
-            element: dot,
-            know,
-            spin: Math.random() - 0.5,
-            drift: Math.random() - 0.5,
-        });
+        segments[stratum].push({ element: dot, know });
         return dot;
     }
 
@@ -680,10 +666,10 @@ export function createStrataChart(figure, svg) {
         svg.append(dot);
     }
 
-    // Remove the ring's most recent dot of that kind (for an undo).
+    // Remove the segment's most recent dot of that kind (for an undo).
     function remove(stratum, know) {
         if (stratum == null || stratum < 0 || stratum >= nStrata) return;
-        const dots = rings[stratum];
+        const dots = segments[stratum];
         for (let index = dots.length - 1; index >= 0; index -= 1) {
             if (dots[index].know === know) {
                 dots[index].element.remove();
@@ -695,28 +681,34 @@ export function createStrataChart(figure, svg) {
     }
 
     return {
-        // Draw the rings and the whole history's dots, then replay the
+        // Draw the axis and the whole history's dots, then replay the
         // answers this session recorded while the seed was loading (the
         // first `checkedNow` of them are already inside the seed).
         setSeed(answers, total, checkedNow) {
             nStrata = total;
             checkedAtSeed = checkedNow;
-            rings.length = 0;
-            ringElements.length = 0;
-            phases.length = 0;
+            segments.length = 0;
+            dividerElements.length = 0;
             svg.replaceChildren();
-            // One boundary circle more than there are strata bands.
+
+            const baseline = document.createElementNS(SVG_NS, "line");
+            baseline.setAttribute("class", "baseline");
+            baseline.setAttribute("x1", MARGIN_X);
+            baseline.setAttribute("x2", VIEW_WIDTH - MARGIN_X);
+            baseline.setAttribute("y1", BASELINE);
+            baseline.setAttribute("y2", BASELINE);
+            svg.append(baseline);
+
+            // One divider more than there are segments, marking every
+            // boundary between (and around) them.
             for (let boundary = 0; boundary <= nStrata; boundary += 1) {
-                const ring = document.createElementNS(SVG_NS, "circle");
-                ring.setAttribute("class", "ring");
-                ring.setAttribute("cx", CENTER);
-                ring.setAttribute("cy", CENTER);
-                svg.append(ring);
-                ringElements.push(ring);
-                if (boundary < nStrata) {
-                    rings.push([]);
-                    phases.push(Math.random() * 360);
-                }
+                const divider = document.createElementNS(SVG_NS, "line");
+                divider.setAttribute("class", "divider");
+                divider.setAttribute("y1", TOP_MARGIN);
+                divider.setAttribute("y2", BASELINE);
+                svg.append(divider);
+                dividerElements.push(divider);
+                if (boundary < nStrata) segments.push([]);
             }
             // One layout for the whole history, then attach: dots enter the
             // document already in position.
