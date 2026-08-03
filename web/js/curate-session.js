@@ -260,6 +260,7 @@ export async function initCurate() {
     const status = document.getElementById("status");
     const sessionCounts = document.getElementById("session-counts");
     const externalLinks = document.getElementById("external-links");
+    const googleAiLink = document.getElementById("google-ai-link");
     const googleLink = document.getElementById("google-link");
     const yandexLink = document.getElementById("yandex-link");
     const wiktionaryLink = document.getElementById("wiktionary-link");
@@ -411,8 +412,11 @@ export async function initCurate() {
         const forWord = encodeURIComponent(current.word);
         const langName = languageName(language);
         const query = `Translate ${langName} word "${current.word}".`;
-        googleLink.href =
+        googleAiLink.href =
             `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        // A plain quoted-word search, unlike the AI-prompt query above.
+        googleLink.href =
+            `https://www.google.com/search?q=${encodeURIComponent(`"${current.word}"`)}`;
         yandexLink.href =
             `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
             `&target_lang=en&text=${forWord}`;

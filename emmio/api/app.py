@@ -48,6 +48,13 @@ from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
 from emmio.dictionary.en_wiktionary import kaikki_language_name
 from emmio.language import KnownLanguages, Language, LanguageNotFoundError
+from emmio.language_knowledge import (
+    KNOWLEDGE_KINDS,
+    KNOWLEDGE_KINDS_BY_CODE,
+    KnowledgeKind,
+    is_valid_caption,
+    is_valid_knowledge_value,
+)
 from emmio.learn.config import LearningType
 from emmio.learn.core import Learning, Response
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
@@ -1761,6 +1768,16 @@ class NextWord(BaseModel):
     word: str | None
 
 
+class StratumAnswer(BaseModel):
+    """One know/don't-know answer placed in its frequency stratum."""
+
+    stratum: int
+    """0-based log-uniform stratum index of the answered word's rank."""
+
+    know: bool
+    """True for a "know" answer, False for "don't know"."""
+
+
 class WordCard(BaseModel):
     """One upcoming word with its last-answer context (if any)."""
 
@@ -1806,6 +1823,16 @@ class NextWords(BaseModel):
     """Number of words in the lexicon's frequency list (lexicon checks only)."""
     strata: int | None = None
     """Total number of strata, when `selection` is `stratified`."""
+
+    propagated: list[StratumAnswer] = []
+    """Know/don't-know answers auto-recorded (never presented) while drawing
+    this batch — a stale or skip-flagged word propagated from this or a
+    sibling lexicon (see `_skip_decision`). They are real records and do
+    count toward the rate estimate the moment they land, but a client
+    driving a live chart from `/answer` alone would otherwise never see
+    them: nothing else in this response calls them out. Empty outside
+    `stratified` (no stratum to place them in) or a non-word propagation
+    (no "know" boolean to plot)."""
 
 
 # Short human labels for stored response codes, for the "last answer" hint.
@@ -2248,6 +2275,41 @@ def _draw_batch(
     return words, auto
 
 
+def _propagated_stratum_answers(
+    auto: list[postgres.LexiconRecordRow],
+    frequency_list: FrequencyList,
+    size: int,
+    n_strata: int,
+    selection: LexiconSelection,
+) -> list[StratumAnswer]:
+    """Build the chart-ready points for words `_draw_batch` auto-answered.
+
+    Mirrors the trajectory replay's own filter (`get_lexicon_rate_
+    trajectory`): only know/don't-know codes place a dot, so a `not_a_word`
+    propagation (no "know" boolean to plot) is silently skipped, same as
+    there.
+    """
+    if selection != LexiconSelection.STRATIFIED:
+        return []
+    know: str = LexiconResponse.KNOW.to_code()
+    know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
+    dont: str = LexiconResponse.DONT.to_code()
+    answers: list[StratumAnswer] = []
+    for word, code, _when, _extra in auto:
+        if code not in (know, know_class, dont):
+            continue
+        index: int = frequency_list.get_index(word)
+        if index < 0:
+            continue
+        answers.append(
+            StratumAnswer(
+                stratum=stratum_of_rank(index + 1, size, n_strata),
+                know=code != dont,
+            )
+        )
+    return answers
+
+
 class OpenedSession(BaseModel):
     """Identifier of a freshly opened session."""
 
@@ -2433,6 +2495,9 @@ def get_next_lexicon_words(
         selection=selection,
         list_size=size,
         strata=(n_strata if selection == LexiconSelection.STRATIFIED else None),
+        propagated=_propagated_stratum_answers(
+            auto, frequency_list, size, n_strata, selection
+        ),
     )
 
 
@@ -2699,16 +2764,6 @@ class TrajectoryPoint(BaseModel):
 
     sd: float | None
     """Standard deviation of the estimate."""
-
-
-class StratumAnswer(BaseModel):
-    """One know/don't-know answer placed in its frequency stratum."""
-
-    stratum: int
-    """0-based log-uniform stratum index of the answered word's rank."""
-
-    know: bool
-    """True for a "know" answer, False for "don't know"."""
 
 
 class RateTrajectory(BaseModel):
@@ -3360,6 +3415,203 @@ def clear_lexicon_main(
     """Clear this lexicon's main flag; its language then has no main."""
     _lexicon_config_or_404(user_id, lexicon_id)
     postgres.clear_main_lexicon(user_id, lexicon_id)
+
+
+# Self-reported language knowledge: a user's own proficiency estimates,
+# entered by hand — distinct from a lexicon's computed rate. Each estimate
+# names a curated "kind" first (native speaker, self-assessed, teacher-
+# assessed, or a specific certifying organization), which determines the
+# scale its value is drawn from; see `emmio.language_knowledge` for the
+# taxonomy, the single source of truth both this API and the web picker
+# read from.
+
+
+class KnowledgeValueOption(BaseModel):
+    """One selectable value on a knowledge kind's scale."""
+
+    code: str
+    label: str
+
+
+class NumericRangeOption(BaseModel):
+    """A continuous numeric scale, sampled at fixed steps (e.g. IELTS)."""
+
+    minimum: float
+    maximum: float
+    step: float
+
+
+class KnowledgeKindOption(BaseModel):
+    """One assessment kind, with the scale its value must come from."""
+
+    code: str
+    label: str
+    languages: list[str] | None
+    """Language codes this kind applies to, or `None` for any language."""
+
+    values: list[KnowledgeValueOption]
+    """Valid discrete values; empty if `numeric_range` is set instead."""
+
+    numeric_range: NumericRangeOption | None
+    """Valid continuous range; `None` if `values` is set instead (or the
+    kind, like `native`, has no value scale at all)."""
+
+    allows_other: bool
+    """Whether a value outside `values` may be entered as free text — an
+    "Other" escape hatch next to `values`, or (with `values` empty and no
+    `numeric_range`) the whole value field is free text."""
+
+    has_caption: bool
+    """Whether this kind needs a free-text caption naming it more
+    precisely (e.g. `standardized_test`, which test)."""
+
+
+def _knowledge_kind_option(kind: KnowledgeKind) -> KnowledgeKindOption:
+    return KnowledgeKindOption(
+        code=kind.code,
+        label=kind.label,
+        languages=list(kind.languages) if kind.languages is not None else None,
+        values=[
+            KnowledgeValueOption(code=value.code, label=value.label)
+            for value in kind.values
+        ],
+        numeric_range=(
+            NumericRangeOption(
+                minimum=kind.numeric_range.minimum,
+                maximum=kind.numeric_range.maximum,
+                step=kind.numeric_range.step,
+            )
+            if kind.numeric_range is not None
+            else None
+        ),
+        allows_other=kind.allows_other,
+        has_caption=kind.has_caption,
+    )
+
+
+@app.get(
+    "/api/v1/language-knowledge-kinds", dependencies=[Depends(get_current_user)]
+)
+def get_language_knowledge_kinds() -> list[KnowledgeKindOption]:
+    """List the curated assessment kinds a proficiency estimate may use."""
+    return [_knowledge_kind_option(kind) for kind in KNOWLEDGE_KINDS]
+
+
+class LanguageKnowledgeRecord(BaseModel):
+    """One self-reported proficiency estimate."""
+
+    id: int
+    language: str
+    kind: str
+    value: str | None
+    caption: str | None
+    date: date
+
+
+@app.get("/api/v1/me/language-knowledge")
+def get_my_language_knowledge(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[LanguageKnowledgeRecord]:
+    """List the authenticated user's proficiency estimates.
+
+    Every estimate ever added is returned — full history, not just the
+    latest per language — ordered by language, then newest date first.
+    """
+    return [
+        LanguageKnowledgeRecord(
+            id=record_id,
+            language=language,
+            kind=kind,
+            value=value,
+            caption=caption,
+            date=date_,
+        )
+        for record_id, language, kind, value, caption, date_ in (
+            postgres.get_language_knowledge_records(user_id)
+        )
+    ]
+
+
+class CreateLanguageKnowledgeRequest(BaseModel):
+    """Payload to add one proficiency estimate."""
+
+    language: str
+    kind: str
+    value: str | None = None
+    caption: str | None = None
+    date: date
+
+
+@app.post("/api/v1/me/language-knowledge", status_code=status.HTTP_201_CREATED)
+def create_language_knowledge_record(
+    request: CreateLanguageKnowledgeRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> LanguageKnowledgeRecord:
+    """Add a proficiency estimate for a language.
+
+    Adding never touches earlier estimates for the same language — the
+    full self-reported history is kept.
+    """
+    if not _is_known_language(request.language):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown language `{request.language}`.",
+        )
+    kind: KnowledgeKind | None = KNOWLEDGE_KINDS_BY_CODE.get(request.kind)
+    if kind is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown assessment kind `{request.kind}`.",
+        )
+    if kind.languages is not None and request.language not in kind.languages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"`{kind.label}` does not apply to language "
+                f"`{request.language}`."
+            ),
+        )
+    if not is_valid_knowledge_value(kind, request.value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid value `{request.value}` for `{kind.label}`.",
+        )
+    if not is_valid_caption(kind, request.caption):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid caption `{request.caption}` for `{kind.label}`.",
+        )
+    record_id: int = postgres.add_language_knowledge_record(
+        user_id,
+        request.language,
+        request.kind,
+        request.value,
+        request.caption,
+        request.date,
+    )
+    return LanguageKnowledgeRecord(
+        id=record_id,
+        language=request.language,
+        kind=request.kind,
+        value=request.value,
+        caption=request.caption,
+        date=request.date,
+    )
+
+
+@app.delete(
+    "/api/v1/me/language-knowledge/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_language_knowledge_record(
+    record_id: int, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Delete one proficiency estimate."""
+    if not postgres.delete_language_knowledge_record(user_id, record_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown language knowledge record `{record_id}`.",
+        )
 
 
 # Curation: reviewing a curated panel's words, the web equivalent of `emmio

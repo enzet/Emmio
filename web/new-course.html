@@ -34,17 +34,20 @@
                 one or more learnings to it afterward (vocabulary, alphabet,
                 …).
             </p>
-            <form id="add-course-form" aria-labelledby="add-course-heading">
-                Study
-                <select id="add-course-language" required></select>
-                language,<br />
-                named
-                <input
-                    id="add-course-name"
-                    class="course-name"
-                    type="text"
-                    placeholder="optional, defaults to the language name"
-                /><br />
+            <form class="add-form" id="add-course-form" aria-labelledby="add-course-heading">
+                <div class="field">
+                    Subject
+                    <select id="add-course-language" required></select>
+                </div>
+                <div class="field">
+                    Name
+                    <input
+                        id="add-course-name"
+                        class="course-name"
+                        type="text"
+                        placeholder="optional, defaults to the language name"
+                    />
+                </div>
                 <button type="submit">Create course</button>
             </form>
             <p id="add-course-status" role="status"></p>

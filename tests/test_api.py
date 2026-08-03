@@ -4,7 +4,7 @@ import io
 import json
 import math
 import zipfile
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -3275,6 +3275,50 @@ def test_fresh_lexicon_runs_coverage_and_propagates_sibling_answers() -> None:
     assert postgres.get_answered_words("alice", second_id) & sibling
 
 
+@pytest.mark.usefixtures("fake_uk_list")
+def test_next_reports_propagated_answers() -> None:
+    """`/next` calls out words auto-answered (never presented) while drawing.
+
+    A client polling `/answer` alone would otherwise never learn that a
+    sibling-answered word was silently recorded in between — see
+    `NextWords.propagated`.
+    """
+    token: str = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+    second_id: str = _create_second_uk_lexicon(token)
+    sibling: set[str] = set(_UK_WORDS[10:15])
+    postgres.save_lexicon(
+        "alice",
+        "uk",
+        "uk",
+        [(word, "K", datetime.now(UTC), None) for word in sibling],
+        [],
+    )
+
+    propagated: list[dict] = []
+    for _ in range(3):
+        response = client.get(
+            f"/api/v1/me/lexicons/{second_id}/next", headers=_auth(token)
+        )
+        assert response.status_code == 200
+        body = response.json()
+        propagated.extend(body["propagated"])
+        word = body["words"][0]["word"]
+        assert (
+            client.post(
+                f"/api/v1/me/lexicons/{second_id}/answer",
+                json={"word": word, "response": "not_a_word"},
+                headers=_auth(token),
+            ).status_code
+            == 204
+        )
+
+    # The sibling's "know" answer for the propagated word surfaced as a
+    # stratum dot, not silently absorbed into the rate with no client trace.
+    assert any(entry["know"] for entry in propagated)
+    assert all(0 <= entry["stratum"] < 10 for entry in propagated)
+
+
 @pytest.mark.usefixtures("fake_languages")
 def test_course_session_groups_answers_into_a_row() -> None:
     """A learning session groups answers into one `learn_sessions` row."""
@@ -3702,3 +3746,334 @@ def test_auto_curate_unknown_list_is_404() -> None:
         "/api/v1/curation/xx/nonexistent/auto-curate", headers=_auth(token)
     )
     assert response.status_code == 404
+
+
+# Self-reported language knowledge.
+
+
+def test_language_knowledge_kinds_lists_curated_taxonomy() -> None:
+    """`/language-knowledge-kinds` exposes the curated assessment kinds."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.get(
+        "/api/v1/language-knowledge-kinds", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    kinds = {kind["code"]: kind for kind in response.json()}
+
+    native = kinds["native"]
+    assert native["languages"] is None  # Any language.
+    assert native["values"] == []
+    assert native["numeric_range"] is None
+
+    self_assessed = kinds["self"]
+    assert self_assessed["languages"] is None
+    assert [value["code"] for value in self_assessed["values"]] == [
+        "A1",
+        "A2",
+        "B1",
+        "B2",
+        "C1",
+        "C2",
+    ]
+
+    hsk = kinds["hsk"]
+    assert hsk["languages"] == ["zh"]
+
+    assert self_assessed["allows_other"] is True
+    assert self_assessed["has_caption"] is False
+    assert native["allows_other"] is False
+
+    ielts = kinds["ielts"]
+    assert ielts["values"] == []
+    assert ielts["numeric_range"] == {
+        "minimum": 1.0,
+        "maximum": 9.0,
+        "step": 0.5,
+    }
+
+    standardized = kinds["standardized_test"]
+    assert standardized["languages"] is None
+    assert standardized["values"] == []
+    assert standardized["numeric_range"] is None
+    assert standardized["allows_other"] is True
+    assert standardized["has_caption"] is True
+
+
+def test_create_language_knowledge_record() -> None:
+    """Adding an estimate stores it and returns it with its new id."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "delf_dalf",
+            "value": "B2",
+            "date": "2022-06-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["language"] == "fr"
+    assert body["kind"] == "delf_dalf"
+    assert body["value"] == "B2"
+    assert body["date"] == "2022-06-01"
+    assert isinstance(body["id"], int)
+
+    records = postgres.get_language_knowledge_records("alice")
+    assert records == [
+        (body["id"], "fr", "delf_dalf", "B2", None, date(2022, 6, 1))
+    ]
+
+
+def test_language_knowledge_keeps_full_history() -> None:
+    """A later estimate never overwrites an earlier one for the language."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    for value, day in (("B2", "2022-06-01"), ("C1", "2026-01-01")):
+        client.post(
+            "/api/v1/me/language-knowledge",
+            json={
+                "language": "fr",
+                "kind": "self",
+                "value": value,
+                "date": day,
+            },
+            headers=_auth(token),
+        )
+
+    response = client.get("/api/v1/me/language-knowledge", headers=_auth(token))
+    assert response.status_code == 200
+    values = [record["value"] for record in response.json()]
+    assert values == ["C1", "B2"]  # Newest first.
+
+
+def test_create_language_knowledge_native_has_no_value() -> None:
+    """A `native` estimate carries no value at all."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "fr", "kind": "native", "date": "2020-01-01"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    assert response.json()["value"] is None
+
+
+def test_create_language_knowledge_rejects_unknown_kind() -> None:
+    """An assessment kind outside the curated taxonomy is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "not_a_real_kind",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_language_knowledge_rejects_kind_for_wrong_language() -> None:
+    """A kind restricted to other languages is rejected, e.g. HSK for French."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "hsk",
+            "value": "5",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_language_knowledge_rejects_invalid_value() -> None:
+    """A value outside the kind's scale is rejected.
+
+    `self` allows "Other" free text (see the dedicated test below), so an
+    off-scale value like `B9` is no longer one of the rejection cases —
+    only a blank value and a strategy with no value scale at all still are.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    blank = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert blank.status_code == 400
+
+    off_step = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "en",
+            "kind": "ielts",
+            "value": "6.3",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert off_step.status_code == 400
+
+    native_with_value = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "native",
+            "value": "B2",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert native_with_value.status_code == 400
+
+
+def test_create_language_knowledge_accepts_other_value() -> None:
+    """A kind with `allows_other` accepts free text off its curated scale."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "B2+ (strong)",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    assert response.json()["value"] == "B2+ (strong)"
+
+
+def test_create_language_knowledge_standardized_test() -> None:
+    """`standardized_test` needs a caption and takes a free-text value."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    ok = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "standardized_test",
+            "value": "720/990",
+            "caption": "TCF",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert ok.status_code == 201
+    body = ok.json()
+    assert body["value"] == "720/990"
+    assert body["caption"] == "TCF"
+
+    missing_caption = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "standardized_test",
+            "value": "720/990",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert missing_caption.status_code == 400
+
+    missing_value = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "standardized_test",
+            "caption": "TCF",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert missing_value.status_code == 400
+
+
+def test_create_language_knowledge_rejects_unexpected_caption() -> None:
+    """A caption on a kind without `has_caption` is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "B2",
+            "caption": "should not be allowed",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_language_knowledge_rejects_unknown_language() -> None:
+    """An unrecognized language code is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "xx",
+            "kind": "self",
+            "value": "B2",
+            "date": "2020-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_delete_language_knowledge_record_checks_ownership() -> None:
+    """A record can only be deleted by the user who owns it."""
+
+    alice_token = _register_and_login("alice", "alice@example.com")
+    bob_token = _register_and_login("bob", "bob@example.com")
+    created = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "B2",
+            "date": "2020-01-01",
+        },
+        headers=_auth(alice_token),
+    ).json()
+
+    wrong_owner = client.delete(
+        f"/api/v1/me/language-knowledge/{created['id']}",
+        headers=_auth(bob_token),
+    )
+    assert wrong_owner.status_code == 404
+    assert postgres.get_language_knowledge_records("alice") != []
+
+    first = client.delete(
+        f"/api/v1/me/language-knowledge/{created['id']}",
+        headers=_auth(alice_token),
+    )
+    assert first.status_code == 204
+    assert postgres.get_language_knowledge_records("alice") == []
+
+    second = client.delete(
+        f"/api/v1/me/language-knowledge/{created['id']}",
+        headers=_auth(alice_token),
+    )
+    assert second.status_code == 404

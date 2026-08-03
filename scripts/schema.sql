@@ -257,3 +257,40 @@ CREATE INDEX IF NOT EXISTS curated_words_list_word
     ON curated_words (curated_list_id, word);
 CREATE INDEX IF NOT EXISTS curated_word_records_word_time
     ON curated_word_records (curated_word_id, curated_at);
+
+-- Self-reported language knowledge.
+
+-- Full history: one row per self-reported proficiency estimate, kept and
+-- never overwritten, so a user's assessment of a language over time stays
+-- visible (unlike a lexicon's computed rate, this is entered by hand). Not
+-- normalized into an identity/history pair like `curated_lists` — there is
+-- no shared per-language cache to maintain, so one flat table is enough.
+--
+-- `kind` and `value` are validated against the curated taxonomy in
+-- `emmio.language_knowledge` (`KNOWLEDGE_KINDS`), not a Postgres CHECK
+-- constraint or enum, so the taxonomy can grow without a migration:
+--   `native` (no value), `self`/`teacher` (CEFR-scaled), or a specific
+--   certifying organization (e.g. `delf_dalf`, `ielts`, `hsk`), each with
+--   its own value scale (CEFR letters, an organization-specific code, or a
+--   bare number). `value` is NULL for kinds with no value scale (`native`);
+--   a kind with `allows_other` (most of them) accepts free text there too,
+--   alongside or instead of its curated values (see `is_valid_knowledge_
+--   value`). `caption` is free text naming the kind more precisely, used
+--   only by the generic `standardized_test` kind (`has_caption`); NULL
+--   otherwise.
+CREATE TABLE IF NOT EXISTS language_knowledge_records (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id),
+    language   TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    value      TEXT,
+    caption    TEXT,
+    date       DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Patches an existing table forward (the `CREATE TABLE` above only takes
+-- effect on a fresh database); safe to re-run.
+ALTER TABLE language_knowledge_records ADD COLUMN IF NOT EXISTS caption TEXT;
+
+CREATE INDEX IF NOT EXISTS language_knowledge_records_user_language
+    ON language_knowledge_records (user_id, language, date);

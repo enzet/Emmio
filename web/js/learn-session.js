@@ -22,7 +22,7 @@ async function runLearnSession(base) {
     const sentence = document.getElementById("sentence");
     const sentenceTranslation = document.getElementById("sentence-translation");
     const externalLinks = document.getElementById("external-links");
-    const googleLink = document.getElementById("google-link");
+    const googleLink = document.getElementById("google-ai-link");
     const yandexLink = document.getElementById("yandex-link");
     const wiktionaryLink = document.getElementById("wiktionary-link");
     const kaikkiLink = document.getElementById("kaikki-link");

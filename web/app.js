@@ -11,6 +11,7 @@ import { initLanding, initLogin, initRegister } from "./js/auth-pages.js";
 import { initCourse, initCourses, initLearning, initNewCourse, initNewLearning } from "./js/course-pages.js";
 import { clearToken } from "./js/api.js";
 import { initProfile } from "./js/profile.js";
+import { initLanguages } from "./js/language-knowledge.js";
 
 // Dispatch on the page.
 
@@ -44,4 +45,5 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (page === "learning") initLearning();
     else if (page === "learn") initLearn();
     else if (page === "profile") initProfile();
+    else if (page === "languages") initLanguages();
 });

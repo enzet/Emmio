@@ -12,7 +12,7 @@ The connection string is taken from the `EMMIO_DATABASE_URL` or
 import os
 from collections.abc import Collection, Generator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -2050,3 +2050,87 @@ def record_curation_vote(
                 curated_word_id,
             ),
         )
+
+
+# Self-reported language knowledge. See `scripts/schema.sql` and
+# `emmio.language_knowledge` for the taxonomy `kind`/`value` are validated
+# against.
+
+LanguageKnowledgeRecordRow = tuple[int, str, str, str | None, str | None, date]
+"""Id, language, kind, value, caption, date."""
+
+
+def add_language_knowledge_record(
+    user_id: str,
+    language: str,
+    kind: str,
+    value: str | None,
+    caption: str | None,
+    date_: date,
+) -> int:
+    """Add one self-reported proficiency estimate.
+
+    Full history is kept: adding a new estimate for a language never
+    touches earlier ones.
+
+    :param user_id: owning user login, e.g. `john`
+    :param language: language code, e.g. `fr`
+    :param kind: assessment kind code, e.g. `delf_dalf`
+    :param value: value on the kind's scale, or `None` for a valueless kind
+    :param caption: free text naming the kind more precisely, only for a
+        kind with `has_caption` (e.g. `standardized_test`); `None` otherwise
+    :param date_: the estimate's self-reported date
+    :return: the new record's internal identifier
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "INSERT INTO language_knowledge_records "
+            "(user_id, language, kind, value, caption, date) "
+            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (user_db_id, language, kind, value, caption, date_),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
+
+
+def get_language_knowledge_records(
+    user_id: str,
+) -> list[LanguageKnowledgeRecordRow]:
+    """Get every self-reported proficiency estimate for a user.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: rows ordered by language, then newest date first
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT r.id, r.language, r.kind, r.value, r.caption, r.date "
+            "FROM language_knowledge_records r "
+            "JOIN users u ON u.id = r.user_id "
+            "WHERE u.user_id = %s "
+            "ORDER BY r.language, r.date DESC, r.id DESC",
+            (user_id,),
+        )
+        return [
+            (int(row[0]), row[1], row[2], row[3], row[4], row[5])
+            for row in cursor.fetchall()
+        ]
+
+
+def delete_language_knowledge_record(user_id: str, record_id: int) -> bool:
+    """Delete one self-reported proficiency estimate, checking ownership.
+
+    :param user_id: owning user login, e.g. `john`
+    :param record_id: the record's internal identifier
+    :return: whether a record was deleted (`False` if none existed, or it
+        belongs to a different user)
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "DELETE FROM language_knowledge_records r USING users u "
+            "WHERE r.user_id = u.id AND u.user_id = %s AND r.id = %s "
+            "RETURNING r.id",
+            (user_id, record_id),
+        )
+        return cursor.fetchone() is not None

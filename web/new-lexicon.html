@@ -29,29 +29,33 @@
         </header>
         <main>
             <h1 id="add-lexicon-heading">Add a lexicon</h1>
-            <form id="add-lexicon-form" aria-labelledby="add-lexicon-heading">
-                <div>
-                    Add lexicon for
+            <form class="add-form" id="add-lexicon-form" aria-labelledby="add-lexicon-heading">
+                <div class="field">
+                    <label for="add-lexicon-language">Add lexicon for</label>
                     <select id="add-lexicon-language" required></select>
-                    language<br />
+                </div>
+                <div class="field">
                     drawing new words from
                     <select
                         id="add-lexicon-frequency-list"
                         class="lexicon-frequency-list"
                         required
-                    ></select><br />
+                    ></select>
+                </div>
+                <div class="field">
                     with definitions in
                     <select
                         id="add-lexicon-targets"
                         class="translation-languages"
                         required
-                    ></select> language<br />
-                    that uses
+                    ></select>
+                </div>
+                <div class="field">
+                    Selection strategy
                     <select
                         id="add-lexicon-selection"
                         class="lexicon-selection"
-                    ></select><br />
-                    selection strategy.<br />
+                    ></select>
                 </div>
                 <button type="submit">Create lexicon</button>
             </form>

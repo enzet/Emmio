@@ -33,6 +33,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `curated-lists.html` | Table of curated lists, with total/not-curated-by-anyone word counts. |
 | `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
+| `languages.html` | Self-reported language knowledge: add and list proficiency estimates. |
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
 `app.js` is loaded as an ES module (`<script type="module">`) and only holds
@@ -42,7 +43,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 |--------------------------|------------------------------------------------------------------|
 | `js/api.js`              | Token storage, the `fetch` helper, `requireAuth`.                |
 | `js/format.js`           | Formatting/DOM helpers shared by every page (rate, dates, `<select>` fill, …). |
-| `js/charts.js`           | The inline-SVG charts: rate trajectory, language history, strata wheel. |
+| `js/charts.js`           | The inline-SVG charts: rate trajectory, language history, stratum line. |
 | `js/forms.js`            | Shared "create a lexicon / course / learning" form wiring.       |
 | `js/check-session.js`    | `runSession()` (lexicon checking) and the check page.             |
 | `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
@@ -52,6 +53,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
 | `js/course-pages.js`     | Course list, course detail + learning settings, add-a-course/learning. |
 | `js/profile.js`          | Profile page.                                                    |
+| `js/language-knowledge.js` | Self-reported language knowledge: add/list/delete estimates.  |
 
 Lexicon checking uses `runSession()` (a yes/no flow: next → reveal translation
 → answer). Learning uses `runLearnSession()`, which renders whichever review

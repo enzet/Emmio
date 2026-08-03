@@ -28,6 +28,7 @@ async function runSession(base, doneText) {
     const showButtonLabel = document.getElementById("show-translation-label");
     const noTranslation = document.getElementById("no-translation");
     const externalLinks = document.getElementById("external-links");
+    const googleAiLink = document.getElementById("google-ai-link");
     const googleLink = document.getElementById("google-link");
     const yandexLink = document.getElementById("yandex-link");
     const wiktionaryLink = document.getElementById("wiktionary-link");
@@ -86,7 +87,7 @@ async function runSession(base, doneText) {
     // current word's frequency rank and (for `stratified`) its stratum.
     const sessionCounts = document.getElementById("session-counts");
     const wordInfo = document.getElementById("word-info");
-    const counts = { checked: 0, know: 0, dont: 0 };
+    const counts = { checked: 0, know: 0, dont: 0, propagated: 0 };
     let selection = null; // The lexicon's selection strategy (from `/next`).
     let listSize = null; // Frequency list length (from `/next`).
     let strataCount = null; // Total strata for `stratified` (from `/next`).
@@ -95,7 +96,10 @@ async function runSession(base, doneText) {
         if (sessionCounts) {
             sessionCounts.textContent =
                 `Checked: ${counts.checked} · ` +
-                `know: ${counts.know} · don't know: ${counts.dont}`;
+                `know: ${counts.know} · don't know: ${counts.dont}` +
+                (counts.propagated
+                    ? ` · propagated: ${counts.propagated}`
+                    : "");
             sessionCounts.hidden = false;
         }
         if (!wordInfo) return;
@@ -238,6 +242,22 @@ async function runSession(base, doneText) {
             listSize = batch.list_size;
             strataCount = batch.strata;
         }
+        // Words auto-answered while drawing this batch (never shown to the
+        // user, e.g. a sibling lexicon's recent answer or skip flag): not
+        // reflected anywhere else in this response, so count them into the
+        // status line and feed their dots into the strata chart live —
+        // otherwise both would silently lag until the next page reload.
+        if (batch.propagated && batch.propagated.length) {
+            counts.propagated += batch.propagated.length;
+            for (const entry of batch.propagated) {
+                strataChart?.noteAnswer(
+                    counts.checked,
+                    entry.stratum,
+                    entry.know,
+                );
+            }
+            renderSessionStatus();
+        }
         for (const card of batch.words) {
             // A word already on screen, queued, or answered this session can
             // still come back from a `/next` that raced with an answer being
@@ -321,8 +341,11 @@ async function runSession(base, doneText) {
         const word = encodeURIComponent(current.word);
         const langName = languageName(language);
         const query = `Translate ${langName} word "${current.word}".`;
-        googleLink.href =
+        googleAiLink.href =
             `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        // A plain quoted-word search, unlike the AI-prompt query above.
+        googleLink.href =
+            `https://www.google.com/search?q=${encodeURIComponent(`"${current.word}"`)}`;
         yandexLink.href =
             `https://translate.yandex.ru/?source_lang=${encodeURIComponent(language)}` +
             `&target_lang=en&text=${word}`;

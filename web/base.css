@@ -969,17 +969,50 @@ button.wrong {
     border-color: var(--wrong-border);
 }
 
-#add-lexicon-form, #add-learning-form {
+/* A "key: value" form (e.g. "Add an estimate" on languages.html): labels sit
+   in one uniform-width column (`max-content`, sized to the widest label) and
+   controls in another (`1fr`, so every `<select>`/`<input>` renders at the
+   same width) — table-like, without an actual `<table>`. Each field is a
+   `.field` wrapper so hidden alternates share one grid row instead of
+   splitting it; `display: contents` unwraps it so its own children (the
+   label and, for most fields, one control) become the grid's direct items.
+   A field with more than one possible control (the value field's select/
+   number/"other" text trio) wraps them in `.control` instead, so the grid
+   always sees exactly one item there regardless of which control is
+   visible inside it. */
+.add-form {
+    display: grid;
+    /* grid-template-columns: max-content 1fr; */
+    gap: 0.4rem 0.6rem;
+    align-items: center;
+    /* max-width: 24rem; */
     line-height: 1.5;
-    max-width: 400px;
+    justify-content: start;
+}
+.add-form .field {
+    display: contents;
+}
+/* A field that does not apply at all for the chosen kind (e.g. "Value" for
+   "Native speaker", "Caption" for anything but "Standardized test") hides
+   the whole row via the `hidden` attribute — `display: contents` alone
+   would still leave the label as a lone grid item, shifting every later
+   row sideways instead of down. */
+.add-form .field[hidden] {
+    display: none;
+}
+.add-form label {
+    justify-self: start;
+}
+.add-form .control {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.3rem;
 }
-#add-lexicon-form fieldset, #add-learning-form fieldset {
-    line-height: 1;
-    /* margin: 1rem 0; */
+.add-form select,
+.add-form input {
+    width: 100%;
 }
-#add-lexicon-form input, #add-learning-form input {
-    display: inline-block;
+.add-form button[type="submit"] {
+    grid-column: 2;
+    justify-self: start;
 }
