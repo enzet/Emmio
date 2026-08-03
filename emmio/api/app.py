@@ -519,6 +519,8 @@ def _row_rate_estimate(
     frequency_list_config: dict | None,
     get_sequence: Callable[[], list[int]],
     version: int | None = None,
+    *,
+    language: str,
 ) -> tuple[float, float] | None:
     """Estimate a list row's rate with the strategy-matched estimator.
 
@@ -538,6 +540,8 @@ def _row_rate_estimate(
         log can run into the tens of thousands of rows
     :param version: the user's newest lexicon record id, keying
         `_ROW_RATE_CACHE`; None bypasses the cache
+    :param language: the lexicon's language, needed to resolve a curated
+        panel for `frequency_list_config` (see `_curated_pool_for_lexicon`)
     :return: (r̂, SD), or None if there is not enough data or the lexicon
         has no usable estimator
     """
@@ -547,7 +551,12 @@ def _row_rate_estimate(
         if hit is not None and hit[0] == version:
             return hit[1]
     estimate: tuple[float, float] | None = _compute_row_rate_estimate(
-        user_id, lexicon_id, selection, frequency_list_config, get_sequence
+        user_id,
+        lexicon_id,
+        selection,
+        frequency_list_config,
+        get_sequence,
+        language,
     )
     if version is not None:
         _ROW_RATE_CACHE[key] = (version, estimate)
@@ -578,11 +587,16 @@ def _lexicon_goal_state(
     frequency_list: FrequencyList | None,
     now: datetime,
     version: int | None,
+    *,
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> LexiconGoalState:
     """Get a lexicon's goal state, cached like `_row_rate_estimate`.
 
     :param version: the user's newest lexicon record id, as in
         `_row_rate_estimate`; None bypasses the cache
+    :param n_strata: see `_curated_pool_for_lexicon`
+    :param curated_words_by_stratum: see `_curated_pool_for_lexicon`
     """
     key: tuple[str, str] = (user_id, lexicon_id)
     cache_version: tuple[int | None, date] = (version, now.date())
@@ -595,6 +609,8 @@ def _lexicon_goal_state(
         frequency_list,
         postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
         now,
+        n_strata,
+        curated_words_by_stratum,
     )
     if version is not None:
         _GOAL_STATE_CACHE[key] = (cache_version, state)
@@ -625,6 +641,8 @@ def _stratified_rate_windowed_or_full(
     selection: LexiconSelection,
     frequency_list: FrequencyList,
     records: list[tuple[datetime, str, str]],
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> tuple[float, float] | None:
     """Estimate with the moving window, falling back to the full one.
 
@@ -634,16 +652,29 @@ def _stratified_rate_windowed_or_full(
     keeps a wider, less trustworthy number on screen instead of a blank
     field. `get_lexicon_selector_states` is fetched lazily since it is only
     needed for that fallback.
+
+    :param n_strata: see `_curated_pool_for_lexicon`
+    :param curated_words_by_stratum: see `_curated_pool_for_lexicon`
     """
     windowed: tuple[float, float] | None = latest_windowed_rate(
-        selection, frequency_list, records
+        selection,
+        frequency_list,
+        records,
+        n_strata=n_strata,
+        curated_words_by_stratum=curated_words_by_stratum,
     )
     if windowed is not None:
         return windowed
     states: dict[str, tuple[str | None, bool | None]] = (
         postgres.get_lexicon_selector_states(user_id, lexicon_id)
     )
-    return estimate_rate_with_sd(selection, frequency_list, states)
+    return estimate_rate_with_sd(
+        selection,
+        frequency_list,
+        states,
+        n_strata=n_strata,
+        curated_words_by_stratum=curated_words_by_stratum,
+    )
 
 
 def _compute_row_rate_estimate(
@@ -652,6 +683,7 @@ def _compute_row_rate_estimate(
     selection: str | None,
     frequency_list_config: dict | None,
     get_sequence: Callable[[], list[int]],
+    language: str,
 ) -> tuple[float, float] | None:
     """Estimate a list row's rate, uncached (see `_row_rate_estimate`)."""
     if selection is None:
@@ -672,12 +704,23 @@ def _compute_row_rate_estimate(
     )
     if frequency_list is None:
         return None
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(
+            {"language": language, "frequency_list": frequency_list_config}
+        )
+    )
     if method == RateEstimator.STRATIFIED:
         records: list[tuple[datetime, str, str]] = (
             postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
         )
         return _stratified_rate_windowed_or_full(
-            user_id, lexicon_id, parsed, frequency_list, records
+            user_id,
+            lexicon_id,
+            parsed,
+            frequency_list,
+            records,
+            curated[0] if curated else DEFAULT_N_STRATA,
+            curated[1] if curated else None,
         )
     states: dict[str, tuple[str | None, bool | None]] = (
         postgres.get_lexicon_selector_states(user_id, lexicon_id)
@@ -720,6 +763,7 @@ def get_my_lexicons(
                 user_id, lid
             ),
             version,
+            language=language,
         )
         rate, sd = _rate_and_sd(estimate)
         summaries.append(
@@ -2593,6 +2637,12 @@ def get_lexicon_rate_estimate(
             detail=f"No rate estimator for selection `{selection}`.",
         )
 
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(config)
+    )
+    n_strata: int = curated[0] if curated else DEFAULT_N_STRATA
+    curated_pool: dict[int, list[str]] | None = curated[1] if curated else None
+
     frequency_list: FrequencyList | None = None
     dated_records: list[tuple[datetime, str, str]] = (
         postgres.get_lexicon_dated_record_log(user_id, lexicon_id)
@@ -2605,7 +2655,13 @@ def get_lexicon_rate_estimate(
     elif method == RateEstimator.STRATIFIED:
         frequency_list = _frequency_list_or_error(config, lexicon_id)
         estimate = _stratified_rate_windowed_or_full(
-            user_id, lexicon_id, selection, frequency_list, dated_records
+            user_id,
+            lexicon_id,
+            selection,
+            frequency_list,
+            dated_records,
+            n_strata,
+            curated_pool,
         )
     else:
         # The model-based estimators place every word by frequency rank, so
@@ -2621,7 +2677,7 @@ def get_lexicon_rate_estimate(
 
     rate, sd = _rate_and_sd(estimate)
     goal: LexiconGoalState = compute_lexicon_goal_state(
-        selection, frequency_list, dated_records
+        selection, frequency_list, dated_records, None, n_strata, curated_pool
     )
     return RateEstimate(
         rate=rate,
@@ -2748,6 +2804,12 @@ def get_lexicon_rate_trajectory(
             detail=f"No rate estimator for selection `{selection}`.",
         )
 
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(config)
+    )
+    n_strata: int = curated[0] if curated else DEFAULT_N_STRATA
+    curated_pool: dict[int, list[str]] | None = curated[1] if curated else None
+
     frequency_list: FrequencyList | None = None
     if method != RateEstimator.FREQUENCY:
         frequency_list = _frequency_list_or_error(config, lexicon_id)
@@ -2759,7 +2821,14 @@ def get_lexicon_rate_trajectory(
         (word, code) for _, word, code in dated_records
     ]
     step: int = max(1, -(-len(records) // MAX_TRAJECTORY_CHECKPOINTS))
-    checkpoints, estimates = replay(records, selection, frequency_list, step)
+    checkpoints, estimates = replay(
+        records,
+        selection,
+        frequency_list,
+        step,
+        n_strata=n_strata,
+        curated_words_by_stratum=curated_pool,
+    )
 
     if method == RateEstimator.STRATIFIED:
         # Once the moving window first reaches its target SD, its narrower
@@ -2767,7 +2836,11 @@ def get_lexicon_rate_trajectory(
         # the trajectory's own version of `_stratified_rate_windowed_or_full`,
         # so the chart's last point always agrees with the live rate.
         w_queries, _, w_rates, w_sds = compute_rate_history(
-            selection, frequency_list, dated_records
+            selection,
+            frequency_list,
+            dated_records,
+            n_strata=n_strata,
+            curated_words_by_stratum=curated_pool,
         )
         estimates = _prefer_windowed_estimates(
             checkpoints, estimates, w_queries, w_rates, w_sds
@@ -2790,7 +2863,8 @@ def get_lexicon_rate_trajectory(
                 continue
             strata.append(
                 StratumAnswer(
-                    stratum=stratum_of_rank(index + 1, size), know=code != dont
+                    stratum=stratum_of_rank(index + 1, size, n_strata),
+                    know=code != dont,
                 )
             )
 
@@ -2950,13 +3024,19 @@ def get_lexicon_stats(
         config["selection"],
         config["frequency_list"],
         lambda: postgres.get_lexicon_answer_sequence(user_id, lexicon_id),
+        language=config["language"],
     )
     rate, sd = _rate_and_sd(estimate)
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(config)
+    )
     goal: LexiconGoalState = compute_lexicon_goal_state(
         LexiconSelection(config["selection"]),
         _frequency_list_or_none(config["frequency_list"]),
         postgres.get_lexicon_dated_record_log(user_id, lexicon_id),
         now,
+        curated[0] if curated else DEFAULT_N_STRATA,
+        curated[1] if curated else None,
     )
     return LexiconStats(
         lexicon_id=lexicon_id,
@@ -3061,8 +3141,14 @@ def get_my_languages(
                 user_id, lid
             ),
             version,
+            language=language,
         )
         rate, sd = _rate_and_sd(estimate)
+        curated: tuple[int, dict[int, list[str]]] | None = (
+            _curated_pool_for_lexicon(
+                {"language": language, "frequency_list": frequency_list_config}
+            )
+        )
         goal: LexiconGoalState = _lexicon_goal_state(
             user_id,
             lexicon_id,
@@ -3072,6 +3158,8 @@ def get_my_languages(
             _frequency_list_or_none(frequency_list_config),
             now,
             version,
+            n_strata=curated[0] if curated else DEFAULT_N_STRATA,
+            curated_words_by_stratum=curated[1] if curated else None,
         )
         rates.append(
             LanguageRate(
@@ -3224,9 +3312,18 @@ def get_lexicons_history(
         )
         if not records:
             continue
+        curated: tuple[int, dict[int, list[str]]] | None = (
+            _curated_pool_for_lexicon(
+                {"language": language_code, "frequency_list": list_config}
+            )
+        )
         try:
             _, date_ranges, rates, sds = compute_rate_history(
-                selection, frequency_list, records
+                selection,
+                frequency_list,
+                records,
+                n_strata=curated[0] if curated else DEFAULT_N_STRATA,
+                curated_words_by_stratum=curated[1] if curated else None,
             )
         except NotImplementedError:
             continue

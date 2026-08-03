@@ -68,6 +68,7 @@ def compute_rate_history(
     records: list[tuple[datetime, str, str]],
     sd_threshold: float = DEFAULT_SD_THRESHOLD,
     n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> RateHistory:
     """Compute the windowed rate history of a lexicon's answer log.
 
@@ -86,6 +87,7 @@ def compute_rate_history(
     :param sd_threshold: largest standard deviation a history point may have
     :param n_strata: number of log-uniform strata K for the stratified
         estimator
+    :param curated_words_by_stratum: see `estimate_rate_with_sd`
     :return: 1-based positions in `records`, window date ranges, rates and
         their SDs, index-aligned
     :raises NotImplementedError: for estimators without a windowed history
@@ -99,7 +101,11 @@ def compute_rate_history(
             message = "The stratified rate history needs a frequency list."
             raise ValueError(message)
         return _stratified_history(
-            frequency_list, records, sd_threshold, n_strata
+            frequency_list,
+            records,
+            sd_threshold,
+            n_strata,
+            curated_words_by_stratum,
         )
     message = f"No windowed rate history for selection `{selection}`."
     raise NotImplementedError(message)
@@ -111,6 +117,7 @@ def latest_windowed_rate(
     records: list[tuple[datetime, str, str]],
     sd_threshold: float = DEFAULT_SD_THRESHOLD,
     n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> tuple[float, float] | None:
     """Get the last point of `compute_rate_history`, the live counterpart.
 
@@ -121,7 +128,12 @@ def latest_windowed_rate(
     :raises ValueError: if a model-based estimator gets no frequency list
     """
     _, _, rates, sds = compute_rate_history(
-        selection, frequency_list, records, sd_threshold, n_strata
+        selection,
+        frequency_list,
+        records,
+        sd_threshold,
+        n_strata,
+        curated_words_by_stratum,
     )
     if not rates:
         return None
@@ -171,6 +183,7 @@ def _stratified_history(
     records: list[tuple[datetime, str, str]],
     sd_threshold: float,
     n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> RateHistory:
     """Compute the windowed history of a stratified (SFWR) log.
 
@@ -181,13 +194,21 @@ def _stratified_history(
     left pointer reaches it. Resolutions (not a word, proper noun) are facts
     about the list rather than knowledge at a moment, so they accumulate and
     never expire with the window.
+
+    :param curated_words_by_stratum: see `estimate_rate_with_sd`; `records`
+        must already be scoped to a curated lexicon's own answer log, so
+        every word in it is a panel word
     """
     know: str = LexiconResponse.KNOW.to_code()
     know_class: str = LexiconResponse.KNOW_SEMANTIC_CLASS.to_code()
     dont: str = LexiconResponse.DONT.to_code()
     shares = _shares_by_rank(frequency_list)
     size: int = len(frequency_list)
-    bounds: list[tuple[int, int]] = _stratum_bounds(frequency_list, n_strata)
+    stratum_size: list[int] = (
+        [len(curated_words_by_stratum.get(k, [])) for k in range(n_strata)]
+        if curated_words_by_stratum is not None
+        else [hi - lo for lo, hi in _stratum_bounds(frequency_list, n_strata)]
+    )
     p_total: list[float] = _stratum_masses(frequency_list, n_strata)
 
     count: list[int] = [0] * n_strata
@@ -217,7 +238,7 @@ def _stratified_history(
             p_unknown,
             count,
             count_unknown,
-            bounds,
+            stratum_size,
             n_resolved,
         )
 

@@ -22,6 +22,7 @@ from emmio.lexicon.core import (
     StratifiedSelector,
     TopSelector,
     _predict,
+    _stratified_rate_from_aggregates,
     compute_lexicon_rate,
     create_selector,
     estimate_rate_frequency,
@@ -716,6 +717,81 @@ def test_estimate_rate_dispatches_by_selection() -> None:
 
     with pytest.raises(NotImplementedError):
         estimate_rate_with_sd(LexiconSelection.ARBITRARY, sequence=sequence)
+
+
+def test_stratified_rate_from_aggregates_uses_stratum_size_for_fpc() -> None:
+    """The finite-population correction scales with the given `stratum_size`.
+
+    Same tested aggregates, two different `stratum_size` values for the one
+    stratum carrying data: the raw list's inflated width (nowhere near
+    exhausted by 10 tested words) keeps the FPC well above zero, while the
+    curated panel's true size (already exhausted by `count`) drops that
+    stratum's variance contribution to zero — so the correct (small)
+    population must yield a strictly smaller SD, not a larger one (the
+    direction the pre-fix bug got backwards).
+    """
+    p_total: list[float] = [1.0]
+    p_tested: list[float] = [1.0]
+    p_unknown: list[float] = [0.3]
+    count: list[int] = [10]
+    count_unknown: list[int] = [3]
+
+    raw = _stratified_rate_from_aggregates(
+        p_total, p_tested, p_unknown, count, count_unknown, [100_000]
+    )
+    curated = _stratified_rate_from_aggregates(
+        p_total, p_tested, p_unknown, count, count_unknown, [10]
+    )
+    assert raw is not None
+    assert curated is not None
+    assert raw[0] == curated[0]  # The point estimate never depends on N_k.
+    assert raw[1] > 0.0
+    assert curated[1] == 0.0  # An exhausted panel is a census: no variance.
+    assert curated[1] < raw[1]
+
+
+def test_estimate_rate_curated_lowers_sd_via_correct_population() -> None:
+    """A curated lexicon's SD uses the panel's population, not the raw list's.
+
+    Same tested words either way (a fully-tested, tiny curated panel); only
+    `curated_words_by_stratum` differs. Treating the raw list's rank-range
+    width as the population (the pre-fix behavior) keeps the finite
+    population correction well above zero even though the panel itself is
+    fully surveyed; using the panel's own size correctly recognizes the
+    census and drops the SD.
+    """
+    frequency_list: FrequencyList = _ranked_frequency_list(1000)
+    n_strata = 2
+
+    panel_by_stratum: dict[int, list[str]] = {0: [], 1: []}
+    for rank in range(1, 1001):
+        k = stratum_of_rank(rank, 1000, n_strata)
+        if len(panel_by_stratum[k]) < 2:
+            panel_by_stratum[k].append(f"w{rank - 1}")
+        if all(len(words) >= 2 for words in panel_by_stratum.values()):
+            break
+
+    states: dict[str, tuple[str | None, bool | None]] = {
+        word: (("K" if index == 0 else "D"), None)
+        for words in panel_by_stratum.values()
+        for index, word in enumerate(words)
+    }
+
+    raw = estimate_rate_with_sd(
+        LexiconSelection.STRATIFIED, frequency_list, states, n_strata=n_strata
+    )
+    curated = estimate_rate_with_sd(
+        LexiconSelection.STRATIFIED,
+        frequency_list,
+        states,
+        n_strata=n_strata,
+        curated_words_by_stratum=panel_by_stratum,
+    )
+    assert raw is not None
+    assert curated is not None
+    assert curated[0] == raw[0]  # Point estimate unaffected.
+    assert curated[1] == 0.0  # Every panel stratum is a fully tested census.
+    assert curated[1] < raw[1]
 
 
 def test_selectors_incremental_matches_rebuilt() -> None:

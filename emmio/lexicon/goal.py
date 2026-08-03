@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
     RATE_ESTIMATOR_BY_SELECTION,
     LexiconResponse,
     WordStates,
@@ -112,6 +113,8 @@ def compute_lexicon_goal_state(
     frequency_list: FrequencyList | None,
     records: list[tuple[datetime, str, str]],
     now: datetime | None = None,
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> LexiconGoalState:
     """Compute whether a lexicon currently meets its precision target.
 
@@ -126,6 +129,8 @@ def compute_lexicon_goal_state(
     :param records: chronological (response time, word, response code) log,
         as `postgres.get_lexicon_dated_record_log` returns
     :param now: evaluation instant, defaults to the current time
+    :param n_strata: see `estimate_rate_with_sd`
+    :param curated_words_by_stratum: see `estimate_rate_with_sd`
     :return: the lexicon's current goal state
     """
     if RATE_ESTIMATOR_BY_SELECTION.get(selection) is None:
@@ -143,7 +148,12 @@ def compute_lexicon_goal_state(
 
     try:
         estimate: tuple[float, float] | None = estimate_rate_with_sd(
-            selection, frequency_list, states, sequence
+            selection,
+            frequency_list,
+            states,
+            sequence,
+            n_strata=n_strata,
+            curated_words_by_stratum=curated_words_by_stratum,
         )
     except ValueError:
         # A model-based estimator with no frequency list to place words by

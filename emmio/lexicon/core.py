@@ -1471,6 +1471,7 @@ def _estimate_rate_stratified_masses(
     size: int,
     n_strata: int = DEFAULT_N_STRATA,
     n_resolved: list[int] | None = None,
+    stratum_size: list[int] | None = None,
 ) -> tuple[float, float] | None:
     """Estimate the rate from a stratified sample given stratum masses.
 
@@ -1485,6 +1486,10 @@ def _estimate_rate_stratified_masses(
     :param n_strata: number of log-uniform strata K
     :param n_resolved: per-stratum count of words resolved as unlearnable;
         they shrink the finite population the stratum's sample is drawn from
+    :param stratum_size: see `_stratified_rate_from_aggregates`; defaults to
+        the raw list's own `[lo, hi)` rank-range widths (the ordinary case) —
+        pass a curated lexicon's per-stratum panel sizes instead to keep the
+        SD from overstating that stratum's population
     :return: (r̂, SD), or None if some stratum has no tested words yet
     """
     if size <= 1 or not tested:
@@ -1509,7 +1514,9 @@ def _estimate_rate_stratified_masses(
         p_unknown,
         count,
         count_unknown,
-        _stratum_bounds_of_size(size, n_strata),
+        stratum_size
+        if stratum_size is not None
+        else [hi - lo for lo, hi in _stratum_bounds_of_size(size, n_strata)],
         n_resolved,
     )
 
@@ -1520,7 +1527,7 @@ def _stratified_rate_from_aggregates(
     p_unknown: list[float],
     count: list[int],
     count_unknown: list[int],
-    bounds: list[tuple[int, int]],
+    stratum_size: list[int],
     n_resolved: list[int] | None = None,
 ) -> tuple[float, float] | None:
     """Estimate the rate from per-stratum aggregates of the tested words.
@@ -1536,7 +1543,13 @@ def _stratified_rate_from_aggregates(
         stratum
     :param count: n_k, tested words per stratum
     :param count_unknown: tested words labeled "don't know" per stratum
-    :param bounds: per-stratum `[lo, hi)` 1-based rank ranges
+    :param stratum_size: each stratum's testable population *before*
+        `n_resolved` is subtracted — the raw list's `[lo, hi)` rank-range
+        width for an ordinary lexicon, or a curated lexicon's much smaller
+        panel size per stratum (`len(curated_words_by_stratum[k])`); using
+        the raw list's width for a curated lexicon overstates the finite
+        population and so overstates the reported SD, since the actual
+        candidate pool is only ever the panel
     :param n_resolved: per-stratum count of words resolved as unlearnable;
         they shrink the finite population the stratum's sample is drawn from
     :return: (r̂, SD), or None if some stratum has no tested words yet
@@ -1553,8 +1566,7 @@ def _stratified_rate_from_aggregates(
         # Finite population correction: the sample is drawn without
         # replacement from the stratum's testable words, so an exhausted
         # stratum is a census with no sampling uncertainty left.
-        lo, hi = bounds[k]
-        population: int = (hi - lo) - (n_resolved[k] if n_resolved else 0)
+        population: int = stratum_size[k] - (n_resolved[k] if n_resolved else 0)
         if population <= count[k] or population <= 1:
             continue
         variance += (
@@ -1757,6 +1769,8 @@ def estimate_rate_with_sd(
     states: WordStates | None = None,
     sequence: list[int] | None = None,
     precision: int = 100,
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> tuple[float, float] | None:
     """Estimate the rate with the estimator matching the selection strategy.
 
@@ -1775,6 +1789,18 @@ def estimate_rate_with_sd(
         by the frequency estimator
     :param precision: number of "don't know" answers per frequency estimator
         window
+    :param n_strata: number of log-uniform strata K for `stratified`; must
+        match the curated list's own `n_strata` when
+        `curated_words_by_stratum` is given
+    :param curated_words_by_stratum: a curated lexicon's panel, by stratum
+        (`get_curated_real_words_by_stratum`); when given with `stratified`,
+        each stratum's finite-population correction uses the panel's own
+        (much smaller) size instead of the raw list's rank-range width, so
+        the reported SD does not overstate the population it is drawn from
+        (see `_stratified_rate_from_aggregates`) — `states` must already be
+        scoped to this lexicon's own answers only (e.g.
+        `postgres.get_lexicon_selector_states`), never a language-wide pool,
+        since a curated lexicon's candidates are restricted to the panel
     :return: (r̂, SD), or None if there is not enough data
     :raises NotImplementedError: for strategies without a rate estimator
     """
@@ -1816,14 +1842,21 @@ def estimate_rate_with_sd(
             resolved.append((index + 1, p_i))
 
     if method == RateEstimator.STRATIFIED:
-        n_resolved: list[int] = [0] * DEFAULT_N_STRATA
+        n_resolved: list[int] = [0] * n_strata
         for rank, _ in resolved:
-            n_resolved[stratum_of_rank(rank, size, DEFAULT_N_STRATA)] += 1
+            n_resolved[stratum_of_rank(rank, size, n_strata)] += 1
+        stratum_size: list[int] | None = (
+            [len(curated_words_by_stratum.get(k, [])) for k in range(n_strata)]
+            if curated_words_by_stratum is not None
+            else None
+        )
         return _estimate_rate_stratified_masses(
             tested,
-            _stratum_masses(frequency_list, DEFAULT_N_STRATA),
+            _stratum_masses(frequency_list, n_strata),
             size,
-            n_resolved=n_resolved,
+            n_strata,
+            n_resolved,
+            stratum_size,
         )
 
     # Tested and resolved words: everything that is not untested.

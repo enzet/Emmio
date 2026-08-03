@@ -26,6 +26,7 @@ from tqdm import tqdm
 from emmio.data import Data
 from emmio.lexicon.config import LexiconSelection
 from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
     LexiconResponse,
     WordStates,
     estimate_rate_with_sd,
@@ -42,6 +43,8 @@ def replay(
     frequency_list: FrequencyList | None,
     step: int = 1,
     precision: int = 100,
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
     *,
     show_progress: bool = False,
 ) -> tuple[list[int], list[tuple[float, float] | None]]:
@@ -59,6 +62,8 @@ def replay(
     :param step: checkpoint spacing in answers
     :param precision: number of "don't know" answers per frequency
         estimator window
+    :param n_strata: see `estimate_rate_with_sd`
+    :param curated_words_by_stratum: see `estimate_rate_with_sd`
     :param show_progress: draw a terminal progress bar (for the CLI; the
         API replays silently)
     :return: (checkpoint query numbers, per-checkpoint estimates)
@@ -86,7 +91,13 @@ def replay(
         checkpoints.append(number)
         estimates.append(
             estimate_rate_with_sd(
-                selection, frequency_list, states, sequence, precision
+                selection,
+                frequency_list,
+                states,
+                sequence,
+                precision,
+                n_strata,
+                curated_words_by_stratum,
             )
         )
 
