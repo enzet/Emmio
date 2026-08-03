@@ -20,6 +20,17 @@ class ListUsageConfig(BaseModel):
     year: int | None = None
     """Year of the list."""
 
+    curated: bool = False
+    """Whether to draw only from this list's curated panel.
+
+    When set, a lexicon may only draw words the curation consensus has
+    confirmed real (`curated_words.category = 'W'`) for `(language, id/year)`
+    via `frequency_list_identifier`, instead of the raw list — see
+    `CuratedStratifiedSelector`. Only `stratified` selection supports this:
+    the panel is a small, fixed sample, not a rankable full list, so the
+    other strategies have nothing to rank or threshold against.
+    """
+
 
 def frequency_list_identifier(config: ListUsageConfig) -> str:
     """Get the canonical string identifying one frequency list version.

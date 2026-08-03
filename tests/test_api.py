@@ -2113,6 +2113,137 @@ def test_create_lexicon_with_unknown_frequency_list_is_bad_request() -> None:
     assert response.status_code == 400
 
 
+def test_frequency_lists_include_curated_option(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """`/frequency-lists` lists a curated panel alongside its raw list."""
+
+    postgres.create_curated_list("uk", "uk_list", "UK Curated")
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/frequency-lists", headers=_auth(token))
+    assert response.status_code == 200
+    options = [
+        option for option in response.json() if option["language"] == "uk"
+    ]
+    curated = [option for option in options if option["curated"]]
+    assert len(curated) == 1
+    assert curated[0]["id"] == "uk_list"
+    assert curated[0]["name"] == "★ Curated: UK Curated"
+    assert any(not option["curated"] for option in options)  # Raw list too.
+
+
+def test_create_lexicon_curated_requires_stratified_selection(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A curated list only accepts the `stratified` selection strategy."""
+
+    postgres.create_curated_list("uk", "uk_list", "UK Curated")
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "frequency",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_lexicon_curated_without_curated_list_is_bad_request(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """`curated: true` is rejected when no curated list exists for it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "stratified",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_lexicon_curated_stores_the_curated_flag(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Creating against a curated list stores `frequency_list.curated`."""
+
+    postgres.create_curated_list("uk", "uk_list", "UK Curated")
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "stratified",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["frequency_list"]["curated"] is True
+
+
+def test_next_curated_lexicon_only_draws_confirmed_real_words(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A curated-backed lexicon draws only the panel's confirmed real words.
+
+    The panel's `аб` (voted a proper noun, category `P`) and every word in
+    the raw 30-word list outside the panel must never be drawn — only
+    `аа`/`ав`/`аг` (voted real, category `W`) can be.
+    """
+    list_id: int = postgres.create_curated_list(
+        "uk", "uk_list", "UK Curated", n_strata=2
+    )
+    postgres.add_curated_words(
+        list_id,
+        [
+            ("аа", 0, 0, "bootstrap"),
+            ("аб", 0, 1, "bootstrap"),
+            ("ав", 1, 0, "bootstrap"),
+            ("аг", 1, 1, "bootstrap"),
+        ],
+    )
+    postgres.ensure_user("curator", "Curator")
+    postgres.record_curation_vote(list_id, "аа", "W", "curator")
+    postgres.record_curation_vote(list_id, "аб", "P", "curator")
+    postgres.record_curation_vote(list_id, "ав", "W", "curator")
+    postgres.record_curation_vote(list_id, "аг", "W", "curator")
+
+    token = _register_and_login("alice", "alice@example.com")
+    create_response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "stratified",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert create_response.status_code == 201
+
+    response = client.get(
+        "/api/v1/me/lexicons/uk/next",
+        params={"count": 10},
+        headers=_auth(token),
+    )
+    assert response.status_code == 200
+    words = {card["word"] for card in response.json()["words"]}
+    assert words == {"аа", "ав", "аг"}
+
+
 @pytest.mark.usefixtures("fake_languages")
 def test_create_lexicon_rejects_unsupported_selection() -> None:
     """A selection strategy not servable over the API is rejected."""
@@ -3224,7 +3355,13 @@ _CURATION_BASE = "/api/v1/curation/uk/uk_list"
 
 @pytest.mark.usefixtures("fake_uk_list")
 def test_curation_lists_reports_counts() -> None:
-    """`/curation/lists` reports panel size and this curator's remaining."""
+    """`/curation/lists` reports panel size and the not-curated-by-any count.
+
+    Voting as a second curator (`bob`) on a word `alice` never voted on
+    checks that "not curated" counts words with zero votes at all, not
+    words merely unvoted-by-the-requesting-user (which would be 2 here,
+    not 1).
+    """
 
     token = _register_and_login("alice", "alice@example.com")
     list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
@@ -3236,6 +3373,8 @@ def test_curation_lists_reports_counts() -> None:
         ],
     )
     postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+    postgres.ensure_user("bob", "Bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[1], "N", "bob")
 
     response = client.get("/api/v1/curation/lists", headers=_auth(token))
     assert response.status_code == 200
@@ -3244,7 +3383,7 @@ def test_curation_lists_reports_counts() -> None:
     assert summary["language"] == "uk"
     assert summary["frequency_list_id"] == "uk_list"
     assert summary["words"] == 3
-    assert summary["unvoted"] == 2  # One already voted on.
+    assert summary["uncurated"] == 1  # Two words already have a vote.
 
 
 def test_curation_categories_is_a_tree() -> None:

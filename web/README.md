@@ -30,7 +30,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
-| `curated-lists.html` | Table of curated lists, with a total/remaining-for-you word count. |
+| `curated-lists.html` | Table of curated lists, with total/not-curated-by-anyone word counts. |
 | `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
@@ -204,7 +204,7 @@ sequenceDiagram
     participant A as FastAPI (/api/v1)
 
     B->>A: GET /curation/lists
-    A-->>B: [{ language, frequency_list_id, name, words, unvoted }, ...]
+    A-->>B: [{ language, frequency_list_id, name, words, uncurated }, ...]
     Note over B: curated-lists.html links to<br/>curated-list.html?language=<language>&list=<id>
 
     opt browsing the list (curated-list.html)

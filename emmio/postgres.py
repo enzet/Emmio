@@ -1865,6 +1865,53 @@ def count_curated_words(
         return int(row[0])
 
 
+def count_uncurated_words(curated_list_id: int) -> int:
+    """Count words in a curated list that no curator has voted on yet.
+
+    Unlike `get_curator_unvoted_words`, this is not per-curator: it counts
+    `votes = 0` (nobody at all has voted), for the picker's "Not curated"
+    column, not "words left for the current user".
+
+    :param curated_list_id: internal identifier of the curated list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) FROM curated_words "
+            "WHERE curated_list_id = %s AND votes = 0",
+            (curated_list_id,),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
+
+
+def get_curated_real_words_by_stratum(
+    curated_list_id: int,
+) -> dict[int, list[str]]:
+    """Get every confirmed-real-word (`category = 'W'`) panel word, by stratum.
+
+    Powers a curated-list-backed lexicon's word selection
+    (`CuratedStratifiedSelector`): only words the curation consensus has
+    confirmed real are ever drawn, so such a lexicon never needs to
+    auto-skip proper nouns, misspellings, or other junk. Ordered by
+    `panel_order` within each stratum, matching the order curation itself
+    draws candidates in (see `get_next_curation_candidate`).
+
+    :param curated_list_id: internal identifier of the curated list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT stratum, word FROM curated_words "
+            "WHERE curated_list_id = %s AND category = 'W' "
+            "ORDER BY stratum, panel_order",
+            (curated_list_id,),
+        )
+        by_stratum: dict[int, list[str]] = {}
+        for stratum, word in cursor.fetchall():
+            by_stratum.setdefault(int(stratum), []).append(word)
+        return by_stratum
+
+
 def get_next_curation_candidate(
     curated_list_id: int,
     user_id: str,

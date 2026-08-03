@@ -331,11 +331,17 @@ has no recorded response.
 """
 
 
+# Number of log-uniform strata used by the stratified (SFWR) strategy.
+DEFAULT_N_STRATA: int = 10
+
+
 def select_next_word(
     frequency_list: FrequencyList,
     exclude: set[str],
     selection: LexiconSelection,
     states: WordStates | None = None,
+    n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> str | None:
     """Pick the next word to check, honoring the lexicon's selection strategy.
 
@@ -355,10 +361,21 @@ def select_next_word(
         word ever answered
     :param selection: the lexicon's stored selection strategy
     :param states: per-word state, required by the model-based strategies
+    :param n_strata: number of log-uniform strata for `stratified`; must
+        match the curated list's own `n_strata` when
+        `curated_words_by_stratum` is given, since the panel's `stratum`
+        column was assigned under that count
+    :param curated_words_by_stratum: see `create_selector`
     :return: the next word, or None if every candidate is excluded
     :raises NotImplementedError: for strategies not served over the API
     """
-    return create_selector(frequency_list, selection, states).next_word(exclude)
+    return create_selector(
+        frequency_list,
+        selection,
+        states,
+        n_strata=n_strata,
+        curated_words_by_stratum=curated_words_by_stratum,
+    ).next_word(exclude)
 
 
 def _optimal_threshold(paired: list[tuple[int, int]]) -> int:
@@ -399,10 +416,6 @@ def _optimal_threshold_arrays(ranks: np.ndarray, labels: np.ndarray) -> int:
     if best_j == len(ranks):
         return int(ranks[-1])
     return (int(ranks[best_j - 1]) + int(ranks[best_j])) // 2
-
-
-# Number of log-uniform strata used by the stratified (SFWR) strategy.
-DEFAULT_N_STRATA: int = 10
 
 
 def stratum_of_rank(
@@ -991,9 +1004,11 @@ class StratifiedSelector(_RankedSelector):
             # V(n) ∝ (N - n) / ((N - 1) n), so one more sample gains
             # N / ((N - 1) n (n + 1)). The stratum's population N excludes
             # resolved (unlearnable) words; an available stratum has an
-            # untested word, so N ≥ n + 1 ≥ 2 here.
-            lo, hi = self._bounds[k]
-            population: int = (hi - lo) - self._states_count[k] + self._count[k]
+            # untested word, so N ≥ n + 1 ≥ 2 here. Going through
+            # `_untested_count` (rather than inlining the raw rank range)
+            # lets `CuratedStratifiedSelector` substitute the panel's much
+            # smaller population without overriding this method too.
+            population: int = self._untested_count(k) + self._count[k]
             score: float = (
                 self._p_total[k] ** 2
                 * smoothed
@@ -1047,12 +1062,74 @@ class StratifiedSelector(_RankedSelector):
         return sum(self._p_total[k] * theta_k[k] for k in range(self._n_strata))
 
 
+class CuratedStratifiedSelector(StratifiedSelector):
+    """SFWR restricted to one curated panel's confirmed-real words.
+
+    A curated lexicon exists precisely so a learner never has to auto-skip
+    proper nouns, misspellings, or other junk: candidates are drawn only
+    from `curated_words.category = 'W'` words (`get_curated_real_words_by_
+    stratum`), not from the underlying frequency list's whole rank range —
+    the panel is the actual finite population being sampled without
+    replacement, so its per-stratum size stands in for N_k everywhere the
+    base class would otherwise use the raw rank range's width.
+
+    Stratum masses P_k are still the raw list's true per-stratum frequency
+    share (`_stratum_masses`, inherited unchanged): which specific words a
+    learner is offered within a stratum does not change how much of the
+    corpus's total usage that stratum represents.
+
+    Any answer for a word outside the panel (e.g. propagated from a sibling
+    lexicon that shares this language but not this curated panel) is
+    ignored — `record` only tallies statistics for panel words, matching
+    the restricted candidate pool `_draw_from_stratum` draws from.
+    """
+
+    def __init__(
+        self,
+        frequency_list: FrequencyList,
+        states: WordStates,
+        curated_words_by_stratum: dict[int, list[str]],
+        n_strata: int = DEFAULT_N_STRATA,
+    ) -> None:
+        self._pool: list[list[str]] = [
+            curated_words_by_stratum.get(k, []) for k in range(n_strata)
+        ]
+        """This lexicon's only drawable words, per stratum."""
+
+        self._word_stratum: dict[str, int] = {
+            word: k for k, words in enumerate(self._pool) for word in words
+        }
+        """Panel word to stratum, the gate `record` checks membership on."""
+
+        super().__init__(frequency_list, states, n_strata)
+
+    @override
+    def record(self, word: str, response_code: str | None) -> None:
+        if word not in self._word_stratum:
+            return  # Not part of this lexicon's curated candidate pool.
+        super().record(word, response_code)
+
+    @override
+    def _untested_count(self, k: int) -> int:
+        return len(self._pool[k]) - self._states_count[k]
+
+    @override
+    def _draw_from_stratum(self, k: int, exclude: set[str]) -> str | None:
+        candidates: list[str] = [
+            word
+            for word in self._pool[k]
+            if word not in self._codes and word not in exclude
+        ]
+        return random.choice(candidates) if candidates else None
+
+
 def create_selector(
     frequency_list: FrequencyList,
     selection: LexiconSelection,
     states: WordStates | None = None,
     answered: set[str] | None = None,
     n_strata: int = DEFAULT_N_STRATA,
+    curated_words_by_stratum: dict[int, list[str]] | None = None,
 ) -> WordSelector:
     """Build the working memory of a selection strategy.
 
@@ -1064,6 +1141,10 @@ def create_selector(
         still draw words answered in sibling lexicons, so their answers get
         propagated)
     :param n_strata: number of log-uniform strata for `stratified`
+    :param curated_words_by_stratum: a curated panel's confirmed-real words,
+        by stratum (`get_curated_real_words_by_stratum`); when given with
+        `stratified`, candidates are drawn only from this panel
+        (`CuratedStratifiedSelector`) instead of the whole frequency list
     :return: a selector seeded with the given states
     :raises NotImplementedError: for unknown strategies
     """
@@ -1083,6 +1164,13 @@ def create_selector(
         case LexiconSelection.THRESHOLD:
             return ThresholdSelector(frequency_list, states or {})
         case LexiconSelection.STRATIFIED:
+            if curated_words_by_stratum is not None:
+                return CuratedStratifiedSelector(
+                    frequency_list,
+                    states or {},
+                    curated_words_by_stratum,
+                    n_strata,
+                )
             return StratifiedSelector(frequency_list, states or {}, n_strata)
         case _:
             message = f"Selection `{selection}` is not supported over the API."

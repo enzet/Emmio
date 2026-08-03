@@ -91,13 +91,21 @@ export async function setupCreateLexicon(formId, selectId, statusId) {
     );
 
     const frequencyLists = await frequencyListResponse.json();
-    fillFrequencyListSelect(frequencyListSelect, frequencyLists, select.value);
+    const listOptions = { includeCurated: true };
+    fillFrequencyListSelect(
+        frequencyListSelect,
+        frequencyLists,
+        select.value,
+        listOptions,
+    );
     select.addEventListener("change", () => {
         fillFrequencyListSelect(
             frequencyListSelect,
             frequencyLists,
             select.value,
+            listOptions,
         );
+        updateSelectionLock();
     });
 
     // Fill the "translate into" picker with every known language; preselect
@@ -113,6 +121,21 @@ export async function setupCreateLexicon(formId, selectId, statusId) {
         selection.appendChild(option);
     }
     addStrategyOverlay(selection);
+
+    // A curated list is a small, fixed, pre-reviewed panel, not a rankable
+    // full list — only `stratified` (SFWR) knows how to draw from one (see
+    // `CuratedStratifiedSelector`), so picking one locks the strategy.
+    function updateSelectionLock() {
+        const chosen = frequencyListSelect.selectedOptions[0];
+        const curated = chosen?.dataset.curated === "1";
+        selection.disabled = curated;
+        if (curated && selection.value !== "stratified") {
+            selection.value = "stratified";
+            selection.dispatchEvent(new Event("change"));
+        }
+    }
+    frequencyListSelect.addEventListener("change", updateSelectionLock);
+    updateSelectionLock();
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -150,27 +173,41 @@ export async function setupCreateLexicon(formId, selectId, statusId) {
 }
 
 // A frequency-list option is identified by `id` plus `year` (only
-// `frequency_words` options need the year, to tell cached releases apart),
-// so encode both into the <select> value as a single string.
+// `frequency_words` options need the year, to tell cached releases apart)
+// plus whether it draws from a curated panel rather than the raw list (a
+// language may offer both under the same id/year, see
+// `FrequencyListOption.curated`) — encode all three into the <select> value
+// as a single string.
 function encodeFrequencyListValue(option) {
-    return `${option.id}::${option.year ?? ""}`;
+    return `${option.id}::${option.year ?? ""}::${option.curated ? "1" : ""}`;
 }
 
 function decodeFrequencyListValue(value) {
-    const [id, year] = value.split("::");
-    return { id, year: year ? Number(year) : null };
+    const [id, year, curated] = value.split("::");
+    return { id, year: year ? Number(year) : null, curated: curated === "1" };
 }
 
 // Fill the "draw new words from" picker with `language`'s frequency lists,
 // starring and preselecting the default one. Re-called whenever the
-// lexicon's/learning's language changes.
-function fillFrequencyListSelect(select, frequencyLists, language) {
+// lexicon's/learning's language changes. Curated options are opt-in
+// (`includeCurated`): only a lexicon's own selection strategy knows how to
+// draw from one (`CuratedStratifiedSelector`), so a learning's picker never
+// offers them, to avoid silently promising curated-only words it can't
+// deliver.
+function fillFrequencyListSelect(
+    select,
+    frequencyLists,
+    language,
+    { includeCurated = false } = {},
+) {
     select.innerHTML = "";
     for (const option of frequencyLists) {
         if (option.language !== language) continue;
+        if (option.curated && !includeCurated) continue;
         const el = document.createElement("option");
         el.value = encodeFrequencyListValue(option);
         el.textContent = (option.is_default ? "★ " : "") + option.name;
+        el.dataset.curated = option.curated ? "1" : "";
         if (option.is_default) el.selected = true;
         select.appendChild(el);
     }

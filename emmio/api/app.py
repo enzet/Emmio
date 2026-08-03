@@ -860,13 +860,22 @@ class FrequencyListOption(BaseModel):
     is_default: bool
     """Whether creation picks this option automatically when none is given."""
 
+    curated: bool = False
+    """Whether this draws only from a pre-reviewed curated panel.
+
+    A curated option shares its `(id, year)` with the raw list it was built
+    from (see `frequency_list_identifier`) — `curated` is what tells the two
+    apart, since a language may offer both. Only `stratified` selection may
+    be used with one (see `CuratedStratifiedSelector`).
+    """
+
 
 @app.get("/api/v1/frequency-lists", dependencies=[Depends(get_current_user)])
 def get_frequency_lists() -> list[FrequencyListOption]:
     """List every frequency list available, across all languages."""
     data = get_data()
     defaults: dict[str, dict] = data.get_frequency_list_languages()
-    return [
+    options: list[FrequencyListOption] = [
         FrequencyListOption(
             language=option["language"],
             id=option["config"]["id"],
@@ -876,6 +885,27 @@ def get_frequency_lists() -> list[FrequencyListOption]:
         )
         for option in data.get_frequency_list_options()
     ]
+    for (
+        _list_id,
+        language,
+        frequency_list_id,
+        name,
+        _n_strata,
+    ) in postgres.get_curated_lists():
+        usage_config: ListUsageConfig = parse_frequency_list_identifier(
+            frequency_list_id, language
+        )
+        options.append(
+            FrequencyListOption(
+                language=language,
+                id=usage_config.id,
+                year=usage_config.year,
+                name=f"★ Curated: {name}",
+                is_default=False,
+                curated=True,
+            )
+        )
+    return options
 
 
 class FrequencyListSelection(BaseModel):
@@ -883,6 +913,8 @@ class FrequencyListSelection(BaseModel):
 
     id: str
     year: int | None = None
+    curated: bool = False
+    """See `FrequencyListOption.curated`."""
 
 
 class CreateLexiconRequest(BaseModel):
@@ -1013,7 +1045,11 @@ def _chosen_frequency_list_or_400(
     Defaults to the language's best available list (`_frequency_list_or_400`)
     when `choice` is omitted; otherwise validates the requested (id, year)
     against `get_frequency_list_options` so a learning can't be pointed at a
-    list that doesn't exist or belongs to another language.
+    list that doesn't exist or belongs to another language. `choice.curated`
+    additionally requires a curated panel to exist for that exact list (see
+    `FrequencyListOption.curated`); the returned config carries the flag
+    through so the caller (only `create_lexicon` acts on it) knows to store
+    it.
 
     :param data: the shared `Data`; typed loosely because tests substitute a
         duck-typed stub for `get_data`
@@ -1026,7 +1062,18 @@ def _chosen_frequency_list_or_400(
             and option["config"]["id"] == choice.id
             and option["config"].get("year") == choice.year
         ):
-            return option["config"]
+            if not choice.curated:
+                return option["config"]
+            frequency_list_id: str = frequency_list_identifier(
+                ListUsageConfig(
+                    id=option["config"]["id"],
+                    language=language,
+                    year=option["config"].get("year"),
+                )
+            )
+            if postgres.get_curated_list_id(language, frequency_list_id):
+                return {**option["config"], "curated": True}
+            break
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=(f"No frequency list `{choice.id}` for language `{language}`."),
@@ -1154,6 +1201,19 @@ def create_lexicon(
             ),
         )
     selection: LexiconSelection = LexiconSelection(request.selection)
+    if (
+        request.frequency_list is not None
+        and request.frequency_list.curated
+        and selection != LexiconSelection.STRATIFIED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "A curated list only supports the `stratified` selection "
+                "strategy: it is a small, fixed, pre-reviewed panel, not a "
+                "rankable full list for the other strategies to work with."
+            ),
+        )
 
     data = get_data()
     frequency_list: dict = _chosen_frequency_list_or_400(
@@ -2167,6 +2227,9 @@ def open_lexicon_session(
     """
     config: dict = _lexicon_config_or_404(user_id, lexicon_id)
     frequency_list: FrequencyList = _frequency_list_or_error(config, lexicon_id)
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(config)
+    )
     try:
         session = LEXICON_SESSIONS.open(
             user_id,
@@ -2174,6 +2237,8 @@ def open_lexicon_session(
             config["language"],
             LexiconSelection(config["selection"]),
             frequency_list,
+            n_strata=curated[0] if curated else DEFAULT_N_STRATA,
+            curated_words_by_stratum=curated[1] if curated else None,
         )
     except NotImplementedError as error:
         raise HTTPException(
@@ -2228,6 +2293,10 @@ def get_next_lexicon_words(
     language: str = config["language"]
     selection: LexiconSelection = LexiconSelection(config["selection"])
     symbols: str | None = Language.from_code(language).get_symbols()
+    curated: tuple[int, dict[int, list[str]]] | None = (
+        _curated_pool_for_lexicon(config)
+    )
+    n_strata: int = curated[0] if curated else DEFAULT_N_STRATA
 
     limit: int = max(1, min(count, _BATCH_MAX))
     drawn: set[str] = set(exclude or [])
@@ -2244,6 +2313,8 @@ def get_next_lexicon_words(
                 language,
                 selection,
                 frequency_list,
+                n_strata=n_strata,
+                curated_words_by_stratum=curated[1] if curated else None,
             )
             with session.lock:
                 words, auto = _draw_batch(
@@ -2278,7 +2349,12 @@ def get_next_lexicon_words(
                 drawn |= postgres.get_answered_words(user_id, lexicon_id)
             words, auto = _draw_batch(
                 lambda pool: select_next_word(
-                    frequency_list, pool, selection, selector_states
+                    frequency_list,
+                    pool,
+                    selection,
+                    selector_states,
+                    n_strata,
+                    curated[1] if curated else None,
                 ),
                 drawn,
                 limit,
@@ -2306,17 +2382,13 @@ def get_next_lexicon_words(
             continue
         card.rank = index + 1
         if selection == LexiconSelection.STRATIFIED:
-            card.stratum = stratum_of_rank(card.rank, size)
+            card.stratum = stratum_of_rank(card.rank, size, n_strata)
     return NextWords(
         language=language,
         words=cards,
         selection=selection,
         list_size=size,
-        strata=(
-            DEFAULT_N_STRATA
-            if selection == LexiconSelection.STRATIFIED
-            else None
-        ),
+        strata=(n_strata if selection == LexiconSelection.STRATIFIED else None),
     )
 
 
@@ -2418,6 +2490,38 @@ def answer_lexicon_word(
             to_skip=True if request.to_skip else None,
             when=now,
         )
+
+
+def _curated_pool_for_lexicon(
+    config: dict,
+) -> tuple[int, dict[int, list[str]]] | None:
+    """Resolve a curated-backed lexicon's panel, keyed by stratum.
+
+    Returns `None` for an ordinary (non-curated) lexicon. A curated
+    lexicon's `frequency_list.curated` flag was already validated against
+    an existing curated list at creation time (`create_lexicon`); a missing
+    list here (e.g. deleted afterward) is treated as "not curated" rather
+    than an error, falling back to raw-list serving.
+
+    :return: `(n_strata, words_by_stratum)`, or `None`
+    """
+    frequency_list_config: dict | None = config["frequency_list"]
+    if frequency_list_config is None or not frequency_list_config.get(
+        "curated"
+    ):
+        return None
+    frequency_list_id: str = frequency_list_identifier(
+        ListUsageConfig(**frequency_list_config)
+    )
+    curated_list_id: int | None = postgres.get_curated_list_id(
+        config["language"], frequency_list_id
+    )
+    if curated_list_id is None:
+        return None
+    return (
+        postgres.get_curated_list_n_strata(curated_list_id),
+        postgres.get_curated_real_words_by_stratum(curated_list_id),
+    )
 
 
 def _frequency_list_or_error(config: dict, lexicon_id: str) -> FrequencyList:
@@ -3203,22 +3307,22 @@ class CuratedListSummary(BaseModel):
     name: str
     n_strata: int
     words: int  # Total panel words.
-    unvoted: int  # Panel words this curator has not yet voted on.
+    uncurated: int  # Panel words no curator has voted on yet.
 
 
 @app.get("/api/v1/curation/lists")
 def get_curation_lists(
-    user_id: Annotated[str, Depends(get_current_user)],
+    _user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[CuratedListSummary]:
-    """List every curated list, with this curator's remaining-vote count."""
+    """List every curated list, with its not-curated-by-anyone count."""
     return [
         CuratedListSummary(
             language=language,
             frequency_list_id=frequency_list_id,
             name=name,
             n_strata=n_strata,
-            words=len(postgres.get_curated_words(list_id)),
-            unvoted=len(postgres.get_curator_unvoted_words(list_id, user_id)),
+            words=postgres.count_curated_words(list_id),
+            uncurated=postgres.count_uncurated_words(list_id),
         )
         for list_id, language, frequency_list_id, name, n_strata in (
             postgres.get_curated_lists()

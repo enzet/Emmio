@@ -256,8 +256,16 @@ export async function initLanguage() {
     const language = new URLSearchParams(location.search).get("language");
     document.getElementById("language-heading").textContent =
         `Language: ${languageName(language)}`;
-    document.getElementById("add-lexicon-link").href =
-        `new-lexicon?language=${encodeURIComponent(language)}`;
+    document
+        .getElementById("add-lexicon-link")
+        .addEventListener("click", () => {
+            location.href = `new-lexicon?language=${encodeURIComponent(language)}`;
+        });
+    document
+        .getElementById("add-course-link")
+        .addEventListener("click", () => {
+            location.href = "new-course";
+        });
 
     const lexiconsStatus = document.getElementById("lexicons-status");
     const lexiconTable = document.getElementById("lexicon-table");

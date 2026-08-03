@@ -39,7 +39,7 @@ export async function initCuratedLists() {
         languageCell.textContent = languageName(item.language);
         row.appendChild(languageCell);
 
-        for (const value of [item.words, item.unvoted]) {
+        for (const value of [item.words, item.uncurated]) {
             const cell = document.createElement("td");
             cell.textContent = value;
             cell.style.textAlign = "right";

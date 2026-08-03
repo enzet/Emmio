@@ -85,6 +85,13 @@
     color: var(--fg);
     pointer-events: none;
 }
+/* The overlay sits right after the select in the DOM (see
+   `addStrategyOverlay`), so this sibling selector greys it out to match
+   the native select's own disabled look (e.g. a curated frequency list
+   locking the strategy to `stratified`). */
+select:disabled + .strategy-picker-overlay {
+    color: var(--muted);
+}
 
 :root {
     /* Native widgets (buttons, inputs, scrollbars) follow the theme. */

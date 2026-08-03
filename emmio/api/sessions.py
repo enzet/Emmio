@@ -29,7 +29,12 @@ from emmio import postgres
 from emmio.learn.config import LearningConfig
 from emmio.learn.core import Learning, LearningSession
 from emmio.lexicon.config import LexiconSelection
-from emmio.lexicon.core import WordSelector, WordStates, create_selector
+from emmio.lexicon.core import (
+    DEFAULT_N_STRATA,
+    WordSelector,
+    WordStates,
+    create_selector,
+)
 from emmio.lists.frequency_list import FrequencyList
 
 SESSION_TTL: timedelta = timedelta(hours=2)
@@ -66,6 +71,9 @@ class LexiconCheckSession:
     start: datetime
     last_action: datetime
     actions: int = 0
+    n_strata: int = DEFAULT_N_STRATA
+    curated_words_by_stratum: dict[int, list[str]] | None = None
+    """This lexicon's curated panel, by stratum; `None` for a raw lexicon."""
 
     lock: Any = field(default_factory=threading.RLock)
     """Reentrant lock serializing use."""
@@ -108,6 +116,8 @@ class LexiconSessionRegistry:
         language: str,
         selection: LexiconSelection,
         frequency_list: FrequencyList,
+        n_strata: int = DEFAULT_N_STRATA,
+        curated_words_by_stratum: dict[int, list[str]] | None = None,
     ) -> tuple[WordSelector, WordStates, set[str], int]:
         """Build selection working memory from ground truth."""
         stamp: int = postgres.count_lexicon_records(user_id, language)
@@ -127,6 +137,8 @@ class LexiconSessionRegistry:
             selection,
             postgres.get_lexicon_selector_states(user_id, lexicon_id),
             answered,
+            n_strata,
+            curated_words_by_stratum,
         )
         return selector, states, recent, stamp
 
@@ -138,14 +150,25 @@ class LexiconSessionRegistry:
         selection: LexiconSelection,
         frequency_list: FrequencyList,
         session_id: str | None = None,
+        n_strata: int = DEFAULT_N_STRATA,
+        curated_words_by_stratum: dict[int, list[str]] | None = None,
     ) -> LexiconCheckSession:
         """Open a session, finalizing the previous one on this lexicon.
 
         :param session_id: keep this identifier (reopening after a restart or
             eviction); a fresh one is generated when not given
+        :param n_strata: number of log-uniform strata for `stratified`
+        :param curated_words_by_stratum: see `create_selector`; when given,
+            reused on every future refresh of this session
         """
         selector, states, recent, stamp = self._load(
-            user_id, lexicon_id, language, selection, frequency_list
+            user_id,
+            lexicon_id,
+            language,
+            selection,
+            frequency_list,
+            n_strata,
+            curated_words_by_stratum,
         )
         now: datetime = datetime.now(UTC)
         session: LexiconCheckSession = LexiconCheckSession(
@@ -161,6 +184,8 @@ class LexiconSessionRegistry:
             stamp=stamp,
             start=now,
             last_action=now,
+            n_strata=n_strata,
+            curated_words_by_stratum=curated_words_by_stratum,
         )
         evicted: list[LexiconCheckSession] = []
         with self._lock:
@@ -183,6 +208,8 @@ class LexiconSessionRegistry:
         language: str,
         selection: LexiconSelection,
         frequency_list: FrequencyList,
+        n_strata: int = DEFAULT_N_STRATA,
+        curated_words_by_stratum: dict[int, list[str]] | None = None,
     ) -> LexiconCheckSession:
         """Get the session for a request, reopening or refreshing as needed.
 
@@ -214,6 +241,8 @@ class LexiconSessionRegistry:
             selection,
             frequency_list,
             session_id=session_id,
+            n_strata=n_strata,
+            curated_words_by_stratum=curated_words_by_stratum,
         )
 
     def _refresh(self, session: LexiconCheckSession) -> None:
@@ -235,6 +264,8 @@ class LexiconSessionRegistry:
                 session.language,
                 session.selection,
                 session.frequency_list,
+                session.n_strata,
+                session.curated_words_by_stratum,
             )
 
     def note_answer(

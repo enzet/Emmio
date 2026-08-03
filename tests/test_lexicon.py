@@ -13,6 +13,7 @@ from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
     AnswerType,
+    CuratedStratifiedSelector,
     Lexicon,
     LexiconChecker,
     LexiconLog,
@@ -194,6 +195,71 @@ def test_select_stratified_draws_within_stratum_at_random() -> None:
         for _ in range(30)
     }
     assert len(picks) > 1
+
+
+def test_curated_stratified_only_draws_from_curated_pool() -> None:
+    """A curated-backed selector never draws a word outside the panel.
+
+    `w1` and `w2` are untested in the raw list and stratum 0's rank range,
+    but only `w1` is in the curated panel; the raw `StratifiedSelector`
+    would be free to draw either, but the curated one must always return
+    `w1`.
+    """
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    selector = CuratedStratifiedSelector(
+        frequency_list,
+        {},
+        {0: ["w1"], 1: [f"w{i}" for i in range(3, 16)]},
+        n_strata=2,
+    )
+    for _ in range(20):
+        assert selector.next_word() in {"w1", *(f"w{i}" for i in range(3, 16))}
+
+
+def test_curated_stratified_ignores_answers_outside_the_panel() -> None:
+    """An answer for a word outside the panel does not affect bookkeeping.
+
+    `w0` is answered but not part of the curated panel (e.g. propagated from
+    a sibling lexicon over the same raw list); the base `StratifiedSelector`
+    would count it toward stratum 0's tested statistics (it falls in that
+    rank range), but the curated one must ignore it entirely, so stratum 0
+    still looks fully untested (`_untested_count` equals the panel size, not
+    the panel size minus one).
+    """
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    states: dict[str, tuple[str | None, bool | None]] = {"w0": ("K", None)}
+    selector = CuratedStratifiedSelector(
+        frequency_list,
+        states,
+        {0: ["w1"], 1: [f"w{i}" for i in range(3, 16)]},
+        n_strata=2,
+    )
+    assert selector._untested_count(0) == 1  # noqa: SLF001
+
+
+def test_curated_stratified_covers_untested_strata_first() -> None:
+    """Coverage-first behavior still holds when restricted to a panel."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    states: dict[str, tuple[str | None, bool | None]] = {"w4": ("K", None)}
+    selector = CuratedStratifiedSelector(
+        frequency_list, states, {0: ["w1"], 1: ["w4", "w5", "w6"]}, n_strata=2
+    )
+    assert selector.next_word() == "w1"
+
+
+def test_select_next_word_curated_stratified_via_create_selector() -> None:
+    """`select_next_word`/`create_selector` wire the curated pool through."""
+
+    frequency_list: FrequencyList = _ranked_frequency_list(16)
+    word = select_next_word(
+        frequency_list,
+        set(),
+        LexiconSelection.STRATIFIED,
+        n_strata=2,
+        curated_words_by_stratum={0: ["w1"], 1: ["w5"]},
+    )
+    assert word in {"w1", "w5"}
 
 
 def test_select_next_word_model_strategies_skip_answered() -> None:
