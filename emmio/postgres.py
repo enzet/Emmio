@@ -1813,6 +1813,33 @@ def create_curated_list(
         return int(row[0])
 
 
+def delete_curated_list(curated_list_id: int) -> None:
+    """Delete a curated list and all its words and vote history.
+
+    The schema has no `ON DELETE CASCADE`, so child rows are removed in
+    dependency order inside one transaction; either all of it goes or none.
+    A lexicon backed by this list (`frequency_list.curated`) is not affected:
+    a missing curated list is treated as "not curated" at draw time (see
+    `_curated_pool_for_lexicon`), it just falls back to the plain stratified
+    selector.
+
+    :param curated_list_id: internal identifier of the curated list
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "DELETE FROM curated_word_records cwr USING curated_words cw "
+            "WHERE cwr.curated_word_id = cw.id AND cw.curated_list_id = %s",
+            (curated_list_id,),
+        )
+        cursor.execute(
+            "DELETE FROM curated_words WHERE curated_list_id = %s",
+            (curated_list_id,),
+        )
+        cursor.execute(
+            "DELETE FROM curated_lists WHERE id = %s", (curated_list_id,)
+        )
+
+
 def add_curated_words(
     curated_list_id: int, entries: list[tuple[str, int, int, str]]
 ) -> None:

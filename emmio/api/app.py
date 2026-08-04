@@ -3777,6 +3777,25 @@ def get_curation_lists(
     ]
 
 
+@app.delete(
+    "/api/v1/curation/{language}/{frequency_list_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_curated_list(
+    language: str,
+    frequency_list_id: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> None:
+    """Delete a curated list and all its words and vote history.
+
+    Irreversible. Any lexicon backed by this list falls back to the plain
+    (uncurated) stratified selector, rather than breaking (see
+    `_curated_pool_for_lexicon`).
+    """
+    list_id: int = _curated_list_id_or_404(language, frequency_list_id)
+    postgres.delete_curated_list(list_id)
+
+
 class CurationCategoryNode(BaseModel):
     """One entry in the category picker, possibly with nested children.
 

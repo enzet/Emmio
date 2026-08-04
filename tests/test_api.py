@@ -3864,6 +3864,38 @@ def test_auto_curate_unknown_list_is_404() -> None:
     assert response.status_code == 404
 
 
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_delete_removes_list_words_and_votes() -> None:
+    """`DELETE /curation/{language}/{id}` removes the list beyond recovery."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+
+    response = client.delete(_CURATION_BASE, headers=_auth(token))
+    assert response.status_code == 204
+    assert postgres.get_curated_list_id("uk", "uk_list") is None
+
+    # Gone from the picker too, and every other route 404s on it now.
+    listed = client.get("/api/v1/curation/lists", headers=_auth(token)).json()
+    assert listed == []
+    assert (
+        client.get(f"{_CURATION_BASE}/next", headers=_auth(token)).status_code
+        == 404
+    )
+
+
+def test_curation_delete_unknown_list_is_404() -> None:
+    """`DELETE` 404s on an unknown `(language, id)` pair, like `/next`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.delete(
+        "/api/v1/curation/xx/nonexistent", headers=_auth(token)
+    )
+    assert response.status_code == 404
+
+
 # Self-reported language knowledge.
 
 

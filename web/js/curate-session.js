@@ -39,12 +39,52 @@ export async function initCuratedLists() {
         languageCell.textContent = languageName(item.language);
         row.appendChild(languageCell);
 
-        for (const value of [item.words, item.uncurated]) {
-            const cell = document.createElement("td");
-            cell.textContent = value;
-            cell.style.textAlign = "right";
-            row.appendChild(cell);
+        const wordsCell = document.createElement("td");
+        wordsCell.textContent = item.words;
+        wordsCell.style.textAlign = "right";
+        row.appendChild(wordsCell);
+
+        const curateCell = document.createElement("td");
+        if (item.uncurated > 0) {
+            const curateButton = document.createElement("button");
+            curateButton.type = "button";
+            curateButton.textContent = `Curate (${item.uncurated})`;
+            curateButton.addEventListener("click", () => {
+                location.href =
+                    `curate?language=${encodeURIComponent(item.language)}` +
+                    `&list=${encodeURIComponent(item.frequency_list_id)}`;
+            });
+            curateCell.appendChild(curateButton);
         }
+        row.appendChild(curateCell);
+
+        const deleteCell = document.createElement("td");
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", async () => {
+            if (
+                !confirm(
+                    `Delete curated list "${item.name}"? This cannot be undone.`,
+                )
+            ) {
+                return;
+            }
+            const result = await api(
+                `/curation/${encodeURIComponent(item.language)}` +
+                    `/${encodeURIComponent(item.frequency_list_id)}`,
+                { method: "DELETE" },
+            );
+            if (result.ok) {
+                row.remove();
+                if (rows.children.length === 0) {
+                    table.hidden = true;
+                    status.textContent = "No curated lists yet.";
+                }
+            }
+        });
+        deleteCell.appendChild(deleteButton);
+        row.appendChild(deleteCell);
 
         rows.appendChild(row);
     }
