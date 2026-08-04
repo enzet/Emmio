@@ -277,7 +277,9 @@ CREATE INDEX IF NOT EXISTS curated_word_records_word_time
 --   alongside or instead of its curated values (see `is_valid_knowledge_
 --   value`). `caption` is free text naming the kind more precisely, used
 --   only by the generic `standardized_test` kind (`has_caption`); NULL
---   otherwise.
+--   otherwise. `date` is NULL for a kind with `requires_date = False`
+--   (`native`: a learner is not native "as of" some date) and required for
+--   every other kind (see `is_valid_knowledge_date`).
 CREATE TABLE IF NOT EXISTS language_knowledge_records (
     id         BIGSERIAL PRIMARY KEY,
     user_id    INT NOT NULL REFERENCES users(id),
@@ -285,12 +287,13 @@ CREATE TABLE IF NOT EXISTS language_knowledge_records (
     kind       TEXT NOT NULL,
     value      TEXT,
     caption    TEXT,
-    date       DATE NOT NULL,
+    date       DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- Patches an existing table forward (the `CREATE TABLE` above only takes
 -- effect on a fresh database); safe to re-run.
 ALTER TABLE language_knowledge_records ADD COLUMN IF NOT EXISTS caption TEXT;
+ALTER TABLE language_knowledge_records ALTER COLUMN date DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS language_knowledge_records_user_language
     ON language_knowledge_records (user_id, language, date);

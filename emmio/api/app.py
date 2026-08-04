@@ -53,6 +53,7 @@ from emmio.language_knowledge import (
     KNOWLEDGE_KINDS_BY_CODE,
     KnowledgeKind,
     is_valid_caption,
+    is_valid_knowledge_date,
     is_valid_knowledge_value,
 )
 from emmio.learn.config import LearningType
@@ -3563,6 +3564,10 @@ class KnowledgeKindOption(BaseModel):
     """Whether this kind needs a free-text caption naming it more
     precisely (e.g. `standardized_test`, which test)."""
 
+    requires_date: bool
+    """Whether this kind needs a self-reported date (false only for
+    `native`)."""
+
 
 def _knowledge_kind_option(kind: KnowledgeKind) -> KnowledgeKindOption:
     return KnowledgeKindOption(
@@ -3584,6 +3589,7 @@ def _knowledge_kind_option(kind: KnowledgeKind) -> KnowledgeKindOption:
         ),
         allows_other=kind.allows_other,
         has_caption=kind.has_caption,
+        requires_date=kind.requires_date,
     )
 
 
@@ -3595,6 +3601,15 @@ def get_language_knowledge_kinds() -> list[KnowledgeKindOption]:
     return [_knowledge_kind_option(kind) for kind in KNOWLEDGE_KINDS]
 
 
+# A field literally named `date` (as the API's JSON key must be) with a
+# default value shadows the bare `date` type name in its own annotation:
+# class bodies bind the assigned value before evaluating the annotation, so
+# `date: date | None = None` would resolve `date | None` against the
+# just-bound `None` rather than the imported type, and raise at
+# class-definition time. `_OptionalDate` sidesteps the collision.
+_OptionalDate = date | None
+
+
 class LanguageKnowledgeRecord(BaseModel):
     """One self-reported proficiency estimate."""
 
@@ -3603,7 +3618,7 @@ class LanguageKnowledgeRecord(BaseModel):
     kind: str
     value: str | None
     caption: str | None
-    date: date
+    date: _OptionalDate
 
 
 @app.get("/api/v1/me/language-knowledge")
@@ -3637,7 +3652,7 @@ class CreateLanguageKnowledgeRequest(BaseModel):
     kind: str
     value: str | None = None
     caption: str | None = None
-    date: date
+    date: _OptionalDate = None
 
 
 @app.post("/api/v1/me/language-knowledge", status_code=status.HTTP_201_CREATED)
@@ -3678,6 +3693,11 @@ def create_language_knowledge_record(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid caption `{request.caption}` for `{kind.label}`.",
+        )
+    if not is_valid_knowledge_date(kind, request.date):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date `{request.date}` for `{kind.label}`.",
         )
     record_id: int = postgres.add_language_knowledge_record(
         user_id,

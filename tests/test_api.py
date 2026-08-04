@@ -3932,6 +3932,9 @@ def test_language_knowledge_kinds_lists_curated_taxonomy() -> None:
     assert self_assessed["has_caption"] is False
     assert native["allows_other"] is False
 
+    assert native["requires_date"] is False
+    assert self_assessed["requires_date"] is True
+
     ielts = kinds["ielts"]
     assert ielts["values"] == []
     assert ielts["numeric_range"] == {
@@ -4004,11 +4007,55 @@ def test_create_language_knowledge_native_has_no_value() -> None:
     token = _register_and_login("alice", "alice@example.com")
     response = client.post(
         "/api/v1/me/language-knowledge",
-        json={"language": "fr", "kind": "native", "date": "2020-01-01"},
+        json={"language": "fr", "kind": "native"},
         headers=_auth(token),
     )
     assert response.status_code == 201
     assert response.json()["value"] is None
+
+
+def test_create_language_knowledge_native_has_no_date() -> None:
+    """A `native` estimate carries no date: it's not "as of" any date."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "fr", "kind": "native"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    assert response.json()["date"] is None
+
+    records = postgres.get_language_knowledge_records("alice")
+    assert records == [
+        (response.json()["id"], "fr", "native", None, None, None)
+    ]
+
+
+def test_create_language_knowledge_rejects_date_for_native() -> None:
+    """A `native` estimate with an explicit date is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "fr", "kind": "native", "date": "2020-01-01"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_create_language_knowledge_rejects_missing_date_for_dated_kind() -> (
+    None
+):
+    """A kind other than `native` requires a date."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "fr", "kind": "delf_dalf", "value": "B2"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
 
 
 def test_create_language_knowledge_rejects_unknown_kind() -> None:

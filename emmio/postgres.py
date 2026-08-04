@@ -2156,7 +2156,9 @@ def record_curation_vote(
 # `emmio.language_knowledge` for the taxonomy `kind`/`value` are validated
 # against.
 
-LanguageKnowledgeRecordRow = tuple[int, str, str, str | None, str | None, date]
+LanguageKnowledgeRecordRow = tuple[
+    int, str, str, str | None, str | None, date | None
+]
 """Id, language, kind, value, caption, date."""
 
 
@@ -2166,7 +2168,7 @@ def add_language_knowledge_record(
     kind: str,
     value: str | None,
     caption: str | None,
-    date_: date,
+    date_: date | None,
 ) -> int:
     """Add one self-reported proficiency estimate.
 
@@ -2179,7 +2181,8 @@ def add_language_knowledge_record(
     :param value: value on the kind's scale, or `None` for a valueless kind
     :param caption: free text naming the kind more precisely, only for a
         kind with `has_caption` (e.g. `standardized_test`); `None` otherwise
-    :param date_: the estimate's self-reported date
+    :param date_: the estimate's self-reported date, or `None` for a kind
+        with `requires_date = False` (`native`)
     :return: the new record's internal identifier
     """
     with db_cursor() as cursor:
@@ -2201,7 +2204,8 @@ def get_language_knowledge_records(
     """Get every self-reported proficiency estimate for a user.
 
     :param user_id: owning user login, e.g. `john`
-    :return: rows ordered by language, then newest date first
+    :return: rows ordered by language, then newest date first, undated
+        (`native`) records last within their language
     """
     with db_cursor() as cursor:
         cursor.execute(
@@ -2209,7 +2213,7 @@ def get_language_knowledge_records(
             "FROM language_knowledge_records r "
             "JOIN users u ON u.id = r.user_id "
             "WHERE u.user_id = %s "
-            "ORDER BY r.language, r.date DESC, r.id DESC",
+            "ORDER BY r.language, r.date DESC NULLS LAST, r.id DESC",
             (user_id,),
         )
         return [

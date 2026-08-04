@@ -34,6 +34,7 @@ export async function initLanguages() {
     const valueFieldLabel = document.querySelector(
         'label[for="add-knowledge-value-select"]',
     );
+    const dateField = document.getElementById("add-knowledge-date-field");
     const dateInput = document.getElementById("add-knowledge-date");
     const addStatus = document.getElementById("add-knowledge-status");
 
@@ -49,7 +50,6 @@ export async function initLanguages() {
     const kinds = await kindsResponse.json();
 
     fillLanguageSelect(languageSelect, languages);
-    dateInput.value = new Date().toISOString().slice(0, 10);
 
     function currentKind() {
         return kinds.find((kind) => kind.code === kindSelect.value);
@@ -80,6 +80,19 @@ export async function initLanguages() {
         captionField.hidden = !kind?.has_caption;
         captionInput.required = !!kind?.has_caption;
         if (!kind?.has_caption) captionInput.value = "";
+    }
+
+    // `native` needs no date — a learner is not native "as of" some date —
+    // so its row is hidden and nothing is sent, mirroring the caption field.
+    function updateDateField() {
+        const kind = currentKind();
+        const requiresDate = kind ? kind.requires_date : true;
+        dateField.hidden = !requiresDate;
+        dateInput.required = requiresDate;
+        if (!requiresDate) dateInput.value = "";
+        else if (!dateInput.value) {
+            dateInput.value = new Date().toISOString().slice(0, 10);
+        }
     }
 
     // The value field's shape depends entirely on the chosen kind: a
@@ -153,15 +166,18 @@ export async function initLanguages() {
         fillKindSelect();
         updateCaptionField();
         updateValueField();
+        updateDateField();
     });
     kindSelect.addEventListener("change", () => {
         updateCaptionField();
         updateValueField();
+        updateDateField();
     });
     valueSelect.addEventListener("change", updateOtherVisibility);
     fillKindSelect();
     updateCaptionField();
     updateValueField();
+    updateDateField();
 
     function kindLabel(record) {
         const label = kinds.find((kind) => kind.code === record.kind)?.label;
@@ -202,7 +218,7 @@ export async function initLanguages() {
             row.appendChild(valueCell);
 
             const dateCell = document.createElement("td");
-            dateCell.textContent = record.date;
+            dateCell.textContent = record.date ?? "—";
             row.appendChild(dateCell);
 
             const actionCell = document.createElement("td");
@@ -249,7 +265,7 @@ export async function initLanguages() {
                 kind: kindSelect.value,
                 value: value || null,
                 caption: kind?.has_caption ? captionInput.value || null : null,
-                date: dateInput.value,
+                date: kind?.requires_date ? dateInput.value : null,
             },
         });
         if (result.ok) {

@@ -13,6 +13,7 @@ web client never hardcodes the taxonomy.
 """
 
 import math
+from datetime import date
 from typing import NamedTuple
 
 
@@ -75,6 +76,14 @@ class KnowledgeKind(NamedTuple):
     records.caption` free-text field instead of a fixed label.
     """
 
+    requires_date: bool = True
+    """Whether this kind needs a self-reported date.
+
+    False only for `native`: a learner does not become native "as of" some
+    date the way a certificate or self-assessment is dated, so the date
+    field is dropped rather than asking for an arbitrary one.
+    """
+
 
 _CEFR: tuple[KnowledgeValue, ...] = (
     KnowledgeValue("A1", "A1"),
@@ -93,7 +102,7 @@ _CEFR: tuple[KnowledgeValue, ...] = (
 # an unlisted grade, ...) should still be recordable as free text rather
 # than forced onto the nearest curated value.
 KNOWLEDGE_KINDS: tuple[KnowledgeKind, ...] = (
-    KnowledgeKind("native", "Native speaker", None),
+    KnowledgeKind("native", "Native speaker", None, requires_date=False),
     KnowledgeKind("self", "Self-assessed", None, _CEFR, allows_other=True),
     KnowledgeKind(
         "teacher", "Teacher-assessed", None, _CEFR, allows_other=True
@@ -225,3 +234,14 @@ def is_valid_caption(kind: KnowledgeKind, caption: str | None) -> bool:
     if kind.has_caption:
         return bool(caption and caption.strip())
     return caption is None
+
+
+def is_valid_knowledge_date(kind: KnowledgeKind, date_: date | None) -> bool:
+    """Check whether `date_` is valid for `kind`.
+
+    :param kind: the chosen assessment kind
+    :param date_: the submitted date, or `None`
+    """
+    if kind.requires_date:
+        return date_ is not None
+    return date_ is None
