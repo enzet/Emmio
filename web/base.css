@@ -714,6 +714,27 @@ header .profile-link {
     background: var(--selected-bg);
     border-color: var(--selected-border);
 }
+/* Word-list filter tabs (lexicon-words.html): same toggle-button-group look
+   as the history interval buttons above. */
+#filter-tabs {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.6rem;
+}
+#filter-tabs button {
+    font: inherit;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    padding: 0.2rem 0.7rem;
+    cursor: pointer;
+}
+#filter-tabs button[aria-pressed="true"] {
+    color: var(--fg);
+    background: var(--selected-bg);
+    border-color: var(--selected-border);
+}
 #lexicon-history .line {
     stroke: var(--fg);
     stroke-width: 1;
@@ -827,6 +848,20 @@ dt {
 dd {
     padding-right: 0;
     margin: 0;
+}
+/* A `dd`'s value rendered as a button instead of plain text (see
+   `renderDefinitionList`'s `onClick` row) — e.g. the lexicon page's
+   "Known"/"Don't know" counts, which open that word list. Reset to read as
+   underlined text inline with the rest of the row, not a boxed button. */
+.dd-link {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: var(--link);
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 /* Visual confirmation when a button is pressed, whether via the mouse

@@ -78,6 +78,17 @@ export async function initLexicons() {
 
 // Lexicon detail page.
 
+// Build a "see these words" click handler for a stats row, navigating to
+// the dedicated word-list page pre-filtered — `response` is `all`/`know`/
+// `dont`, matching `get_lexicon_words`'s grouping.
+function wordListLink(lexiconId, response) {
+    return () => {
+        location.href =
+            `lexicon-words?lexicon=${encodeURIComponent(lexiconId)}` +
+            `&response=${response}`;
+    };
+}
+
 export async function initLexicon() {
     requireAuth();
 
@@ -145,9 +156,24 @@ export async function initLexicon() {
             "strategy-text",
         ],
         ["Frequency list", s.frequency_list_name ?? "—"],
-        ["Words checked", s.words],
-        ["Known", s.known],
-        ["Don't know", s.dont_know],
+        [
+            "Words checked",
+            s.words,
+            null,
+            s.words > 0 ? wordListLink(lexiconId, "all") : null,
+        ],
+        [
+            "Known",
+            s.known,
+            null,
+            s.known > 0 ? wordListLink(lexiconId, "know") : null,
+        ],
+        [
+            "Don't know",
+            s.dont_know,
+            null,
+            s.dont_know > 0 ? wordListLink(lexiconId, "dont") : null,
+        ],
         [
             "Vocabulary rate",
             s.rate === null

@@ -3014,6 +3014,15 @@ def get_lexicon_sentence(
     )
 
 
+# Words per page for a paginated word list (both this lexicon's "see these
+# words" links and the curated-list review table below). Same order of
+# magnitude as a stratum's target panel size (`DEFAULT_N_C` in
+# `emmio.lexicon.curation`), so a page is a natural, skimmable chunk rather
+# than an arbitrary round number.
+_WORDS_PAGE_SIZE_DEFAULT: int = 100
+_WORDS_PAGE_SIZE_MAX: int = 500
+
+
 class LexiconStats(BaseModel):
     """Details and statistics for a single lexicon."""
 
@@ -3113,6 +3122,95 @@ def get_lexicon_stats(
         achieved=goal.achieved,
         check_available=goal.check_available,
         recheck_available_at=goal.recheck_available_at,
+    )
+
+
+# Response codes grouped the same way `get_lexicon_stats` sums them, so a
+# page's word list always matches the count the user clicked through from.
+# `"all"` maps to `None` (no filter) rather than being left out, so it is
+# still a member of this dict — `response not in ...` is how an actually
+# unsupported value is told apart from the "no filter" case.
+_LEXICON_WORD_RESPONSE_GROUPS: dict[str, frozenset[str] | None] = {
+    "all": None,
+    "know": frozenset(
+        {
+            LexiconResponse.KNOW.to_code(),
+            LexiconResponse.KNOW_SEMANTIC_CLASS.to_code(),
+        }
+    ),
+    "dont": frozenset({LexiconResponse.DONT.to_code()}),
+}
+
+
+class LexiconWordEntry(BaseModel):
+    """One word in a lexicon, with its current response and when seen."""
+
+    word: str
+    response_label: str | None  # E.g. "know", "don't know"; `None` if unset.
+    last_seen: datetime | None
+
+
+class LexiconWordsPage(BaseModel):
+    """One page of a lexicon's words matching a response group.
+
+    Backs the dedicated lexicon word-list page's "All"/"Know"/"Don't know"
+    filter.
+    """
+
+    words: list[LexiconWordEntry]
+    total: int  # Total words in the group, across every page.
+    page: int
+    page_size: int
+
+
+@app.get("/api/v1/me/lexicons/{lexicon_id}/words")
+def get_lexicon_words(
+    lexicon_id: str,
+    user_id: Annotated[str, Depends(get_current_user)],
+    response: str,
+    page: int = 1,
+    page_size: int = _WORDS_PAGE_SIZE_DEFAULT,
+) -> LexiconWordsPage:
+    """Get one page of a lexicon's words currently answered `response`.
+
+    `response` is `all`, `know` (last answer "know" or "know class"), or
+    `dont` (last answer "don't know") — the latter two the same grouping
+    `get_lexicon_stats` sums into its "Known"/"Don't know" counts.
+    `page`/`page_size` are clamped rather than rejected, matching
+    `/curation/{language}/{id}/words`.
+    """
+    _lexicon_config_or_404(user_id, lexicon_id)
+    if response not in _LEXICON_WORD_RESPONSE_GROUPS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported response `{response}`. Choose one of: "
+                f"{', '.join(sorted(_LEXICON_WORD_RESPONSE_GROUPS))}."
+            ),
+        )
+    codes: frozenset[str] | None = _LEXICON_WORD_RESPONSE_GROUPS[response]
+    page = max(1, page)
+    page_size = max(1, min(page_size, _WORDS_PAGE_SIZE_MAX))
+    offset: int = (page - 1) * page_size
+    rows = postgres.get_lexicon_words_by_response(
+        user_id, lexicon_id, codes, offset=offset, limit=page_size
+    )
+    return LexiconWordsPage(
+        words=[
+            LexiconWordEntry(
+                word=word,
+                response_label=_LEXICON_RESPONSE_LABELS.get(code)
+                if code
+                else None,
+                last_seen=last_seen,
+            )
+            for word, code, last_seen in rows
+        ],
+        total=postgres.count_lexicon_words_by_response(
+            user_id, lexicon_id, codes
+        ),
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -3835,13 +3933,6 @@ async def get_next_curation_word(
     return CurationWordCard(
         word=None, stratum=None, auto_resolved=auto_resolved
     )
-
-
-# Words per page for `/words`. Same order of magnitude as a stratum's target
-# panel size (`DEFAULT_N_C` in `emmio.lexicon.curation`), so a page is a
-# natural, skimmable chunk rather than an arbitrary round number.
-_WORDS_PAGE_SIZE_DEFAULT: int = 100
-_WORDS_PAGE_SIZE_MAX: int = 500
 
 
 class CuratedWordEntry(BaseModel):

@@ -86,15 +86,27 @@ export function emmioLevel(rate, cell) {
     cell.append(span);
 }
 
-// Append a `<dt>`/`<dd>` pair to `container` for each `[label, value]` row.
-// Shared by the lexicon, course, and profile detail pages.
+// Append a `<dt>`/`<dd>` pair to `container` for each `[label, value,
+// className, onClick]` row (`className` and `onClick` are optional). Shared
+// by the lexicon, course, and profile detail pages. A row with `onClick`
+// renders its value as a button instead of plain text — e.g. the lexicon
+// page's "Known"/"Don't know" counts, which open that word list.
 export function renderDefinitionList(container, rows) {
-    for (const [label, value, className] of rows) {
+    for (const [label, value, className, onClick] of rows) {
         const term = document.createElement("dt");
         term.textContent = label;
         const description = document.createElement("dd");
-        description.textContent = value;
         if (className) description.className = className;
+        if (onClick) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "dd-link";
+            button.textContent = value;
+            button.addEventListener("click", onClick);
+            description.appendChild(button);
+        } else {
+            description.textContent = value;
+        }
         container.append(term, description);
     }
 }

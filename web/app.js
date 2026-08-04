@@ -6,6 +6,7 @@ import {
 } from "./js/curate-session.js";
 import { initLearn } from "./js/learn-session.js";
 import { initLexicon, initLexicons, initNewLexicon } from "./js/lexicon-pages.js";
+import { initLexiconWords } from "./js/lexicon-words.js";
 import { initHome, initLanguage } from "./js/home-pages.js";
 import { initLanding, initLogin, initRegister } from "./js/auth-pages.js";
 import { initCourse, initCourses, initLearning, initNewCourse, initNewLearning } from "./js/course-pages.js";
@@ -33,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (page === "language") initLanguage();
     else if (page === "lexicons") initLexicons();
     else if (page === "lexicon") initLexicon();
+    else if (page === "lexicon-words") initLexiconWords();
     else if (page === "new-lexicon") initNewLexicon();
     else if (page === "check") initCheck();
     else if (page === "curated-lists") initCuratedLists();

@@ -473,6 +473,122 @@ def test_rate_trajectory_includes_strata_for_stratified_lexicon(
 
 
 @pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_words_lists_matching_response_group() -> None:
+    """`/words?response=` lists the words behind a stats count.
+
+    Matches `get_lexicon_stats`'s own "Known"/"Don't know" grouping.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+
+    for word, response in (
+        (_UK_WORDS[0], "know"),
+        (_UK_WORDS[1], "know_semantic_class"),
+        (_UK_WORDS[2], "dont"),
+        (_UK_WORDS[3], "dont"),
+    ):
+        assert (
+            client.post(
+                "/api/v1/me/lexicons/uk/answer",
+                json={"word": word, "response": response},
+                headers=_auth(token),
+            ).status_code
+            == 204
+        )
+
+    known = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "know"},
+        headers=_auth(token),
+    )
+    assert known.status_code == 200
+    known_body = known.json()
+    assert known_body["total"] == 2
+    assert {entry["word"] for entry in known_body["words"]} == {
+        _UK_WORDS[0],
+        _UK_WORDS[1],
+    }
+    labels = {
+        entry["word"]: entry["response_label"] for entry in known_body["words"]
+    }
+    assert labels[_UK_WORDS[0]] == "know"
+    assert labels[_UK_WORDS[1]] == "know class"
+
+    dont = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "dont"},
+        headers=_auth(token),
+    ).json()
+    assert dont["total"] == 2
+    assert {entry["word"] for entry in dont["words"]} == {
+        _UK_WORDS[2],
+        _UK_WORDS[3],
+    }
+
+    everything = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "all"},
+        headers=_auth(token),
+    ).json()
+    assert everything["total"] == 4
+    assert {entry["word"] for entry in everything["words"]} == {
+        _UK_WORDS[0],
+        _UK_WORDS[1],
+        _UK_WORDS[2],
+        _UK_WORDS[3],
+    }
+
+    invalid = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "not_a_group"},
+        headers=_auth(token),
+    )
+    assert invalid.status_code == 400
+
+    unknown_lexicon = client.get(
+        "/api/v1/me/lexicons/does-not-exist/words",
+        params={"response": "know"},
+        headers=_auth(token),
+    )
+    assert unknown_lexicon.status_code == 404
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_lexicon_words_paginates() -> None:
+    """`/words` clamps `page`/`page_size`, matching the curated-list table."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    _create_uk_lexicon(token, "stratified")
+    for word in _UK_WORDS[:5]:
+        client.post(
+            "/api/v1/me/lexicons/uk/answer",
+            json={"word": word, "response": "dont"},
+            headers=_auth(token),
+        )
+
+    first_page = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "dont", "page": 1, "page_size": 2},
+        headers=_auth(token),
+    ).json()
+    assert first_page["total"] == 5
+    assert len(first_page["words"]) == 2
+    assert first_page["page"] == 1
+    assert first_page["page_size"] == 2
+
+    second_page = client.get(
+        "/api/v1/me/lexicons/uk/words",
+        params={"response": "dont", "page": 2, "page_size": 2},
+        headers=_auth(token),
+    ).json()
+    assert len(second_page["words"]) == 2
+    first_words = {entry["word"] for entry in first_page["words"]}
+    second_words = {entry["word"] for entry in second_page["words"]}
+    assert not (first_words & second_words)  # Distinct words per page.
+
+
+@pytest.mark.usefixtures("fake_uk_list")
 def test_tables_show_strategy_matched_rate_for_stratified_lexicon() -> None:
     """The list and stats endpoints use the strategy-matched estimator.
 

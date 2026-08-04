@@ -25,7 +25,8 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `login.html`    | Log in form.                                                 |
 | `register.html` | Registration form.                                           |
 | `lexicons.html` | Table of the user's lexicons (short info per lexicon).       |
-| `lexicon.html`  | One lexicon: details and statistics (rate, precision, …).    |
+| `lexicon.html`  | One lexicon: details and statistics (rate, precision, …); "Words checked"/"Known"/"Don't know" link to `lexicon-words.html`. |
+| `lexicon-words.html` | A lexicon's words, filtered All / Know / Don't know, paginated. |
 | `check.html`    | Check a lexicon: shows a word, records know / don't know.    |
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
@@ -51,6 +52,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/auth-pages.js`       | Landing, login, register.                                        |
 | `js/home-pages.js`       | Dashboard and the per-language page.                              |
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
+| `js/lexicon-words.js`    | A lexicon's word list, filtered All / Know / Don't know.          |
 | `js/course-pages.js`     | Course list, course detail + learning settings, add-a-course/learning. |
 | `js/profile.js`          | Profile page.                                                    |
 | `js/language-knowledge.js` | Self-reported language knowledge: add/list/delete estimates.  |

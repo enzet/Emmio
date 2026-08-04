@@ -1116,6 +1116,79 @@ def get_lexicon_word_states(
         return {row[0]: row[1] for row in cursor.fetchall()}
 
 
+LexiconWordRow = tuple[str, str | None, datetime | None]
+"""Word, current response code, last seen."""
+
+
+def get_lexicon_words_by_response(
+    user_id: str,
+    lexicon_id: str,
+    response_codes: Collection[str] | None,
+    offset: int = 0,
+    limit: int | None = None,
+) -> list[LexiconWordRow]:
+    """Get a lexicon's words currently cached with one of `response_codes`.
+
+    Powers the dedicated lexicon word-list page's "All"/"Know"/"Don't know"
+    filter — `response_codes` is `None`, `{K, C}`, or `{D}` there, the last
+    two mirroring `get_lexicon_stats`'s own grouping. Reads the per-word
+    state cache (`lexicon_words.response`), so no record history is scanned.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param response_codes: current response codes to match, e.g. `{"D"}`;
+        `None` for every word regardless of response
+    :param offset: number of leading rows to skip, for pagination
+    :param limit: maximum rows to return, or `None` for no limit
+    :return: rows ordered most recently seen first
+    """
+    codes: list[str] | None = (
+        list(response_codes) if response_codes is not None else None
+    )
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT w.word, w.response, w.last_seen "
+            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "AND (%s::TEXT[] IS NULL OR w.response = ANY(%s)) "
+            "ORDER BY w.last_seen DESC NULLS LAST, w.word "
+            "LIMIT %s OFFSET %s",
+            (user_id, lexicon_id, codes, codes, limit, offset),
+        )
+        return [(row[0], row[1], row[2]) for row in cursor.fetchall()]
+
+
+def count_lexicon_words_by_response(
+    user_id: str, lexicon_id: str, response_codes: Collection[str] | None
+) -> int:
+    """Count a lexicon's words currently cached with one of `response_codes`.
+
+    Cheaper than `len(get_lexicon_words_by_response(...))` for a page's
+    "total" count, since it never fetches the rows themselves.
+
+    :param user_id: owning user login, e.g. `john`
+    :param lexicon_id: lexicon identifier, e.g. `fr`
+    :param response_codes: current response codes to match, e.g. `{"D"}`;
+        `None` for every word regardless of response
+    """
+    codes: list[str] | None = (
+        list(response_codes) if response_codes is not None else None
+    )
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) "
+            "FROM lexicon_words w JOIN lexicons l ON l.id = w.lexicon_id "
+            "JOIN users u ON u.id = l.user_id "
+            "WHERE u.user_id = %s AND l.lexicon_id = %s "
+            "AND (%s::TEXT[] IS NULL OR w.response = ANY(%s))",
+            (user_id, lexicon_id, codes, codes),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
+
+
 def get_last_lexicon_answers(
     user_id: str, lexicon_id: str, words: list[str]
 ) -> dict[str, tuple[str, datetime]]:
