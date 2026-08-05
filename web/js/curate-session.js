@@ -1,4 +1,4 @@
-import { identifierSpan, languageName, loadingDots } from "./format.js";
+import { fillLanguageSelect, identifierSpan, languageName, loadingDots } from "./format.js";
 import { api, requireAuth } from "./api.js";
 
 // Curated-list picker: one row per list, linking to
@@ -14,80 +14,173 @@ export async function initCuratedLists() {
     const status = document.getElementById("status");
     const table = document.getElementById("curated-list-table");
     const rows = document.getElementById("curated-list-rows");
-    const response = await api("/curation/lists");
-    const lists = await response.json();
 
-    if (lists.length === 0) {
-        status.textContent = "No curated lists yet.";
-    } else {
-        status.textContent = "";
-        table.hidden = false;
-    }
-    for (const item of lists) {
-        const row = document.createElement("tr");
+    async function loadLists() {
+        const response = await api("/curation/lists");
+        const lists = await response.json();
 
-        const nameCell = document.createElement("td");
-        const link = document.createElement("a");
-        link.href =
-            `curated-list?language=${encodeURIComponent(item.language)}` +
-            `&list=${encodeURIComponent(item.frequency_list_id)}`;
-        link.textContent = item.name;
-        nameCell.appendChild(link);
-        row.appendChild(nameCell);
-
-        const languageCell = document.createElement("td");
-        languageCell.textContent = languageName(item.language);
-        row.appendChild(languageCell);
-
-        const wordsCell = document.createElement("td");
-        wordsCell.textContent = item.words;
-        wordsCell.style.textAlign = "right";
-        row.appendChild(wordsCell);
-
-        const curateCell = document.createElement("td");
-        if (item.uncurated > 0) {
-            const curateButton = document.createElement("button");
-            curateButton.type = "button";
-            curateButton.textContent = `Curate (${item.uncurated})`;
-            curateButton.addEventListener("click", () => {
-                location.href =
-                    `curate?language=${encodeURIComponent(item.language)}` +
-                    `&list=${encodeURIComponent(item.frequency_list_id)}`;
-            });
-            curateCell.appendChild(curateButton);
+        rows.replaceChildren();
+        if (lists.length === 0) {
+            status.textContent = "No curated lists yet.";
+            table.hidden = true;
+        } else {
+            status.textContent = "";
+            table.hidden = false;
         }
-        row.appendChild(curateCell);
+        for (const item of lists) {
+            const row = document.createElement("tr");
 
-        const deleteCell = document.createElement("td");
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.textContent = "Delete";
-        deleteButton.addEventListener("click", async () => {
-            if (
-                !confirm(
-                    `Delete curated list "${item.name}"? This cannot be undone.`,
-                )
-            ) {
-                return;
+            const nameCell = document.createElement("td");
+            const link = document.createElement("a");
+            link.href =
+                `curated-list?language=${encodeURIComponent(item.language)}` +
+                `&list=${encodeURIComponent(item.frequency_list_id)}`;
+            link.textContent = item.name;
+            nameCell.appendChild(link);
+            row.appendChild(nameCell);
+
+            const languageCell = document.createElement("td");
+            languageCell.textContent = languageName(item.language);
+            row.appendChild(languageCell);
+
+            const wordsCell = document.createElement("td");
+            wordsCell.textContent = item.words;
+            wordsCell.style.textAlign = "right";
+            row.appendChild(wordsCell);
+
+            const curateCell = document.createElement("td");
+            if (item.uncurated > 0) {
+                const curateButton = document.createElement("button");
+                curateButton.type = "button";
+                curateButton.textContent = `Curate (${item.uncurated})`;
+                curateButton.addEventListener("click", () => {
+                    location.href =
+                        `curate?language=${encodeURIComponent(item.language)}` +
+                        `&list=${encodeURIComponent(item.frequency_list_id)}`;
+                });
+                curateCell.appendChild(curateButton);
             }
-            const result = await api(
-                `/curation/${encodeURIComponent(item.language)}` +
-                    `/${encodeURIComponent(item.frequency_list_id)}`,
-                { method: "DELETE" },
-            );
-            if (result.ok) {
-                row.remove();
-                if (rows.children.length === 0) {
-                    table.hidden = true;
-                    status.textContent = "No curated lists yet.";
+            row.appendChild(curateCell);
+
+            // Draws 50 more words into every stratum (see `_EXTEND_WORDS_
+            // PER_STRATUM`), regardless of how many it already has —
+            // simpler than the "Build a panel" form below, which needs a
+            // full target instead of an increment.
+            const extendCell = document.createElement("td");
+            const extendButton = document.createElement("button");
+            extendButton.type = "button";
+            extendButton.textContent = "Extend";
+            extendButton.addEventListener("click", async () => {
+                extendButton.disabled = true;
+                extendButton.textContent = "Extending…";
+                const result = await api(
+                    `/curation/${encodeURIComponent(item.language)}` +
+                        `/${encodeURIComponent(item.frequency_list_id)}` +
+                        "/extend",
+                    { method: "POST" },
+                );
+                if (result.ok) {
+                    await loadLists();
+                } else {
+                    extendButton.disabled = false;
+                    extendButton.textContent = "Extend";
                 }
-            }
-        });
-        deleteCell.appendChild(deleteButton);
-        row.appendChild(deleteCell);
+            });
+            extendCell.appendChild(extendButton);
+            row.appendChild(extendCell);
 
-        rows.appendChild(row);
+            const deleteCell = document.createElement("td");
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "danger";
+            deleteButton.textContent = "\uE005 Delete";
+            deleteButton.addEventListener("click", async () => {
+                if (
+                    !confirm(
+                        `Delete curated list "${item.name}"? This cannot be undone.`,
+                    )
+                ) {
+                    return;
+                }
+                const result = await api(
+                    `/curation/${encodeURIComponent(item.language)}` +
+                        `/${encodeURIComponent(item.frequency_list_id)}`,
+                    { method: "DELETE" },
+                );
+                if (result.ok) await loadLists();
+            });
+            deleteCell.appendChild(deleteButton);
+            row.appendChild(deleteCell);
+
+            rows.appendChild(row);
+        }
     }
+
+    await loadLists();
+    await setupBuildPanelForm(loadLists);
+}
+
+// "Build a panel" form: the web equivalent of `emmio data build-panel`.
+// Draws `n_c` words per log-uniform stratum from a frequency list into a
+// curated panel, ready for `emmio curate`/the curate session above — see
+// `build_or_extend_curated_panel` for what actually runs.
+async function setupBuildPanelForm(onBuilt) {
+    const form = document.getElementById("build-panel-form");
+    const languageSelect = document.getElementById("build-panel-language");
+    const kindSelect = document.getElementById("build-panel-kind");
+    const yearInput = document.getElementById("build-panel-year");
+    const nameInput = document.getElementById("build-panel-name");
+    const nStrataInput = document.getElementById("build-panel-n-strata");
+    const nCInput = document.getElementById("build-panel-n-c");
+    const seedInput = document.getElementById("build-panel-seed");
+    const buildStatus = document.getElementById("build-panel-status");
+
+    const languagesResponse = await api("/lexicon-languages");
+    if (languagesResponse.ok) {
+        fillLanguageSelect(languageSelect, await languagesResponse.json());
+    }
+
+    // `year` is only required for `opensubtitles`: `frequency_words`
+    // defaults to the best cataloged release (see the request docstring).
+    function updateYearRequirement() {
+        const isOpenSubtitles = kindSelect.value === "opensubtitles";
+        yearInput.required = isOpenSubtitles;
+        yearInput.placeholder = isOpenSubtitles ? "" : "Best available";
+    }
+    kindSelect.addEventListener("change", updateYearRequirement);
+    updateYearRequirement();
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        buildStatus.textContent = "Building…";
+        const result = await api("/curation/build-panel", {
+            method: "POST",
+            body: {
+                language: languageSelect.value,
+                kind: kindSelect.value,
+                year: yearInput.value ? Number(yearInput.value) : null,
+                name: nameInput.value || null,
+                n_strata: Number(nStrataInput.value),
+                n_c: Number(nCInput.value),
+                seed: seedInput.value ? Number(seedInput.value) : null,
+            },
+        });
+        if (result.ok) {
+            const body = await result.json();
+            buildStatus.textContent = body.strata_mismatch
+                ? `Curated list "${body.name}": ${body.new_words} new ` +
+                  `word(s) added. Its existing ${body.n_strata} strata ` +
+                  "were kept; the requested stratum count was ignored."
+                : `Curated list "${body.name}": ${body.new_words} new ` +
+                  "word(s) added.";
+            nameInput.value = "";
+            seedInput.value = "";
+            await onBuilt();
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            buildStatus.textContent = detail || "Could not build the panel.";
+        }
+    });
 }
 
 // Curated-list detail: a paginated table of every word in the list, with

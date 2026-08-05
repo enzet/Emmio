@@ -31,7 +31,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
-| `curated-lists.html` | Table of curated lists, with total/not-curated-by-anyone word counts. |
+| `curated-lists.html` | Table of curated lists (word count, curate/extend/delete actions), plus a "build a panel" form (`emmio data build-panel`'s web equivalent). |
 | `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
 | `languages.html` | Self-reported language knowledge: add and list proficiency estimates. |
@@ -48,7 +48,7 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/forms.js`            | Shared "create a lexicon / course / learning" form wiring.       |
 | `js/check-session.js`    | `runSession()` (lexicon checking) and the check page.             |
 | `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
-| `js/curate-session.js`   | The curated-lists picker, the per-list word table, and the curate page (`emmio curate`'s web equivalent). |
+| `js/curate-session.js`   | The curated-lists picker (plus its "build a panel" form, `emmio data build-panel`'s web equivalent), the per-list word table, and the curate page (`emmio curate`'s web equivalent). |
 | `js/auth-pages.js`       | Landing, login, register.                                        |
 | `js/home-pages.js`       | Dashboard and the per-language page.                              |
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
@@ -211,6 +211,18 @@ sequenceDiagram
     A-->>B: [{ language, frequency_list_id, name, words, uncurated }, ...]
     Note over B: curated-lists.html links to<br/>curated-list.html?language=<language>&list=<id>
 
+    opt "Build panel" form (curated-lists.html)
+        B->>A: POST /curation/build-panel (language, kind, year?, name?,<br/>n_strata, n_c, seed?)
+        A-->>B: { language, frequency_list_id, name,<br/>n_strata, new_words, strata_mismatch }
+        Note over B: reloads the list table
+    end
+
+    opt "Extend" button (curated-lists.html)
+        B->>A: POST /curation/{language}/{id}/extend
+        A-->>B: { language, frequency_list_id, name,<br/>n_strata, new_words, strata_mismatch }
+        Note over B: reloads the list table
+    end
+
     opt browsing the list (curated-list.html)
         B->>A: GET /curation/{language}/{id}/words?page=1&page_size=100
         A-->>B: { words: [{ word, stratum, category, category_label,<br/>votes, agreement }, ...], total, page, page_size }
@@ -240,6 +252,25 @@ sequenceDiagram
         A-->>B: 204 No Content
     end
 ```
+
+`POST /curation/build-panel` is the web equivalent of `emmio data build-panel`: it draws
+`n_c` words per log-uniform stratum from a frequency list into a new (or existing) curated
+panel — `frequency_words` downloads its source on demand if not already cached,
+`opensubtitles` (Emmio-generated, no catalog) requires the file to already exist locally.
+`n_c` is a per-stratum target, not a per-call draw count, so calling it again with the same
+target is a no-op and a larger one tops every stratum up rather than redrawing it; an
+existing list's own `n_strata` always wins over the request's (`strata_mismatch` tells the
+client so, for a status message) so stratum boundaries stay consistent with words already
+curated. See `emmio.lexicon.curation.build_or_extend_curated_panel`, shared with the CLI.
+
+`POST /curation/{language}/{id}/extend` is the "Extend" button next to each list on
+`curated-lists.html`: rather than a target the caller picks, it always draws 50 further
+words into *every* stratum, regardless of how many it already has — a small head
+stratum's population may already be exhausted below the original target while
+learner-driven fallback promotion pushes another stratum ahead of it, so a single new
+absolute target (`build-panel`'s `n_c`) could silently do nothing for some strata. A
+stratum with nothing left to draw is simply skipped (its population, not the +50, caps
+it), the same as `build-panel`. See `emmio.lexicon.curation.extend_curated_panel`.
 
 `/next` skips words an automatic check already resolves (outside the alphabet, `cap_ratio`
 past the proper-noun threshold, or clear dictionary evidence either way) without writing

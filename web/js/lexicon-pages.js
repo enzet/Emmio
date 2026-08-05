@@ -20,6 +20,12 @@ export async function initNewLexicon() {
 export async function initLexicons() {
     requireAuth();
 
+    document
+        .getElementById("add-lexicon-button")
+        .addEventListener("click", () => {
+            location.href = "new-lexicon";
+        });
+
     const status = document.getElementById("status");
     const table = document.getElementById("lexicon-table");
     const rows = document.getElementById("lexicon-rows");
@@ -71,6 +77,17 @@ export async function initLexicons() {
             cell.style.textAlign = "right";
             row.appendChild(cell);
         }
+
+        const checkCell = document.createElement("td");
+        const checkButton = document.createElement("button");
+        checkButton.type = "button";
+        checkButton.textContent = "Check";
+        checkButton.addEventListener("click", () => {
+            location.href =
+                `check?lexicon=${encodeURIComponent(lexicon.lexicon_id)}`;
+        });
+        checkCell.appendChild(checkButton);
+        row.appendChild(checkCell);
 
         rows.appendChild(row);
     }

@@ -32,6 +32,12 @@ export async function initNewLearning() {
 export async function initCourses() {
     requireAuth();
 
+    document
+        .getElementById("add-course-button")
+        .addEventListener("click", () => {
+            location.href = "new-course";
+        });
+
     const status = document.getElementById("status");
     const table = document.getElementById("course-table");
     const rows = document.getElementById("course-rows");

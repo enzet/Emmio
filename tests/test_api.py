@@ -3512,6 +3512,346 @@ def test_course_answer_updates_cached_schedule() -> None:
 
 _CURATION_BASE = "/api/v1/curation/uk/uk_list"
 
+_BUILD_PANEL_BASE = "/api/v1/curation/build-panel"
+
+
+@pytest.fixture
+def fake_build_panel_list(monkeypatch: pytest.MonkeyPatch) -> FrequencyList:
+    """Serve `_UK_WORDS` as the on-demand `frequency_words` source list.
+
+    Keyed by `"frequency_words"` (the `kind`, per `_FakeData.get_frequency_
+    list`'s lookup on `usage_config.id`) rather than `fake_uk_list`'s
+    `"uk_list"`, since `build-panel` always requests one of the two builtin
+    kinds, never a custom configured list id.
+    """
+    frequency_list: FrequencyList = FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="uk",
+            path="unused",
+            is_stripped=False,
+        ),
+        data={
+            word: len(_UK_WORDS) - index for index, word in enumerate(_UK_WORDS)
+        },
+    )
+    fake: Any = _FakeData({}, {"frequency_words": frequency_list})
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    return frequency_list
+
+
+def test_build_curated_panel_creates_list(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Building a panel with a generous `n_c` drains the whole source list."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_c": 100,  # Exceeds every stratum's size: drains the list.
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["language"] == "uk"
+    assert body["frequency_list_id"] == "uk_frequency_words_2018"
+    assert body["name"] == (
+        f"{Language.from_code('uk').get_name()} FrequencyWords 2018 Curated"
+    )
+    assert body["n_strata"] == DEFAULT_N_STRATA
+    assert body["new_words"] == len(_UK_WORDS)
+    assert body["strata_mismatch"] is False
+
+    list_id = postgres.get_curated_list_id("uk", "uk_frequency_words_2018")
+    assert list_id is not None
+    assert postgres.count_curated_words(list_id) == len(_UK_WORDS)
+
+
+def test_build_curated_panel_is_idempotent(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Calling again with the same `n_c` adds nothing further."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    request = {
+        "language": "uk",
+        "kind": "frequency_words",
+        "year": 2018,
+        "n_strata": 1,
+        "n_c": 10,
+    }
+    first = client.post(_BUILD_PANEL_BASE, json=request, headers=_auth(token))
+    assert first.json()["new_words"] == 10
+
+    second = client.post(_BUILD_PANEL_BASE, json=request, headers=_auth(token))
+    assert second.status_code == 201
+    assert second.json()["new_words"] == 0
+
+
+def test_build_curated_panel_tops_up_existing_strata(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A larger `n_c` tops every stratum up rather than redrawing it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    base_request = {
+        "language": "uk",
+        "kind": "frequency_words",
+        "year": 2018,
+        "n_strata": 1,
+    }
+    first = client.post(
+        _BUILD_PANEL_BASE,
+        json={**base_request, "n_c": 10},
+        headers=_auth(token),
+    )
+    assert first.json()["new_words"] == 10
+
+    second = client.post(
+        _BUILD_PANEL_BASE,
+        json={**base_request, "n_c": 15},
+        headers=_auth(token),
+    )
+    assert second.status_code == 201
+    assert second.json()["new_words"] == 5
+
+    list_id = postgres.get_curated_list_id("uk", "uk_frequency_words_2018")
+    assert list_id is not None
+    assert postgres.count_curated_words(list_id) == 15
+
+
+def test_build_curated_panel_reports_strata_mismatch(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A different `n_strata` on an existing list is ignored, and reported."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_strata": 3,
+            "n_c": 1,
+        },
+        headers=_auth(token),
+    )
+
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_strata": 5,
+            "n_c": 1,
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["strata_mismatch"] is True
+    assert body["n_strata"] == 3  # The existing list's count wins.
+
+
+def test_build_curated_panel_missing_year_for_opensubtitles_is_400(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """`opensubtitles` has no catalog to default `year` from."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        json={"language": "uk", "kind": "opensubtitles"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_build_curated_panel_unknown_kind_is_400() -> None:
+    """A kind outside `opensubtitles`/`frequency_words` is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        json={"language": "uk", "kind": "not_a_real_kind"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_build_curated_panel_unknown_language_is_400() -> None:
+    """An unresolvable language code is rejected."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "not_a_real_language",
+            "kind": "frequency_words",
+            "year": 2018,
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def test_build_curated_panel_no_matching_list_is_400(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """No file for the requested `(kind, language, year)` is a 400, not 500."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _BUILD_PANEL_BASE,
+        # Only `frequency_words` is registered by the fixture.
+        json={"language": "uk", "kind": "opensubtitles", "year": 2020},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+
+
+def _extend_url(language: str, frequency_list_id: str) -> str:
+    return f"/api/v1/curation/{language}/{frequency_list_id}/extend"
+
+
+def test_extend_curated_panel_drains_a_small_population(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Extending past a stratum's population just drains what is left.
+
+    `_UK_WORDS` has 30 words; forcing everything into one stratum
+    (`n_strata=1`) means the 50-per-extend budget cannot be met after 5
+    are already drawn — `build_panel`'s population cap (not the +50
+    target) decides how many actually land, mirroring `draw_stratum_words`.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_strata": 1,
+            "n_c": 5,
+        },
+        headers=_auth(token),
+    )
+
+    response = client.post(
+        _extend_url("uk", "uk_frequency_words_2018"), headers=_auth(token)
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["new_words"] == len(_UK_WORDS) - 5  # Everything remaining.
+    assert body["strata_mismatch"] is False
+
+    list_id = postgres.get_curated_list_id("uk", "uk_frequency_words_2018")
+    assert list_id is not None
+    assert postgres.count_curated_words(list_id) == len(_UK_WORDS)
+
+
+def test_extend_curated_panel_adds_exactly_50_when_not_population_capped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With enough words to spare, extend draws exactly 50 more per stratum."""
+
+    big_words = [f"word{i}" for i in range(400)]
+    frequency_list = FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="uk",
+            path="unused",
+            is_stripped=False,
+        ),
+        data={
+            word: len(big_words) - index for index, word in enumerate(big_words)
+        },
+    )
+    fake: Any = _FakeData({}, {"frequency_words": frequency_list})
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_strata": 1,
+            "n_c": 10,
+        },
+        headers=_auth(token),
+    )
+
+    response = client.post(
+        _extend_url("uk", "uk_frequency_words_2018"), headers=_auth(token)
+    )
+    assert response.status_code == 201
+    assert response.json()["new_words"] == 50
+
+    list_id = postgres.get_curated_list_id("uk", "uk_frequency_words_2018")
+    assert list_id is not None
+    assert postgres.count_curated_words(list_id) == 60  # 10 + 50.
+
+
+def test_extend_curated_panel_unknown_list_is_404() -> None:
+    """Extending a list that does not exist 404s, like the other routes."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        _extend_url("xx", "nonexistent"), headers=_auth(token)
+    )
+    assert response.status_code == 404
+
+
+def test_extend_curated_panel_custom_list_is_400() -> None:
+    """A custom-configured list (not `frequency_words`/`opensubtitles`) 400s."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.create_curated_list("uk", "custom_wordlist", "UK Custom")
+
+    response = client.post(
+        _extend_url("uk", "custom_wordlist"), headers=_auth(token)
+    )
+    assert response.status_code == 400
+
+
+def test_extend_curated_panel_missing_source_file_is_400(
+    fake_build_panel_list: FrequencyList,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The source file disappearing after the build is a 400, not a 500."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    client.post(
+        _BUILD_PANEL_BASE,
+        json={
+            "language": "uk",
+            "kind": "frequency_words",
+            "year": 2018,
+            "n_c": 1,
+        },
+        headers=_auth(token),
+    )
+
+    # Simulate the source file having been removed since the build.
+    monkeypatch.setattr(app_module, "get_data", lambda: _FakeData({}, {}))
+
+    response = client.post(
+        _extend_url("uk", "uk_frequency_words_2018"), headers=_auth(token)
+    )
+    assert response.status_code == 400
+
 
 @pytest.mark.usefixtures("fake_uk_list")
 def test_curation_lists_reports_counts() -> None:

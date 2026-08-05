@@ -224,7 +224,8 @@ export async function initLanguages() {
             const actionCell = document.createElement("td");
             const deleteButton = document.createElement("button");
             deleteButton.type = "button";
-            deleteButton.textContent = "Delete";
+            deleteButton.className = "danger";
+            deleteButton.textContent = "\uE005 Delete";
             deleteButton.addEventListener("click", async () => {
                 const result = await api(
                     `/me/language-knowledge/${record.id}`,

@@ -35,9 +35,7 @@
             <p>
                 Review a frequency list's words: is each one real vocabulary
                 worth testing learners on, or a proper noun, rare word,
-                misspelling, or foreign word that should not be? See
-                <code>emmio data build-panel</code> for building a new list
-                from the command line.
+                misspelling, or foreign word that should not be?
             </p>
             <table id="curated-list-table" hidden>
                 <thead>
@@ -47,10 +45,82 @@
                         <th scope="col">Words</th>
                         <th scope="col"></th>
                         <th scope="col"></th>
+                        <th scope="col"></th>
                     </tr>
                 </thead>
                 <tbody id="curated-list-rows"></tbody>
             </table>
+
+            <h2>Build a panel</h2>
+            <p class="hint">
+                Draw a fresh sample from a frequency list into a new (or
+                existing) curated panel, ready to review above — the web
+                equivalent of <code>emmio data build-panel</code>. Running
+                this again with the same word-per-stratum target is a no-op;
+                a larger target tops every stratum up instead of redrawing it
+                from scratch, and already-curated words are never touched.
+            </p>
+            <form class="add-form" id="build-panel-form">
+                <div class="field">
+                    <label for="build-panel-language">Language</label>
+                    <select id="build-panel-language" required></select>
+                </div>
+                <div class="field">
+                    <label for="build-panel-kind">Source</label>
+                    <select id="build-panel-kind" required>
+                        <option value="frequency_words">FrequencyWords</option>
+                        <option value="opensubtitles">OpenSubtitles</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="build-panel-year">Year</label>
+                    <input
+                        id="build-panel-year"
+                        type="number"
+                        min="1900"
+                        max="2100"
+                    />
+                </div>
+                <div class="field">
+                    <label for="build-panel-name">Name</label>
+                    <input
+                        id="build-panel-name"
+                        type="text"
+                        maxlength="100"
+                        placeholder="Derived automatically"
+                    />
+                </div>
+                <div class="field">
+                    <label for="build-panel-n-strata">Strata</label>
+                    <input
+                        id="build-panel-n-strata"
+                        type="number"
+                        min="1"
+                        value="10"
+                        required
+                    />
+                </div>
+                <div class="field">
+                    <label for="build-panel-n-c">Words per stratum</label>
+                    <input
+                        id="build-panel-n-c"
+                        type="number"
+                        min="1"
+                        value="50"
+                        required
+                    />
+                </div>
+                <div class="field">
+                    <label for="build-panel-seed">Seed</label>
+                    <input
+                        id="build-panel-seed"
+                        type="number"
+                        placeholder="Random"
+                    />
+                </div>
+                <button type="submit">Build panel</button>
+            </form>
+            <p id="build-panel-status" role="status"></p>
         </main>
         <footer>
             <p id="status" role="status">Loading…</p>

@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
-from emmio import postgres
+from emmio import inventory, postgres
 from emmio.api import auth
 from emmio.api.render import elements_to_html, to_html
 from emmio.api.sessions import (
@@ -74,9 +74,13 @@ from emmio.lexicon.core import (
     stratum_of_rank,
 )
 from emmio.lexicon.curation import (
+    DEFAULT_N_C,
     EMMIO_CURATOR_NAME,
     EMMIO_CURATOR_USER_ID,
+    CuratedPanelError,
+    build_or_extend_curated_panel,
     classify_automatically,
+    extend_curated_panel,
 )
 from emmio.lexicon.goal import LexiconGoalState, compute_lexicon_goal_state
 from emmio.lexicon.history import compute_rate_history, latest_windowed_rate
@@ -3797,6 +3801,102 @@ def get_curation_lists(
     ]
 
 
+class BuildCuratedPanelRequest(BaseModel):
+    """Payload to build or extend a curated panel from a frequency list."""
+
+    language: str
+    kind: str  # `"opensubtitles"` or `"frequency_words"`.
+    year: int | None = None
+    """Release/generation year; required for `opensubtitles`, defaults to
+    the best FrequencyWords year (`inventory.frequency_words_year`) for
+    `frequency_words`."""
+    name: str | None = None  # Display name; a default is derived if omitted.
+    n_strata: int = Field(default=DEFAULT_N_STRATA, gt=0)
+    n_c: int = Field(default=DEFAULT_N_C, gt=0)  # Target words per stratum.
+    seed: int | None = None  # Random seed, for a reproducible draw.
+
+
+class BuildCuratedPanelResponse(BaseModel):
+    """Outcome of building or extending a curated panel."""
+
+    language: str
+    frequency_list_id: str
+    name: str
+    n_strata: int
+    new_words: int  # Newly added words, across every stratum.
+    strata_mismatch: bool
+    """Whether the list already existed with a different `n_strata`, in
+    which case the existing count won and `n_strata` above reflects that,
+    not the request's."""
+
+
+@app.post("/api/v1/curation/build-panel", status_code=status.HTTP_201_CREATED)
+def build_curated_panel(
+    request: BuildCuratedPanelRequest,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> BuildCuratedPanelResponse:
+    """Build or extend an SFWR curated panel from a frequency list.
+
+    The web equivalent of `emmio data build-panel`: draws `n_c` words per
+    log-uniform stratum, weighted by frequency, leaving already-curated
+    words untouched (`build_or_extend_curated_panel`; running this again
+    with the same `n_c` is a no-op). For `frequency_words` the source list
+    downloads on demand if not already cached; for `opensubtitles`
+    (Emmio-generated, no catalog to download from) the source file must
+    already exist locally.
+    """
+    if request.kind not in ("opensubtitles", "frequency_words"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown list kind `{request.kind}`.",
+        )
+    try:
+        language: Language = Language.from_code(request.language)
+    except LanguageNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown language code `{request.language}`.",
+        ) from None
+
+    year: int | None = request.year
+    if year is None:
+        if request.kind == "frequency_words":
+            year = inventory.frequency_words_year(language)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "`year` is required for `opensubtitles` (there is no "
+                    "catalog to default it from, unlike `frequency_words`)."
+                ),
+            )
+
+    try:
+        result = build_or_extend_curated_panel(
+            get_data(),
+            language,
+            request.kind,
+            year,
+            request.name,
+            request.n_strata,
+            request.n_c,
+            request.seed,
+        )
+    except CuratedPanelError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+        ) from error
+
+    return BuildCuratedPanelResponse(
+        language=request.language,
+        frequency_list_id=result.frequency_list_id,
+        name=result.name,
+        n_strata=result.n_strata,
+        new_words=result.new_words,
+        strata_mismatch=result.strata_mismatch,
+    )
+
+
 @app.delete(
     "/api/v1/curation/{language}/{frequency_list_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -3814,6 +3914,55 @@ def delete_curated_list(
     """
     list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     postgres.delete_curated_list(list_id)
+
+
+_EXTEND_WORDS_PER_STRATUM: int = 50
+"""Words drawn into every stratum by the web "Extend" button.
+
+Fixed, unlike `build-panel`'s user-chosen `n_c`: extending is a one-click
+action on an already-built list, not a fresh build, so it does not carry
+the rest of `BuildCuratedPanelRequest`'s knobs.
+"""
+
+
+@app.post(
+    "/api/v1/curation/{language}/{frequency_list_id}/extend",
+    status_code=status.HTTP_201_CREATED,
+)
+def extend_curated_panel_endpoint(
+    language: str,
+    frequency_list_id: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> BuildCuratedPanelResponse:
+    """Extend a curated panel by 50 words per stratum (the "Extend" button).
+
+    Unlike `POST /curation/build-panel`'s `n_c` (an absolute per-stratum
+    target the caller chooses), this always draws 50 further words into
+    every stratum of the list, regardless of how many it already has —
+    see `extend_curated_panel`.
+    """
+    list_id: int = _curated_list_id_or_404(language, frequency_list_id)
+    try:
+        result = extend_curated_panel(
+            get_data(),
+            list_id,
+            Language.from_code(language),
+            frequency_list_id,
+            _EXTEND_WORDS_PER_STRATUM,
+        )
+    except CuratedPanelError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+        ) from error
+
+    return BuildCuratedPanelResponse(
+        language=language,
+        frequency_list_id=result.frequency_list_id,
+        name=result.name,
+        n_strata=result.n_strata,
+        new_words=result.new_words,
+        strata_mismatch=result.strata_mismatch,
+    )
 
 
 class CurationCategoryNode(BaseModel):

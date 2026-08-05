@@ -33,17 +33,15 @@ from emmio.lexicon.core import (
 from emmio.lexicon.curation import (
     DEFAULT_N_C,
     DEFAULT_N_STRATA,
-    build_panel,
+    CuratedPanelError,
+    CuratedPanelResult,
+    build_or_extend_curated_panel,
     classify_automatically,
 )
 from emmio.lexicon.goal import compute_lexicon_goal_state
 from emmio.lexicon.visualizer import LexiconVisualizer
 from emmio.listen.listener import Listener
-from emmio.lists.config import (
-    ListUsageConfig,
-    frequency_list_identifier,
-    parse_frequency_list_identifier,
-)
+from emmio.lists.config import parse_frequency_list_identifier
 from emmio.lists.frequency_list import FrequencyList
 from emmio.paths import DEFAULT_OUTPUT_DIRECTORY
 from emmio.sentence.config import SentencesUsageConfig
@@ -1145,71 +1143,33 @@ class Emmio:
                 )
                 return
 
-        list_usage_config: ListUsageConfig = ListUsageConfig(
-            id=arguments.kind, language=arguments.language, year=year
-        )
-        frequency_list: FrequencyList | None = self.data.get_frequency_list(
-            list_usage_config
-        )
-        if frequency_list is None:
-            self.interface.print(
-                f"No `{arguments.kind}` list for `{arguments.language}`/"
-                f"{year}. Expected "
-                f"`{arguments.language}_{arguments.kind}_{year}.txt` in the "
-                "lists directory."
+        try:
+            result: CuratedPanelResult = build_or_extend_curated_panel(
+                self.data,
+                language,
+                arguments.kind,
+                year,
+                arguments.name,
+                arguments.n_strata,
+                arguments.n_c,
+                arguments.seed,
             )
+        except CuratedPanelError as error:
+            self.interface.print(str(error))
             return
 
-        frequency_list_id: str = frequency_list_identifier(list_usage_config)
-        # Matches the display labels `ListsData.get_frequency_list_options`
-        # already uses ("OpenSubtitles (2024)", "FrequencyWords (2018)").
-        kind_label: str = {
-            "opensubtitles": "OpenSubtitles",
-            "frequency_words": "FrequencyWords",
-        }[arguments.kind]
-        name: str = arguments.name or (
-            f"{language.get_name()} {kind_label} {year} Curated"
-        )
-
-        existing_list_id: int | None = postgres.get_curated_list_id(
-            arguments.language, frequency_list_id
-        )
-        n_strata: int = arguments.n_strata
-        existing_by_stratum: dict[int, set[str]] = {}
-        if existing_list_id is not None:
-            n_strata = postgres.get_curated_list_n_strata(existing_list_id)
-            if n_strata != arguments.n_strata:
-                self.interface.print(
-                    f"Curated list `{name}` already exists with {n_strata} "
-                    f"strata; ignoring `--n-strata {arguments.n_strata}` to "
-                    "keep stratum boundaries consistent with words already "
-                    "curated."
-                )
-            for (
-                word,
-                stratum,
-                _panel_order,
-                _category,
-                _votes,
-                _agreement,
-            ) in postgres.get_curated_words(existing_list_id):
-                existing_by_stratum.setdefault(stratum, set()).add(word)
-
-        entries: list[tuple[str, int, int, str]] = build_panel(
-            frequency_list,
-            n_strata,
-            arguments.n_c,
-            arguments.seed,
-            existing_by_stratum,
-        )
-        list_id: int = postgres.create_curated_list(
-            arguments.language, frequency_list_id, name, n_strata
-        )
-        postgres.add_curated_words(list_id, entries)
+        if result.strata_mismatch:
+            self.interface.print(
+                f"Curated list `{result.name}` already exists with "
+                f"{result.n_strata} strata; ignoring `--n-strata "
+                f"{arguments.n_strata}` to keep stratum boundaries "
+                "consistent with words already curated."
+            )
         self.interface.print(
-            f"Curated list `{name}` (id {list_id}): {len(entries)} new "
-            f"word(s) added, topping every stratum up to {arguments.n_c} "
-            "words (already-curated words were left untouched)."
+            f"Curated list `{result.name}` (id {result.list_id}): "
+            f"{result.new_words} new word(s) added, topping every stratum "
+            f"up to {arguments.n_c} words (already-curated words were left "
+            "untouched)."
         )
 
     async def run_lexicon(

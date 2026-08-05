@@ -7,6 +7,17 @@ import { api, requireAuth } from "./api.js";
 export async function initHome() {
     requireAuth();
 
+    document
+        .getElementById("add-lexicon-button")
+        .addEventListener("click", () => {
+            location.href = "new-lexicon";
+        });
+    document
+        .getElementById("add-course-button")
+        .addEventListener("click", () => {
+            location.href = "new-course";
+        });
+
     const status = document.getElementById("languages-status");
     const table = document.getElementById("languages-table");
     const rows = document.getElementById("languages-rows");
