@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from emmio.catalog import (
+    CAP_RATIO_UNSUPPORTED_LANGUAGES,
     FREQUENCY_WORDS_YEARS,
     KAIKKI_LANGUAGES,
     NON_PROPER_NOUNS,
@@ -55,6 +56,13 @@ def test_non_proper_nouns_catalog_is_well_formed() -> None:
         for word in words:
             assert word == word.lower(), word
     assert "unis" in NON_PROPER_NOUNS["fr"]
+
+
+def test_cap_ratio_unsupported_languages_includes_german() -> None:
+    """German capitalizes every noun, so `cap_ratio` can't signal one."""
+
+    assert "de" in CAP_RATIO_UNSUPPORTED_LANGUAGES
+    assert CAP_RATIO_UNSUPPORTED_LANGUAGES <= _KNOWN
 
 
 def test_tatoeba_catalog_is_well_formed() -> None:

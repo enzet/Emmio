@@ -45,3 +45,15 @@ Curated exceptions to the `cap_ratio`-based proper-noun heuristic used by
 `freqlist` and by `LexiconChecker`'s automatic not-a-word assumption (see
 `emmio.lexicon.core`). Case-folded, lowercase, matching `freqlist`'s output.
 """
+
+CAP_RATIO_UNSUPPORTED_LANGUAGES: frozenset[str] = frozenset({"de"})
+"""Codes of languages where mid-sentence capitalization does not signal a
+proper noun, so the `cap_ratio`-based heuristic must not be applied.
+
+German capitalizes every noun, common or proper, so a high `cap_ratio` there
+means nothing (mirrors `proper_nouns_supported` in `rust/src/main.rs`, which
+gates the Rust tool's own diagnostics the same way). Languages with no case
+distinction at all (Chinese, Georgian, Japanese, etc.) do not need an entry
+here: `cap_ratio` is naturally near 0 or `None` for them, since no word ever
+appears titlecased, so the heuristic is already harmless without this list.
+"""

@@ -1,5 +1,6 @@
 """Tests for lexicon."""
 
+import asyncio
 import math
 import random
 import tempfile
@@ -9,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from emmio.dictionary.core import DictionaryCollection
+from emmio.language import KnownLanguages
 from emmio.lexicon.config import LexiconConfig, LexiconSelection
 from emmio.lexicon.core import (
     DEFAULT_N_STRATA,
@@ -33,6 +35,7 @@ from emmio.lexicon.core import (
     select_next_word,
     stratum_of_rank,
 )
+from emmio.lexicon.curation import classify_automatically
 from emmio.lexicon.history import compute_rate_history
 from emmio.lists.config import (
     FrequencyListConfig,
@@ -370,6 +373,25 @@ def test_do_skip_respects_non_proper_nouns_exception() -> None:
     assert not lexicon_fr.has("unis")
 
 
+def test_do_skip_disables_proper_noun_check_for_german() -> None:
+    """German capitalizes every noun, so `cap_ratio` must be ignored there.
+
+    Same shape as `test_do_skip_assumes_proper_noun_from_cap_ratio` (a
+    high `cap_ratio`, no curated exception needed) — for most languages
+    this would auto-mark the word not-a-word; for German it must not,
+    since `Fenster` (window) is capitalized every bit as consistently as
+    an actual proper noun would be.
+    """
+
+    lexicon_de: Lexicon = _make_lexicon("de")
+    frequency_list: FrequencyList = _frequency_list({"fenster": 100})
+    frequency_list.cap_ratios["fenster"] = 0.95
+
+    checker: LexiconChecker = _make_checker(lexicon_de)
+    assert checker.do_skip("fenster", [], frequency_list) is False
+    assert not lexicon_de.has("fenster")
+
+
 def test_do_skip_without_frequency_list_disables_proper_noun_check(
     lexicon: Lexicon,
 ) -> None:
@@ -378,6 +400,51 @@ def test_do_skip_without_frequency_list_disables_proper_noun_check(
     checker: LexiconChecker = _make_checker(lexicon)
     assert checker.do_skip("paris", [], None) is False
     assert not lexicon.has("paris")
+
+
+def test_classify_automatically_assumes_proper_noun_from_cap_ratio() -> None:
+    """`classify_automatically` mirrors `do_skip`'s "P" (proper noun) call."""
+
+    frequency_list: FrequencyList = _frequency_list({"paris": 100})
+    frequency_list.cap_ratios["paris"] = 0.95
+
+    category = asyncio.run(
+        classify_automatically(
+            "paris",
+            KnownLanguages.FRENCH,
+            None,
+            frequency_list,
+            frozenset(),
+            DictionaryCollection(),
+        )
+    )
+    assert category == "P"
+
+
+def test_classify_automatically_disables_proper_noun_check_for_german() -> None:
+    """Same fix as `test_do_skip_disables_proper_noun_check_for_german`.
+
+    `classify_automatically` is a separate function from `do_skip` (shared
+    only through `CAP_RATIO_UNSUPPORTED_LANGUAGES`), so it needs its own
+    regression coverage: without a dictionary hit either way, an
+    undecided word is left `None` (for a human curator), not misclassified
+    as `"P"`.
+    """
+
+    frequency_list: FrequencyList = _frequency_list({"fenster": 100})
+    frequency_list.cap_ratios["fenster"] = 0.95
+
+    category = asyncio.run(
+        classify_automatically(
+            "fenster",
+            KnownLanguages.GERMAN,
+            None,
+            frequency_list,
+            frozenset(),
+            DictionaryCollection(),
+        )
+    )
+    assert category is None
 
 
 @pytest.mark.parametrize(

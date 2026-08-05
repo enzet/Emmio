@@ -21,7 +21,7 @@ from scipy.optimize import minimize
 from scipy.special import expit  # pylint: disable=no-name-in-module
 
 from emmio import postgres
-from emmio.catalog import NON_PROPER_NOUNS
+from emmio.catalog import CAP_RATIO_UNSUPPORTED_LANGUAGES, NON_PROPER_NOUNS
 from emmio.core import Record, Session
 from emmio.dictionary.core import (
     Dictionary,
@@ -3073,7 +3073,11 @@ class LexiconChecker:
         # is not a known exception (an honorific title or a fragment of a
         # multi-word proper noun, e.g. French `unis` in `les États-Unis`).
 
-        if frequency_list is not None:
+        if (
+            frequency_list is not None
+            and self.lexicon.language.get_code()
+            not in CAP_RATIO_UNSUPPORTED_LANGUAGES
+        ):
             cap_ratio: float | None = frequency_list.get_cap_ratio(picked_word)
             non_proper_nouns: frozenset[str] = NON_PROPER_NOUNS.get(
                 self.lexicon.language.get_code(), frozenset()

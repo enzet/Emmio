@@ -152,6 +152,15 @@ impl WordStats {
         (off_start > 0).then(|| self.titlecased_off_start as f64 / off_start as f64)
     }
 
+    /// `cap_ratio`, unless the proper-noun heuristic is disabled for this
+    /// language (see `proper_nouns_supported`), in which case `None` — a
+    /// real but meaningless ratio (e.g. German, where every noun is
+    /// capitalized) would otherwise mislead any consumer of the primary
+    /// output file into treating it as a proper-noun signal.
+    fn output_cap_ratio(&self, proper_nouns_enabled: bool) -> Option<f64> {
+        proper_nouns_enabled.then(|| self.cap_ratio()).flatten()
+    }
+
     /// Whether the word looks like a proper noun under the given thresholds.
     fn is_proper_noun(&self, threshold: f64, min_count: u64) -> bool {
         self.off_start() >= min_count
@@ -442,6 +451,7 @@ fn run(args: &Args) -> io::Result<()> {
         .collect();
     sorted.sort_unstable_by(|a, b| b.1.total.cmp(&a.1.total).then_with(|| a.0.cmp(&b.0)));
 
+    let proper_nouns_enabled = proper_nouns_supported(language);
     let mut writer = BufWriter::new(File::create(&args.output)?);
     let mut cap_writer = args
         .output_cap
@@ -449,7 +459,7 @@ fn run(args: &Args) -> io::Result<()> {
         .map(|path| io::Result::Ok(BufWriter::new(File::create(path)?)))
         .transpose()?;
     for (word, stats) in &sorted {
-        let ratio = stats.cap_ratio();
+        let ratio = stats.output_cap_ratio(proper_nouns_enabled);
         let cap_ratio = ratio.map_or_else(|| "NA".to_string(), |r| format!("{r:.2}"));
         writeln!(writer, "{word} {} {cap_ratio}", stats.total)?;
         if let Some(cap_writer) = &mut cap_writer {
@@ -464,7 +474,6 @@ fn run(args: &Args) -> io::Result<()> {
     }
 
     if let Some(stats_path) = &args.stats {
-        let proper_nouns_enabled = proper_nouns_supported(language);
         let mut proper_nouns = 0u64;
         let mut stats_writer = BufWriter::new(File::create(stats_path)?);
         writeln!(
@@ -606,5 +615,21 @@ mod tests {
             titlecased_off_start: 0,
         };
         assert!(!the.is_proper_noun(0.5, 5));
+    }
+
+    #[test]
+    fn output_cap_ratio_is_hidden_when_proper_nouns_are_unsupported() {
+        // A German-style noun: capitalized every time off the sentence
+        // start, same shape as `paris` above — but with the heuristic
+        // disabled (as it would be for `language = Some("de")`), the
+        // primary output must not carry that ratio at all.
+        let fenster = WordStats {
+            total: 10,
+            titlecased: 10,
+            sentence_initial: 2,
+            titlecased_off_start: 8,
+        };
+        assert_eq!(fenster.output_cap_ratio(true), fenster.cap_ratio());
+        assert_eq!(fenster.output_cap_ratio(false), None);
     }
 }

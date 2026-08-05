@@ -3,8 +3,9 @@
 Unicode-aware frequency list generator.
 
 Output format is `word count cap_ratio` per line, most frequent first
-(`cap_ratio` is `NA` if the word never occurs outside a sentence start; see
-Capitalization and proper-noun detection below). The first two fields match
+(`cap_ratio` is `NA` if the word never occurs outside a sentence start, or if
+`--language` names a language where capitalization doesn't signal a proper
+noun, e.g. German — see Language support below). The first two fields match
 the [FrequencyWords](https://github.com/hermitdave/FrequencyWords) project's
 format, so it remains a drop-in source for Emmio's `FrequencyWordsList`.
 

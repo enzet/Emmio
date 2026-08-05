@@ -24,6 +24,7 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from emmio import postgres
+from emmio.catalog import CAP_RATIO_UNSUPPORTED_LANGUAGES
 from emmio.dictionary.core import DictionaryCollection
 from emmio.language import Language
 from emmio.lexicon.core import (
@@ -84,7 +85,9 @@ async def classify_automatically(
     :param language: the word's language
     :param alphabet: `language.get_symbols()`; `None` disables that check
     :param frequency_list: source of `cap_ratio`; `None` disables the
-        proper-noun check
+        proper-noun check (also disabled outright for a language in
+        `CAP_RATIO_UNSUPPORTED_LANGUAGES`, e.g. German, where mid-sentence
+        capitalization does not distinguish proper nouns from common ones)
     :param non_proper_nouns: honorific/common-noun exceptions to the
         proper-noun check, e.g. `NON_PROPER_NOUNS.get(language.get_code())`
     :param dictionaries: dictionaries to consult (typically just Kaikki)
@@ -96,6 +99,7 @@ async def classify_automatically(
 
     if (
         frequency_list is not None
+        and language.get_code() not in CAP_RATIO_UNSUPPORTED_LANGUAGES
         and (cap_ratio := frequency_list.get_cap_ratio(word)) is not None
         and cap_ratio > PROPER_NOUN_CAP_RATIO_THRESHOLD
         and word not in non_proper_nouns
