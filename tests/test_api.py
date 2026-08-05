@@ -25,6 +25,7 @@ from emmio.lexicon.core import (
     StratifiedSelector,
     stratum_of_rank,
 )
+from emmio.lexicon.curation import EMMIO_CURATOR_USER_ID
 from emmio.lexicon.history import DEFAULT_SD_THRESHOLD
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
@@ -3855,12 +3856,14 @@ def test_extend_curated_panel_missing_source_file_is_400(
 
 @pytest.mark.usefixtures("fake_uk_list")
 def test_curation_lists_reports_counts() -> None:
-    """`/curation/lists` reports panel size and the not-curated-by-any count.
+    """`/curation/lists` reports panel size, "new", and "reviewable" counts.
 
-    Voting as a second curator (`bob`) on a word `alice` never voted on
-    checks that "not curated" counts words with zero votes at all, not
-    words merely unvoted-by-the-requesting-user (which would be 2 here,
-    not 1).
+    Four words: 0 has bob's (human) vote, 1 has only Emmio's auto-curation
+    vote, 2 has alice's own vote, 3 has no vote at all. `uncurated` counts
+    zero-vote words only (word 3). `reviewable` counts words with a human
+    vote (bob's, on word 0) alice has not added her own opinion to — word
+    1 does not count even though Emmio voted on it (auto-curation is not a
+    human review), and word 2 does not count since alice already voted.
     """
 
     token = _register_and_login("alice", "alice@example.com")
@@ -3869,12 +3872,16 @@ def test_curation_lists_reports_counts() -> None:
         list_id,
         [
             (word, 0, index, "bootstrap")
-            for index, word in enumerate(_UK_WORDS[:3])
+            for index, word in enumerate(_UK_WORDS[:4])
         ],
     )
-    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
     postgres.ensure_user("bob", "Bob")
-    postgres.record_curation_vote(list_id, _UK_WORDS[1], "N", "bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "N", "bob")
+    postgres.ensure_user(EMMIO_CURATOR_USER_ID, "Emmio")
+    postgres.record_curation_vote(
+        list_id, _UK_WORDS[1], "W", EMMIO_CURATOR_USER_ID
+    )
+    postgres.record_curation_vote(list_id, _UK_WORDS[2], "W", "alice")
 
     response = client.get("/api/v1/curation/lists", headers=_auth(token))
     assert response.status_code == 200
@@ -3882,8 +3889,9 @@ def test_curation_lists_reports_counts() -> None:
     assert "curated_list_id" not in summary  # DB-internal, never exposed.
     assert summary["language"] == "uk"
     assert summary["frequency_list_id"] == "uk_list"
-    assert summary["words"] == 3
-    assert summary["uncurated"] == 1  # Two words already have a vote.
+    assert summary["words"] == 4
+    assert summary["uncurated"] == 1  # Word 3 only.
+    assert summary["reviewable"] == 1  # Word 0 only.
 
 
 def test_curation_categories_is_a_tree() -> None:
@@ -3966,6 +3974,86 @@ def test_curation_next_returns_null_when_done() -> None:
     body = response.json()
     assert body["word"] is None
     assert body["stratum"] is None
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_next_require_vote_filters_the_two_queues() -> None:
+    """`require_vote` splits "new" words from "review others'" words.
+
+    Word 0 already has bob's vote; word 1 has none. `require_vote=false`
+    (the picker's "Curate new words" button) must only ever offer word 1;
+    `require_vote=true` (its "Review others' curation" button) must only
+    ever offer word 0 — each stays confined to its own queue even though
+    alice has voted on neither.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:2])
+        ],
+    )
+    postgres.ensure_user("bob", "Bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "bob")
+
+    new_word = client.get(
+        f"{_CURATION_BASE}/next?require_vote=false", headers=_auth(token)
+    ).json()
+    assert new_word["word"] == _UK_WORDS[1]
+
+    review_word = client.get(
+        f"{_CURATION_BASE}/next?require_vote=true", headers=_auth(token)
+    ).json()
+    assert review_word["word"] == _UK_WORDS[0]
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_curation_next_review_queue_ignores_emmio_only_votes() -> None:
+    """`require_vote=true` skips a word only the "Emmio" bot has voted on.
+
+    Word 0 has bob's (human) vote; word 1 has only Emmio's auto-curation
+    vote. The "review others' curation" queue must offer word 0 and never
+    word 1 — Emmio's vote does not count as a human having reviewed it, so
+    that word stays in the "new words" queue instead
+    (`test_curation_next_require_vote_filters_the_two_queues` covers that
+    `require_vote=false` still reaches it there).
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:2])
+        ],
+    )
+    postgres.ensure_user("bob", "Bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "bob")
+    postgres.ensure_user(EMMIO_CURATOR_USER_ID, "Emmio")
+    postgres.record_curation_vote(
+        list_id, _UK_WORDS[1], "W", EMMIO_CURATOR_USER_ID
+    )
+
+    review_word = client.get(
+        f"{_CURATION_BASE}/next?require_vote=true", headers=_auth(token)
+    ).json()
+    assert review_word["word"] == _UK_WORDS[0]
+
+    # Voting on it exhausts the human-reviewed queue — word 1 (Emmio-only)
+    # never surfaces here, even though alice hasn't voted on it either.
+    client.post(
+        f"{_CURATION_BASE}/answer",
+        json={"word": _UK_WORDS[0], "category": "W"},
+        headers=_auth(token),
+    )
+    exhausted = client.get(
+        f"{_CURATION_BASE}/next?require_vote=true", headers=_auth(token)
+    ).json()
+    assert exhausted["word"] is None
 
 
 @pytest.mark.usefixtures("fake_uk_list")

@@ -208,8 +208,8 @@ sequenceDiagram
     participant A as FastAPI (/api/v1)
 
     B->>A: GET /curation/lists
-    A-->>B: [{ language, frequency_list_id, name, words, uncurated }, ...]
-    Note over B: curated-lists.html links to<br/>curated-list.html?language=<language>&list=<id>
+    A-->>B: [{ language, frequency_list_id, name, words,<br/>uncurated, reviewable }, ...]
+    Note over B: curated-lists.html shows two buttons per list:<br/>"Curate (uncurated)" -> curate.html?...&mode=new<br/>"Review others' (reviewable)" -> curate.html?...&mode=review
 
     opt "Build panel" form (curated-lists.html)
         B->>A: POST /curation/build-panel (language, kind, year?, name?,<br/>n_strata, n_c, seed?)
@@ -242,7 +242,7 @@ sequenceDiagram
     A-->>B: [{ code, label, children: [...] }, ...]  (built into the radio-button tree)
 
     loop per word
-        B->>A: GET /curation/{language}/{id}/next
+        B->>A: GET /curation/{language}/{id}/next?require_vote=<false|true>
         A-->>B: { word, stratum, auto_resolved }  (word is null when done)
         B->>A: GET /curation/{language}/{id}/translation?word=…
         A-->>B: { dictionaries: [...] }
@@ -277,6 +277,14 @@ past the proper-noun threshold, or clear dictionary evidence either way) without
 anything — `auto_resolved` in the response is purely informational (e.g. for a "skipped N
 words" status line), not something the client acts on. See
 `emmio.lexicon.curation.classify_automatically`, shared with the CLI's `emmio curate`.
+`require_vote` (from `curate.html`'s `?mode=new|review` query param, set by which of the
+picker's two buttons was clicked) narrows the candidate pool: `false` to words nobody has
+voted on at all, `true` to words that already have a *human* vote (not this curator's) —
+Emmio's auto-curation does not count, so a word it alone has voted on still surfaces under
+`false` instead, letting a curator add a second opinion on top of an existing human's
+rather than being asked to double-check the bot's high-confidence dictionary calls.
+Omitted, it is unrestricted, same as before this parameter existed. See
+`postgres.get_next_curation_candidate`, `postgres.count_reviewable_words`.
 
 `/words` is a read-only overview, ordered the same way the panel is served (`stratum`,
 then `panel_order` within it) so paging through it is a stable, meaningful reading order,

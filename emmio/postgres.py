@@ -2017,6 +2017,9 @@ def get_next_curation_candidate(
     user_id: str,
     stratum: int | None = None,
     exclude: Collection[str] = (),
+    *,
+    require_vote: bool | None = None,
+    exclude_curators: Collection[str] = (),
 ) -> str | None:
     """Get the next word this user has not yet voted on.
 
@@ -2030,6 +2033,18 @@ def get_next_curation_candidate(
         yet — for words a caller auto-resolved itself this session (e.g. a
         confirmed dictionary hit) without writing anything to the database,
         so nothing here would otherwise stop them from being returned again
+    :param require_vote: `None` for no filter (the default: any word this
+        curator has not voted on, regardless of anyone else's votes);
+        `False` to restrict to words nobody has voted on at all (the
+        picker's "Curate new words" button); `True` to restrict to words
+        that already have a vote from a curator outside `exclude_curators`
+        (the picker's "Review others' curation" button, letting a second
+        opinion be added on top of another human's)
+    :param exclude_curators: curators whose votes do not count towards
+        `require_vote=True` — e.g. the synthetic "Emmio" auto-curator, so
+        a word it alone has voted on is left for the "new words" queue
+        instead of being offered as if a human had already reviewed it.
+        Ignored when `require_vote` is not `True`.
     :return: a word needing this curator's opinion, or `None` if they have
         voted on everything currently in scope
     """
@@ -2040,13 +2055,35 @@ def get_next_curation_candidate(
             "WHERE cw.curated_list_id = %s "
             "AND (%s::INT IS NULL OR cw.stratum = %s) "
             "AND cw.word != ALL(%s) "
+            "AND ("
+            "    %s::BOOLEAN IS NULL"
+            "    OR ("
+            "        CASE WHEN %s THEN EXISTS ("
+            "            SELECT 1 FROM curated_word_records cwr"
+            "            JOIN users u ON u.id = cwr.curator_id"
+            "            WHERE cwr.curated_word_id = cw.id"
+            "            AND u.user_id != ALL(%s)"
+            "        )"
+            "        ELSE cw.votes = 0"
+            "        END"
+            "    )"
+            ") "
             "AND NOT EXISTS ("
             "    SELECT 1 FROM curated_word_records cwr "
             "    WHERE cwr.curated_word_id = cw.id "
             "    AND cwr.curator_id = %s"
             ") "
             "ORDER BY cw.votes ASC, cw.panel_order ASC LIMIT 1",
-            (curated_list_id, stratum, stratum, list(exclude), user_db_id),
+            (
+                curated_list_id,
+                stratum,
+                stratum,
+                list(exclude),
+                require_vote,
+                require_vote,
+                list(exclude_curators),
+                user_db_id,
+            ),
         )
         row = cursor.fetchone()
         return str(row[0]) if row else None
@@ -2080,6 +2117,49 @@ def get_curator_unvoted_words(
             (curated_list_id, stratum, stratum, user_db_id),
         )
         return {str(row[0]) for row in cursor.fetchall()}
+
+
+def count_reviewable_words(
+    curated_list_id: int, user_id: str, exclude_curators: Collection[str] = ()
+) -> int:
+    """Count words with a human vote this curator has not yet added to.
+
+    Powers the picker's "Review others' curation" button. Unlike
+    `count_uncurated_words` (nobody at all has voted), this counts words
+    that already have someone else's opinion recorded — but a word whose
+    only vote came from a curator in `exclude_curators` (the synthetic
+    "Emmio" auto-curator) does not count: that word still belongs to the
+    "new words" queue (`count_uncurated_words`), since no human has looked
+    at it yet, not to a "review a human's judgment" queue (see
+    `get_next_curation_candidate`'s `require_vote=True`, which this
+    mirrors as a cheap count rather than materializing the whole set).
+
+    :param curated_list_id: internal identifier of the curated list
+    :param user_id: the curator's login
+    :param exclude_curators: curators whose votes do not count as "a human
+        already reviewed this"
+    """
+    with db_cursor() as cursor:
+        user_db_id: int = _get_user_db_id(cursor, user_id)
+        cursor.execute(
+            "SELECT COUNT(*) FROM curated_words cw "
+            "WHERE cw.curated_list_id = %s "
+            "AND NOT EXISTS ("
+            "    SELECT 1 FROM curated_word_records cwr "
+            "    WHERE cwr.curated_word_id = cw.id "
+            "    AND cwr.curator_id = %s"
+            ") "
+            "AND EXISTS ("
+            "    SELECT 1 FROM curated_word_records cwr "
+            "    JOIN users u ON u.id = cwr.curator_id "
+            "    WHERE cwr.curated_word_id = cw.id "
+            "    AND u.user_id != ALL(%s)"
+            ")",
+            (curated_list_id, user_db_id, list(exclude_curators)),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        return int(row[0])
 
 
 def record_curation_vote(

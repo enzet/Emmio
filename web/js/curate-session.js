@@ -49,16 +49,32 @@ export async function initCuratedLists() {
             row.appendChild(wordsCell);
 
             const curateCell = document.createElement("td");
-            if (item.uncurated > 0) {
+            function addCurateButton(label, mode) {
                 const curateButton = document.createElement("button");
                 curateButton.type = "button";
-                curateButton.textContent = `Curate (${item.uncurated})`;
+                curateButton.textContent = label;
                 curateButton.addEventListener("click", () => {
                     location.href =
                         `curate?language=${encodeURIComponent(item.language)}` +
-                        `&list=${encodeURIComponent(item.frequency_list_id)}`;
+                        `&list=${encodeURIComponent(item.frequency_list_id)}` +
+                        `&mode=${encodeURIComponent(mode)}`;
                 });
                 curateCell.appendChild(curateButton);
+            }
+            if (item.uncurated > 0) {
+                addCurateButton(`Curate (${item.uncurated})`, "new");
+            }
+            // Words with a human vote (Emmio's auto-curation doesn't
+            // count, see `postgres.count_reviewable_words`) but not yet
+            // the requesting curator's own — a second opinion is still a
+            // real vote (see `postgres.record_curation_vote`'s consensus),
+            // so these stay reachable instead of only ever showing the
+            // never-voted-on pool above.
+            if (item.reviewable > 0) {
+                addCurateButton(
+                    `Review others’ (${item.reviewable})`,
+                    "review",
+                );
             }
             row.appendChild(curateCell);
 
@@ -382,9 +398,24 @@ export async function initCurate() {
     const base =
         `/curation/${encodeURIComponent(language)}` +
         `/${encodeURIComponent(frequencyListId)}`;
+    // "new" (default): only words nobody has voted on. "review": only
+    // words someone else already voted on, so a curator can add their own
+    // opinion on top of Emmio's or another human's (see the picker's two
+    // buttons in `initCuratedLists`). Anything else falls back to the
+    // API's unrestricted default.
+    const mode = params.get("mode");
+    let requireVote = null;
+    if (mode === "review") requireVote = "true";
+    else if (mode === "new") requireVote = "false";
+    const nextUrl =
+        `${base}/next` +
+        (requireVote !== null ? `?require_vote=${requireVote}` : "");
     document
         .getElementById("curated-list-heading")
-        .replaceChildren(identifierSpan(frequencyListId));
+        .replaceChildren(
+            identifierSpan(frequencyListId),
+            ...(mode === "review" ? [" (reviewing others’ curation)"] : []),
+        );
 
     const word = document.getElementById("word");
     const sentence = document.getElementById("sentence");
@@ -578,7 +609,7 @@ export async function initCurate() {
         // pre-selected for the new word.
         for (const radio of allRadios) radio.checked = false;
 
-        const response = await api(`${base}/next`);
+        const response = await api(nextUrl);
         const card = await response.json();
         if (!card.word) {
             current = null;

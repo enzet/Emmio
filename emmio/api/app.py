@@ -3779,11 +3779,18 @@ class CuratedListSummary(BaseModel):
     n_strata: int
     words: int  # Total panel words.
     uncurated: int  # Panel words no curator has voted on yet.
+    reviewable: int
+    """Panel words with a human vote (Emmio's auto-curation does not
+    count) that the requesting curator has not added their own opinion to
+    yet. Powers the picker's "Review others' curation" button, alongside
+    "Curate new words" (`uncurated`) — see
+    `postgres.count_reviewable_words`.
+    """
 
 
 @app.get("/api/v1/curation/lists")
 def get_curation_lists(
-    _user_id: Annotated[str, Depends(get_current_user)],
+    user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[CuratedListSummary]:
     """List every curated list, with its not-curated-by-anyone count."""
     return [
@@ -3794,6 +3801,9 @@ def get_curation_lists(
             n_strata=n_strata,
             words=postgres.count_curated_words(list_id),
             uncurated=postgres.count_uncurated_words(list_id),
+            reviewable=postgres.count_reviewable_words(
+                list_id, user_id, exclude_curators=[EMMIO_CURATOR_USER_ID]
+            ),
         )
         for list_id, language, frequency_list_id, name, n_strata in (
             postgres.get_curated_lists()
@@ -4065,13 +4075,21 @@ async def get_next_curation_word(
     frequency_list_id: str,
     user_id: Annotated[str, Depends(get_current_user)],
     stratum: int | None = None,
+    require_vote: bool | None = None,  # noqa: FBT001
 ) -> CurationWordCard:
     """Get the next panel word needing this curator's vote.
 
     Mirrors `emmio curate` exactly: words an automatic check already
     resolves are skipped without writing anything, leaving only genuinely
     undecidable words for the human (see `classify_automatically`).
+
+    :param require_vote: see `postgres.get_next_curation_candidate` — the
+        picker's two "Curate" buttons pass `False`/`True` respectively;
+        `None` (unset) falls back to the unrestricted default.
     """
+    exclude_curators: list[str] = (
+        [EMMIO_CURATOR_USER_ID] if require_vote else []
+    )
     curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     word_language: Language = Language.from_code(language)
     alphabet: str | None = word_language.get_symbols()
@@ -4095,7 +4113,12 @@ async def get_next_curation_word(
     auto_resolved: int = 0
     for _ in range(_CURATION_SKIP_BUDGET):
         word: str | None = postgres.get_next_curation_candidate(
-            curated_list_id, user_id, stratum, exclude=skipped
+            curated_list_id,
+            user_id,
+            stratum,
+            exclude=skipped,
+            require_vote=require_vote,
+            exclude_curators=exclude_curators,
         )
         if word is None:
             break

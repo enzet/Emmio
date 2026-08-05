@@ -36,8 +36,8 @@
      showgrid="true"
      inkscape:document-units="px"
      inkscape:current-layer="bin_v0"
-     inkscape:cy="292.40685"
-     inkscape:cx="536.90767"
+     inkscape:cy="300.56304"
+     inkscape:cx="535.46111"
      inkscape:zoom="64.981377"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0"
@@ -504,7 +504,7 @@
          rx="6.4942169e-06"
          ry="6.4942169e-06" /><path
          style="display:inline;fill:none;stroke:#ff0000;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
-         d="m 513,301 h 15"
+         d="m 513,301.5 h 15"
          id="path30"
          inkscape:label="baseline" /><path
          style="display:inline;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
