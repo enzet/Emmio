@@ -160,29 +160,31 @@ class DictionaryData(ArtifactData):
                 if dictionary_usage_config.from_language is None:
                     msg = "`from_language` is required for Kaikki dictionary."
                     raise ValueError(msg)
-                if dictionary_usage_config.name is None:
-                    msg = "Name is required for Kaikki dictionary."
-                    raise ValueError(msg)
                 language: Language = Language.from_code(
                     dictionary_usage_config.from_language
                 )
+                # The kaikki.org name is derived here, never taken from
+                # `dictionary_usage_config.name` — every caller used to pass
+                # `language.get_name()` directly, which silently diverges
+                # from kaikki.org's own name for a language whose Wiktionary
+                # name differs from Emmio's (e.g. Greek: Emmio calls it
+                # "Modern Greek", kaikki.org just "Greek"), 404ing the
+                # download every time. `kaikki_language_name` is the single
+                # source of truth `has_kaikki` already uses; deriving it
+                # again here keeps the two from ever disagreeing.
+                name: str = kaikki_language_name(language)
                 # Not downloaded yet: fetch it in the background (it is huge),
                 # letting the lexicon fall back to its other dictionaries now.
                 if not self.has_kaikki(language):
-                    self._start_kaikki_download(
-                        language, dictionary_usage_config.name
-                    )
+                    self._start_kaikki_download(language, name)
                     return None
                 cache_key: tuple[str, str] = (
                     dictionary_usage_config.from_language,
-                    dictionary_usage_config.name,
+                    name,
                 )
                 if cache_key not in self._kaikki_cache:
                     self._kaikki_cache[cache_key] = EnglishWiktionaryKaikki(
-                        self.path,
-                        self.path / "cache",
-                        language,
-                        dictionary_usage_config.name,
+                        self.path, self.path / "cache", language, name
                     )
                 return self._kaikki_cache[cache_key]
             case "google_translate":

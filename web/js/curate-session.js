@@ -8,6 +8,52 @@ import { api, requireAuth } from "./api.js";
 // `emmio curate <language> <frequency_list_id>`), never by a
 // database-internal numeric id.
 
+// Each `/auto-curate` call is one server-side budget-capped pass (see
+// `_AUTO_CURATE_BUDGET`); repeat until a pass makes no further progress
+// (`resolved === 0`) rather than looping until `remaining` hits 0 — some
+// words have no automatic evidence either way and are left for a human, so
+// `remaining` can plateau above 0 forever. `AUTO_CURATE_MAX_PASSES` is just a
+// defensive cap against an unforeseen bug looping forever. Shared by the
+// picker's per-row button (`initCuratedLists`) and the list detail page's
+// (`initCuratedList`).
+const AUTO_CURATE_MAX_PASSES = 20;
+
+async function autoCurate(base, setStatus) {
+    let totalResolved = 0;
+    for (let pass = 0; pass < AUTO_CURATE_MAX_PASSES; pass += 1) {
+        setStatus(
+            totalResolved > 0
+                ? `Auto-curated ${totalResolved} word(s) so far…`
+                : "Auto-curating…",
+        );
+        const response = await api(`${base}/auto-curate`, { method: "POST" });
+        if (!response.ok) {
+            setStatus("Auto-curate failed.");
+            return;
+        }
+        const result = await response.json();
+        totalResolved += result.resolved;
+        if (result.resolved === 0) {
+            setStatus(
+                totalResolved > 0
+                    ? `Auto-curated ${totalResolved} word(s). ` +
+                      `${result.remaining} word(s) need a human.`
+                    : `Nothing could be auto-curated — all ` +
+                      `${result.remaining} remaining word(s) need a human.`,
+            );
+            return;
+        }
+    }
+    // Exited via the pass cap rather than running dry: still useful
+    // progress, worth a final summary instead of a stale "…" line.
+    if (totalResolved > 0) {
+        setStatus(
+            `Auto-curated ${totalResolved} word(s) so far — ` +
+                "click again for more.",
+        );
+    }
+}
+
 export async function initCuratedLists() {
     requireAuth();
 
@@ -72,11 +118,32 @@ export async function initCuratedLists() {
             // never-voted-on pool above.
             if (item.reviewable > 0) {
                 addCurateButton(
-                    `Review others’ (${item.reviewable})`,
+                    `Review (${item.reviewable})`,
                     "review",
                 );
             }
             row.appendChild(curateCell);
+
+            // Votes on words an automatic check can already resolve (see
+            // `classify_automatically`), attributed to the "Emmio" curator —
+            // the same action as the list detail page's "Auto-curate"
+            // button, just reachable without navigating in first.
+            const autoCurateCell = document.createElement("td");
+            const autoCurateButton = document.createElement("button");
+            autoCurateButton.type = "button";
+            autoCurateButton.textContent = "Auto-curate";
+            const autoCurateBase =
+                `/curation/${encodeURIComponent(item.language)}` +
+                `/${encodeURIComponent(item.frequency_list_id)}`;
+            autoCurateButton.addEventListener("click", async () => {
+                autoCurateButton.disabled = true;
+                await autoCurate(autoCurateBase, (text) => {
+                    autoCurateButton.textContent = text;
+                });
+                await loadLists();
+            });
+            autoCurateCell.appendChild(autoCurateButton);
+            row.appendChild(autoCurateCell);
 
             // Draws 50 more words into every stratum (see `_EXTEND_WORDS_
             // PER_STRATUM`), regardless of how many it already has —
@@ -330,52 +397,12 @@ export async function initCuratedList() {
         void loadPage();
     });
 
-    // Each `/auto-curate` call is one server-side budget-capped pass (see
-    // `_AUTO_CURATE_BUDGET`); repeat until a pass makes no further progress
-    // (`resolved === 0`) rather than looping until `remaining` hits 0 —
-    // some words have no automatic evidence either way and are left for a
-    // human, so `remaining` can plateau above 0 forever. `MAX_PASSES` is
-    // just a defensive cap against an unforeseen bug looping forever.
-    const MAX_PASSES = 20;
     autoCurateButton.addEventListener("click", async () => {
         autoCurateButton.disabled = true;
         autoCurateStatus.hidden = false;
-        let totalResolved = 0;
-        let failed = false;
-        for (let pass = 0; pass < MAX_PASSES; pass += 1) {
-            autoCurateStatus.textContent =
-                totalResolved > 0
-                    ? `Auto-curated ${totalResolved} word(s) so far…`
-                    : "Auto-curating…";
-            const response = await api(`${base}/auto-curate`, {
-                method: "POST",
-            });
-            if (!response.ok) {
-                failed = true;
-                break;
-            }
-            const result = await response.json();
-            totalResolved += result.resolved;
-            if (result.resolved === 0) {
-                autoCurateStatus.textContent =
-                    totalResolved > 0
-                        ? `Auto-curated ${totalResolved} word(s). ` +
-                          `${result.remaining} word(s) need a human.`
-                        : `Nothing could be auto-curated — all ` +
-                          `${result.remaining} remaining word(s) need a human.`;
-                break;
-            }
-        }
-        const stillRunning = autoCurateStatus.textContent.endsWith("…");
-        if (failed) {
-            autoCurateStatus.textContent = "Auto-curate failed.";
-        } else if (totalResolved > 0 && stillRunning) {
-            // Exited via MAX_PASSES rather than running dry: still useful
-            // progress, worth a final summary instead of a stale "…" line.
-            autoCurateStatus.textContent =
-                `Auto-curated ${totalResolved} word(s) so far — ` +
-                "click again for more.";
-        }
+        await autoCurate(base, (text) => {
+            autoCurateStatus.textContent = text;
+        });
         autoCurateButton.disabled = false;
         page = 1;
         await loadPage();

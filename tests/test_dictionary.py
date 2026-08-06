@@ -309,3 +309,41 @@ def test_kaikki_downloads_in_background(
     # Cache is ready: the dictionary is now returned.
     assert data.has_kaikki(KnownLanguages.TURKISH)
     assert data.get_dictionary(config) is not None
+
+
+def test_kaikki_ignores_a_stale_or_wrong_config_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`get_dictionary` always derives kaikki.org's name itself.
+
+    Regression test: every call site used to build `DictionaryUsageConfig`
+    with `name=language.get_name()`, bypassing `kaikki_language_name`
+    entirely — for Greek that means `name="Modern Greek"`, which 404s on
+    kaikki.org (whose actual name is "Greek"), so the download failed for
+    this language (and Sinhala, Slovenian) no matter which code path called
+    it. Passing that same wrong name here must still resolve to "Greek",
+    proving `get_dictionary` no longer trusts it.
+    """
+    built = threading.Event()
+    built_name: list[str] = []
+
+    class FakeKaikki(EnglishWiktionaryKaikki):
+        def __init__(
+            self, _path: Path, cache: Path, _language: Any, name: str
+        ) -> None:
+            built_name.append(name)
+            (cache / "kaikki" / name).mkdir(parents=True, exist_ok=True)
+            built.set()
+
+    monkeypatch.setattr(dictionary_data, "EnglishWiktionaryKaikki", FakeKaikki)
+
+    data = DictionaryData.from_config(tmp_path)
+    config = DictionaryUsageConfig(
+        id="kaikki", from_language="el", name="Modern Greek"
+    )
+
+    assert data.get_dictionary(config) is None  # Download scheduled first.
+    assert built.wait(timeout=5)
+
+    assert built_name == ["Greek"]
+    assert data.has_kaikki(KnownLanguages.MODERN_GREEK)

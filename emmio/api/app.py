@@ -4100,13 +4100,7 @@ async def get_next_curation_word(
         parse_frequency_list_identifier(frequency_list_id, language)
     )
     dictionaries: DictionaryCollection = get_data().get_dictionaries(
-        [
-            DictionaryUsageConfig(
-                id="kaikki",
-                from_language=language,
-                name=word_language.get_name(),
-            )
-        ]
+        [DictionaryUsageConfig(id="kaikki", from_language=language)]
     )
 
     skipped: set[str] = set()
@@ -4347,13 +4341,7 @@ async def auto_curate_words(
         parse_frequency_list_identifier(frequency_list_id, language)
     )
     dictionaries: DictionaryCollection = get_data().get_dictionaries(
-        [
-            DictionaryUsageConfig(
-                id="kaikki",
-                from_language=language,
-                name=word_language.get_name(),
-            )
-        ]
+        [DictionaryUsageConfig(id="kaikki", from_language=language)]
     )
 
     unvoted: set[str] = postgres.get_curator_unvoted_words(

@@ -1278,13 +1278,7 @@ class Emmio:
         )
 
         dictionaries: DictionaryCollection = self.data.get_dictionaries(
-            [
-                DictionaryUsageConfig(
-                    id="kaikki",
-                    from_language=language,
-                    name=word_language.get_name(),
-                )
-            ]
+            [DictionaryUsageConfig(id="kaikki", from_language=language)]
         )
         # TODO(enzet): get definitions languages from user settings.
         definitions_languages: list[Language] = [

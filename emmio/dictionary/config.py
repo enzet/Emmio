@@ -20,7 +20,15 @@ class DictionaryUsageConfig(BaseModel):
     """Language of definitions and translations."""
 
     name: str | None = None
-    """Additional name to identify the dictionary."""
+    """Additional name to identify the dictionary.
+
+    Unused for `id="kaikki"`: its kaikki.org name is always derived from
+    `from_language` via `kaikki_language_name`, never taken from here (see
+    `DictionaryData.get_dictionary`) — a caller-supplied name previously let
+    every call site accidentally pass Emmio's own display name instead of
+    kaikki.org's, breaking the download for any language where the two
+    differ (e.g. Greek).
+    """
 
 
 class DictionaryConfig(BaseModel):

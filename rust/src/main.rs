@@ -5,8 +5,10 @@
 //! occurrences, and writes a frequency list as `word count cap_ratio` per
 //! line, sorted from most to least frequent. The first two fields match the
 //! format used by the FrequencyWords project; `cap_ratio` (see below) is
-//! appended as a third field, or `NA` if the word never occurs outside a
-//! sentence start.
+//! appended as a third field, `NA` if the word never occurs outside a
+//! sentence start, or omitted entirely for a language where the field
+//! wouldn't mean anything (see `proper_nouns_supported`) — `NA` on every
+//! single line would just be confusing noise, not data.
 //!
 //! Optionally it also tracks per-word capitalization and guesses which words are
 //! proper nouns. The signal is *capitalization away from sentence start*: every
@@ -152,13 +154,18 @@ impl WordStats {
         (off_start > 0).then(|| self.titlecased_off_start as f64 / off_start as f64)
     }
 
-    /// `cap_ratio`, unless the proper-noun heuristic is disabled for this
-    /// language (see `proper_nouns_supported`), in which case `None` — a
-    /// real but meaningless ratio (e.g. German, where every noun is
-    /// capitalized) would otherwise mislead any consumer of the primary
-    /// output file into treating it as a proper-noun signal.
-    fn output_cap_ratio(&self, proper_nouns_enabled: bool) -> Option<f64> {
-        proper_nouns_enabled.then(|| self.cap_ratio()).flatten()
+    /// Whether/what to print in the primary output's `cap_ratio` field.
+    ///
+    /// Outer `None` when the proper-noun heuristic is disabled for this
+    /// language (see `proper_nouns_supported`, e.g. German, where every
+    /// noun is capitalized): the field is dropped from that line entirely,
+    /// rather than printing a `cap_ratio` that would read `NA` on every
+    /// single word — that's not data, just confusing noise dressed up as a
+    /// column. `Some(None)`/`Some(Some(ratio))` otherwise, exactly
+    /// `cap_ratio()`'s own per-word `None` (never occurs off a sentence
+    /// start)/`Some`.
+    fn output_cap_ratio(&self, proper_nouns_enabled: bool) -> Option<Option<f64>> {
+        proper_nouns_enabled.then(|| self.cap_ratio())
     }
 
     /// Whether the word looks like a proper noun under the given thresholds.
@@ -459,7 +466,12 @@ fn run(args: &Args) -> io::Result<()> {
         .map(|path| io::Result::Ok(BufWriter::new(File::create(path)?)))
         .transpose()?;
     for (word, stats) in &sorted {
-        let ratio = stats.output_cap_ratio(proper_nouns_enabled);
+        let Some(ratio) = stats.output_cap_ratio(proper_nouns_enabled) else {
+            // Language where the heuristic is disabled: no `cap_ratio`
+            // field at all, not one that would just always read `NA`.
+            writeln!(writer, "{word} {}", stats.total)?;
+            continue;
+        };
         let cap_ratio = ratio.map_or_else(|| "NA".to_string(), |r| format!("{r:.2}"));
         writeln!(writer, "{word} {} {cap_ratio}", stats.total)?;
         if let Some(cap_writer) = &mut cap_writer {
@@ -629,7 +641,7 @@ mod tests {
             sentence_initial: 2,
             titlecased_off_start: 8,
         };
-        assert_eq!(fenster.output_cap_ratio(true), fenster.cap_ratio());
+        assert_eq!(fenster.output_cap_ratio(true), Some(fenster.cap_ratio()));
         assert_eq!(fenster.output_cap_ratio(false), None);
     }
 }

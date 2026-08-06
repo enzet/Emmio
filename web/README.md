@@ -31,7 +31,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `courses.html`  | Table of the user's learning courses.                        |
 | `course.html`   | One course: details and statistics (due, learning, …).       |
 | `learn.html`    | Learn a course: type the word (due repetitions and new ones).|
-| `curated-lists.html` | Table of curated lists (word count, curate/extend/delete actions), plus a "build a panel" form (`emmio data build-panel`'s web equivalent). |
+| `curated-lists.html` | Table of curated lists (word count, curate/auto-curate/extend/delete actions), plus a "build a panel" form (`emmio data build-panel`'s web equivalent). |
 | `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
 | `languages.html` | Self-reported language knowledge: add and list proficiency estimates. |
@@ -221,6 +221,14 @@ sequenceDiagram
         B->>A: POST /curation/{language}/{id}/extend
         A-->>B: { language, frequency_list_id, name,<br/>n_strata, new_words, strata_mismatch }
         Note over B: reloads the list table
+    end
+
+    opt "Auto-curate" button (curated-lists.html)
+        loop until a pass resolves nothing further
+            B->>A: POST /curation/{language}/{id}/auto-curate
+            A-->>B: { resolved, checked, remaining }
+        end
+        Note over B: reloads the list table (same action as curated-list.html's<br/>own "Auto-curate" button below, reachable without navigating in first)
     end
 
     opt browsing the list (curated-list.html)

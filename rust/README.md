@@ -3,11 +3,14 @@
 Unicode-aware frequency list generator.
 
 Output format is `word count cap_ratio` per line, most frequent first
-(`cap_ratio` is `NA` if the word never occurs outside a sentence start, or if
+(`cap_ratio` is `NA` if the word never occurs outside a sentence start). If
 `--language` names a language where capitalization doesn't signal a proper
-noun, e.g. German — see Language support below). The first two fields match
-the [FrequencyWords](https://github.com/hermitdave/FrequencyWords) project's
-format, so it remains a drop-in source for Emmio's `FrequencyWordsList`.
+noun (e.g. German — see Language support below), the `cap_ratio` field is
+dropped entirely instead: `NA` on every single line would just be confusing
+noise, not data. The first two fields always match the
+[FrequencyWords](https://github.com/hermitdave/FrequencyWords) project's
+format, so it remains a drop-in source for Emmio's `FrequencyWordsList`
+either way.
 
 ## Build
 
@@ -42,8 +45,10 @@ Options:
 - `--stats PATH` — also write a capitalization / proper-noun report (see below).
 - `--output-cap PATH` — also write a copy of the output restricted to words
   with `cap_ratio >= 0.2` (same `word count cap_ratio` format; words with an
-  undefined `cap_ratio`, `NA`, are excluded). A quick way to review
-  proper-noun/honorific-noun candidates without the bulk of the full list.
+  undefined `cap_ratio`, `NA`, are excluded — as is every word, for a
+  language where the field is dropped from the main output too). A quick
+  way to review proper-noun/honorific-noun candidates without the bulk of
+  the full list.
 - `--proper-noun-threshold R` — off-start title-case fraction to flag a proper
   noun (default `0.8`; empirically the best F1 tradeoff against dictionary
   ground truth on a real OpenSubtitles English sample — `0.5` lets through

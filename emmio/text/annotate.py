@@ -27,9 +27,7 @@ class TextAnnotator:
         dictionaries = self.data.get_dictionaries(
             [
                 DictionaryUsageConfig(
-                    id="kaikki",
-                    from_language=self.from_language.code,
-                    name=self.from_language.get_name(),
+                    id="kaikki", from_language=self.from_language.code
                 )
             ]
         )
