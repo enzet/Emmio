@@ -910,7 +910,38 @@ class StructuredDictionary(Dictionary):
         :param id_: unique string identifier of the dictionary
         :param config: dictionary configuration
         """
-        with (path / config.file_name).open(encoding="utf-8") as input_file:
+        return cls.from_file(
+            path / config.file_name,
+            id_,
+            config.name,
+            Language.from_code(config.from_language),
+            is_machine=config.is_machine,
+        )
+
+    @classmethod
+    def from_file(
+        cls,
+        file_path: Path,
+        id_: str,
+        name: str,
+        from_language: Language,
+        *,
+        is_machine: bool = False,
+    ) -> Self:
+        """Initialize structured dictionary directly from a JSON file.
+
+        Unlike `from_config`, this takes the file path directly rather than
+        deriving it from a `DictionaryConfig`, for callers that load a file
+        outside the `config.json`-registered set (e.g. a curated list's
+        partial dictionary export, see `DictionaryData.get_partial_dictionary`).
+
+        :param file_path: path to the JSON file with dictionary items
+        :param id_: unique string identifier of the dictionary
+        :param name: name of the dictionary
+        :param from_language: language of the words being defined
+        :param is_machine: whether the dictionary is machine-generated
+        """
+        with file_path.open(encoding="utf-8") as input_file:
             raw: dict[str, dict[str, Any]] = json.load(input_file)
 
         items: dict[str, DictionaryItem] = {
@@ -918,12 +949,7 @@ class StructuredDictionary(Dictionary):
             for word, entry in raw.items()
         }
         return cls(
-            id_,
-            path / config.file_name,
-            config.name,
-            items,
-            Language.from_code(config.from_language),
-            is_machine=config.is_machine,
+            id_, file_path, name, items, from_language, is_machine=is_machine
         )
 
     @override

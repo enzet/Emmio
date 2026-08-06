@@ -347,3 +347,48 @@ def test_kaikki_ignores_a_stale_or_wrong_config_name(
 
     assert built_name == ["Greek"]
     assert data.has_kaikki(KnownLanguages.MODERN_GREEK)
+
+
+def test_dictionary_data_partial_dictionary_missing_is_none(
+    tmp_path: Path,
+) -> None:
+    """No `curated/<id>.json` file yet: `None`, not an error."""
+
+    data = DictionaryData.from_config(tmp_path)
+
+    assert data.get_partial_dictionary(1) is None
+    assert data.has_partial(1) is False
+
+
+def test_dictionary_data_partial_dictionary_loads_and_caches(
+    tmp_path: Path,
+) -> None:
+    """A curated list's export loads as a `StructuredDictionary` and caches.
+
+    Also covers `get_dictionary`'s `curated_<id>` dispatch, the path a
+    curated-backed lexicon actually uses (see `_curated_translation_config`
+    in `emmio.api.app`).
+    """
+
+    curated_directory: Path = tmp_path / "curated"
+    curated_directory.mkdir()
+    (curated_directory / "10.json").write_text(
+        json.dumps({"аа": _ARMENIAN_ALPHABET_ENTRY}), encoding="utf-8"
+    )
+
+    data = DictionaryData.from_config(tmp_path)
+
+    assert data.has_partial(10) is True
+    dictionary = data.get_partial_dictionary(10)
+    assert isinstance(dictionary, StructuredDictionary)
+    item = asyncio.run(dictionary.get_item("аа"))
+    assert item is not None
+    assert item.get_forms()[0].part_of_speech == "letter"
+
+    # Cached: a second lookup returns the exact same instance.
+    assert data.get_partial_dictionary(10) is dictionary
+
+    via_usage_config = data.get_dictionary(
+        DictionaryUsageConfig(id="curated_10", from_language="uk")
+    )
+    assert via_usage_config is dictionary

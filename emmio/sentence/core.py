@@ -1,5 +1,6 @@
 """Core functionality for sentences."""
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -286,3 +287,49 @@ class SimpleTwoLanguagesSentences(Sentences):
         return sorted(
             [(s.rate(is_known), s) for s in sentences], key=lambda r: -r[0]
         )
+
+
+@dataclass
+class CuratedSentences(Sentences):
+    """Sentences for a single curated list's confirmed-real words.
+
+    Loaded from `<sentences path>/curated/<curated_list_id>.json`, written
+    by `build_partial_export` (`emmio/lexicon/curation.py`): a flat
+    `{word: [sentence_text, ...]}` map covering only that curated list's
+    confirmed-real (`category='W'`) words, so a curated-list-backed lexicon
+    check never has to load the full Tatoeba corpus for the language.
+
+    Lexicon checking never shows a sentence's translation
+    (`_sentence_html` in `emmio.api.app`: "its translation is intentionally
+    not shown") — only the "learning" flow does, and a curated list never
+    backs one today — so, unlike `TatoebaSentences`, entries here carry no
+    translations at all.
+    """
+
+    id_: str
+    """Unique sentences string identifier."""
+
+    sentences: dict[str, list[str]]
+    """Mapping from word to a small list of example sentence texts."""
+
+    language: Language
+    """Language of the sentences."""
+
+    @classmethod
+    def from_file(cls, path: Path, id_: str, language: Language) -> Self:
+        """Load a curated list's partial sentence export from its JSON file.
+
+        :param path: path to the `<curated_list_id>.json` export
+        :param id_: unique sentences identifier, e.g. `curated_10`
+        :param language: language of the sentences
+        """
+        with path.open(encoding="utf-8") as input_file:
+            data: dict[str, list[str]] = json.load(input_file)
+        return cls(id_, data, language)
+
+    def get(self, word: str) -> list[SentenceAndTranslations]:
+        """Get this word's precomputed example sentences, if any."""
+        return [
+            SentenceAndTranslations(Sentence(index, text), self.language, {})
+            for index, text in enumerate(self.sentences.get(word, []))
+        ]

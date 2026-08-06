@@ -1233,6 +1233,55 @@ def _translation_config(
     return dictionaries, sentences
 
 
+def _curated_translation_config(
+    data: Any, curated_list_id: int, language: str, targets: list[str]
+) -> tuple[list[dict], list[dict]] | None:
+    """Build a curated lexicon's `dictionaries`/`sentences` config, if built.
+
+    Swaps in the curated list's small partial exports (`curated_<id>`, see
+    `DictionaryData.get_partial_dictionary` /
+    `SentencesData.get_partial_sentences`) in place of the full Kaikki
+    dictionary and full Tatoeba sentences `_translation_config` would
+    otherwise wire in, so checking such a lexicon never needs to load the
+    full data for the language. Google Translate is a live per-word API
+    call, not bulk data, so it is unaffected either way and still built
+    exactly as `_translation_config` does.
+
+    Returns `None` when the curated list has no partial export yet
+    (`emmio data build-partial` has not run for it), so the caller falls
+    back to `_translation_config`.
+
+    :param data: the shared `Data`; typed loosely because tests substitute a
+        duck-typed stub for `get_data`
+    :param curated_list_id: internal identifier of the curated list
+    :param language: the lexicon's language code
+    :param targets: language codes to translate words into
+    """
+    language_object: Language = Language.from_code(language)
+    if not data.dictionaries.has_partial(
+        curated_list_id
+    ) or not data.get_sentences_data().has_partial(
+        curated_list_id, language_object
+    ):
+        return None
+
+    dictionaries: list[dict] = [
+        {"id": f"curated_{curated_list_id}", "from_language": language}
+    ]
+    dictionaries.extend(
+        {
+            "id": "google_translate",
+            "from_language": language,
+            "to_language": target,
+        }
+        for target in targets
+    )
+    sentences: list[dict] = [
+        {"id": f"curated_{curated_list_id}", "language": language}
+    ]
+    return dictionaries, sentences
+
+
 @app.post("/api/v1/me/lexicons", status_code=status.HTTP_201_CREATED)
 def create_lexicon(
     request: CreateLexiconRequest,
@@ -1279,10 +1328,25 @@ def create_lexicon(
     lexicon_id: str = _unique_artifact_id(
         request.language, {row[0] for row in postgres.list_lexicons(user_id)}
     )
-    with_kaikki: bool = _with_kaikki(data, targets, request.language)
-    dictionaries, sentences = _translation_config(
-        request.language, targets, with_kaikki=with_kaikki
-    )
+    curated_config: tuple[list[dict], list[dict]] | None = None
+    if frequency_list.get("curated"):
+        frequency_list_id: str = frequency_list_identifier(
+            ListUsageConfig(**frequency_list)
+        )
+        curated_list_id: int | None = postgres.get_curated_list_id(
+            request.language, frequency_list_id
+        )
+        if curated_list_id is not None:
+            curated_config = _curated_translation_config(
+                data, curated_list_id, request.language, targets
+            )
+    if curated_config is not None:
+        dictionaries, sentences = curated_config
+    else:
+        with_kaikki: bool = _with_kaikki(data, targets, request.language)
+        dictionaries, sentences = _translation_config(
+            request.language, targets, with_kaikki=with_kaikki
+        )
     config: dict = {
         "language": request.language,
         "selection": selection.value,

@@ -77,6 +77,17 @@ class DictionaryData(ArtifactData):
     background jobs while one is in flight.
     """
 
+    _partial_cache: dict[int, Dictionary | None] = field(
+        default_factory=dict, repr=False
+    )
+    """Cache of loaded curated-list partial dictionaries, keyed by list id.
+
+    A curated list's partial dictionary export (`curated/<list_id>.json`,
+    written by `build_partial_export` in `emmio.lexicon.curation`) is small,
+    so it is loaded eagerly and kept around, unlike Kaikki's per-word cache
+    files. `None` means the file does not exist (checked once, then cached).
+    """
+
     @classmethod
     def from_config(cls, path: Path) -> Self:
         """Initialize dictionaries from a directory.
@@ -150,12 +161,50 @@ class DictionaryData(ArtifactData):
 
         threading.Thread(target=download, daemon=True).start()
 
+    def get_partial_dictionary(self, curated_list_id: int) -> Dictionary | None:
+        """Get a curated list's small partial dictionary export, if built.
+
+        Reads `<path>/curated/<curated_list_id>.json` (written by
+        `build_partial_export` in `emmio.lexicon.curation`) the first time
+        it is requested and keeps it in `_partial_cache` from then on; the
+        cache also remembers a missing file as `None`, so a curated list
+        with no export yet is only checked once per process.
+
+        :param curated_list_id: internal identifier of the curated list
+        """
+        if curated_list_id in self._partial_cache:
+            return self._partial_cache[curated_list_id]
+
+        file_path: Path = self.path / "curated" / f"{curated_list_id}.json"
+        dictionary: Dictionary | None = None
+        if file_path.is_file():
+            dictionary = StructuredDictionary.from_file(
+                file_path,
+                f"curated_{curated_list_id}",
+                f"Curated list {curated_list_id}",
+                # `from_language` is unused by lookup (a plain word-keyed
+                # dict), so any placeholder would do; kept `None`-free only
+                # because `StructuredDictionary` requires a `Language`.
+                Language.from_code("en"),
+            )
+        self._partial_cache[curated_list_id] = dictionary
+        return dictionary
+
+    def has_partial(self, curated_list_id: int) -> bool:
+        """Whether a curated list's partial dictionary export exists."""
+        return self.get_partial_dictionary(curated_list_id) is not None
+
     def get_dictionary(
         self, dictionary_usage_config: DictionaryUsageConfig
     ) -> Dictionary | None:
         """Get dictionary by dictionary usage configuration."""
 
-        match id_ := dictionary_usage_config.id:
+        if (id_ := dictionary_usage_config.id).startswith("curated_"):
+            return self.get_partial_dictionary(
+                int(id_.removeprefix("curated_"))
+            )
+
+        match id_:
             case "kaikki":
                 if dictionary_usage_config.from_language is None:
                     msg = "`from_language` is required for Kaikki dictionary."

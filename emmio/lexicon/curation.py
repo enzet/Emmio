@@ -18,15 +18,18 @@ Drawn words get `category = 'U'` (unknown) and are left for human curators
 to review — this module never guesses a category itself.
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
 
 from emmio import postgres
 from emmio.catalog import CAP_RATIO_UNSUPPORTED_LANGUAGES
-from emmio.dictionary.core import DictionaryCollection
-from emmio.language import Language
+from emmio.dictionary.config import DictionaryUsageConfig
+from emmio.dictionary.core import DictionaryCollection, DictionaryItem
+from emmio.language import KnownLanguages, Language
 from emmio.lexicon.core import (
     PROPER_NOUN_CAP_RATIO_THRESHOLD,
     _stratum_bounds_of_size,
@@ -37,6 +40,8 @@ from emmio.lists.config import (
     parse_frequency_list_identifier,
 )
 from emmio.lists.frequency_list import FrequencyList
+from emmio.sentence.config import SentencesUsageConfig
+from emmio.sentence.core import SentenceAndTranslations
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -439,4 +444,173 @@ def extend_curated_panel(
         n_strata=n_strata,
         new_words=len(entries),
         strata_mismatch=False,
+    )
+
+
+class PartialExportResult(NamedTuple):
+    """Outcome of `build_partial_export`."""
+
+    list_id: int
+    words: int
+    """Number of confirmed-real words the export covers."""
+
+    dictionary_entries: int
+    """Number of distinct dictionary entries written (may exceed `words`:
+    following a word's links, e.g. an inflection, pulls in the linked
+    word's own entry too)."""
+
+    sentence_entries: int
+    """Number of words with at least one example sentence written."""
+
+
+class PartialExportError(ValueError):
+    """Raised when a partial export cannot be built (no such curated list)."""
+
+
+def _serialize_dictionary_item(item: DictionaryItem) -> dict[str, Any]:
+    """Flatten a (possibly multi-form) `DictionaryItem` into one JSON entry.
+
+    Matches `StructuredDictionary`'s on-disk shape
+    (`_structured_item_from_entry` in `emmio.dictionary.core`), which is
+    one form per word; Kaikki entries can have several forms (distinct
+    senses, e.g. noun and verb), so they are merged here rather than kept
+    apart — acceptable loss for a small, supplementary export, not the
+    dictionary's own storage format.
+    """
+    part_of_speech: str | None = None
+    transcriptions: set[str] = set()
+    definitions: list[str] = []
+    links: list[dict[str, str]] = []
+
+    for form in item.get_forms():
+        if part_of_speech is None:
+            part_of_speech = form.part_of_speech
+        transcriptions.update(form.transcriptions)
+        # Kaikki only ever fills English definitions (see
+        # `EnglishWiktionaryKaikki.process_item`), so no other language's
+        # definitions are lost by only exporting this one.
+        for definition in form.definitions.get(KnownLanguages.ENGLISH, []):
+            definitions.extend(value.value for value in definition.values)
+        links.extend(
+            {"type": link.link_type, "value": link.link_value}
+            for link in form.links
+        )
+
+    entry: dict[str, Any] = {}
+    if part_of_speech:
+        entry["part_of_speech"] = part_of_speech
+    if transcriptions:
+        entry["transcriptions"] = sorted(transcriptions)
+    if definitions:
+        entry["definitions"] = {"en": definitions}
+    if links:
+        entry["links"] = links
+    return entry
+
+
+async def build_partial_export(
+    data: Any, curated_list_id: int, max_sentences_per_word: int = 5
+) -> PartialExportResult:
+    """Precompute a curated list's small dictionary/sentence export.
+
+    Covers only the list's confirmed-real (`category = 'W'`) words — the
+    same pool `CuratedStratifiedSelector` draws from
+    (`postgres.get_curated_real_words_by_stratum`) — so a curated-list-
+    backed lexicon check never needs the full Kaikki/Tatoeba data for the
+    language: see `DictionaryData.get_partial_dictionary` and
+    `SentencesData.get_partial_sentences`, which load the two files this
+    writes (`<dictionaries path>/curated/<list_id>.json`,
+    `<sentences path>/curated/<list_id>.json`).
+
+    This is the one place the *full* Kaikki/Tatoeba data is read: it must
+    run somewhere those caches already exist (or can be downloaded), e.g.
+    a developer machine, not the eventual small-footprint server — the
+    server only ever needs this function's output.
+
+    Sentences never carry translations here: lexicon *checking*
+    deliberately never shows one (`_sentence_html` in `emmio.api.app`), so
+    only the source-language sentence text is exported (see
+    `CuratedSentences` in `emmio.sentence.core`).
+
+    :param data: the shared `Data`; typed loosely because tests substitute a
+        duck-typed stub for `get_data` (mirrors `build_or_extend_curated_panel`)
+    :param curated_list_id: internal identifier of the curated list
+    :param max_sentences_per_word: cap on example sentences exported per word
+    :raises PartialExportError: if no curated list has this id
+    """
+    list_row: tuple[str, str, str, int] | None = postgres.get_curated_list(
+        curated_list_id
+    )
+    if list_row is None:
+        msg = f"No curated list with id {curated_list_id}."
+        raise PartialExportError(msg)
+    language_code: str = list_row[0]
+    language: Language = Language.from_code(language_code)
+
+    words_by_stratum: dict[int, list[str]] = (
+        postgres.get_curated_real_words_by_stratum(curated_list_id)
+    )
+    words: list[str] = sorted(
+        {
+            word
+            for stratum_words in words_by_stratum.values()
+            for word in stratum_words
+        }
+    )
+
+    dictionaries: DictionaryCollection = data.get_dictionaries(
+        [DictionaryUsageConfig(id="kaikki", from_language=language_code)]
+    )
+    dictionary_entries: dict[str, dict[str, Any]] = {}
+    for word in words:
+        for _dictionary, item in await dictionaries.get_items_marked(
+            word, language
+        ):
+            if item.word not in dictionary_entries:
+                dictionary_entries[item.word] = _serialize_dictionary_item(item)
+
+    sentences_data = data.get_sentences_data()
+    sentence_entries: dict[str, list[str]] = {}
+    for word in words:
+        results: list[SentenceAndTranslations] = sentences_data.get(
+            word,
+            [SentencesUsageConfig(id="tatoeba", language=language_code)],
+            max_number=max_sentences_per_word,
+        )
+        if results:
+            sentence_entries[word] = [
+                result.sentence.text for result in results
+            ]
+
+    dictionaries_directory: Path = data.dictionaries.path / "curated"
+    dictionaries_directory.mkdir(parents=True, exist_ok=True)
+    with (dictionaries_directory / f"{curated_list_id}.json").open(
+        "w", encoding="utf-8"
+    ) as output_file:
+        json.dump(
+            dictionary_entries,
+            output_file,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+
+    sentences_directory: Path = sentences_data.path / "curated"
+    sentences_directory.mkdir(parents=True, exist_ok=True)
+    with (sentences_directory / f"{curated_list_id}.json").open(
+        "w", encoding="utf-8"
+    ) as output_file:
+        json.dump(
+            sentence_entries,
+            output_file,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+
+    return PartialExportResult(
+        list_id=curated_list_id,
+        words=len(words),
+        dictionary_entries=len(dictionary_entries),
+        sentence_entries=len(sentence_entries),
     )

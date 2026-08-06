@@ -41,11 +41,16 @@ client: TestClient = TestClient(app)
 class _FakeDictionaries:
     """Stand-in for the dictionary inventory: no Kaikki, no structured ones."""
 
-    def __init__(self) -> None:
+    def __init__(self, partial_list_ids: set[int] | None = None) -> None:
         self.dictionaries: dict[str, Any] = {}
+        self._partial_list_ids: set[int] = partial_list_ids or set()
 
     def can_download_kaikki(self, language: object) -> bool:  # noqa: ARG002
         return False
+
+    def has_partial(self, curated_list_id: int) -> bool:
+        # No partial exports built in tests unless a test opts in.
+        return curated_list_id in self._partial_list_ids
 
 
 class _FakeData:
@@ -56,11 +61,13 @@ class _FakeData:
         languages: dict[str, dict],
         frequency_lists: dict[str, FrequencyList] | None = None,
         extra_frequency_options: list[dict] | None = None,
+        partial_list_ids: set[int] | None = None,
     ) -> None:
         self._languages = languages
         self._frequency_lists = frequency_lists or {}
         self._extra_frequency_options = extra_frequency_options or []
-        self.dictionaries = _FakeDictionaries()
+        self._partial_list_ids: set[int] = partial_list_ids or set()
+        self.dictionaries = _FakeDictionaries(self._partial_list_ids)
 
     def get_frequency_list_languages(self) -> dict[str, dict]:
         return self._languages
@@ -90,7 +97,7 @@ class _FakeData:
     def get_sentences_data(self) -> "_FakeSentencesData":
         # No real Tatoeba lookups in tests (would try to download on a
         # cold cache); every word has no example.
-        return _FakeSentencesData([])
+        return _FakeSentencesData([], self._partial_list_ids)
 
 
 @pytest.fixture
@@ -2312,6 +2319,84 @@ def test_create_lexicon_curated_stores_the_curated_flag(
     assert config["frequency_list"]["curated"] is True
 
 
+def test_create_lexicon_curated_falls_back_without_partial_export(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """No partial export yet: today's full Kaikki/Tatoeba config is used."""
+
+    postgres.create_curated_list("uk", "uk_list", "UK Curated")
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "stratified",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["dictionaries"] == [
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"}
+    ]
+    assert config["sentences"] == [
+        {"id": "tatoeba", "language": "uk", "translation_languages": ["en"]}
+    ]
+
+
+def test_create_lexicon_curated_uses_partial_export_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A curated list with a partial export gets `curated_<id>` sources.
+
+    Google Translate stays untouched (a live per-word call, not bulk data
+    like Kaikki/Tatoeba) — only the Kaikki-equivalent dictionary and the
+    Tatoeba-equivalent sentences are swapped to the small partial export.
+    """
+
+    list_id: int = postgres.create_curated_list("uk", "uk_list", "UK Curated")
+    frequency_list: FrequencyList = FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="uk",
+            path="unused",
+            is_stripped=False,
+        ),
+        data={"аа": 1},
+    )
+    fake: Any = _FakeData(
+        {"uk": {"id": "uk_list"}},
+        {"uk_list": frequency_list},
+        partial_list_ids={list_id},
+    )
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/lexicons",
+        json={
+            "language": "uk",
+            "selection": "stratified",
+            "frequency_list": {"id": "uk_list", "curated": True},
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    config = postgres.get_lexicon_config("alice", "uk")
+    assert config is not None
+    assert config["dictionaries"] == [
+        {"id": f"curated_{list_id}", "from_language": "uk"},
+        {"id": "google_translate", "from_language": "uk", "to_language": "en"},
+    ]
+    assert config["sentences"] == [
+        {"id": f"curated_{list_id}", "language": "uk"}
+    ]
+
+
 def test_next_curated_lexicon_only_draws_confirmed_real_words(
     fake_uk_list: FrequencyList,  # noqa: ARG001
 ) -> None:
@@ -2725,8 +2810,13 @@ def test_course_sentence_without_sources_is_null() -> None:
 class _FakeSentencesData:
     """Stand-in sentence store returning a fixed list of examples."""
 
-    def __init__(self, examples: list[SentenceAndTranslations]) -> None:
+    def __init__(
+        self,
+        examples: list[SentenceAndTranslations],
+        partial_list_ids: set[int] | None = None,
+    ) -> None:
         self._examples = examples
+        self._partial_list_ids: set[int] = partial_list_ids or set()
 
     def get(
         self,
@@ -2735,6 +2825,14 @@ class _FakeSentencesData:
         max_number: int = 1000,  # noqa: ARG002
     ) -> list[SentenceAndTranslations]:
         return self._examples
+
+    def has_partial(
+        self,
+        curated_list_id: int,
+        language: object,  # noqa: ARG002
+    ) -> bool:
+        # No partial exports built in tests unless a test opts in.
+        return curated_list_id in self._partial_list_ids
 
 
 class _FakeSentenceData:

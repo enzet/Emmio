@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Emmio — Lexicon words</title>
+        <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
+        <link
+            rel="preload"
+            href="/data/fonts/InterVariable.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin
+        />
+        <script src="theme.js"></script>
+        <link rel="stylesheet" href="base.css" />
+        <link rel="stylesheet" href="modern.css" />
+        <script src="app.js" type="module"></script>
+    </head>
+    <body data-page="lexicon-words">
+        <header>
+            <a href="index" class="home">
+                <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
+            </a>
+            <nav>
+                <a id="back-link" href="lexicons">← Lexicon</a>
+            </nav>
+            <a href="profile" class="profile-link">Profile</a>
+        </header>
+        <main>
+            <h1 id="words-heading">Words</h1>
+            <div id="filter-tabs" role="group" aria-label="Word filter">
+                <button type="button" data-response="all" aria-pressed="false"
+                    >All</button
+                >
+                <button
+                    type="button"
+                    data-response="know"
+                    aria-pressed="false"
+                    >Know</button
+                >
+                <button
+                    type="button"
+                    data-response="dont"
+                    aria-pressed="false"
+                    >Don't know</button
+                >
+            </div>
+            <table id="words-table" hidden>
+                <thead>
+                    <tr>
+                        <th scope="col">Word</th>
+                        <th scope="col">Response</th>
+                        <th scope="col">Last seen</th>
+                    </tr>
+                </thead>
+                <tbody id="words-rows"></tbody>
+            </table>
+            <p id="words-status" role="status"></p>
+            <p id="pagination" hidden>
+                <button id="prev-page" type="button">← Previous</button>
+                <span id="page-indicator"></span>
+                <button id="next-page" type="button">Next →</button>
+            </p>
+        </main>
+        <footer>
+            <p id="status" role="status">Loading…</p>
+        </footer>
+    </body>
+</html>

@@ -1,6 +1,6 @@
 """Sentences data."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self
 
@@ -13,6 +13,7 @@ from emmio.sentence.config import (
     SentenceType,
 )
 from emmio.sentence.core import (
+    CuratedSentences,
     SentenceAndTranslations,
     Sentences,
     SimpleOneLanguageSentences,
@@ -37,6 +38,17 @@ class SentencesData(ArtifactData):
 
     tatoeba_sentences: TatoebaSentences | None = None
     """Tatoeba sentences."""
+
+    _partial_cache: dict[int, CuratedSentences | None] = field(
+        default_factory=dict, repr=False
+    )
+    """Cache of loaded curated-list partial sentence exports, keyed by list id.
+
+    A curated list's partial sentences export (`curated/<list_id>.json`,
+    written by `build_partial_export` in `emmio.lexicon.curation`) is small,
+    so it is loaded eagerly and kept around, unlike Tatoeba's full per-language
+    caches. `None` means the file does not exist (checked once, then cached).
+    """
 
     @classmethod
     def from_config(cls, path: Path) -> Self:
@@ -101,6 +113,36 @@ class SentencesData(ArtifactData):
             self.path / "cache" / f"words_{language.get_part3()}.json"
         ).is_file()
 
+    def get_partial_sentences(
+        self, curated_list_id: int, language: Language
+    ) -> CuratedSentences | None:
+        """Get a curated list's small partial sentences export, if built.
+
+        Reads `<path>/curated/<curated_list_id>.json` (written by
+        `build_partial_export` in `emmio.lexicon.curation`) the first time
+        it is requested and keeps it in `_partial_cache` from then on; the
+        cache also remembers a missing file as `None`, so a curated list
+        with no export yet is only checked once per process.
+
+        :param curated_list_id: internal identifier of the curated list
+        :param language: language of the curated list's sentences
+        """
+        if curated_list_id in self._partial_cache:
+            return self._partial_cache[curated_list_id]
+
+        file_path: Path = self.path / "curated" / f"{curated_list_id}.json"
+        sentences: CuratedSentences | None = None
+        if file_path.is_file():
+            sentences = CuratedSentences.from_file(
+                file_path, f"curated_{curated_list_id}", language
+            )
+        self._partial_cache[curated_list_id] = sentences
+        return sentences
+
+    def has_partial(self, curated_list_id: int, language: Language) -> bool:
+        """Whether a curated list's partial sentences export exists."""
+        return self.get_partial_sentences(curated_list_id, language) is not None
+
     def get(
         self,
         word: str,
@@ -118,7 +160,14 @@ class SentencesData(ArtifactData):
         sentences: list[SentenceAndTranslations] = []
 
         for usage_config in usage_configs:
-            if usage_config.id == "tatoeba":
+            if usage_config.id.startswith("curated_"):
+                list_id: int = int(usage_config.id.removeprefix("curated_"))
+                partial: CuratedSentences | None = self.get_partial_sentences(
+                    list_id, Language.from_code(usage_config.language)
+                )
+                if partial is not None:
+                    sentences.extend(partial.get(word)[:max_number])
+            elif usage_config.id == "tatoeba":
                 if self.tatoeba_sentences is None:
                     self.tatoeba_sentences = TatoebaSentences(
                         self.path, self.database

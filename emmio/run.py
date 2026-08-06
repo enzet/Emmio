@@ -35,7 +35,10 @@ from emmio.lexicon.curation import (
     DEFAULT_N_STRATA,
     CuratedPanelError,
     CuratedPanelResult,
+    PartialExportError,
+    PartialExportResult,
     build_or_extend_curated_panel,
+    build_partial_export,
     classify_automatically,
 )
 from emmio.lexicon.goal import compute_lexicon_goal_state
@@ -589,6 +592,26 @@ class Emmio:
             "--seed", type=int, help="random seed (default: none)"
         )
 
+        data_build_partial_parser = data_subparsers.add_parser(
+            "build-partial",
+            help=(
+                "precompute a curated list's small dictionary/sentence "
+                "export, so checking it never needs the full Kaikki/Tatoeba "
+                "data"
+            ),
+        )
+        data_build_partial_parser.add_argument(
+            "list_id",
+            type=int,
+            help="curated list id (see `python curation/status.py`)",
+        )
+        data_build_partial_parser.add_argument(
+            "--max-sentences",
+            type=int,
+            default=5,
+            help="example sentences to keep per word (default 5)",
+        )
+
         arguments: argparse.Namespace
         if command:
             try:
@@ -801,6 +824,8 @@ class Emmio:
                         data_add_parser.print_help()
                 case "build-panel":
                     self.build_curated_panel(arguments)
+                case "build-partial":
+                    await self.build_partial(arguments)
                 case _:
                     data_parser.print_help()
 
@@ -1170,6 +1195,29 @@ class Emmio:
             f"{result.new_words} new word(s) added, topping every stratum "
             f"up to {arguments.n_c} words (already-curated words were left "
             "untouched)."
+        )
+
+    async def build_partial(self, arguments: argparse.Namespace) -> None:
+        """Precompute a curated list's small export (`data build-partial`).
+
+        Reads the *full* Kaikki/Tatoeba data for the list's confirmed-real
+        words only, so it must run somewhere those caches already exist (or
+        can be downloaded) — see `build_partial_export` for what it writes
+        and why. Safe to rerun after curation votes change: it always
+        overwrites both output files from scratch.
+        """
+        try:
+            result: PartialExportResult = await build_partial_export(
+                self.data, arguments.list_id, arguments.max_sentences
+            )
+        except PartialExportError as error:
+            self.interface.print(str(error))
+            return
+
+        self.interface.print(
+            f"Curated list {result.list_id}: exported {result.words} "
+            f"word(s), {result.dictionary_entries} dictionary entry(ies), "
+            f"and example sentences for {result.sentence_entries} word(s)."
         )
 
     async def run_lexicon(
