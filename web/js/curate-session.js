@@ -337,6 +337,36 @@ async function setupCuratedListSettings(base) {
 
 const WORDS_PAGE_SIZE = 100;
 
+// Deterministic hue for a curator's initials, so the same curator always
+// gets the same badge colour across rows (and page loads) without the
+// server having to hand out or store one.
+function initialsHue(initials) {
+    let hash = 0;
+    for (let index = 0; index < initials.length; index += 1) {
+        hash = (hash * 31 + initials.charCodeAt(index)) % 360;
+    }
+    return hash;
+}
+
+// One overlapping "avatar stack" of curator initials (e.g. "Em"/"Cl") for
+// the words table's Votes column (`CuratedWordEntry.voters`) — who has
+// voted on this word, at a glance, before falling back to the exact
+// agreement percentage in the next column.
+function voterBadges(voters) {
+    const stack = document.createElement("span");
+    stack.className = "voter-badges";
+    for (const initials of voters) {
+        const badge = document.createElement("span");
+        badge.className = "voter-badge";
+        badge.textContent = initials;
+        badge.title = initials;
+        badge.style.backgroundColor =
+            `color-mix(in srgb, hsl(${initialsHue(initials)} 65% 45%) 35%, var(--surface))`;
+        stack.appendChild(badge);
+    }
+    return stack;
+}
+
 export async function initCuratedList() {
     requireAuth();
 
@@ -377,6 +407,9 @@ export async function initCuratedList() {
     wireInfoToggle("auto-curate-info-toggle", "auto-curate-info");
 
     const status = document.getElementById("status");
+    const curatedByMeFilter = document.getElementById(
+        "filter-curated-by-me",
+    );
     const table = document.getElementById("words-table");
     const rows = document.getElementById("words-rows");
     const pagination = document.getElementById("pagination");
@@ -390,8 +423,11 @@ export async function initCuratedList() {
 
     async function loadPage() {
         status.textContent = "Loading…";
+        const curatedByMe = curatedByMeFilter.checked
+            ? "&curated_by_me=true"
+            : "";
         const response = await api(
-            `${base}/words?page=${page}&page_size=${WORDS_PAGE_SIZE}`,
+            `${base}/words?page=${page}&page_size=${WORDS_PAGE_SIZE}${curatedByMe}`,
         );
         if (!response.ok) {
             status.textContent = "Could not load words.";
@@ -419,7 +455,7 @@ export async function initCuratedList() {
             row.appendChild(categoryCell);
 
             const votesCell = document.createElement("td");
-            votesCell.textContent = entry.voters.join(" ");
+            votesCell.appendChild(voterBadges(entry.voters));
             row.appendChild(votesCell);
 
             const agreementCell = document.createElement("td");
@@ -434,7 +470,9 @@ export async function initCuratedList() {
         }
 
         if (data.total === 0) {
-            status.textContent = "No words in this list yet.";
+            status.textContent = curatedByMeFilter.checked
+                ? "You haven't curated any words in this list yet."
+                : "No words in this list yet.";
             table.hidden = true;
             pagination.hidden = true;
             return;
@@ -457,6 +495,10 @@ export async function initCuratedList() {
     });
     nextButton.addEventListener("click", () => {
         page += 1;
+        void loadPage();
+    });
+    curatedByMeFilter.addEventListener("change", () => {
+        page = 1;
         void loadPage();
     });
 

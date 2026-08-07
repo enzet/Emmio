@@ -4323,10 +4323,11 @@ class CuratedWordsPage(BaseModel):
 def get_curation_words(
     language: str,
     frequency_list_id: str,
-    _user_id: Annotated[str, Depends(get_current_user)],
+    user_id: Annotated[str, Depends(get_current_user)],
     page: int = 1,
     page_size: int = _WORDS_PAGE_SIZE_DEFAULT,
     stratum: int | None = None,
+    curated_by_me: bool = False,  # noqa: FBT001, FBT002
 ) -> CuratedWordsPage:
     """Get one page of a curated list's words, with their curation status.
 
@@ -4335,15 +4336,23 @@ def get_curation_words(
     order the database happens to return rows in. `page`/`page_size` are
     clamped rather than rejected, matching `/me/lexicons/{id}/next`'s
     `count` handling.
+
+    :param curated_by_me: restrict to words the requesting curator has
+        voted on — the words table's "Curated by me" filter checkbox.
     """
     curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     page = max(1, page)
     page_size = max(1, min(page_size, _WORDS_PAGE_SIZE_MAX))
     offset: int = (page - 1) * page_size
+    curated_by: str | None = user_id if curated_by_me else None
 
     labels: dict[str, str] = dict(_CURATION_CATEGORY_LABELS)
     rows = postgres.get_curated_words(
-        curated_list_id, stratum, offset=offset, limit=page_size
+        curated_list_id,
+        stratum,
+        offset=offset,
+        limit=page_size,
+        curated_by=curated_by,
     )
     # One batched query for the whole page rather than one per row -- see
     # `get_curated_word_voters`.
@@ -4373,7 +4382,9 @@ def get_curation_words(
                 agreement,
             ) in rows
         ],
-        total=postgres.count_curated_words(curated_list_id, stratum),
+        total=postgres.count_curated_words(
+            curated_list_id, stratum, curated_by=curated_by
+        ),
         page=page,
         page_size=page_size,
     )

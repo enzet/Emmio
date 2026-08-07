@@ -382,6 +382,33 @@ a.info-toggle:hover {
     background-color: var(--input-bg);
 }
 
+/* Overlapping "avatar stack" of curator initials (e.g. "Em"/"Cl") in the
+   curated-list words table's Votes column — who has voted on a word, at a
+   glance. Colours are assigned per curator client-side (`initialsHue` in
+   `curate-session.js`); `border` matches the page background so an
+   overlapping badge reads as stacked in front rather than merged
+   together. */
+span.voter-badges {
+    display: inline-flex;
+}
+span.voter-badge {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    color: var(--fg);
+    font-size: 0.62rem;
+    font-weight: 600;
+    line-height: 1;
+}
+span.voter-badge + span.voter-badge {
+    margin-left: -0.5rem;
+}
+
 main p {
     max-width: 600px;
 }

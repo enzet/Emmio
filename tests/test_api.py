@@ -4400,6 +4400,50 @@ def test_curation_words_paginates_and_reports_status() -> None:
     assert unvoted["agreement"] is None
 
 
+def test_curation_words_curated_by_me_filters_to_own_votes() -> None:
+    """`curated_by_me=true` restricts the table to words this curator voted on.
+
+    Word 0 has alice's vote, word 1 has bob's (not alice's), word 2 has
+    both. The unfiltered page lists all three; `curated_by_me=true` must
+    list only words 0 and 2, with `total` reflecting the filtered count so
+    pagination stays consistent.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [
+            (word, 0, index, "bootstrap")
+            for index, word in enumerate(_UK_WORDS[:3])
+        ],
+    )
+    postgres.ensure_user("bob", "Bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "alice")
+    postgres.record_curation_vote(list_id, _UK_WORDS[1], "W", "bob")
+    postgres.record_curation_vote(list_id, _UK_WORDS[2], "W", "alice")
+    postgres.record_curation_vote(list_id, _UK_WORDS[2], "W", "bob")
+
+    unfiltered = client.get(
+        f"{_CURATION_BASE}/words", headers=_auth(token)
+    ).json()
+    assert {entry["word"] for entry in unfiltered["words"]} == set(
+        _UK_WORDS[:3]
+    )
+    assert unfiltered["total"] == 3
+
+    filtered = client.get(
+        f"{_CURATION_BASE}/words",
+        params={"curated_by_me": "true"},
+        headers=_auth(token),
+    ).json()
+    assert {entry["word"] for entry in filtered["words"]} == {
+        _UK_WORDS[0],
+        _UK_WORDS[2],
+    }
+    assert filtered["total"] == 2
+
+
 def test_curation_words_lists_voter_initials_in_vote_order() -> None:
     """`voters` is every curator's two-letter initials, first-voted first."""
 
