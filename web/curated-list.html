@@ -69,6 +69,41 @@
                 for a human.
             </p>
             <p id="auto-curate-status" role="status" hidden></p>
+
+            <section id="settings-section" hidden>
+                <h2>Settings</h2>
+                <form id="settings-form">
+                    <label for="setting-name">Name</label>
+                    <input
+                        id="setting-name"
+                        type="text"
+                        maxlength="100"
+                        required
+                    />
+                    <dl>
+                        <dt>Language</dt>
+                        <dd id="setting-language"></dd>
+                        <dt>Frequency list</dt>
+                        <dd id="setting-frequency-list-id"></dd>
+                        <dt>Strata</dt>
+                        <dd id="setting-n-strata"></dd>
+                        <dt>Words</dt>
+                        <dd id="setting-words"></dd>
+                        <dt>Not yet curated</dt>
+                        <dd id="setting-uncurated"></dd>
+                    </dl>
+                    <button type="submit">Save settings</button>
+                </form>
+                <p id="settings-status" role="status"></p>
+            </section>
+
+            <section id="danger" hidden>
+                <button id="delete-curated-list" type="button" class="danger">
+                    Delete this curated list
+                </button>
+                <p id="delete-status" role="status"></p>
+            </section>
+
             <table id="words-table" hidden>
                 <thead>
                     <tr>

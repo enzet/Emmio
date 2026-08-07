@@ -34,6 +34,21 @@ async function autoCurate(base, setStatus) {
         const result = await response.json();
         totalResolved += result.resolved;
         if (result.resolved === 0) {
+            if (result.kaikki_supported && !result.kaikki_ready) {
+                // Not "every remaining word needs a human" -- the
+                // dictionary this pass needed just isn't downloaded yet
+                // (`AutoCurateResult.kaikki_ready`), a transient state,
+                // not evidence the words themselves are undecidable.
+                setStatus(
+                    totalResolved > 0
+                        ? `Auto-curated ${totalResolved} word(s) so far. ` +
+                          "The dictionary is still downloading — try " +
+                          "again in a few minutes for more."
+                        : "The dictionary is still downloading — try " +
+                          "again in a few minutes.",
+                );
+                return;
+            }
             setStatus(
                 totalResolved > 0
                     ? `Auto-curated ${totalResolved} word(s). ` +
@@ -266,6 +281,55 @@ async function setupBuildPanelForm(onBuilt) {
     });
 }
 
+// Fill and wire the curated-list settings form: display name (editable)
+// plus read-only identity (language, frequency list id, strata, word
+// counts). Simpler than `setupLexiconSettings` (`lexicon-pages.js`) — a
+// curated list has no renameable identifier and no per-user target
+// languages, so there is no redirect-on-save case and no conflict to
+// handle; `postgres.rename_curated_list` has nothing unique to violate.
+async function setupCuratedListSettings(base) {
+    const section = document.getElementById("settings-section");
+    const form = document.getElementById("settings-form");
+    const nameInput = document.getElementById("setting-name");
+    const settingsStatus = document.getElementById("settings-status");
+    const heading = document.getElementById("curated-list-heading");
+
+    const response = await api(`${base}/settings`);
+    if (!response.ok) return;
+    const settings = await response.json();
+
+    nameInput.value = settings.name;
+    document.getElementById("setting-language").textContent =
+        settings.language;
+    document.getElementById("setting-frequency-list-id").textContent =
+        settings.frequency_list_id;
+    document.getElementById("setting-n-strata").textContent =
+        settings.n_strata;
+    document.getElementById("setting-words").textContent = settings.words;
+    document.getElementById("setting-uncurated").textContent =
+        settings.uncurated;
+    heading.textContent = settings.name;
+    section.hidden = false;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        settingsStatus.textContent = "Saving…";
+        const result = await api(`${base}/settings`, {
+            method: "PATCH",
+            body: { name: nameInput.value },
+        });
+        if (result.ok) {
+            const saved = await result.json();
+            nameInput.value = saved.name;
+            heading.textContent = saved.name;
+            settingsStatus.textContent = "Saved.";
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            settingsStatus.textContent = detail || "Could not save settings.";
+        }
+    });
+}
+
 // Curated-list detail: a paginated table of every word in the list, with
 // its current curation status — a read-only overview alongside the
 // word-by-word `curate.html` flow, the same relationship `lexicon.html`
@@ -355,8 +419,7 @@ export async function initCuratedList() {
             row.appendChild(categoryCell);
 
             const votesCell = document.createElement("td");
-            votesCell.textContent = entry.votes;
-            votesCell.style.textAlign = "right";
+            votesCell.textContent = entry.voters.join(" ");
             row.appendChild(votesCell);
 
             const agreementCell = document.createElement("td");
@@ -407,6 +470,33 @@ export async function initCuratedList() {
         page = 1;
         await loadPage();
     });
+
+    await setupCuratedListSettings(base);
+
+    // Delete: removes the list and all its curation history, then returns
+    // to the picker.
+    const danger = document.getElementById("danger");
+    const deleteStatus = document.getElementById("delete-status");
+    danger.hidden = false;
+    document
+        .getElementById("delete-curated-list")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    "Delete this curated list and all its curation " +
+                        "history? This cannot be undone.",
+                )
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api(base, { method: "DELETE" });
+            if (result.ok) {
+                location.href = "curated-lists";
+            } else {
+                deleteStatus.textContent = "Could not delete this list.";
+            }
+        });
 
     await loadPage();
 }

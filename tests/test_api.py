@@ -25,7 +25,7 @@ from emmio.lexicon.core import (
     StratifiedSelector,
     stratum_of_rank,
 )
-from emmio.lexicon.curation import EMMIO_CURATOR_USER_ID
+from emmio.lexicon.curation import CLAUDE_CURATOR_USER_ID, EMMIO_CURATOR_USER_ID
 from emmio.lexicon.history import DEFAULT_SD_THRESHOLD
 from emmio.lists.config import FrequencyListConfig, FrequencyListFileFormat
 from emmio.lists.frequency_list import FrequencyList
@@ -41,12 +41,23 @@ client: TestClient = TestClient(app)
 class _FakeDictionaries:
     """Stand-in for the dictionary inventory: no Kaikki, no structured ones."""
 
-    def __init__(self, partial_list_ids: set[int] | None = None) -> None:
+    def __init__(
+        self,
+        partial_list_ids: set[int] | None = None,
+        *,
+        kaikki_supported: bool = False,
+        kaikki_ready: bool = False,
+    ) -> None:
         self.dictionaries: dict[str, Any] = {}
         self._partial_list_ids: set[int] = partial_list_ids or set()
+        self._kaikki_supported = kaikki_supported
+        self._kaikki_ready = kaikki_ready
 
     def can_download_kaikki(self, language: object) -> bool:  # noqa: ARG002
-        return False
+        return self._kaikki_supported
+
+    def has_kaikki(self, language: object) -> bool:  # noqa: ARG002
+        return self._kaikki_ready
 
     def has_partial(self, curated_list_id: int) -> bool:
         # No partial exports built in tests unless a test opts in.
@@ -62,12 +73,19 @@ class _FakeData:
         frequency_lists: dict[str, FrequencyList] | None = None,
         extra_frequency_options: list[dict] | None = None,
         partial_list_ids: set[int] | None = None,
+        *,
+        kaikki_supported: bool = False,
+        kaikki_ready: bool = False,
     ) -> None:
         self._languages = languages
         self._frequency_lists = frequency_lists or {}
         self._extra_frequency_options = extra_frequency_options or []
         self._partial_list_ids: set[int] = partial_list_ids or set()
-        self.dictionaries = _FakeDictionaries(self._partial_list_ids)
+        self.dictionaries = _FakeDictionaries(
+            self._partial_list_ids,
+            kaikki_supported=kaikki_supported,
+            kaikki_ready=kaikki_ready,
+        )
 
     def get_frequency_list_languages(self) -> dict[str, dict]:
         return self._languages
@@ -3952,16 +3970,97 @@ def test_extend_curated_panel_missing_source_file_is_400(
     assert response.status_code == 400
 
 
+def test_curated_list_settings_prefills_from_list() -> None:
+    """`GET .../settings` reports the stored name, identity, and counts."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list(
+        "uk", "uk_list", "UK Test Curated", n_strata=2
+    )
+    postgres.add_curated_words(
+        list_id, [("аа", 0, 0, "bootstrap"), ("аб", 0, 1, "bootstrap")]
+    )
+    postgres.record_curation_vote(list_id, "аа", "W", "alice")
+
+    response = client.get(f"{_CURATION_BASE}/settings", headers=_auth(token))
+    assert response.status_code == 200
+    assert response.json() == {
+        "language": "uk",
+        "frequency_list_id": "uk_list",
+        "name": "UK Test Curated",
+        "n_strata": 2,
+        "words": 2,
+        "uncurated": 1,
+    }
+
+
+def test_update_curated_list_settings_renames() -> None:
+    """A `PATCH` with a new name persists it, leaving identity untouched."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+
+    response = client.patch(
+        f"{_CURATION_BASE}/settings",
+        json={"name": "  Ukrainian OpenSubtitles  "},
+        headers=_auth(token),
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Ukrainian OpenSubtitles"
+
+    row = postgres.get_curated_list(list_id)
+    assert row is not None
+    assert row[2] == "Ukrainian OpenSubtitles"  # (language, freq_id, name, ...)
+
+
+def test_update_curated_list_settings_rejects_blank_name() -> None:
+    """An empty/whitespace-only name is rejected; the column is `NOT NULL`."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+
+    response = client.patch(
+        f"{_CURATION_BASE}/settings", json={"name": "   "}, headers=_auth(token)
+    )
+    assert response.status_code == 400
+
+    assert (
+        client.get(f"{_CURATION_BASE}/settings", headers=_auth(token)).json()[
+            "name"
+        ]
+        == "UK Test Curated"
+    )
+
+
+def test_curated_list_settings_unknown_list_is_404() -> None:
+    """Both `GET` and `PATCH .../settings` 404 on an unknown list."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    get_response = client.get(
+        "/api/v1/curation/xx/nonexistent/settings", headers=_auth(token)
+    )
+    assert get_response.status_code == 404
+
+    patch_response = client.patch(
+        "/api/v1/curation/xx/nonexistent/settings",
+        json={"name": "New name"},
+        headers=_auth(token),
+    )
+    assert patch_response.status_code == 404
+
+
 @pytest.mark.usefixtures("fake_uk_list")
 def test_curation_lists_reports_counts() -> None:
     """`/curation/lists` reports panel size, "new", and "reviewable" counts.
 
-    Four words: 0 has bob's (human) vote, 1 has only Emmio's auto-curation
-    vote, 2 has alice's own vote, 3 has no vote at all. `uncurated` counts
-    zero-vote words only (word 3). `reviewable` counts words with a human
-    vote (bob's, on word 0) alice has not added her own opinion to — word
-    1 does not count even though Emmio voted on it (auto-curation is not a
-    human review), and word 2 does not count since alice already voted.
+    Five words: 0 has bob's (human) vote, 1 has only Emmio's auto-curation
+    vote, 2 has only claude's bulk-curation vote, 3 has alice's own vote, 4
+    has no vote at all. `uncurated` counts zero-vote words only (word 4).
+    `reviewable` counts words with a vote and no Emmio vote that alice has
+    not added her own opinion to — word 0 (bob) and word 2 (claude-only)
+    both count, word 1 does not count since Emmio voted on it, and word 3
+    does not count since alice already voted on it herself.
     """
 
     token = _register_and_login("alice", "alice@example.com")
@@ -3970,7 +4069,7 @@ def test_curation_lists_reports_counts() -> None:
         list_id,
         [
             (word, 0, index, "bootstrap")
-            for index, word in enumerate(_UK_WORDS[:4])
+            for index, word in enumerate(_UK_WORDS[:5])
         ],
     )
     postgres.ensure_user("bob", "Bob")
@@ -3979,7 +4078,11 @@ def test_curation_lists_reports_counts() -> None:
     postgres.record_curation_vote(
         list_id, _UK_WORDS[1], "W", EMMIO_CURATOR_USER_ID
     )
-    postgres.record_curation_vote(list_id, _UK_WORDS[2], "W", "alice")
+    postgres.ensure_user(CLAUDE_CURATOR_USER_ID, "Claude")
+    postgres.record_curation_vote(
+        list_id, _UK_WORDS[2], "W", CLAUDE_CURATOR_USER_ID
+    )
+    postgres.record_curation_vote(list_id, _UK_WORDS[3], "W", "alice")
 
     response = client.get("/api/v1/curation/lists", headers=_auth(token))
     assert response.status_code == 200
@@ -3987,9 +4090,9 @@ def test_curation_lists_reports_counts() -> None:
     assert "curated_list_id" not in summary  # DB-internal, never exposed.
     assert summary["language"] == "uk"
     assert summary["frequency_list_id"] == "uk_list"
-    assert summary["words"] == 4
-    assert summary["uncurated"] == 1  # Word 3 only.
-    assert summary["reviewable"] == 1  # Word 0 only.
+    assert summary["words"] == 5
+    assert summary["uncurated"] == 1  # Word 4 only.
+    assert summary["reviewable"] == 2  # Words 0 and 2.
 
 
 def test_curation_categories_is_a_tree() -> None:
@@ -4109,15 +4212,18 @@ def test_curation_next_require_vote_filters_the_two_queues() -> None:
 
 
 @pytest.mark.usefixtures("fake_uk_list")
-def test_curation_next_review_queue_ignores_emmio_only_votes() -> None:
-    """`require_vote=true` skips a word only the "Emmio" bot has voted on.
+def test_curation_next_review_queue_ignores_emmio_but_not_claude_votes() -> (
+    None
+):
+    """`require_vote=true` skips only words Emmio voted on.
 
     Word 0 has bob's (human) vote; word 1 has only Emmio's auto-curation
-    vote. The "review others' curation" queue must offer word 0 and never
-    word 1 — Emmio's vote does not count as a human having reviewed it, so
-    that word stays in the "new words" queue instead
+    vote; word 2 has only claude's bulk-curation vote. The "review others'
+    curation" queue must offer words 0 and 2 but never word 1 — Emmio's
+    presence on a word means no human has weighed in on it with full
+    independence, but a claude-only vote is not disqualifying
     (`test_curation_next_require_vote_filters_the_two_queues` covers that
-    `require_vote=false` still reaches it there).
+    `require_vote=false` still reaches word 1 there).
     """
 
     token = _register_and_login("alice", "alice@example.com")
@@ -4126,7 +4232,7 @@ def test_curation_next_review_queue_ignores_emmio_only_votes() -> None:
         list_id,
         [
             (word, 0, index, "bootstrap")
-            for index, word in enumerate(_UK_WORDS[:2])
+            for index, word in enumerate(_UK_WORDS[:3])
         ],
     )
     postgres.ensure_user("bob", "Bob")
@@ -4135,17 +4241,32 @@ def test_curation_next_review_queue_ignores_emmio_only_votes() -> None:
     postgres.record_curation_vote(
         list_id, _UK_WORDS[1], "W", EMMIO_CURATOR_USER_ID
     )
+    postgres.ensure_user(CLAUDE_CURATOR_USER_ID, "Claude")
+    postgres.record_curation_vote(
+        list_id, _UK_WORDS[2], "W", CLAUDE_CURATOR_USER_ID
+    )
 
     review_word = client.get(
         f"{_CURATION_BASE}/next?require_vote=true", headers=_auth(token)
     ).json()
     assert review_word["word"] == _UK_WORDS[0]
 
-    # Voting on it exhausts the human-reviewed queue — word 1 (Emmio-only)
-    # never surfaces here, even though alice hasn't voted on it either.
     client.post(
         f"{_CURATION_BASE}/answer",
         json={"word": _UK_WORDS[0], "category": "W"},
+        headers=_auth(token),
+    )
+    # Word 2 (claude-only) still surfaces here.
+    next_review_word = client.get(
+        f"{_CURATION_BASE}/next?require_vote=true", headers=_auth(token)
+    ).json()
+    assert next_review_word["word"] == _UK_WORDS[2]
+
+    # Voting on it exhausts the review queue — word 1 (Emmio-only) never
+    # surfaces here, even though alice hasn't voted on it either.
+    client.post(
+        f"{_CURATION_BASE}/answer",
+        json={"word": _UK_WORDS[2], "category": "W"},
         headers=_auth(token),
     )
     exhausted = client.get(
@@ -4249,8 +4370,10 @@ def test_curation_words_paginates_and_reports_status() -> None:
     assert known[_UK_WORDS[0]]["category"] == "W"
     assert known[_UK_WORDS[0]]["category_label"] == "Real word"
     assert known[_UK_WORDS[0]]["votes"] == 1
+    assert known[_UK_WORDS[0]]["voters"] == ["Al"]  # "alice" -> "Al".
     assert known[_UK_WORDS[1]]["category"] == "N"
     assert known[_UK_WORDS[1]]["category_label"] == "Not a word"
+    assert known[_UK_WORDS[1]]["voters"] == ["Al"]
 
     second_page = client.get(
         f"{_CURATION_BASE}/words",
@@ -4273,7 +4396,28 @@ def test_curation_words_paginates_and_reports_status() -> None:
     assert unvoted["category"] == "U"
     assert unvoted["category_label"] == "Unsure"
     assert unvoted["votes"] == 0
+    assert unvoted["voters"] == []
     assert unvoted["agreement"] is None
+
+
+def test_curation_words_lists_voter_initials_in_vote_order() -> None:
+    """`voters` is every curator's two-letter initials, first-voted first."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+    postgres.ensure_user("emmio", "Emmio")
+    postgres.ensure_user("claude", "Claude")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "emmio")
+    postgres.record_curation_vote(list_id, _UK_WORDS[0], "W", "claude")
+
+    response = client.get(
+        f"{_CURATION_BASE}/words", headers=_auth(token)
+    ).json()
+    entry = next(
+        entry for entry in response["words"] if entry["word"] == _UK_WORDS[0]
+    )
+    assert entry["voters"] == ["Em", "Cl"]
 
 
 @pytest.mark.usefixtures("fake_uk_list")
@@ -4328,6 +4472,11 @@ def test_auto_curate_resolves_alphabet_invalid_words() -> None:
     assert body["checked"] == 2
     assert body["resolved"] == 1
     assert body["remaining"] == 1
+    # The fake reports no Kaikki at all, matching `fake_uk_list` (kaikki
+    # unsupported for its fake language) -- the alphabet check alone
+    # resolved "latin123" regardless.
+    assert body["kaikki_ready"] is False
+    assert body["kaikki_supported"] is False
 
     words = {
         word: (category, votes)
@@ -4354,12 +4503,24 @@ def test_auto_curate_is_idempotent_for_resolved_words() -> None:
     first = client.post(
         f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
     ).json()
-    assert first == {"resolved": 1, "checked": 1, "remaining": 0}
+    assert first == {
+        "resolved": 1,
+        "checked": 1,
+        "remaining": 0,
+        "kaikki_ready": False,
+        "kaikki_supported": False,
+    }
 
     second = client.post(
         f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
     ).json()
-    assert second == {"resolved": 0, "checked": 0, "remaining": 0}
+    assert second == {
+        "resolved": 0,
+        "checked": 0,
+        "remaining": 0,
+        "kaikki_ready": False,
+        "kaikki_supported": False,
+    }
 
     votes = postgres.get_curated_words(list_id)[0][4]
     assert votes == 1  # Not double-voted.
@@ -4376,8 +4537,99 @@ def test_auto_curate_leaves_undecidable_words_for_a_human() -> None:
     response = client.post(
         f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
     ).json()
-    assert response == {"resolved": 0, "checked": 1, "remaining": 1}
+    assert response == {
+        "resolved": 0,
+        "checked": 1,
+        "remaining": 1,
+        "kaikki_ready": False,
+        "kaikki_supported": False,
+    }
     assert postgres.get_curated_words(list_id)[0][3] == "U"
+
+
+@pytest.mark.usefixtures("fake_uk_list")
+def test_auto_curate_scans_past_a_stuck_backlog_of_undecidable_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A resolve budget smaller than a run of undecidable words.
+
+    Still reaches a resolvable word further down the panel. Regression
+    test: `auto_curate_words` used to bound how many words it *examined*
+    per call at `_AUTO_CURATE_BUDGET`, not how many it *resolved*. An
+    undecidable word gets no vote, so once more than
+    `_AUTO_CURATE_BUDGET` consecutive undecidable words piled up at the
+    front of the panel-ordered "unvoted" queue, every future call
+    re-examined exactly that same stuck prefix and could never reach a
+    resolvable word beyond it -- reproduced here with a tiny budget so the
+    same failure shows up with only a handful of words.
+    """
+    monkeypatch.setattr(app_module, "_AUTO_CURATE_BUDGET", 3)
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(
+        list_id,
+        [(_UK_WORDS[i], 0, i, "bootstrap") for i in range(5)]
+        + [("latin123", 0, 5, "bootstrap")],
+    )
+
+    response = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    ).json()
+    # All 6 words examined (well past the budget of 3) to reach the one
+    # resolvable word past the undecidable run; only that one gets voted.
+    assert response["checked"] == 6
+    assert response["resolved"] == 1
+
+    words = {
+        word: category
+        for word, _, _, category, _, _ in postgres.get_curated_words(list_id)
+    }
+    assert words["latin123"] == "N"
+    assert all(words[_UK_WORDS[i]] == "U" for i in range(5))
+
+
+def test_auto_curate_reports_kaikki_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `False` `kaikki_ready` explains a low `resolved` count.
+
+    Distinguishes "Kaikki is still downloading" from "every remaining word
+    is genuinely undecidable" -- see `AutoCurateResult.kaikki_ready`. Uses
+    a fresh fake (not `fake_uk_list`'s default) with `kaikki_supported=True,
+    kaikki_ready=False`, mirroring a language kaikki.org covers but whose
+    cache hasn't finished downloading yet.
+    """
+    frequency_list = FrequencyList(
+        file_path=Path("unused"),
+        config=FrequencyListConfig(
+            file_format=FrequencyListFileFormat.LIST,
+            language="uk",
+            path="unused",
+            is_stripped=False,
+        ),
+        data=dict.fromkeys(_UK_WORDS, 1),
+    )
+    fake: Any = _FakeData(
+        {"uk": {"id": "uk_list"}},
+        {"uk_list": frequency_list},
+        kaikki_supported=True,
+        kaikki_ready=False,
+    )
+    monkeypatch.setattr(app_module, "get_data", lambda: fake)
+
+    token = _register_and_login("alice", "alice@example.com")
+    list_id = postgres.create_curated_list("uk", "uk_list", "UK Test Curated")
+    postgres.add_curated_words(list_id, [(_UK_WORDS[0], 0, 0, "bootstrap")])
+
+    response = client.post(
+        f"{_CURATION_BASE}/auto-curate", headers=_auth(token)
+    ).json()
+    assert response["kaikki_ready"] is False
+    assert response["kaikki_supported"] is True
+    # Left undecided, exactly as if no evidence source existed --
+    # `kaikki_ready` is what tells the difference apart from that case.
+    assert response["resolved"] == 0
 
 
 def test_auto_curate_unknown_list_is_404() -> None:

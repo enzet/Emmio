@@ -64,6 +64,17 @@ as legitimate as one from a person, it just happens to be Emmio's.
 
 EMMIO_CURATOR_NAME: str = "Emmio"
 
+CLAUDE_CURATOR_USER_ID: str = "claude"
+"""Login of the LLM curator `curation/apply_votes.py` votes as.
+
+Same attribution model as `EMMIO_CURATOR_USER_ID`: a real, visible,
+password-less account, not a hidden default — see that constant's
+docstring for why this doesn't break the "only human decisions are stored"
+rule.
+"""
+
+CLAUDE_CURATOR_NAME: str = "Claude"
+
 
 async def classify_automatically(
     word: str,

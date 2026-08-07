@@ -3844,11 +3844,13 @@ class CuratedListSummary(BaseModel):
     words: int  # Total panel words.
     uncurated: int  # Panel words no curator has voted on yet.
     reviewable: int
-    """Panel words with a human vote (Emmio's auto-curation does not
-    count) that the requesting curator has not added their own opinion to
-    yet. Powers the picker's "Review others' curation" button, alongside
-    "Curate new words" (`uncurated`) — see
-    `postgres.count_reviewable_words`.
+    """Panel words with at least one vote and none from Emmio's
+    auto-curation (Emmio's presence on a word, alone or alongside anyone
+    else, means no human has weighed in with full independence) that the
+    requesting curator has not added their own opinion to yet. A
+    claude-only vote still counts as reviewable. Powers the picker's
+    "Review others' curation" button, alongside "Curate new words"
+    (`uncurated`) — see `postgres.count_reviewable_words`.
     """
 
 
@@ -4098,6 +4100,83 @@ def _curated_list_id_or_404(language: str, frequency_list_id: str) -> int:
     return list_id
 
 
+class CuratedListSettings(BaseModel):
+    """A curated list's editable settings, plus read-only identity.
+
+    Unlike `LexiconSettings`, there is no renameable identifier here — a
+    curated list is addressed by its `(language, frequency_list_id)` pair
+    everywhere, and that pair never changes; only `name` is editable
+    (`update_curated_list_settings`).
+    """
+
+    language: str
+    frequency_list_id: str
+    name: str
+    n_strata: int
+    """Stratum count, fixed once the panel is built or extended (see
+    `build_or_extend_curated_panel`'s `strata_mismatch`) — shown here for
+    context, not editable."""
+    words: int
+    uncurated: int
+
+
+class UpdateCuratedListSettingsRequest(BaseModel):
+    """Update to a curated list's settings. Only `name` is editable."""
+
+    name: str
+
+
+def _curated_list_settings(
+    curated_list_id: int, language: str, frequency_list_id: str
+) -> CuratedListSettings:
+    """Read a curated list's settings out of its stored row and counts."""
+    row = postgres.get_curated_list(curated_list_id)
+    assert row is not None  # Caller already resolved the id from this pair.
+    _language, _frequency_list_id, name, n_strata = row
+    return CuratedListSettings(
+        language=language,
+        frequency_list_id=frequency_list_id,
+        name=name,
+        n_strata=n_strata,
+        words=postgres.count_curated_words(curated_list_id),
+        uncurated=postgres.count_uncurated_words(curated_list_id),
+    )
+
+
+@app.get("/api/v1/curation/{language}/{frequency_list_id}/settings")
+def get_curated_list_settings(
+    language: str,
+    frequency_list_id: str,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> CuratedListSettings:
+    """Get a curated list's settings (to pre-fill an edit form)."""
+    list_id = _curated_list_id_or_404(language, frequency_list_id)
+    return _curated_list_settings(list_id, language, frequency_list_id)
+
+
+@app.patch("/api/v1/curation/{language}/{frequency_list_id}/settings")
+def update_curated_list_settings(
+    language: str,
+    frequency_list_id: str,
+    request: UpdateCuratedListSettingsRequest,
+    _user_id: Annotated[str, Depends(get_current_user)],
+) -> CuratedListSettings:
+    """Rename a curated list.
+
+    Identity (`language`, `frequency_list_id`) and `n_strata` are not
+    editable here — see `CuratedListSettings.n_strata`.
+    """
+    list_id = _curated_list_id_or_404(language, frequency_list_id)
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name must not be empty.",
+        )
+    postgres.rename_curated_list(list_id, name)
+    return _curated_list_settings(list_id, language, frequency_list_id)
+
+
 def _curation_dictionaries(language: str) -> list[dict]:
     """Get the one dictionary curation always uses: Kaikki, matching the CLI."""
     return [
@@ -4204,6 +4283,16 @@ async def get_next_curation_word(
     )
 
 
+def _curator_initials(user_id: str) -> str:
+    """Get a two-letter initials tag for a curator login, e.g. "emmio" -> "Em".
+
+    Used to list who has voted on a word (`CuratedWordEntry.voters`)
+    compactly enough for a table cell, without a separate display-name
+    lookup -- the login itself is already short and unique.
+    """
+    return user_id[:2].capitalize()
+
+
 class CuratedWordEntry(BaseModel):
     """One word in a curated list, with its current curation status."""
 
@@ -4212,6 +4301,12 @@ class CuratedWordEntry(BaseModel):
     category: str  # A `curated_words.category` code, e.g. `W` or `U`.
     category_label: str  # `category`, spelled out.
     votes: int
+    voters: list[str]
+    """Two-letter initials of every curator who has voted on this word
+    (`_curator_initials`), in the order they first voted -- e.g.
+    `["Em", "Cl"]` for "emmio" then "claude". Powers the words table's
+    "Votes" column, which shows this instead of the bare `votes` count.
+    """
     agreement: float | None
 
 
@@ -4250,6 +4345,11 @@ def get_curation_words(
     rows = postgres.get_curated_words(
         curated_list_id, stratum, offset=offset, limit=page_size
     )
+    # One batched query for the whole page rather than one per row -- see
+    # `get_curated_word_voters`.
+    voters_by_word: dict[str, list[str]] = postgres.get_curated_word_voters(
+        curated_list_id, [word for word, *_ in rows]
+    )
     return CuratedWordsPage(
         words=[
             CuratedWordEntry(
@@ -4258,6 +4358,10 @@ def get_curation_words(
                 category=category,
                 category_label=labels.get(category, category),
                 votes=votes,
+                voters=[
+                    _curator_initials(user_id)
+                    for user_id in voters_by_word.get(word, [])
+                ],
                 agreement=agreement,
             )
             for (
@@ -4347,10 +4451,27 @@ def answer_curation_word(
         ) from error
 
 
-# Words classified and voted on per call, so a large list is auto-curated
+# Words *resolved* (voted on) per call, so a large list is auto-curated
 # incrementally (the client calls again for more) rather than risking one
-# huge blocking request — same reasoning as `_CURATION_SKIP_BUDGET`.
+# huge blocking request — same reasoning as `_CURATION_SKIP_BUDGET`. This
+# bounds how much a call *writes*, not how far it may have to *scan* to find
+# that many resolvable words -- see `_AUTO_CURATE_EXAMINE_LIMIT` and
+# `auto_curate_words`'s docstring for why those are different budgets.
 _AUTO_CURATE_BUDGET: int = 256
+
+# Words *examined* per call, independent of `_AUTO_CURATE_BUDGET`. A word
+# with no automatic evidence either way gets no vote and so stays "unvoted"
+# forever (deliberately -- it is left for a human); capping the scan at
+# `_AUTO_CURATE_BUDGET` examinations, as this endpoint used to, meant that
+# once enough consecutive undecidable words piled up at the front of the
+# panel-ordered queue (more than `_AUTO_CURATE_BUDGET` of them), every future
+# call would re-examine exactly that same stuck prefix and never reach any
+# resolvable word beyond it -- silently capping a list's auto-curation
+# forever partway through. This limit exists only to bound one call's worst
+# case latency (an entire list of nothing but undecidable words), not to cap
+# ordinary progress -- it should comfortably exceed any real curated list's
+# size.
+_AUTO_CURATE_EXAMINE_LIMIT: int = 20_000
 
 
 class AutoCurateResult(BaseModel):
@@ -4364,6 +4485,22 @@ class AutoCurateResult(BaseModel):
     with no automatic evidence either way stays undecidable forever (that
     is the entire point — it is left for a human), so `remaining` can
     plateau above 0 once every resolvable word is done.
+    """
+    kaikki_ready: bool
+    """Whether the Kaikki dictionary was actually available for this call's
+    evidence, as opposed to still downloading (or never requested before,
+    which triggers the same background download — see `DictionaryData.
+    has_kaikki`/`_start_kaikki_download`). `False` means every word this
+    call examined was judged on the alphabet/`cap_ratio` check alone, so a
+    low (or zero) `resolved` count reflects that transient gap, not that
+    the remaining words are genuinely undecidable. Retrying later, once
+    the download finishes, can resolve them.
+    """
+    kaikki_supported: bool
+    """Whether kaikki.org has an English-Wiktionary export for this
+    language at all (`DictionaryData.can_download_kaikki`). `False` means
+    `kaikki_ready` will never become `True` by itself, however many times
+    this is retried — there is nothing to download.
     """
 
 
@@ -4389,9 +4526,11 @@ async def auto_curate_words(
 
     Only words "Emmio" has not already voted on are considered
     (`get_curator_unvoted_words`, the same call `--from-lexicon-history`
-    uses for a human curator), in panel order, so repeated calls make
-    steady forward progress instead of re-examining an arbitrary subset
-    each time.
+    uses for a human curator), in panel order. An undecidable word gets no
+    vote, so it is still "unvoted" on the next call too -- the scan keeps
+    going past it (up to `_AUTO_CURATE_EXAMINE_LIMIT`) rather than stopping
+    there, so a run of undecidable words can never permanently block
+    progress on whatever resolvable words come after it in the panel.
     """
     curated_list_id: int = _curated_list_id_or_404(language, frequency_list_id)
     postgres.ensure_user(EMMIO_CURATOR_USER_ID, EMMIO_CURATOR_NAME)
@@ -4403,6 +4542,16 @@ async def auto_curate_words(
     )
     frequency_list: FrequencyList | None = get_data().get_frequency_list(
         parse_frequency_list_identifier(frequency_list_id, language)
+    )
+    # Checked *before* `get_dictionaries` (which itself triggers the
+    # background download as a side effect when this is `False`) so the
+    # result can honestly report whether this call's dictionary evidence
+    # was real or empty, rather than leaving a low `resolved` count
+    # indistinguishable from "every remaining word is genuinely
+    # undecidable" (see `AutoCurateResult.kaikki_ready`).
+    kaikki_ready: bool = get_data().dictionaries.has_kaikki(word_language)
+    kaikki_supported: bool = get_data().dictionaries.can_download_kaikki(
+        word_language
     )
     dictionaries: DictionaryCollection = get_data().get_dictionaries(
         [DictionaryUsageConfig(id="kaikki", from_language=language)]
@@ -4419,7 +4568,9 @@ async def auto_curate_words(
 
     resolved: int = 0
     checked: int = 0
-    for word in ordered_words[:_AUTO_CURATE_BUDGET]:
+    for word in ordered_words[:_AUTO_CURATE_EXAMINE_LIMIT]:
+        if resolved >= _AUTO_CURATE_BUDGET:
+            break
         checked += 1
         category: str | None = await classify_automatically(
             word,
@@ -4437,7 +4588,11 @@ async def auto_curate_words(
         resolved += 1
 
     return AutoCurateResult(
-        resolved=resolved, checked=checked, remaining=len(unvoted) - resolved
+        resolved=resolved,
+        checked=checked,
+        remaining=len(unvoted) - resolved,
+        kaikki_ready=kaikki_ready,
+        kaikki_supported=kaikki_supported,
     )
 
 
