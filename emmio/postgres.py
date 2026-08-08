@@ -6,7 +6,12 @@ and `emmio.lexicon.core`. See `scripts/schema.sql` for the table definitions
 and the `extra` JSONB key dictionaries.
 
 The connection string is taken from the `EMMIO_DATABASE_URL` or
-`DATABASE_URL` environment variable (default: `postgresql:///emmio`).
+`DATABASE_URL` environment variable (default: `postgresql:///emmio`, a local
+Unix-socket connection). With `EMMIO_ENV=production` (set this in any real
+deployment) neither variable being set is a startup error instead of a silent
+fallback to that local default, which would either connect to the wrong
+database or just fail to connect, either way masking a missing deploy secret
+as a connection error.
 """
 
 import os
@@ -85,9 +90,19 @@ def _get_pool() -> ConnectionPool:
     global _pool  # noqa: PLW0603  # pylint: disable=global-statement
 
     if _pool is None:
-        dsn: str = os.environ.get(
-            "EMMIO_DATABASE_URL", os.environ.get("DATABASE_URL", DEFAULT_DSN)
+        configured_dsn: str | None = os.environ.get(
+            "EMMIO_DATABASE_URL", os.environ.get("DATABASE_URL")
         )
+        is_production: bool = os.environ.get("EMMIO_ENV") == "production"
+        if configured_dsn is None and is_production:
+            msg = (
+                "EMMIO_DATABASE_URL/DATABASE_URL are unset with "
+                "EMMIO_ENV=production. Refusing to start against the local "
+                f"default ({DEFAULT_DSN!r}), which would either connect to "
+                "the wrong database or just fail to connect."
+            )
+            raise RuntimeError(msg)
+        dsn: str = configured_dsn or DEFAULT_DSN
         _pool = ConnectionPool(
             conninfo=dsn,
             # Always read timestamps as UTC, regardless of the machine time

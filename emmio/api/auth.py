@@ -10,7 +10,9 @@ Two independent pieces:
   instead of asking for the password again.
 
 The signing secret comes from the `EMMIO_JWT_SECRET` environment variable. The
-development default is insecure and must be overridden in production.
+development default is insecure; with `EMMIO_ENV=production` (set this in any
+real deployment) an unset secret is a startup error instead of a silent
+fallback, since anyone who knows the default could forge access tokens.
 """
 
 import os
@@ -19,7 +21,18 @@ from datetime import UTC, datetime, timedelta
 import bcrypt
 import jwt
 
-_SECRET: str = os.environ.get("EMMIO_JWT_SECRET", "dev-secret-do-not-use")
+_DEV_SECRET: str = "dev-secret-do-not-use"  # noqa: S105 -- not a real secret
+_configured_secret: str | None = os.environ.get("EMMIO_JWT_SECRET")
+
+if _configured_secret is None and os.environ.get("EMMIO_ENV") == "production":
+    msg = (
+        "EMMIO_JWT_SECRET is unset with EMMIO_ENV=production. Refusing to "
+        "start with the public dev default, which would let anyone forge "
+        "access tokens."
+    )
+    raise RuntimeError(msg)
+
+_SECRET: str = _configured_secret or _DEV_SECRET
 _ALGORITHM: str = "HS256"
 ACCESS_TOKEN_TTL: timedelta = timedelta(hours=1)
 REMEMBER_TOKEN_TTL: timedelta = timedelta(days=7)
