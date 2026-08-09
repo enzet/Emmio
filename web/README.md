@@ -38,7 +38,8 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
 `app.js` is loaded as an ES module (`<script type="module">`) and only holds
-the dispatch table; the actual logic lives under `js/`, one module per concern:
+the dispatch table plus the release gate; the actual logic lives under `js/`,
+one module per concern:
 
 | Module                  | Role                                                            |
 |--------------------------|------------------------------------------------------------------|
@@ -108,6 +109,35 @@ flowchart LR
     lexicons <-->|"nav"| courseList
     lexicons <-->|"nav"| curatedLists
 ```
+
+## Release vs development
+
+Emmio's parts sit at very different stages, so a deployment can show only the
+settled ones. Everything a release deployment does not show carries
+`data-experimental` in the markup: the "Courses" and "Curated lists" nav
+entries, the Courses sections on the dashboard and on a language's page (both
+`id="courses"`), and the whole `<body>` of the pages behind them (`courses`,
+`course`, `new-course`, `learning`, `new-learning`, `learn`,
+`curated-lists`, `curated-list`, `curate`) — the sub-pages included, so a
+bookmark cannot walk past a hidden door.
+
+Those parts **start hidden**, by a `base.css` rule keyed off
+`data-experimental`. `js/config.js` reads `GET /api/v1/config` once per page
+load, and `app.js` puts the answer on `<html data-release="true|false">`;
+only `"false"` (the server's `EMMIO_RELEASE` unset, see `RELEASE` in
+`emmio/api/app.py`) lifts the rule. The same answer keeps a release
+deployment from *fetching* what it will not show: `/me/courses` is not
+requested at all on the dashboard or a language's page. Hiding first and revealing later, rather than the reverse,
+means a slow `/config` shows nothing instead of showing everything and taking
+it back. The rest of the page does not wait for the answer; only an
+experimental page does, since on a release deployment it just redirects to
+the dashboard.
+
+This is presentation only: the API is untouched, and every one of those
+endpoints still answers normally. Treat it as "what this deployment shows",
+never as access control. A `/config` that errors is read as *not* release, so
+a backend hiccup degrades to the development view rather than to a
+half-navigable one.
 
 ## Authentication
 

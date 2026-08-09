@@ -145,6 +145,40 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
 app: FastAPI = FastAPI(title="Emmio API", version="0.1", lifespan=_lifespan)
 
+RELEASE: bool = os.environ.get("EMMIO_RELEASE", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+"""Whether this deployment presents the released feature set only.
+
+Emmio's parts are at very different stages: lexicon checking is settled,
+while courses/learnings and the SFWR curation tooling are still being worked
+out. Setting `EMMIO_RELEASE` hides the unsettled ones, so a public instance
+shows a coherent product while a development instance shows everything.
+
+This is a *presentation* switch, not a security boundary: it hides
+navigation, sections and pages in the web client (see `web/app.js`), and
+deliberately does not block the API — the endpoints stay reachable, and
+anyone who knows them can still call them.
+"""
+
+
+class DeploymentConfig(BaseModel):
+    """What the web client needs to know about this deployment."""
+
+    release: bool
+
+
+@app.get("/api/v1/config")
+def get_deployment_config() -> DeploymentConfig:
+    """Report this deployment's feature set to the web client.
+
+    Unauthenticated, like `/health`: the navigation on the logged-out
+    landing page depends on it, and there is no token yet at that point.
+    """
+    return DeploymentConfig(release=RELEASE)
+
 
 class HealthStatus(BaseModel):
     """Liveness/readiness response for uptime monitoring."""

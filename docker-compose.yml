@@ -44,6 +44,11 @@ services:
       EMMIO_JWT_SECRET: ${EMMIO_JWT_SECRET:?set EMMIO_JWT_SECRET in .env}
       EMMIO_DATABASE_URL: postgresql://emmio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/emmio
       EMMIO_DATA_DIR: /data
+      # Show the released feature set only: the web client hides courses,
+      # learnings and the curation tooling, which are still being worked out
+      # (see `RELEASE` in emmio/api/app.py). Presentation only — the API
+      # stays reachable either way.
+      EMMIO_RELEASE: "true"
     volumes:
       - ${EMMIO_SERVER_DATA_DIR:?set EMMIO_SERVER_DATA_DIR in .env}:/data:ro
     depends_on:

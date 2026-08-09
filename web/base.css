@@ -462,6 +462,22 @@ a.button.primary {
     font-weight: 700;
 }
 
+/* Parts a release deployment does not show — nav entries, the Courses
+   sections, and the bodies of the experimental pages themselves (see
+   "Release vs development" in `README.md`). Which deployment this is only
+   becomes known once `/config` answers, so they start hidden and `app.js`
+   sets `data-release` on `<html>` afterwards: a slow answer then shows
+   nothing rather than showing everything and taking it back. */
+html:not([data-release="false"]) [data-experimental]:not(body) {
+    display: none;
+}
+/* A page that is experimental in its entirety keeps its box, so the page
+   background still paints (`body` carries it) while the answer is in
+   flight, instead of a blank canvas in the wrong color. */
+html:not([data-release="false"]) body[data-experimental] {
+    visibility: hidden;
+}
+
 nav {
     display: flex;
     align-items: baseline;

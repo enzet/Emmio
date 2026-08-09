@@ -203,6 +203,42 @@ def _create_course(token: str, language: str, name: str | None = None) -> str:
     return str(response.json()["course_id"])
 
 
+def test_config_is_unauthenticated_and_shows_everything_by_default() -> None:
+    """Without `EMMIO_RELEASE` the client shows the full feature set.
+
+    Unauthenticated on purpose: the logged-out landing page's navigation
+    depends on it, before there is any token.
+    """
+
+    response = client.get("/api/v1/config")
+    assert response.status_code == 200
+    assert response.json() == {"release": False}
+
+
+def test_config_reports_release_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`EMMIO_RELEASE` tells the client to hide the unsettled features."""
+
+    monkeypatch.setattr(app_module, "RELEASE", True)
+
+    assert client.get("/api/v1/config").json() == {"release": True}
+
+
+def test_release_mode_does_not_block_the_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The flag hides things in the client; it is not a security boundary.
+
+    Worth pinning down, so nobody later mistakes it for access control: the
+    course endpoints stay perfectly reachable in release mode.
+    """
+
+    monkeypatch.setattr(app_module, "RELEASE", True)
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get("/api/v1/me/courses", headers=_auth(token))
+    assert response.status_code == 200
+
+
 def test_register_returns_user() -> None:
     """Registration creates an account and echoes it back."""
 

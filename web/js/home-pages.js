@@ -1,9 +1,20 @@
 import { createLanguageHistoryChart } from "./charts.js";
 import { emmioLevel, fillLanguageSelect, formatRate, identifierSpan, languageName, strategyIconPrefix } from "./format.js";
 import { api, requireAuth } from "./api.js";
+import { isRelease } from "./config.js";
 import { initLanguageEstimates, loadKnowledgeKinds, setupEstimateFields } from "./language-knowledge.js";
 
 // Home / dashboard page.
+
+// The user's courses — or nothing at all on a release deployment, which
+// never shows the Courses section (see `js/config.js`) and so must not pay
+// for the request either. `/config` is unauthenticated and touches no
+// database, so this answers about as fast as the section is hidden.
+async function fetchCourses() {
+    if (await isRelease()) return [];
+    const response = await api("/me/courses");
+    return response.ok ? await response.json() : [];
+}
 
 // The dashboard's Courses section: every course, whatever language it names
 // (or none). A course with no learnings yet offers to add one directly,
@@ -68,13 +79,13 @@ export async function initHome() {
     // `/me/languages` estimates every main lexicon's rate (up to a second
     // each on a cache miss) — too slow to block the first paint on. Fetch
     // the cheap `/me/languages/summary` + courses first, render placeholders,
-    // and fill in the real rate once `/me/languages` resolves below.
-    const [summaryResponse, coursesResponse] = await Promise.all([
+    // and fill in the real rate once `/me/languages` resolves below. On a
+    // release deployment the courses half costs no request at all.
+    const [summaryResponse, courses] = await Promise.all([
         api("/me/languages/summary"),
-        api("/me/courses"),
+        fetchCourses(),
     ]);
     const summaries = summaryResponse.ok ? await summaryResponse.json() : [];
-    const courses = coursesResponse.ok ? await coursesResponse.json() : [];
     // Courses have their own section: they are a sibling of languages, not
     // something a language contains, so they are listed in full rather than
     // grouped under the languages they happen to name.
@@ -395,10 +406,9 @@ export async function initLanguage() {
     const coursesStatus = document.getElementById("courses-status");
     const courseTable = document.getElementById("course-table");
     const courseRows = document.getElementById("course-rows");
-    const courseResponse = await api("/me/courses");
-    const courses = (
-        courseResponse.ok ? await courseResponse.json() : []
-    ).filter((course) => course.language === language);
+    const courses = (await fetchCourses()).filter(
+        (course) => course.language === language,
+    );
 
     if (courses.length === 0) {
         coursesStatus.textContent = "No courses for this language yet.";

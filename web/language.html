@@ -24,8 +24,8 @@
             </a>
             <nav>
                 <a href="lexicons">Lexicons</a>
-                <a href="courses">Courses</a>
-                <a href="curated-lists">Curated lists</a>
+                <a href="courses" data-experimental>Courses</a>
+                <a href="curated-lists" data-experimental>Curated lists</a>
             </nav>
             <a href="profile" class="profile-link">Profile</a>
         </header>
@@ -53,7 +53,7 @@
                 </p>
             </section>
 
-            <section>
+            <section id="courses" data-experimental>
                 <h2>Courses</h2>
                 <p id="courses-status" role="status"></p>
                 <table id="course-table" hidden>
@@ -137,9 +137,14 @@
             </section>
 
             <section id="danger">
+                <h2>Danger zone</h2>
                 <button id="delete-language" type="button" class="danger">
                     Delete language
                 </button>
+                <p class="hint">
+                    This action is unrevertable. Will delete all lexicons,
+                    courses, and knowledge estimates for this language.
+                </p>
                 <p id="delete-status" role="status"></p>
             </section>
         </main>

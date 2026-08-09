@@ -24,8 +24,8 @@
             </a>
             <nav>
                 <a href="lexicons">Lexicons</a>
-                <a href="courses">Courses</a>
-                <a href="curated-lists">Curated lists</a>
+                <a href="courses" data-experimental>Courses</a>
+                <a href="curated-lists" data-experimental>Curated lists</a>
             </nav>
             <a href="profile" class="profile-link">Profile</a>
         </header>
@@ -98,7 +98,11 @@
                     <div></div>
                 </div>
             </section>
-            <section id="courses" aria-labelledby="courses-heading">
+            <section
+                id="courses"
+                aria-labelledby="courses-heading"
+                data-experimental
+            >
                 <h2 id="courses-heading">Courses</h2>
                 <p id="courses-status" role="status"></p>
                 <table id="course-table" hidden>

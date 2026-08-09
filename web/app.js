@@ -11,11 +11,28 @@ import { initHome, initLanguage, initNewLanguage } from "./js/home-pages.js";
 import { initLanding, initLogin, initRegister } from "./js/auth-pages.js";
 import { initCourse, initCourses, initLearning, initNewCourse, initNewLearning } from "./js/course-pages.js";
 import { clearToken } from "./js/api.js";
+import { isRelease } from "./js/config.js";
 import { initProfile } from "./js/profile.js";
+
+// The parts of Emmio still being worked out — courses/learnings and the SFWR
+// curation tooling — carry `data-experimental` in the markup: the two nav
+// entries, the Courses sections, and the whole `<body>` of the pages behind
+// them. A release deployment (`EMMIO_RELEASE`, see `RELEASE` in
+// `emmio/api/app.py`) does not show them. They start hidden (see the
+// `data-experimental` rule in `base.css`) and are revealed only once
+// `/config` says this is a development deployment, so a slow answer shows
+// nothing rather than showing everything and taking it back.
+//
+// The sub-pages are marked too, not just the two entry points: they are only
+// reachable through those, so leaving them live would just be a way to
+// bookmark past a hidden door.
+//
+// The answer comes from `js/config.js`, shared with the pages that skip
+// fetching data only these parts would show, so a page load asks once.
 
 // Dispatch on the page.
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     // Log out lives on the profile page; wire it when present.
     const logout = document.getElementById("logout");
     if (logout) {
@@ -26,6 +43,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const page = document.body.dataset.page;
+
+    // The answer only decides whether the experimental parts become visible,
+    // so the page's own loading does not wait for it.
+    const release = isRelease().then((release) => {
+        document.documentElement.dataset.release = String(release);
+        return release;
+    });
+
+    // An experimental page has nothing to show on a release deployment, so
+    // it is the one case that waits, rather than loading data it would then
+    // throw away.
+    if (document.body.hasAttribute("data-experimental") && (await release)) {
+        location.href = "index";
+        return;
+    }
+
     if (page === "landing") initLanding();
     else if (page === "login") initLogin();
     else if (page === "register") initRegister();
