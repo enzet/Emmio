@@ -315,6 +315,31 @@ export async function initLanguage() {
     // form is a small state machine over the assessment-kind taxonomy).
     initLanguageEstimates(language);
 
+    const deleteStatus = document.getElementById("delete-status");
+    document
+        .getElementById("delete-language")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    `Delete ${languageName(language)} with its lexicons, ` +
+                        "learnings and estimates, including all their " +
+                        "history? Courses are kept. This cannot be undone.",
+                )
+            ) {
+                return;
+            }
+            deleteStatus.textContent = "Deleting…";
+            const result = await api(
+                `/me/languages/${encodeURIComponent(language)}`,
+                { method: "DELETE" },
+            );
+            if (result.ok) {
+                location.href = "index";
+            } else {
+                deleteStatus.textContent = "Could not delete language.";
+            }
+        });
+
     const lexiconsStatus = document.getElementById("lexicons-status");
     const lexiconTable = document.getElementById("lexicon-table");
     const lexiconRows = document.getElementById("lexicon-rows");

@@ -680,6 +680,94 @@ def get_or_create_user_language(user_id: str, language: str) -> int:
         )
 
 
+def delete_user_language(user_id: str, language: str) -> list[str] | None:
+    """Delete a language and everything hanging off it.
+
+    Removes the language's lexicons (with their words, records and
+    sessions), its learnings (with their records and sessions), and its
+    self-reported estimates. Courses are *not* touched: a course is the
+    language's sibling, not its child, so it outlives the language even when
+    it names one — only learnings that belong to the language directly go.
+
+    The schema has no `ON DELETE CASCADE`, so child rows are deleted in
+    dependency order inside one transaction; either all of it goes or none.
+
+    :param user_id: owning user login, e.g. `john`
+    :param language: language code, e.g. `fr`
+    :return: identifiers of the deleted lexicons, so the caller can drop
+        their cached sessions — an empty list when the language had none, or
+        `None` when the user has no such language at all (the two are
+        different: only the latter is a 404)
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT ul.id FROM user_languages ul JOIN users u "
+            "ON u.id = ul.user_id WHERE u.user_id = %s AND ul.language = %s",
+            (user_id, language),
+        )
+        if not (row := cursor.fetchone()):
+            return None
+        language_db_id: int = int(row[0])
+
+        cursor.execute(
+            "SELECT id, lexicon_id FROM lexicons WHERE language_id = %s",
+            (language_db_id,),
+        )
+        lexicons: list[tuple[int, str]] = [
+            (int(lexicon_row[0]), lexicon_row[1])
+            for lexicon_row in cursor.fetchall()
+        ]
+
+        # The language object points at its main lexicon, so that reference
+        # has to go before the lexicons themselves.
+        cursor.execute(
+            "UPDATE user_languages SET main_lexicon_id = NULL WHERE id = %s",
+            (language_db_id,),
+        )
+        for lexicon_db_id, _ in lexicons:
+            cursor.execute(
+                "DELETE FROM lexicon_records r USING lexicon_words w "
+                "WHERE r.word_id = w.id AND w.lexicon_id = %s",
+                (lexicon_db_id,),
+            )
+            cursor.execute(
+                "DELETE FROM lexicon_sessions WHERE lexicon_id = %s",
+                (lexicon_db_id,),
+            )
+            cursor.execute(
+                "DELETE FROM lexicon_words WHERE lexicon_id = %s",
+                (lexicon_db_id,),
+            )
+        cursor.execute(
+            "DELETE FROM lexicons WHERE language_id = %s", (language_db_id,)
+        )
+
+        # Only learnings attached to the language; a course's learnings are
+        # the course's, and stay with it.
+        cursor.execute(
+            "DELETE FROM learning_records r USING learnings l "
+            "WHERE r.learning_id = l.id AND l.language_id = %s",
+            (language_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM learning_sessions s USING learnings l "
+            "WHERE s.learning_id = l.id AND l.language_id = %s",
+            (language_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM learnings WHERE language_id = %s", (language_db_id,)
+        )
+
+        cursor.execute(
+            "DELETE FROM language_knowledge_records WHERE language_id = %s",
+            (language_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM user_languages WHERE id = %s", (language_db_id,)
+        )
+    return [lexicon_id for _, lexicon_id in lexicons]
+
+
 def get_user_languages(user_id: str) -> list[tuple[str, str | None]]:
     """Get every language the user has anything in.
 

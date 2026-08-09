@@ -3600,6 +3600,32 @@ def create_my_language(
     )
 
 
+@app.delete(
+    "/api/v1/me/languages/{language}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_my_language(
+    language: str, user_id: Annotated[str, Depends(get_current_user)]
+) -> None:
+    """Delete a language and everything hanging off it.
+
+    Irreversible: removes the language's lexicons (with all their answer
+    history), its learnings, and its self-reported estimates. Courses
+    survive — a course is the language's sibling, not its child, so only
+    learnings attached to the language directly are removed with it.
+    Responds 404 when the user has no such language.
+    """
+    deleted_lexicons: list[str] | None = postgres.delete_user_language(
+        user_id, language
+    )
+    if deleted_lexicons is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown language `{language}`.",
+        )
+    for lexicon_id in deleted_lexicons:
+        LEXICON_SESSIONS.invalidate(user_id, lexicon_id)
+
+
 @app.get("/api/v1/me/languages")
 def get_my_languages(
     user_id: Annotated[str, Depends(get_current_user)],

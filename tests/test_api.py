@@ -2719,6 +2719,89 @@ def test_available_languages_exclude_already_added_and_unbuilt(
     assert response.json() == []
 
 
+def test_delete_language_removes_everything_hanging_off_it(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Deleting a language takes its lexicons, estimates and answers."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+    client.post("/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token))
+    # An answer, so there is real history to cascade through: without it the
+    # word/record deletions would never be exercised.
+    client.post(
+        "/api/v1/me/lexicons/uk/answer",
+        json={"word": "і", "response": "know"},
+        headers=_auth(token),
+    )
+    assert postgres.list_lexicons("alice") != []
+    assert postgres.get_answered_words("alice", "uk") != set()
+
+    response = client.delete("/api/v1/me/languages/uk", headers=_auth(token))
+    assert response.status_code == 204
+
+    assert postgres.get_user_languages("alice") == []
+    assert postgres.list_lexicons("alice") == []
+    assert postgres.get_language_knowledge_records("alice") == []
+
+
+def test_delete_language_keeps_courses(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A course is the language's sibling, so it outlives the language."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+    client.post("/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token))
+    postgres.create_course("alice", "uk", "Ukrainian", "uk")
+    postgres.save_learning("alice", "uk", "Ukrainian", "uk", "uk", [], [])
+
+    assert (
+        client.delete(
+            "/api/v1/me/languages/uk", headers=_auth(token)
+        ).status_code
+        == 204
+    )
+
+    assert [row[0] for row in postgres.list_courses("alice")] == ["uk"]
+    assert [row[0] for row in postgres.list_learnings("alice")] == ["uk"]
+
+
+def test_delete_language_leaves_other_languages_intact(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Deleting one language touches nothing belonging to another."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+    client.post("/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token))
+    # A second language, made directly so it needs no curated panel.
+    postgres.save_lexicon("alice", "de", "de", [], [])
+    client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "de", "kind": "self", "value": "A2"},
+        headers=_auth(token),
+    )
+
+    client.delete("/api/v1/me/languages/uk", headers=_auth(token))
+
+    assert [
+        language for language, _ in postgres.get_user_languages("alice")
+    ] == ["de"]
+    assert [row[0] for row in postgres.list_lexicons("alice")] == ["de"]
+    assert [
+        row[1] for row in postgres.get_language_knowledge_records("alice")
+    ] == ["de"]
+
+
+def test_delete_unknown_language_is_404() -> None:
+    """Deleting a language the user does not have reports it."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.delete("/api/v1/me/languages/uk", headers=_auth(token))
+    assert response.status_code == 404
+
+
 def test_delete_me_removes_language_knowledge() -> None:
     """Deleting the account removes its self-reported proficiency estimates.
 
