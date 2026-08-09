@@ -26,7 +26,6 @@
                 <a href="lexicons">Lexicons</a>
                 <a href="courses">Courses</a>
                 <a href="curated-lists">Curated lists</a>
-                <a href="languages">Languages</a>
             </nav>
             <a href="profile" class="profile-link">Profile</a>
         </header>
@@ -71,6 +70,70 @@
                         + Add a course
                     </button>
                 </p>
+            </section>
+
+            <section>
+                <h2>Proficiency estimates</h2>
+                <p class="hint">
+                    Self-reported — native speaker, self-assessed,
+                    teacher-assessed, or a certifying organization's result.
+                    Distinct from a lexicon's computed vocabulary rate; every
+                    estimate you add is kept, so you can track how your
+                    self-assessment changes over time.
+                </p>
+                <table id="knowledge-table" hidden>
+                    <thead>
+                        <tr>
+                            <th scope="col">Kind</th>
+                            <th scope="col">Value</th>
+                            <th scope="col">Date</th>
+                            <th scope="col"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="knowledge-rows"></tbody>
+                </table>
+                <p id="knowledge-status" role="status"></p>
+
+                <h3>Add an estimate</h3>
+                <form class="add-form" id="add-knowledge-form">
+                    <div class="field">
+                        <label for="add-knowledge-kind">Kind</label>
+                        <select id="add-knowledge-kind" required></select>
+                    </div>
+                    <div class="field" id="add-knowledge-caption-field">
+                        <label for="add-knowledge-caption">Caption</label>
+                        <input
+                            id="add-knowledge-caption"
+                            type="text"
+                            maxlength="100"
+                            placeholder="e.g. TCF, OPIc"
+                        />
+                    </div>
+                    <div class="field" id="add-knowledge-value-field">
+                        <label for="add-knowledge-value-select">Value</label>
+                        <span class="control">
+                            <select id="add-knowledge-value-select"></select>
+                            <input
+                                id="add-knowledge-value-number"
+                                type="number"
+                                hidden
+                            />
+                            <input
+                                id="add-knowledge-value-other"
+                                type="text"
+                                maxlength="100"
+                                placeholder="Describe the value"
+                                hidden
+                            />
+                        </span>
+                    </div>
+                    <div class="field" id="add-knowledge-date-field">
+                        <label for="add-knowledge-date">Date</label>
+                        <input id="add-knowledge-date" type="date" />
+                    </div>
+                    <button type="submit">Add</button>
+                </form>
+                <p id="add-knowledge-status" role="status"></p>
             </section>
         </main>
         <footer>

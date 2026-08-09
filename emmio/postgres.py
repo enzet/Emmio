@@ -373,9 +373,10 @@ def get_account(user_id: str) -> dict[str, object] | None:
 def delete_user(user_id: str) -> bool:
     """Delete a user and all data they own.
 
-    Removes the user's lexicons and courses with their words, records, and
-    sessions. The schema has no `ON DELETE CASCADE`, so child rows are deleted
-    in dependency order inside one transaction; either all of it goes or none.
+    Removes the user's lexicons, courses and languages with their words,
+    records, sessions, and self-reported proficiency estimates. The schema has
+    no `ON DELETE CASCADE`, so child rows are deleted in dependency order
+    inside one transaction; either all of it goes or none.
 
     :param user_id: owning user login, e.g. `john`
     :return: whether a user was deleted (`False` if none existed)
@@ -403,6 +404,14 @@ def delete_user(user_id: str) -> bool:
             "WHERE w.lexicon_id = l.id AND l.user_id = %s",
             (user_db_id,),
         )
+        # Language objects point at a main lexicon; break that before the
+        # lexicons go, then drop the objects themselves further down (they
+        # also own learnings and knowledge records, deleted below).
+        cursor.execute(
+            "UPDATE user_languages SET main_lexicon_id = NULL "
+            "WHERE user_id = %s",
+            (user_db_id,),
+        )
         cursor.execute("DELETE FROM lexicons WHERE user_id = %s", (user_db_id,))
 
         # Learning data, deepest first.
@@ -420,6 +429,17 @@ def delete_user(user_id: str) -> bool:
             "DELETE FROM learnings WHERE user_id = %s", (user_db_id,)
         )
         cursor.execute("DELETE FROM courses WHERE user_id = %s", (user_db_id,))
+
+        # Language data. The knowledge records were previously left behind
+        # entirely, which made deleting any user who had recorded one fail
+        # on the `users` foreign key.
+        cursor.execute(
+            "DELETE FROM language_knowledge_records WHERE user_id = %s",
+            (user_db_id,),
+        )
+        cursor.execute(
+            "DELETE FROM user_languages WHERE user_id = %s", (user_db_id,)
+        )
 
         cursor.execute("DELETE FROM users WHERE id = %s", (user_db_id,))
     return True
@@ -578,8 +598,14 @@ def list_lexicons(
             "SELECT l.lexicon_id, l.language, l.selection, "
             "(SELECT count(*) FROM lexicon_words w "
             "WHERE w.lexicon_id = l.id), "
-            "l.is_main, l.config->>'name', l.frequency_list "
+            # COALESCE, because `NULL = l.id` is NULL rather than false —
+            # both when the language object has no main lexicon and when the
+            # LEFT JOIN finds no language object at all.
+            "COALESCE(ul.main_lexicon_id = l.id, false), "
+            "l.config->>'name', l.frequency_list "
             "FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "LEFT JOIN user_languages ul "
+            "ON ul.user_id = l.user_id AND ul.language = l.language "
             "WHERE u.user_id = %s ORDER BY l.lexicon_id",
             (user_id,),
         )
@@ -616,16 +642,72 @@ def rename_lexicon(user_id: str, lexicon_id: str, new_lexicon_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+def _get_user_language_db_id(
+    cursor: psycopg.Cursor, user_db_id: int, language: str
+) -> int:
+    """Get internal language-object identifier, creating it if needed."""
+
+    cursor.execute(
+        "INSERT INTO user_languages (user_id, language) VALUES (%s, %s) "
+        "ON CONFLICT (user_id, language) DO NOTHING",
+        (user_db_id, language),
+    )
+    cursor.execute(
+        "SELECT id FROM user_languages WHERE user_id = %s AND language = %s",
+        (user_db_id, language),
+    )
+    row = cursor.fetchone()
+    assert row is not None
+    return int(row[0])
+
+
+def get_or_create_user_language(user_id: str, language: str) -> int:
+    """Get the id of a user's language object, creating it if absent.
+
+    A language object is not something the user creates deliberately: it
+    comes into being as soon as they have anything in that language, so
+    every caller that attaches something (a lexicon, a learning, a
+    proficiency estimate) goes through here rather than requiring the row
+    to exist first.
+
+    :param user_id: owning user login, e.g. `john`
+    :param language: language code, e.g. `fr`
+    :return: `user_languages.id`
+    """
+    with db_cursor() as cursor:
+        return _get_user_language_db_id(
+            cursor, _get_user_db_id(cursor, user_id), language
+        )
+
+
+def get_user_languages(user_id: str) -> list[tuple[str, str | None]]:
+    """Get every language the user has anything in.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: (language, main lexicon id or `None`) tuples, ordered by
+        language
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT ul.language, l.lexicon_id "
+            "FROM user_languages ul JOIN users u ON u.id = ul.user_id "
+            "LEFT JOIN lexicons l ON l.id = ul.main_lexicon_id "
+            "WHERE u.user_id = %s ORDER BY ul.language",
+            (user_id,),
+        )
+        return [(row[0], row[1]) for row in cursor.fetchall()]
+
+
 def is_main_lexicon(user_id: str, lexicon_id: str) -> bool:
     """Check whether a lexicon is the main one for its language."""
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT l.is_main FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "SELECT 1 FROM lexicons l JOIN users u ON u.id = l.user_id "
+            "JOIN user_languages ul ON ul.main_lexicon_id = l.id "
             "WHERE u.user_id = %s AND l.lexicon_id = %s",
             (user_id, lexicon_id),
         )
-        row = cursor.fetchone()
-        return bool(row and row[0])
+        return cursor.fetchone() is not None
 
 
 def get_main_lexicons(
@@ -638,9 +720,10 @@ def get_main_lexicons(
     """
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT l.language, l.lexicon_id, l.selection, l.frequency_list "
-            "FROM lexicons l JOIN users u ON u.id = l.user_id "
-            "WHERE u.user_id = %s AND l.is_main ORDER BY l.language",
+            "SELECT ul.language, l.lexicon_id, l.selection, l.frequency_list "
+            "FROM user_languages ul JOIN users u ON u.id = ul.user_id "
+            "JOIN lexicons l ON l.id = ul.main_lexicon_id "
+            "WHERE u.user_id = %s ORDER BY ul.language",
             (user_id,),
         )
         return [(row[0], row[1], row[2], row[3]) for row in cursor.fetchall()]
@@ -650,8 +733,9 @@ def has_main_lexicon(user_id: str, language: str) -> bool:
     """Check whether the user already has a main lexicon for a language."""
     with db_cursor() as cursor:
         cursor.execute(
-            "SELECT 1 FROM lexicons l JOIN users u ON u.id = l.user_id "
-            "WHERE u.user_id = %s AND l.language = %s AND l.is_main",
+            "SELECT 1 FROM user_languages ul JOIN users u ON u.id = ul.user_id "
+            "WHERE u.user_id = %s AND ul.language = %s "
+            "AND ul.main_lexicon_id IS NOT NULL",
             (user_id, language),
         )
         return cursor.fetchone() is not None
@@ -660,9 +744,9 @@ def has_main_lexicon(user_id: str, language: str) -> bool:
 def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
     """Make a lexicon the main one for its language.
 
-    Any other main lexicon for the same language is cleared first, so the
-    per-language "at most one main" rule holds (also enforced by a partial
-    unique index).
+    "At most one main per language" needs no clearing step and no unique
+    index: the language object holds a single `main_lexicon_id`, so setting
+    it replaces whatever was there.
 
     :raises ValueError: if the lexicon does not exist
     """
@@ -677,24 +761,23 @@ def set_main_lexicon(user_id: str, lexicon_id: str) -> None:
             message: str = f"Unknown lexicon `{lexicon_id}`."
             raise ValueError(message)
         db_id, language = row
+
+    language_db_id: int = get_or_create_user_language(user_id, language)
+    with db_cursor() as cursor:
         cursor.execute(
-            "UPDATE lexicons SET is_main = false FROM users u "
-            "WHERE lexicons.user_id = u.id AND u.user_id = %s "
-            "AND lexicons.language = %s AND lexicons.is_main",
-            (user_id, language),
-        )
-        cursor.execute(
-            "UPDATE lexicons SET is_main = true WHERE id = %s", (db_id,)
+            "UPDATE user_languages SET main_lexicon_id = %s WHERE id = %s",
+            (db_id, language_db_id),
         )
 
 
 def clear_main_lexicon(user_id: str, lexicon_id: str) -> None:
-    """Clear a lexicon's main flag (its language then has no main)."""
+    """Clear a lexicon's main status (its language then has no main)."""
     with db_cursor() as cursor:
         cursor.execute(
-            "UPDATE lexicons SET is_main = false FROM users u "
-            "WHERE lexicons.user_id = u.id AND u.user_id = %s "
-            "AND lexicons.lexicon_id = %s",
+            "UPDATE user_languages ul SET main_lexicon_id = NULL "
+            "FROM users u, lexicons l "
+            "WHERE ul.user_id = u.id AND u.user_id = %s "
+            "AND l.id = ul.main_lexicon_id AND l.lexicon_id = %s",
             (user_id, lexicon_id),
         )
 
@@ -879,20 +962,25 @@ def store_lexicon_config(user_id: str, lexicon_id: str, config: dict) -> None:
     """
     selection, identity_list, mutable = split_lexicon_config(config)
     language: str = config["language"]
+    language_db_id: int = get_or_create_user_language(user_id, language)
     with db_cursor() as cursor:
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO lexicons "
-            "(user_id, lexicon_id, language, selection, frequency_list, config)"
-            " VALUES (%s, %s, %s, %s, %s, %s) "
+            "(user_id, lexicon_id, language, language_id, selection, "
+            "frequency_list, config)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (user_id, lexicon_id) DO UPDATE SET "
-            "language = excluded.language, selection = excluded.selection, "
+            "language = excluded.language, "
+            "language_id = excluded.language_id, "
+            "selection = excluded.selection, "
             "frequency_list = excluded.frequency_list, "
             "config = excluded.config",
             (
                 user_db_id,
                 lexicon_id,
                 language,
+                language_db_id,
                 selection,
                 Jsonb(identity_list) if identity_list else None,
                 Jsonb(mutable),
@@ -1083,6 +1171,13 @@ def delete_lexicon(user_id: str, lexicon_id: str) -> bool:
         )
         cursor.execute(
             "DELETE FROM lexicon_words WHERE lexicon_id = %s", (lexicon_db_id,)
+        )
+        # The language object outlives its lexicons, so it is not deleted
+        # here — but it cannot keep pointing at one that is going away.
+        cursor.execute(
+            "UPDATE user_languages SET main_lexicon_id = NULL "
+            "WHERE main_lexicon_id = %s",
+            (lexicon_db_id,),
         )
         cursor.execute("DELETE FROM lexicons WHERE id = %s", (lexicon_db_id,))
     return True
@@ -1494,9 +1589,14 @@ def _get_lexicon_db_id(
     if row := cursor.fetchone():
         return int(row[0])
     cursor.execute(
-        "INSERT INTO lexicons (user_id, lexicon_id, language) "
-        "VALUES (%s, %s, %s) RETURNING id",
-        (user_db_id, lexicon_id, language),
+        "INSERT INTO lexicons (user_id, lexicon_id, language, language_id) "
+        "VALUES (%s, %s, %s, %s) RETURNING id",
+        (
+            user_db_id,
+            lexicon_id,
+            language,
+            _get_user_language_db_id(cursor, user_db_id, language),
+        ),
     )
     row = cursor.fetchone()
     assert row is not None
@@ -2386,9 +2486,17 @@ def add_language_knowledge_record(
         user_db_id: int = _get_user_db_id(cursor, user_id)
         cursor.execute(
             "INSERT INTO language_knowledge_records "
-            "(user_id, language, kind, value, caption, date) "
-            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (user_db_id, language, kind, value, caption, date_),
+            "(user_id, language, language_id, kind, value, caption, date) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (
+                user_db_id,
+                language,
+                _get_user_language_db_id(cursor, user_db_id, language),
+                kind,
+                value,
+                caption,
+                date_,
+            ),
         )
         row = cursor.fetchone()
         assert row is not None
@@ -2417,6 +2525,37 @@ def get_language_knowledge_records(
             (int(row[0]), row[1], row[2], row[3], row[4], row[5])
             for row in cursor.fetchall()
         ]
+
+
+def get_latest_language_knowledge(
+    user_id: str,
+) -> dict[str, tuple[str, str | None, str | None, date | None]]:
+    """Get the most recent proficiency estimate for each language.
+
+    The counterpart to `get_language_knowledge_records`' full history: one
+    row per language, for surfacing a language's current self-reported level
+    beside its computed lexicon rate.
+
+    :param user_id: owning user login, e.g. `john`
+    :return: language code -> (kind, value, caption, date) of its newest
+        estimate. "Newest" uses the same ordering as the history
+        (`date DESC NULLS LAST`, then newest record first), so an undated
+        `native` record only wins when nothing dated exists.
+    """
+    with db_cursor() as cursor:
+        cursor.execute(
+            "SELECT DISTINCT ON (r.language) "
+            "r.language, r.kind, r.value, r.caption, r.date "
+            "FROM language_knowledge_records r "
+            "JOIN users u ON u.id = r.user_id "
+            "WHERE u.user_id = %s "
+            "ORDER BY r.language, r.date DESC NULLS LAST, r.id DESC",
+            (user_id,),
+        )
+        return {
+            row[0]: (row[1], row[2], row[3], row[4])
+            for row in cursor.fetchall()
+        }
 
 
 def delete_language_knowledge_record(user_id: str, record_id: int) -> bool:

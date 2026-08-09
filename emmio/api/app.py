@@ -24,6 +24,7 @@ from tempfile import mkdtemp
 from typing import Annotated, Any, Literal
 
 import jwt
+import psycopg
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, status
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -33,6 +34,7 @@ from starlette.background import BackgroundTask
 
 from emmio import inventory, postgres
 from emmio.api import auth
+from emmio.api.rate_limit import RateLimiter
 from emmio.api.render import elements_to_html, to_html
 from emmio.api.sessions import (
     LEARNING_REGISTRY,
@@ -42,7 +44,7 @@ from emmio.api.sessions import (
 )
 from emmio.audio.config import AudioUsageConfig
 from emmio.audio.transcode import to_browser_playable
-from emmio.catalog import NON_PROPER_NOUNS
+from emmio.catalog import DEFAULT_CURATED_LISTS, NON_PROPER_NOUNS
 from emmio.data import Data
 from emmio.dictionary.config import DictionaryUsageConfig
 from emmio.dictionary.core import DictionaryCollection
@@ -142,6 +144,36 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
 app: FastAPI = FastAPI(title="Emmio API", version="0.1", lifespan=_lifespan)
 
+
+class HealthStatus(BaseModel):
+    """Liveness/readiness response for uptime monitoring."""
+
+    status: Literal["ok"]
+    database: Literal["ok"]
+
+
+@app.get("/health")
+def health() -> HealthStatus:
+    """Report whether the API can reach its database.
+
+    Unauthenticated and outside `/api/v1` by convention, since a load
+    balancer or uptime monitor probes this before there is any token to
+    authenticate with.
+    """
+    try:
+        with (
+            postgres.db_connection() as connection,
+            connection.cursor() as cursor,
+        ):
+            cursor.execute("SELECT 1")
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable.",
+        ) from error
+    return HealthStatus(status="ok", database="ok")
+
+
 # Tells clients (and `/docs`) where to obtain a token, and extracts the bearer
 # token from the `Authorization` header on protected routes.
 oauth2_scheme: OAuth2PasswordBearer = OAuth2PasswordBearer(
@@ -233,7 +265,30 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         ) from error
 
 
-@app.post("/api/v1/auth/register", status_code=status.HTTP_201_CREATED)
+# Registration is open to anyone with no email verification or CAPTCHA, and
+# login is a password-guessing target, so both get an IP-based budget. Limits
+# are deliberately generous for a real user retrying a typo, not tuned
+# against measured abuse.
+_REGISTER_RATE_LIMITER = RateLimiter(max_requests=5, window_seconds=3600.0)
+_LOGIN_RATE_LIMITER = RateLimiter(max_requests=10, window_seconds=300.0)
+
+
+def reset_rate_limiters() -> None:
+    """Drop all rate-limit counters.
+
+    For tests: a `TestClient` sends every request from one synthetic client
+    address, so without a reset between tests, one test's requests would
+    count against the next test's budget.
+    """
+    _REGISTER_RATE_LIMITER.clear()
+    _LOGIN_RATE_LIMITER.clear()
+
+
+@app.post(
+    "/api/v1/auth/register",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_REGISTER_RATE_LIMITER.as_dependency())],
+)
 def register(request: RegisterRequest) -> User:
     """Create a new account with login credentials."""
     try:
@@ -250,7 +305,10 @@ def register(request: RegisterRequest) -> User:
     return User(user_id=request.user_id, name=request.name)
 
 
-@app.post("/api/v1/auth/login")
+@app.post(
+    "/api/v1/auth/login",
+    dependencies=[Depends(_LOGIN_RATE_LIMITER.as_dependency())],
+)
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     remember: Annotated[bool, Form()] = False,  # noqa: FBT002
@@ -1325,8 +1383,36 @@ def create_lexicon(
         data, request.language, request.frequency_list
     )
     targets: list[str] = _validated_targets(request.translation_languages)
+    return CreatedLexicon(
+        lexicon_id=_store_new_lexicon(
+            user_id, request.language, selection, frequency_list, targets
+        )
+    )
+
+
+def _store_new_lexicon(
+    user_id: str,
+    language: str,
+    selection: LexiconSelection,
+    frequency_list: dict,
+    targets: list[str],
+) -> str:
+    """Create a lexicon and return its identifier.
+
+    Shared by `create_lexicon` and by language creation, which opens a
+    default curated lexicon for the new language (see `create_my_language`).
+    Assumes `frequency_list` and `targets` are already validated.
+
+    :param user_id: owning user login, e.g. `john`
+    :param language: language code, e.g. `fr`
+    :param selection: how the lexicon picks the next word
+    :param frequency_list: the list usage config to sample from
+    :param targets: languages to translate words into
+    :return: the new lexicon's identifier, e.g. `fr` or `fr_2`
+    """
+    data = get_data()
     lexicon_id: str = _unique_artifact_id(
-        request.language, {row[0] for row in postgres.list_lexicons(user_id)}
+        language, {row[0] for row in postgres.list_lexicons(user_id)}
     )
     curated_config: tuple[list[dict], list[dict]] | None = None
     if frequency_list.get("curated"):
@@ -1334,30 +1420,30 @@ def create_lexicon(
             ListUsageConfig(**frequency_list)
         )
         curated_list_id: int | None = postgres.get_curated_list_id(
-            request.language, frequency_list_id
+            language, frequency_list_id
         )
         if curated_list_id is not None:
             curated_config = _curated_translation_config(
-                data, curated_list_id, request.language, targets
+                data, curated_list_id, language, targets
             )
     if curated_config is not None:
         dictionaries, sentences = curated_config
     else:
-        with_kaikki: bool = _with_kaikki(data, targets, request.language)
+        with_kaikki: bool = _with_kaikki(data, targets, language)
         dictionaries, sentences = _translation_config(
-            request.language, targets, with_kaikki=with_kaikki
+            language, targets, with_kaikki=with_kaikki
         )
     config: dict = {
-        "language": request.language,
+        "language": language,
         "selection": selection.value,
         "frequency_list": frequency_list,
         "dictionaries": dictionaries,
         "sentences": sentences,
     }
     postgres.store_lexicon_config(user_id, lexicon_id, config)
-    if not postgres.has_main_lexicon(user_id, request.language):
+    if not postgres.has_main_lexicon(user_id, language):
         postgres.set_main_lexicon(user_id, lexicon_id)
-    return CreatedLexicon(lexicon_id=lexicon_id)
+    return lexicon_id
 
 
 @app.delete(
@@ -3283,50 +3369,234 @@ def get_lexicon_words(
     )
 
 
+# A field literally named `date` (as the API's JSON key must be) with a
+# default value shadows the bare `date` type name in its own annotation:
+# class bodies bind the assigned value before evaluating the annotation, so
+# `date: date | None = None` would resolve `date | None` against the
+# just-bound `None` rather than the imported type, and raise at
+# class-definition time. `_OptionalDate` sidesteps the collision.
+_OptionalDate = date | None
+
+
+class SelfReportedLevel(BaseModel):
+    """A language's most recent self-reported proficiency estimate."""
+
+    kind: str  # Assessment kind code, e.g. `delf_dalf`.
+    kind_label: str  # Human-readable kind, e.g. `DELF/DALF`.
+    value: str | None  # Value on the kind's scale; None for `native`.
+    caption: str | None  # Names the kind precisely, for `standardized_test`.
+    date: _OptionalDate  # None for a kind with `requires_date = False`.
+
+
 class LanguageRate(BaseModel):
     """A language's level: the rate of its main lexicon."""
 
     language: str
-    lexicon_id: str  # The main lexicon the rate comes from.
-    selection: str | None  # The main lexicon's selection strategy, if known.
+    # The main lexicon the rate comes from, and its selection strategy.
+    # Both None for a language with no main lexicon — which now reaches the
+    # dashboard, since a language exists as soon as the user has *anything*
+    # in it, including only a self-reported estimate.
+    lexicon_id: str | None
+    selection: str | None
     rate: float | None  # Vocabulary rate, or None if not enough data.
     sd: float | None  # Standard deviation of the rate estimate.
     check_available: bool  # Whether checking is allowed right now.
     recheck_available_at: datetime | None  # When "Check" unlocks, if not now.
+    self_reported: SelfReportedLevel | None
 
 
 class LanguageSummary(BaseModel):
-    """A language's main-lexicon identity, without its rate estimate.
+    """A language's identity, without its rate estimate.
 
     The cheap counterpart to `LanguageRate`: no per-lexicon rate estimate is
     computed, so this is safe to fetch first and render immediately.
     """
 
     language: str
-    lexicon_id: str
+    lexicon_id: str | None
     selection: str | None
+    self_reported: SelfReportedLevel | None
+
+
+def _self_reported_levels(user_id: str) -> dict[str, SelfReportedLevel]:
+    """Get each language's newest self-reported estimate, keyed by language."""
+    levels: dict[str, SelfReportedLevel] = {}
+    for language, (
+        kind,
+        value,
+        caption,
+        date_,
+    ) in postgres.get_latest_language_knowledge(user_id).items():
+        kind_option: KnowledgeKind | None = KNOWLEDGE_KINDS_BY_CODE.get(kind)
+        levels[language] = SelfReportedLevel(
+            kind=kind,
+            kind_label=kind_option.label if kind_option else kind,
+            value=value,
+            caption=caption,
+            date=date_,
+        )
+    return levels
 
 
 @app.get("/api/v1/me/languages/summary")
 def get_my_languages_summary(
     user_id: Annotated[str, Depends(get_current_user)],
 ) -> list[LanguageSummary]:
-    """List the user's main-lexicon languages, without the rate estimate.
+    """List the user's languages, without the rate estimate.
 
     A fast counterpart to `/me/languages`: it skips `_row_rate_estimate`
     entirely (see its cache-miss cost note above `_row_rate_estimate`), so
     the dashboard can fetch this first and render the languages table
     immediately, then fetch `/me/languages` to fill in the rate, level, and
     check-availability columns once they're ready.
+
+    Driven by the user's language objects, not by main lexicons, so a
+    language the user has only self-reported a level for still appears.
     """
-    return [
-        LanguageSummary(
-            language=language, lexicon_id=lexicon_id, selection=selection
-        )
+    main_lexicons: dict[str, tuple[str, str | None]] = {
+        language: (lexicon_id, selection)
         for language, lexicon_id, selection, _ in postgres.get_main_lexicons(
             user_id
         )
+    }
+    levels: dict[str, SelfReportedLevel] = _self_reported_levels(user_id)
+    return [
+        LanguageSummary(
+            language=language,
+            lexicon_id=main_lexicons.get(language, (None, None))[0],
+            selection=main_lexicons.get(language, (None, None))[1],
+            self_reported=levels.get(language),
+        )
+        for language, _ in postgres.get_user_languages(user_id)
     ]
+
+
+class CreateLanguageRequest(BaseModel):
+    """Payload to start tracking a language.
+
+    Carries a starting proficiency estimate, which is required rather than
+    optional: a language is opened *with* a self-assessment, so its computed
+    rate always has something to be read against from the very first day.
+    """
+
+    language: str
+    kind: str
+    value: str | None = None
+    caption: str | None = None
+    date: _OptionalDate = None
+
+
+class LanguageOption(BaseModel):
+    """A language the user could add, with the panel it would start from."""
+
+    language: str
+    curated_list: str  # `curated_lists.frequency_list_id`.
+
+
+@app.get("/api/v1/me/languages/available")
+def get_available_languages(
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> list[LanguageOption]:
+    """List languages the user may still add.
+
+    A language is offerable when it has a default curated panel configured
+    (`DEFAULT_CURATED_LISTS`) that actually exists in the database, and the
+    user does not already have it — the same two rules `create_my_language`
+    enforces, so the picker can never offer something creation would reject.
+    """
+    taken: set[str] = {
+        language for language, _ in postgres.get_user_languages(user_id)
+    }
+    return [
+        LanguageOption(language=language, curated_list=curated_list)
+        for language, curated_list in sorted(DEFAULT_CURATED_LISTS.items())
+        if language not in taken
+        and postgres.get_curated_list_id(language, curated_list) is not None
+    ]
+
+
+@app.post("/api/v1/me/languages", status_code=status.HTTP_201_CREATED)
+def create_my_language(
+    request: CreateLanguageRequest,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> LanguageSummary:
+    """Start tracking a language, with a lexicon and a starting estimate.
+
+    Creates three things at once, because a language is only useful with
+    them: the language object, a default lexicon over the language's curated
+    panel (`stratified` selection, definitions in English) marked as the
+    language's main one, and the self-reported estimate from the request.
+
+    Not idempotent, unlike most creation here: a user has at most one object
+    per language, so asking for one they already have is a mistake worth
+    reporting (409) rather than quietly returning the existing one.
+    """
+    try:
+        language: Language = Language.from_code(request.language)
+    except LanguageNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    code: str = language.get_code()
+
+    if any(
+        code == existing for existing, _ in postgres.get_user_languages(user_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Language `{code}` is already on your list.",
+        )
+
+    curated_list: str | None = DEFAULT_CURATED_LISTS.get(code)
+    if curated_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"No curated word list is configured for `{code}` yet, so it "
+                "cannot be added."
+            ),
+        )
+    if postgres.get_curated_list_id(code, curated_list) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Curated list `{curated_list}` is configured for `{code}` "
+                "but has not been built yet."
+            ),
+        )
+
+    # Everything is validated before anything is written: these are separate
+    # transactions, so a late failure would otherwise leave a half-made
+    # language behind.
+    _validate_knowledge_estimate(
+        code, request.kind, request.value, request.caption, request.date
+    )
+
+    postgres.get_or_create_user_language(user_id, code)
+    frequency_list: dict = parse_frequency_list_identifier(
+        curated_list, code
+    ).model_dump(exclude_none=True)
+    lexicon_id: str = _store_new_lexicon(
+        user_id,
+        code,
+        LexiconSelection.STRATIFIED,
+        {**frequency_list, "curated": True},
+        ["en"],
+    )
+    postgres.add_language_knowledge_record(
+        user_id,
+        code,
+        request.kind,
+        request.value,
+        request.caption,
+        request.date,
+    )
+    return LanguageSummary(
+        language=code,
+        lexicon_id=lexicon_id,
+        selection=LexiconSelection.STRATIFIED.value,
+        self_reported=_self_reported_levels(user_id).get(code),
+    )
 
 
 @app.get("/api/v1/me/languages")
@@ -3347,6 +3617,8 @@ def get_my_languages(
     """
     version: int | None = postgres.get_last_lexicon_record_id(user_id)
     now: datetime = datetime.now(UTC)
+    levels: dict[str, SelfReportedLevel] = _self_reported_levels(user_id)
+    rated_languages: set[str] = set()
     rates: list[LanguageRate] = []
     for (
         language,
@@ -3354,6 +3626,7 @@ def get_my_languages(
         selection,
         frequency_list_config,
     ) in postgres.get_main_lexicons(user_id):
+        rated_languages.add(language)
         estimate: tuple[float, float] | None = _row_rate_estimate(
             user_id,
             lexicon_id,
@@ -3392,8 +3665,27 @@ def get_my_languages(
                 sd=sd,
                 check_available=goal.check_available,
                 recheck_available_at=goal.recheck_available_at,
+                self_reported=levels.get(language),
             )
         )
+    # Languages with no main lexicon have no rate to compute, but still
+    # belong in the list: the user has *something* in them (a self-reported
+    # level, a learning, a non-main lexicon), which is what makes a language
+    # object exist at all.
+    rates.extend(
+        LanguageRate(
+            language=language,
+            lexicon_id=None,
+            selection=None,
+            rate=None,
+            sd=None,
+            check_available=False,
+            recheck_available_at=None,
+            self_reported=levels.get(language),
+        )
+        for language, _ in postgres.get_user_languages(user_id)
+        if language not in rated_languages
+    )
     rates.sort(
         key=lambda r: r.rate if r.rate is not None else float("-inf"),
         reverse=True,
@@ -3669,15 +3961,6 @@ def get_language_knowledge_kinds() -> list[KnowledgeKindOption]:
     return [_knowledge_kind_option(kind) for kind in KNOWLEDGE_KINDS]
 
 
-# A field literally named `date` (as the API's JSON key must be) with a
-# default value shadows the bare `date` type name in its own annotation:
-# class bodies bind the assigned value before evaluating the annotation, so
-# `date: date | None = None` would resolve `date | None` against the
-# just-bound `None` rather than the imported type, and raise at
-# class-definition time. `_OptionalDate` sidesteps the collision.
-_OptionalDate = date | None
-
-
 class LanguageKnowledgeRecord(BaseModel):
     """One self-reported proficiency estimate."""
 
@@ -3713,6 +3996,54 @@ def get_my_language_knowledge(
     ]
 
 
+def _validate_knowledge_estimate(
+    language: str,
+    kind_code: str,
+    value: str | None,
+    caption: str | None,
+    date_: date | None,
+) -> None:
+    """Check one proficiency estimate against its kind's rules.
+
+    Shared by `create_language_knowledge_record` and by language creation,
+    which requires a starting estimate (see `create_my_language`) and must
+    reject a bad one *before* anything is written.
+
+    :raises HTTPException: 400, naming the first rule the estimate breaks
+    """
+    if not _is_known_language(language):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown language `{language}`.",
+        )
+    kind: KnowledgeKind | None = KNOWLEDGE_KINDS_BY_CODE.get(kind_code)
+    if kind is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown assessment kind `{kind_code}`.",
+        )
+    if kind.languages is not None and language not in kind.languages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(f"`{kind.label}` does not apply to language `{language}`."),
+        )
+    if not is_valid_knowledge_value(kind, value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid value `{value}` for `{kind.label}`.",
+        )
+    if not is_valid_caption(kind, caption):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid caption `{caption}` for `{kind.label}`.",
+        )
+    if not is_valid_knowledge_date(kind, date_):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date `{date_}` for `{kind.label}`.",
+        )
+
+
 class CreateLanguageKnowledgeRequest(BaseModel):
     """Payload to add one proficiency estimate."""
 
@@ -3733,40 +4064,13 @@ def create_language_knowledge_record(
     Adding never touches earlier estimates for the same language — the
     full self-reported history is kept.
     """
-    if not _is_known_language(request.language):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown language `{request.language}`.",
-        )
-    kind: KnowledgeKind | None = KNOWLEDGE_KINDS_BY_CODE.get(request.kind)
-    if kind is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown assessment kind `{request.kind}`.",
-        )
-    if kind.languages is not None and request.language not in kind.languages:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"`{kind.label}` does not apply to language "
-                f"`{request.language}`."
-            ),
-        )
-    if not is_valid_knowledge_value(kind, request.value):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid value `{request.value}` for `{kind.label}`.",
-        )
-    if not is_valid_caption(kind, request.caption):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid caption `{request.caption}` for `{kind.label}`.",
-        )
-    if not is_valid_knowledge_date(kind, request.date):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid date `{request.date}` for `{kind.label}`.",
-        )
+    _validate_knowledge_estimate(
+        request.language,
+        request.kind,
+        request.value,
+        request.caption,
+        request.date,
+    )
     record_id: int = postgres.add_language_knowledge_record(
         user_id,
         request.language,

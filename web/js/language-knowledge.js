@@ -1,25 +1,28 @@
-import { fillLanguageSelect, languageName } from "./format.js";
-import { api, requireAuth } from "./api.js";
+import { api } from "./api.js";
 
 // The value select's synthetic "Other" option: never sent to the API as a
 // value itself, just a client-side signal to show the free-text input and
 // send *that* as the value instead (see `updateValueField`/submit below).
 const OTHER = "__other__";
 
-// Self-reported language knowledge: native speaker / self-assessed /
-// teacher-assessed / a certifying organization, each carrying its own value
-// scale (see `emmio.language_knowledge`). Distinct from a lexicon's
-// computed rate; every estimate added is kept, never overwritten.
-export async function initLanguages() {
-    requireAuth();
+// Fetch the assessment-kind taxonomy, or `null` if it cannot be loaded.
+export async function loadKnowledgeKinds() {
+    const response = await api("/language-knowledge-kinds");
+    return response.ok ? await response.json() : null;
+}
 
-    const status = document.getElementById("status");
-    const table = document.getElementById("knowledge-table");
-    const rows = document.getElementById("knowledge-rows");
-    const knowledgeStatus = document.getElementById("knowledge-status");
-
-    const form = document.getElementById("add-knowledge-form");
-    const languageSelect = document.getElementById("add-knowledge-language");
+// Wire up the "add an estimate" fields (kind / caption / value / date),
+// which together are a small state machine over the kind taxonomy: which
+// fields exist at all, and what shape the value field takes, depend entirely
+// on the chosen kind.
+//
+// Shared by the two places an estimate is entered — a language's own page
+// (`initLanguageEstimates`) and the add-a-language form, where the first
+// estimate is mandatory — so both pages use the same element ids and get the
+// same behavior. Returns `setLanguage`, since the offerable kinds depend on
+// the language (HSK never shows up for French), and `collect`, which reads
+// the fields back the way the API expects them.
+export function setupEstimateFields(kinds, language) {
     const kindSelect = document.getElementById("add-knowledge-kind");
     const captionField = document.getElementById(
         "add-knowledge-caption-field",
@@ -36,33 +39,21 @@ export async function initLanguages() {
     );
     const dateField = document.getElementById("add-knowledge-date-field");
     const dateInput = document.getElementById("add-knowledge-date");
-    const addStatus = document.getElementById("add-knowledge-status");
 
-    const [languagesResponse, kindsResponse] = await Promise.all([
-        api("/translation-languages"),
-        api("/language-knowledge-kinds"),
-    ]);
-    if (!languagesResponse.ok || !kindsResponse.ok) {
-        status.textContent = "Could not load languages or assessment kinds.";
-        return;
-    }
-    const languages = await languagesResponse.json();
-    const kinds = await kindsResponse.json();
-
-    fillLanguageSelect(languageSelect, languages);
+    let currentLanguage = language;
 
     function currentKind() {
         return kinds.find((kind) => kind.code === kindSelect.value);
     }
 
-    // Only a kind that applies to any language, or names the chosen one,
-    // may be picked — e.g. HSK never shows up for French.
+    // Only a kind that applies to any language, or names this one, may be
+    // picked — e.g. HSK never shows up for French.
     function fillKindSelect() {
         kindSelect.innerHTML = "";
         for (const kind of kinds) {
             if (
                 kind.languages !== null &&
-                !kind.languages.includes(languageSelect.value)
+                !kind.languages.includes(currentLanguage)
             ) {
                 continue;
             }
@@ -162,34 +153,88 @@ export async function initLanguages() {
         if (!isOther) valueOther.value = "";
     }
 
-    languageSelect.addEventListener("change", () => {
+    function refresh() {
         fillKindSelect();
         updateCaptionField();
         updateValueField();
         updateDateField();
-    });
+    }
+
     kindSelect.addEventListener("change", () => {
         updateCaptionField();
         updateValueField();
         updateDateField();
     });
     valueSelect.addEventListener("change", updateOtherVisibility);
-    fillKindSelect();
-    updateCaptionField();
-    updateValueField();
-    updateDateField();
+    refresh();
 
-    function kindLabel(record) {
-        const label = kinds.find((kind) => kind.code === record.kind)?.label;
-        if (!label) return record.kind;
-        return record.caption ? `${label}: ${record.caption}` : label;
-    }
+    return {
+        // Re-offer the kinds that apply to a newly chosen language, and
+        // reset the dependent fields to match.
+        setLanguage(next) {
+            currentLanguage = next;
+            refresh();
+        },
+        // Read the fields back in the shape the API takes. Which control
+        // holds the value depends on the kind, so this mirrors
+        // `updateValueField`'s branches.
+        collect() {
+            const kind = currentKind();
+            let value = null;
+            if (kind?.numeric_range) {
+                value = valueNumber.value;
+            } else if (kind?.values.length > 0) {
+                value =
+                    valueSelect.value === OTHER
+                        ? valueOther.value
+                        : valueSelect.value;
+            } else if (kind?.allows_other) {
+                value = valueOther.value;
+            }
+            return {
+                kind: kindSelect.value,
+                value: value || null,
+                caption: kind?.has_caption ? captionInput.value || null : null,
+                date: kind?.requires_date ? dateInput.value : null,
+            };
+        },
+    };
+}
 
-    function valueLabel(kindCode, value) {
-        if (value === null || value === undefined) return "—";
-        const values = kinds.find((kind) => kind.code === kindCode)?.values;
-        return values?.find((entry) => entry.code === value)?.label ?? value;
+function kindLabel(kinds, record) {
+    const label = kinds.find((kind) => kind.code === record.kind)?.label;
+    if (!label) return record.kind;
+    return record.caption ? `${label}: ${record.caption}` : label;
+}
+
+function valueLabel(kinds, kindCode, value) {
+    if (value === null || value === undefined) return "—";
+    const values = kinds.find((kind) => kind.code === kindCode)?.values;
+    return values?.find((entry) => entry.code === value)?.label ?? value;
+}
+
+// Self-reported proficiency estimates for one language: native speaker /
+// self-assessed / teacher-assessed / a certifying organization, each
+// carrying its own value scale (see `emmio.language_knowledge`). Distinct
+// from a lexicon's computed rate; every estimate added is kept, never
+// overwritten.
+//
+// Scoped to a single language because this lives on that language's own page
+// (see `initLanguage`): the language is fixed by the URL rather than picked
+// in the form, and the list shows only this language's estimates.
+export async function initLanguageEstimates(language) {
+    const table = document.getElementById("knowledge-table");
+    const rows = document.getElementById("knowledge-rows");
+    const knowledgeStatus = document.getElementById("knowledge-status");
+    const form = document.getElementById("add-knowledge-form");
+    const addStatus = document.getElementById("add-knowledge-status");
+
+    const kinds = await loadKnowledgeKinds();
+    if (kinds === null) {
+        knowledgeStatus.textContent = "Could not load assessment kinds.";
+        return;
     }
+    const fields = setupEstimateFields(kinds, language);
 
     async function loadRecords() {
         const response = await api("/me/language-knowledge");
@@ -197,24 +242,22 @@ export async function initLanguages() {
             knowledgeStatus.textContent = "Could not load your estimates.";
             return;
         }
-        const records = await response.json();
+        const records = (await response.json()).filter(
+            (record) => record.language === language,
+        );
         rows.innerHTML = "";
         table.hidden = records.length === 0;
         knowledgeStatus.textContent =
-            records.length === 0 ? "No estimates yet." : "";
+            records.length === 0 ? "No estimates for this language yet." : "";
         for (const record of records) {
             const row = document.createElement("tr");
 
-            const languageCell = document.createElement("td");
-            languageCell.textContent = languageName(record.language);
-            row.appendChild(languageCell);
-
             const kindCell = document.createElement("td");
-            kindCell.textContent = kindLabel(record);
+            kindCell.textContent = kindLabel(kinds, record);
             row.appendChild(kindCell);
 
             const valueCell = document.createElement("td");
-            valueCell.textContent = valueLabel(record.kind, record.value);
+            valueCell.textContent = valueLabel(kinds, record.kind, record.value);
             row.appendChild(valueCell);
 
             const dateCell = document.createElement("td");
@@ -240,34 +283,14 @@ export async function initLanguages() {
         }
     }
 
-    status.textContent = "";
     await loadRecords();
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const kind = currentKind();
-        let value = null;
-        if (kind?.numeric_range) {
-            value = valueNumber.value;
-        } else if (kind?.values.length > 0) {
-            value =
-                valueSelect.value === OTHER
-                    ? valueOther.value
-                    : valueSelect.value;
-        } else if (kind?.allows_other) {
-            value = valueOther.value;
-        }
-
         addStatus.textContent = "Adding…";
         const result = await api("/me/language-knowledge", {
             method: "POST",
-            body: {
-                language: languageSelect.value,
-                kind: kindSelect.value,
-                value: value || null,
-                caption: kind?.has_caption ? captionInput.value || null : null,
-                date: kind?.requires_date ? dateInput.value : null,
-            },
+            body: { language, ...fields.collect() },
         });
         if (result.ok) {
             addStatus.textContent = "";

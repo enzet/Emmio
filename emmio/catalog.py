@@ -57,3 +57,28 @@ distinction at all (Chinese, Georgian, Japanese, etc.) do not need an entry
 here: `cap_ratio` is naturally near 0 or `None` for them, since no word ever
 appears titlecased, so the heuristic is already harmless without this list.
 """
+
+DEFAULT_CURATED_LISTS: dict[str, str] = {
+    "de": "de_opensubtitles_2024",
+    "el": "el_opensubtitles_2024",
+    "en": "en_opensubtitles_2024",
+    "es": "es_opensubtitles_2024",
+    "fr": "fr_opensubtitles_2024",
+    "it": "it_opensubtitles_2024",
+    "pt": "pt_opensubtitles_2024",
+    "ru": "ru_opensubtitles_2024",
+    "uk": "uk_opensubtitles_2024",
+}
+"""Map each language code to the curated panel a new language starts with.
+
+Values are `curated_lists.frequency_list_id` keys (see
+`emmio.lists.config.frequency_list_identifier`): adding a language creates a
+default `stratified` lexicon over this panel, so only languages listed here
+can be added at all.
+
+Hand-maintained, unlike the generated catalogs above — a curated panel exists
+because someone curated it, which no external source can tell us. Adding an
+entry here without the matching `curated_lists` row in the database makes the
+language *look* offerable and then fail at creation, so the two must be kept
+in step (`emmio data build-panel` creates the row).
+"""

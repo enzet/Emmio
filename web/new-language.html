@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Emmio — Languages</title>
+        <title>Emmio — Add a language</title>
         <link rel="icon" href="/doc/icon.svg" type="image/svg+xml" />
         <link
             rel="preload"
@@ -17,47 +17,33 @@
         <link rel="stylesheet" href="modern.css" />
         <script src="app.js" type="module"></script>
     </head>
-    <body data-page="languages">
+    <body data-page="new-language">
         <header>
             <a href="index" class="home">
                 <img src="/doc/logo.svg" alt="Emmio" class="logo-corner" />
             </a>
             <nav>
-                <a href="lexicons">Lexicons</a>
-                <a href="courses">Courses</a>
-                <a href="curated-lists">Curated lists</a>
-                <a href="languages">Languages</a>
+                <a href="index">← Languages</a>
             </nav>
             <a href="profile" class="profile-link">Profile</a>
         </header>
         <main>
-            <h1>Language knowledge</h1>
-            <p class="hint">
-                Self-reported proficiency estimates — native speaker,
-                self-assessed, teacher-assessed, or a certifying
-                organization's result. Distinct from a lexicon's computed
-                vocabulary rate; every estimate you add is kept, so you can
-                track how your self-assessment changes over time.
+            <h1 id="add-language-heading">Add a language</h1>
+            <p>
+                A language gathers everything you do in it. It starts with a
+                lexicon over the language's curated word list, which measures
+                how much of its vocabulary you know, and with your own
+                estimate of where you stand — so there is something to read
+                the measured rate against from the first day.
             </p>
-            <table id="knowledge-table" hidden>
-                <thead>
-                    <tr>
-                        <th scope="col">Language</th>
-                        <th scope="col">Kind</th>
-                        <th scope="col">Value</th>
-                        <th scope="col">Date</th>
-                        <th scope="col"></th>
-                    </tr>
-                </thead>
-                <tbody id="knowledge-rows"></tbody>
-            </table>
-            <p id="knowledge-status" role="status"></p>
-
-            <h2>Add an estimate</h2>
-            <form class="add-form" id="add-knowledge-form">
+            <form
+                class="add-form"
+                id="add-language-form"
+                aria-labelledby="add-language-heading"
+            >
                 <div class="field">
-                    <label for="add-knowledge-language">Language</label>
-                    <select id="add-knowledge-language" required></select>
+                    <label for="add-language-language">Language</label>
+                    <select id="add-language-language" required></select>
                 </div>
                 <div class="field">
                     <label for="add-knowledge-kind">Kind</label>
@@ -94,12 +80,9 @@
                     <label for="add-knowledge-date">Date</label>
                     <input id="add-knowledge-date" type="date" />
                 </div>
-                <button type="submit">Add</button>
+                <button type="submit">Add language</button>
             </form>
-            <p id="add-knowledge-status" role="status"></p>
+            <p id="add-language-status" role="status"></p>
         </main>
-        <footer>
-            <p id="status" role="status">Loading…</p>
-        </footer>
     </body>
 </html>

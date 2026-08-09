@@ -1,0 +1,43 @@
+# Keep only what the Docker build actually needs (pyproject.toml, README.md,
+# emmio/, web/, doc/, data/, per the Dockerfile's COPY list) out of a repo
+# that also holds CLI-only code, tooling, and personal notes.
+
+.git
+.github
+.venv
+.idea
+.vscode
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+.DS_Store
+.coverage
+Emmio.egg-info
+
+# Real secrets -- never bake these into an image layer even though the
+# Dockerfile's COPY list would not currently pull them in anyway.
+.env
+
+# Gitignored personal research notes and local curation tooling -- must be
+# excluded explicitly, since .dockerignore does not inherit .gitignore and a
+# naive `COPY . .` would otherwise ship them inside the image.
+research/
+curation/
+work/
+
+# Not needed to run the API server.
+tests/
+ios/
+rust/
+c/
+image/
+scripts/
+visualize/
+out/
+Dockerfile
+.dockerignore
+docker-compose.yml
+Caddyfile
+.env.example

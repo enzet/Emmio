@@ -15,6 +15,9 @@ os.environ["EMMIO_DATABASE_URL"] = "postgresql:///emmio_test"
 # The imports have to happen after the environment variable is set, so that
 # the lazily created global connection uses the test database.
 from emmio import postgres  # pylint: disable=wrong-import-position
+from emmio.api.app import (
+    reset_rate_limiters,  # pylint: disable=wrong-import-position
+)
 from emmio.api.sessions import (  # pylint: disable=wrong-import-position
     LEARNING_REGISTRY,
     LEXICON_SESSIONS,
@@ -24,7 +27,7 @@ CLEAN_STATEMENT: LiteralString = (
     "TRUNCATE users, learning_records, learning_sessions, learnings, "
     "courses, lexicon_records, lexicon_words, lexicon_sessions, lexicons, "
     "curated_word_records, curated_words, curated_lists, "
-    "language_knowledge_records "
+    "language_knowledge_records, user_languages "
     "RESTART IDENTITY CASCADE"
 )
 
@@ -47,3 +50,4 @@ def clean_registries() -> None:
     """
     LEXICON_SESSIONS.reset()
     LEARNING_REGISTRY.reset()
+    reset_rate_limiters()

@@ -1,0 +1,8 @@
+# Reverse-proxies EMMIO_DOMAIN to the api container and handles HTTPS
+# automatically (Let's Encrypt, auto-renewed) -- see docker-compose.yml.
+# {$EMMIO_DOMAIN} is Caddy's own env-var substitution, not shell/Compose
+# interpolation.
+
+{$EMMIO_DOMAIN} {
+	reverse_proxy api:8000
+}

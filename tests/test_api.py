@@ -2581,6 +2581,169 @@ def test_delete_me_removes_user_and_data() -> None:
     assert postgres.list_learnings("alice") == []
 
 
+_UK_ESTIMATE: dict[str, Any] = {
+    "language": "uk",
+    "kind": "self",
+    "value": "B1",
+    "date": "2026-01-01",
+}
+
+
+def _curated_uk_list() -> int:
+    """Create the curated panel `DEFAULT_CURATED_LISTS` expects for `uk`."""
+    return postgres.create_curated_list(
+        "uk", "uk_opensubtitles_2024", "UK Curated"
+    )
+
+
+def test_create_language_opens_lexicon_and_estimate(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """Adding a language creates its default lexicon and starting estimate."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token)
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["language"] == "uk"
+    assert body["selection"] == "stratified"
+    assert body["self_reported"]["value"] == "B1"
+
+    # The lexicon draws from the curated panel, and is the language's main.
+    lexicon_id = body["lexicon_id"]
+    assert lexicon_id is not None
+    config = postgres.get_lexicon_config("alice", lexicon_id)
+    assert config is not None
+    assert config["selection"] == "stratified"
+    assert config["frequency_list"]["curated"] is True
+    assert postgres.is_main_lexicon("alice", lexicon_id)
+
+    # And the estimate is real history, not just an echo in the response.
+    records = postgres.get_language_knowledge_records("alice")
+    assert [(row[1], row[2], row[3]) for row in records] == [
+        ("uk", "self", "B1")
+    ]
+
+
+def test_create_language_rejects_a_language_already_added(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A user has at most one object per language, so adding twice is 409."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+    client.post("/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token))
+
+    response = client.post(
+        "/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token)
+    )
+    assert response.status_code == 409
+    assert "already" in response.json()["detail"]
+    # Still exactly one lexicon: the rejected call created nothing.
+    assert len(postgres.list_lexicons("alice")) == 1
+
+
+def test_create_language_rejects_an_invalid_estimate(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """A bad estimate fails before anything is written.
+
+    `native` takes no date — a learner is not native "as of" some date — so
+    sending one is rejected, and the language and its lexicon must not
+    survive that rejection.
+    """
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/languages",
+        json={"language": "uk", "kind": "native", "date": "2026-01-01"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+    assert postgres.get_user_languages("alice") == []
+    assert postgres.list_lexicons("alice") == []
+
+
+def test_create_language_rejects_a_language_with_no_curated_list() -> None:
+    """A language with no curated panel configured cannot be added."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.post(
+        "/api/v1/me/languages",
+        json={**_UK_ESTIMATE, "language": "hy"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 400
+    assert postgres.get_user_languages("alice") == []
+
+
+def test_create_language_rejects_a_curated_list_not_built_yet() -> None:
+    """Configured but unbuilt: offerable in theory, rejected in practice."""
+
+    token = _register_and_login("alice", "alice@example.com")
+
+    # No `_curated_uk_list()` here, so `uk` is configured but has no panel.
+    response = client.post(
+        "/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token)
+    )
+    assert response.status_code == 400
+    assert "not been built" in response.json()["detail"]
+
+
+def test_available_languages_exclude_already_added_and_unbuilt(
+    fake_uk_list: FrequencyList,  # noqa: ARG001
+) -> None:
+    """The picker offers exactly what creation would accept."""
+
+    _curated_uk_list()
+    token = _register_and_login("alice", "alice@example.com")
+
+    response = client.get(
+        "/api/v1/me/languages/available", headers=_auth(token)
+    )
+    assert response.status_code == 200
+    # Only `uk` has a panel built; the rest are configured but unbuilt.
+    assert [option["language"] for option in response.json()] == ["uk"]
+
+    client.post("/api/v1/me/languages", json=_UK_ESTIMATE, headers=_auth(token))
+    response = client.get(
+        "/api/v1/me/languages/available", headers=_auth(token)
+    )
+    assert response.json() == []
+
+
+def test_delete_me_removes_language_knowledge() -> None:
+    """Deleting the account removes its self-reported proficiency estimates.
+
+    Regression test: these records were previously left behind, so deleting
+    any user who had recorded one failed on the `users` foreign key.
+    """
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "B2",
+            "date": "2026-01-01",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+
+    assert client.delete("/api/v1/me", headers=_auth(token)).status_code == 204
+    assert not postgres.user_exists("alice")
+    assert postgres.get_language_knowledge_records("alice") == []
+
+
 def test_delete_me_leaves_other_users_intact() -> None:
     """Deleting one account does not touch another user's data."""
 

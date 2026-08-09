@@ -1,6 +1,7 @@
 *.pyc
 .DS_Store
 .coverage
+.env
 .idea
 .venv
 .vscode
@@ -9,6 +10,7 @@ __pycache__
 c/text
 curation/
 data/*.ttf
+data/output/
 cache
 image/*.svg
 out

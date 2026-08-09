@@ -26,7 +26,6 @@
                 <a href="lexicons">Lexicons</a>
                 <a href="courses">Courses</a>
                 <a href="curated-lists">Curated lists</a>
-                <a href="languages">Languages</a>
             </nav>
             <a href="profile" class="profile-link">Profile</a>
         </header>
@@ -34,13 +33,14 @@
             <section id="welcome" aria-labelledby="welcome-heading" hidden>
                 <h2 id="welcome-heading">Welcome to Emmio</h2>
                 <p>
-                    A lexicon tracks how much of a language's vocabulary you
-                    know. You don't have one set as your main lexicon yet —
-                    pick a language to create your first one.
+                    A language gathers everything you do in it: lexicons that
+                    track how much of its vocabulary you know, learnings you
+                    drill, and proficiency estimates you record by hand. You
+                    don't have any yet — pick one to start with.
                 </p>
                 <p>
-                    <a href="new-lexicon" class="button primary"
-                        >Create your first lexicon</a
+                    <a href="new-language" class="button primary"
+                        >Add your first language</a
                     >
                 </p>
             </section>
@@ -56,18 +56,15 @@
                                     <th scope="col">Language</th>
                                     <th scope="col">Rate</th>
                                     <th scope="col">Level</th>
+                                    <th scope="col">Self-reported</th>
                                     <th scope="col">Lexicon</th>
-                                    <th scope="col">Courses</th>
                                 </tr>
                             </thead>
                             <tbody id="languages-rows"></tbody>
                         </table>
                         <p>
-                            <button id="add-lexicon-button" type="button">
-                                Add a lexicon
-                            </button>
-                            <button id="add-course-button" type="button">
-                                Add a course
+                            <button id="add-language-button" type="button">
+                                Add a language
                             </button>
                         </p>
                     </div>
@@ -100,6 +97,25 @@
                     </div>
                     <div></div>
                 </div>
+            </section>
+            <section id="courses" aria-labelledby="courses-heading">
+                <h2 id="courses-heading">Courses</h2>
+                <p id="courses-status" role="status"></p>
+                <table id="course-table" hidden>
+                    <thead>
+                        <tr>
+                            <th scope="col">Course</th>
+                            <th scope="col">Language</th>
+                            <th scope="col">Learnings</th>
+                        </tr>
+                    </thead>
+                    <tbody id="course-rows"></tbody>
+                </table>
+                <p>
+                    <button id="add-course-button" type="button">
+                        Add a course
+                    </button>
+                </p>
             </section>
         </main>
     </body>

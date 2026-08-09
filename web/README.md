@@ -21,7 +21,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 
 | File            | Role                                                         |
 |-----------------|--------------------------------------------------------------|
-| `index.html`    | Home / dashboard: links to lexicons and courses.             |
+| `index.html`    | Home / dashboard: a Languages section (rate, level, self-reported level, main lexicon) and a Courses section, each with its own "add" button. |
 | `login.html`    | Log in form.                                                 |
 | `register.html` | Registration form.                                           |
 | `lexicons.html` | Table of the user's lexicons (short info per lexicon).       |
@@ -34,7 +34,7 @@ Then open <http://localhost:8000/app/>. (Set `EMMIO_JWT_SECRET` and
 | `curated-lists.html` | Table of curated lists (word count, curate/auto-curate/extend/delete actions), plus a "build a panel" form (`emmio data build-panel`'s web equivalent). |
 | `curated-list.html`  | One curated list: a paginated table of its words and their curation status. |
 | `curate.html`   | Curate a list: shows a word, records its category.           |
-| `languages.html` | Self-reported language knowledge: add and list proficiency estimates. |
+| `new-language.html` | Add a language: opens an (initially empty) language object. |
 | `app.js`        | Entry point: dispatches on `<body data-page="...">`.         |
 
 `app.js` is loaded as an ES module (`<script type="module">`) and only holds
@@ -50,12 +50,12 @@ the dispatch table; the actual logic lives under `js/`, one module per concern:
 | `js/learn-session.js`    | `runLearnSession()` (course learning) and the learn page.         |
 | `js/curate-session.js`   | The curated-lists picker (plus its "build a panel" form, `emmio data build-panel`'s web equivalent), the per-list word table, and the curate page (`emmio curate`'s web equivalent). |
 | `js/auth-pages.js`       | Landing, login, register.                                        |
-| `js/home-pages.js`       | Dashboard and the per-language page.                              |
+| `js/home-pages.js`       | Dashboard, the per-language page, and add-a-language.             |
 | `js/lexicon-pages.js`    | Lexicon list, lexicon detail + settings, add-a-lexicon.           |
 | `js/lexicon-words.js`    | A lexicon's word list, filtered All / Know / Don't know.          |
 | `js/course-pages.js`     | Course list, course detail + learning settings, add-a-course/learning. |
 | `js/profile.js`          | Profile page.                                                    |
-| `js/language-knowledge.js` | Self-reported language knowledge: add/list/delete estimates.  |
+| `js/language-knowledge.js` | One language's self-reported estimates: add/list/delete, embedded in `language.html` by `initLanguage`. |
 
 Lexicon checking uses `runSession()` (a yes/no flow: next → reveal translation
 → answer). Learning uses `runLearnSession()`, which renders whichever review

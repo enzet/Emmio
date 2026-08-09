@@ -1,0 +1,73 @@
+# Self-hosted deployment for a VPS: Postgres + the Emmio API, behind Caddy
+# for automatic HTTPS. Reflects two launch decisions in research/app.md
+# "Deployment readiness": a self-hosted VPS rather than a managed platform
+# (checklist item 3), and shipping curated-lexicon-checking only for now,
+# against the small `EMMIO_SERVER_DATA_DIR` export rather than the full
+# ~49 GB corpus (checklist item 5).
+#
+# Setup:
+#   1. cp .env.example .env, then fill in every value .env.example flags.
+#   2. On the host, populate EMMIO_SERVER_DATA_DIR with the curated export
+#      (dictionaries/curated/, sentences/curated/) -- see
+#      curation/README.md "Publishing to the server". It must exist and be
+#      populated before the api container starts.
+#   3. docker compose up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: emmio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: emmio
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Postgres only runs *.sql files under docker-entrypoint-initdb.d on a
+      # brand-new (empty) volume, so this seeds the schema on first boot and
+      # is a no-op on every boot after. schema.sql uses CREATE TABLE IF NOT
+      # EXISTS throughout, so it is also safe to leave mounted permanently.
+      - ./scripts/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emmio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No `ports:` -- only `api`, over the internal compose network, ever
+    # talks to this.
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      EMMIO_ENV: production
+      EMMIO_JWT_SECRET: ${EMMIO_JWT_SECRET:?set EMMIO_JWT_SECRET in .env}
+      EMMIO_DATABASE_URL: postgresql://emmio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/emmio
+      EMMIO_DATA_DIR: /data
+    volumes:
+      - ${EMMIO_SERVER_DATA_DIR:?set EMMIO_SERVER_DATA_DIR in .env}:/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No `ports:` either -- only Caddy is reachable from outside the host,
+    # which is what makes the Dockerfile's --forwarded-allow-ips='*' safe.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      EMMIO_DOMAIN: ${EMMIO_DOMAIN:?set EMMIO_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

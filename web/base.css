@@ -1046,7 +1046,7 @@ button.wrong {
     border-color: var(--wrong-border);
 }
 
-/* A "key: value" form (e.g. "Add an estimate" on languages.html): labels sit
+/* A "key: value" form (e.g. "Add an estimate" on language.html): labels sit
    in one uniform-width column (`max-content`, sized to the widest label) and
    controls in another (`1fr`, so every `<select>`/`<input>` renders at the
    same width) — table-like, without an actual `<table>`. Each field is a

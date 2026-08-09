@@ -1,16 +1,59 @@
 import { createLanguageHistoryChart } from "./charts.js";
-import { emmioLevel, formatRate, identifierSpan, languageName, strategyIconPrefix } from "./format.js";
+import { emmioLevel, fillLanguageSelect, formatRate, identifierSpan, languageName, strategyIconPrefix } from "./format.js";
 import { api, requireAuth } from "./api.js";
+import { initLanguageEstimates, loadKnowledgeKinds, setupEstimateFields } from "./language-knowledge.js";
 
 // Home / dashboard page.
+
+// The dashboard's Courses section: every course, whatever language it names
+// (or none). A course with no learnings yet offers to add one directly,
+// since an empty course is a dead end otherwise.
+function renderCourses(courses) {
+    const status = document.getElementById("courses-status");
+    const table = document.getElementById("course-table");
+    const rows = document.getElementById("course-rows");
+
+    status.textContent = courses.length === 0 ? "No courses yet." : "";
+    table.hidden = courses.length === 0;
+
+    for (const course of courses) {
+        const row = document.createElement("tr");
+
+        const nameCell = document.createElement("td");
+        const link = document.createElement("a");
+        link.href = `course?course=${encodeURIComponent(course.course_id)}`;
+        link.textContent = course.name;
+        nameCell.appendChild(link);
+        row.appendChild(nameCell);
+
+        const languageCell = document.createElement("td");
+        languageCell.textContent = languageName(course.language);
+        row.appendChild(languageCell);
+
+        const learningsCell = document.createElement("td");
+        if (course.learning_count > 0) {
+            learningsCell.textContent = course.learning_count;
+        } else {
+            const add = document.createElement("a");
+            add.href = `new-learning?course=${encodeURIComponent(
+                course.course_id,
+            )}`;
+            add.textContent = "+ add a learning";
+            learningsCell.appendChild(add);
+        }
+        row.appendChild(learningsCell);
+
+        rows.appendChild(row);
+    }
+}
 
 export async function initHome() {
     requireAuth();
 
     document
-        .getElementById("add-lexicon-button")
+        .getElementById("add-language-button")
         .addEventListener("click", () => {
-            location.href = "new-lexicon";
+            location.href = "new-language";
         });
     document
         .getElementById("add-course-button")
@@ -32,16 +75,12 @@ export async function initHome() {
     ]);
     const summaries = summaryResponse.ok ? await summaryResponse.json() : [];
     const courses = coursesResponse.ok ? await coursesResponse.json() : [];
-    const coursesByLanguage = new Map();
-    for (const course of courses) {
-        const list = coursesByLanguage.get(course.language) || [];
-        list.push(course);
-        coursesByLanguage.set(course.language, list);
-    }
+    // Courses have their own section: they are a sibling of languages, not
+    // something a language contains, so they are listed in full rather than
+    // grouped under the languages they happen to name.
+    renderCourses(courses);
 
-    // Nothing yet: welcome the user and offer to create their first lexicon.
-    // The dashboard shows for any language the user has a main lexicon *or* a
-    // course for.
+    // Nothing yet: welcome the user and offer to add their first language.
     if (summaries.length === 0 && courses.length === 0) {
         document.getElementById("welcome").hidden = false;
         return;
@@ -60,10 +99,8 @@ export async function initHome() {
     // can still reach it later.
     let chart = null;
 
-    // Render one language row. `summary` is its main-lexicon identity (from
-    // `/me/languages/summary`) or `null` when the language only has courses;
-    // `courseList` are its courses.
-    function renderLanguageRow(language, summary, courseList) {
+    // Render one language row from its `/me/languages/summary` entry.
+    function renderLanguageRow(language, summary) {
         const row = document.createElement("tr");
 
         const nameCell = document.createElement("td");
@@ -79,8 +116,13 @@ export async function initHome() {
         nameCell.appendChild(nameLink);
         row.appendChild(nameCell);
 
+        // A language object exists as soon as the user has anything in the
+        // language, so it may well have no main lexicon (and thus no rate):
+        // a language they have only self-reported a level for still shows up.
+        const hasLexicon = Boolean(summary && summary.lexicon_id);
+
         const rateCell = document.createElement("td");
-        rateCell.textContent = summary ? "…" : "—";
+        rateCell.textContent = hasLexicon ? "…" : "—";
         rateCell.style.fontVariantNumeric = "tabular-nums";
         rateCell.style.textAlign = "right";
         row.appendChild(rateCell);
@@ -88,17 +130,38 @@ export async function initHome() {
         // Emmio-specific language level, derived from the rate once it
         // arrives.
         const levelCell = document.createElement("td");
-        levelCell.textContent = summary ? "…" : "—";
+        levelCell.textContent = hasLexicon ? "…" : "—";
         levelCell.style.fontVariantNumeric = "tabular-nums";
         levelCell.style.textAlign = "right";
         row.appendChild(levelCell);
+
+        // The level the user reported by hand (newest estimate), alongside
+        // the computed one — the two are independent, neither derives from
+        // the other.
+        const selfReportedCell = document.createElement("td");
+        const selfReported = summary && summary.self_reported;
+        if (selfReported) {
+            const label = selfReported.caption || selfReported.kind_label;
+            selfReportedCell.appendChild(
+                document.createTextNode(
+                    selfReported.value ? `${selfReported.value} ` : "",
+                ),
+            );
+            const kind = document.createElement("span");
+            kind.className = "knowledge-kind";
+            kind.textContent = selfReported.value ? `(${label})` : label;
+            selfReportedCell.appendChild(kind);
+        } else {
+            selfReportedCell.textContent = "—";
+        }
+        row.appendChild(selfReportedCell);
 
         // Lexicon column: a link to the main lexicon plus check-availability;
         // filled in once the rate estimate arrives below.
         const lexiconCell = document.createElement("td");
         row.appendChild(lexiconCell);
 
-        if (summary) {
+        if (hasLexicon) {
             pendingCells.set(language, { rateCell, levelCell, lexiconCell });
             // Sync with the history chart: hovering this row highlights its
             // line there, and (wired the other way, in the chart itself)
@@ -111,63 +174,33 @@ export async function initHome() {
             });
         }
 
-        // Courses for this language, each linking to its detail page; a
-        // course with no learnings yet offers to add one directly.
-        const coursesCell = document.createElement("td");
-        coursesCell.className = "courses-cell";
-        for (const course of courseList) {
-            if (course.learning_count > 0) {
-                const link = document.createElement("a");
-                link.href = `course?course=${encodeURIComponent(
-                    course.course_id,
-                )}`;
-                link.textContent = course.name;
-                coursesCell.appendChild(link);
-            } else {
-                const empty = document.createElement("span");
-                empty.className = "course-empty";
-                empty.appendChild(
-                    document.createTextNode(`${course.name} (`),
-                );
-                const add = document.createElement("a");
-                add.href = `new-learning?course=${encodeURIComponent(
-                    course.course_id,
-                )}`;
-                add.textContent = "+ add a learning";
-                empty.appendChild(add);
-                empty.appendChild(document.createTextNode(")"));
-                coursesCell.appendChild(empty);
-            }
-        }
-        row.appendChild(coursesCell);
-
         rows.appendChild(row);
         return row;
     }
 
     // Languages with a main lexicon first (re-sorted by rate once it
-    // arrives), then course-only ones alphabetically. `sectionEnd` marks the
+    // arrives), then the rateless ones alphabetically. `sectionEnd` marks the
     // boundary so rated rows can be moved before it without disturbing the rest.
     const rated = new Set();
     const ratedRows = new Map();
     for (const summary of summaries) {
+        if (!summary.lexicon_id) continue;
         rated.add(summary.language);
         ratedRows.set(
             summary.language,
-            renderLanguageRow(
-                summary.language,
-                summary,
-                coursesByLanguage.get(summary.language) || [],
-            ),
+            renderLanguageRow(summary.language, summary),
         );
     }
-    const sectionEnd = document.createComment("course-only");
+    const sectionEnd = document.createComment("rateless");
     rows.appendChild(sectionEnd);
-    const courseOnly = [...coursesByLanguage.keys()]
-        .filter((language) => !rated.has(language))
-        .sort((a, b) => languageName(a).localeCompare(languageName(b)));
-    for (const language of courseOnly) {
-        renderLanguageRow(language, null, coursesByLanguage.get(language));
+    // Languages with no main lexicon, and so no rate to sort by: their only
+    // content is a self-reported level, a learning, or a non-main lexicon.
+    for (const summary of summaries
+        .filter((entry) => !rated.has(entry.language))
+        .sort((a, b) =>
+            languageName(a.language).localeCompare(languageName(b.language)),
+        )) {
+        renderLanguageRow(summary.language, summary);
     }
 
     // Fill in the rate/level/lexicon-check columns, and re-sort the rated
@@ -278,6 +311,10 @@ export async function initLanguage() {
             location.href = "new-course";
         });
 
+    // Self-reported estimates for this language, in their own module (the
+    // form is a small state machine over the assessment-kind taxonomy).
+    initLanguageEstimates(language);
+
     const lexiconsStatus = document.getElementById("lexicons-status");
     const lexiconTable = document.getElementById("lexicon-table");
     const lexiconRows = document.getElementById("lexicon-rows");
@@ -360,4 +397,59 @@ export async function initLanguage() {
 
         courseRows.appendChild(row);
     }
+}
+
+// "Add a language" page. The server creates the language, a default lexicon
+// over its curated list, and the starting estimate in one go, so this form
+// collects the language plus that estimate (see `create_my_language`).
+
+export async function initNewLanguage() {
+    requireAuth();
+
+    const form = document.getElementById("add-language-form");
+    const select = document.getElementById("add-language-language");
+    const status = document.getElementById("add-language-status");
+    const submit = form.querySelector('button[type="submit"]');
+
+    // Only languages that can still be added: one the user already has, or
+    // one with no curated list behind it, would be rejected on submit.
+    const [languagesResponse, kinds] = await Promise.all([
+        api("/me/languages/available"),
+        loadKnowledgeKinds(),
+    ]);
+    if (!languagesResponse.ok || kinds === null) {
+        status.textContent = "Could not load languages or assessment kinds.";
+        return;
+    }
+    const available = await languagesResponse.json();
+    if (available.length === 0) {
+        status.textContent =
+            "You have already added every language Emmio has a curated word " +
+            "list for.";
+        submit.disabled = true;
+        return;
+    }
+    fillLanguageSelect(select, available);
+
+    const fields = setupEstimateFields(kinds, select.value);
+    select.addEventListener("change", () => fields.setLanguage(select.value));
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        status.textContent = "Adding…";
+        const result = await api("/me/languages", {
+            method: "POST",
+            body: { language: select.value, ...fields.collect() },
+        });
+        if (result.ok) {
+            // Straight to the new language's own page, where its lexicon is
+            // waiting and further estimates are added.
+            location.href = `language?language=${encodeURIComponent(
+                select.value,
+            )}`;
+        } else {
+            const { detail } = await result.json().catch(() => ({}));
+            status.textContent = detail || "Could not add language.";
+        }
+    });
 }

@@ -24,12 +24,35 @@ CREATE TABLE IF NOT EXISTS users (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Languages.
+
+-- One row per (user, language): the user's relationship with a language,
+-- gathering everything they do in it — lexicons, learnings, and self-reported
+-- proficiency estimates all point here. Unlike a course, this is not a
+-- grouping the user invents: it exists once per language, keyed on the
+-- language code, so there is exactly one place per language to attach to.
+--
+-- `main_lexicon_id` is the lexicon whose rate is taken as the user's level in
+-- this language (added by an ALTER below, since `lexicons` is defined after
+-- this table). One main per language is structural here — it is a single
+-- column, rather than the flag plus partial unique index it replaced.
+CREATE TABLE IF NOT EXISTS user_languages (
+    id       SERIAL PRIMARY KEY,
+    user_id  INT NOT NULL REFERENCES users(id),
+    language TEXT NOT NULL,
+    UNIQUE (user_id, language)
+);
+
 -- Courses and learning.
 
--- Stable identity for a course: a language-level set (e.g. "Armenian") that
--- groups one or more learnings (vocabulary, alphabet, irregular verbs, ...).
--- `course_id` is unique per user. A course has no configuration of its own
--- beyond identity: everything else lives on its learnings.
+-- Stable identity for a course: a user-invented set that groups one or more
+-- learnings (vocabulary, alphabet, irregular verbs, ...). `course_id` is
+-- unique per user. A course has no configuration of its own beyond identity:
+-- everything else lives on its learnings.
+--
+-- A course is the *non*-language grouping: unlike `user_languages`, it is
+-- named by the user and need not relate to a language at all (Morse code,
+-- say). A learning belongs to exactly one of the two — see `learnings`.
 CREATE TABLE IF NOT EXISTS courses (
     id        SERIAL PRIMARY KEY,
     user_id   INT NOT NULL REFERENCES users(id),
@@ -40,9 +63,16 @@ CREATE TABLE IF NOT EXISTS courses (
 );
 
 -- Stable identity for a learning (one drillable unit: vocabulary, an
--- alphabet, irregular verbs, ...), owned by a user and belonging to a course.
--- `learning_id` is unique per user, so different users may both have an `fr`
--- learning.
+-- alphabet, irregular verbs, ...), owned by a user. `learning_id` is unique
+-- per user, so different users may both have an `fr` learning.
+--
+-- A learning hangs off exactly one parent: a `user_languages` row when it is
+-- part of what the user does in a language, or a `courses` row when it
+-- belongs to a user-invented grouping instead (Morse code has no language).
+-- The CHECK below enforces exactly-one — never both, never neither — so
+-- there is always a single answer to "what is this learning part of".
+-- `course_id` was `NOT NULL` before `language_id` existed; the ALTERs below
+-- relax it for existing databases.
 --
 -- Unlike a lexicon, a learning has no statistical estimate that depends on
 -- how questions are picked, so there is no immutable selection/frequency-list
@@ -56,9 +86,12 @@ CREATE TABLE IF NOT EXISTS learnings (
     learning_id       TEXT NOT NULL,
     name              TEXT NOT NULL,
     learning_language TEXT NOT NULL,
-    course_id         INT NOT NULL REFERENCES courses(id),
+    course_id         INT REFERENCES courses(id),
+    language_id       INT REFERENCES user_languages(id),
     config            JSONB NOT NULL DEFAULT '{}',
-    UNIQUE (user_id, learning_id)
+    UNIQUE (user_id, learning_id),
+    CONSTRAINT learnings_one_parent
+        CHECK ((course_id IS NULL) <> (language_id IS NULL))
 );
 
 -- One row per user response. Self-describing: extra captures question
@@ -116,22 +149,21 @@ CREATE INDEX IF NOT EXISTS learning_sessions_learning_start
 -- Per-answer provenance (which sentence/dictionary was shown) lives in
 -- `lexicon_records.extra`, not here.
 --
--- `is_main` marks the lexicon whose rate is taken as the user's level in that
--- language; the partial unique index allows at most one main per language.
+-- Which lexicon counts as the user's level in a language is *not* stored
+-- here: it is `user_languages.main_lexicon_id`. This replaced an `is_main`
+-- flag plus a partial unique index enforcing one main per language; the
+-- patch section at the end of this file carries that flag over and drops it.
 CREATE TABLE IF NOT EXISTS lexicons (
     id             SERIAL PRIMARY KEY,
     user_id        INT NOT NULL REFERENCES users(id),
     lexicon_id     TEXT NOT NULL,
     language       TEXT NOT NULL,
+    language_id    INT REFERENCES user_languages(id),
     selection      TEXT,
     frequency_list JSONB,
     config         JSONB NOT NULL DEFAULT '{}',
-    is_main        BOOLEAN NOT NULL DEFAULT FALSE,
     UNIQUE (user_id, lexicon_id)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS lexicons_one_main_per_language
-    ON lexicons (user_id, language) WHERE is_main;
 
 -- Each word stored once per lexicon. Also caches current word state
 -- (`response`, `to_skip`, `last_seen`) for fast lookups without scanning
@@ -281,9 +313,10 @@ CREATE INDEX IF NOT EXISTS curated_word_records_word_time
 --   (`native`: a learner is not native "as of" some date) and required for
 --   every other kind (see `is_valid_knowledge_date`).
 CREATE TABLE IF NOT EXISTS language_knowledge_records (
-    id         BIGSERIAL PRIMARY KEY,
-    user_id    INT NOT NULL REFERENCES users(id),
-    language   TEXT NOT NULL,
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     INT NOT NULL REFERENCES users(id),
+    language    TEXT NOT NULL,
+    language_id INT REFERENCES user_languages(id),
     kind       TEXT NOT NULL,
     value      TEXT,
     caption    TEXT,
@@ -297,3 +330,90 @@ ALTER TABLE language_knowledge_records ALTER COLUMN date DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS language_knowledge_records_user_language
     ON language_knowledge_records (user_id, language, date);
+
+-- Language objects: patches and backfill.
+--
+-- Everything below patches an existing database forward to the
+-- `user_languages` model above (the `CREATE TABLE`/column definitions there
+-- only take effect on a fresh database). All of it is idempotent and safe to
+-- re-run, including after `lexicons.is_main` has already been dropped.
+
+-- A lexicon and a knowledge record each belong to one language object. The
+-- denormalized `language` text columns are deliberately kept for now: every
+-- existing query reads them, and they are backfilled from the same source,
+-- so they cannot diverge without someone writing one and not the other.
+ALTER TABLE lexicons
+    ADD COLUMN IF NOT EXISTS language_id INT REFERENCES user_languages(id);
+ALTER TABLE language_knowledge_records
+    ADD COLUMN IF NOT EXISTS language_id INT REFERENCES user_languages(id);
+
+-- A learning belongs to a course *or* a language (see `learnings` above).
+ALTER TABLE learnings
+    ADD COLUMN IF NOT EXISTS language_id INT REFERENCES user_languages(id);
+ALTER TABLE learnings ALTER COLUMN course_id DROP NOT NULL;
+
+-- The main lexicon becomes a column on the language object.
+ALTER TABLE user_languages
+    ADD COLUMN IF NOT EXISTS main_lexicon_id INT REFERENCES lexicons(id);
+
+-- One language object per (user, language) the user has anything in. Courses
+-- are included even though their learnings stay put: a user with a French
+-- course should still find a French language object waiting when they move
+-- those learnings over by hand.
+INSERT INTO user_languages (user_id, language)
+SELECT DISTINCT user_id, language FROM (
+    SELECT user_id, language FROM lexicons
+    UNION
+    SELECT user_id, language FROM language_knowledge_records
+    UNION
+    SELECT user_id, language FROM courses
+) AS every_language
+ON CONFLICT (user_id, language) DO NOTHING;
+
+UPDATE lexicons l SET language_id = ul.id
+FROM user_languages ul
+WHERE ul.user_id = l.user_id AND ul.language = l.language
+  AND l.language_id IS DISTINCT FROM ul.id;
+
+UPDATE language_knowledge_records k SET language_id = ul.id
+FROM user_languages ul
+WHERE ul.user_id = k.user_id AND ul.language = k.language
+  AND k.language_id IS DISTINCT FROM ul.id;
+
+-- Carries `lexicons.is_main` over to `user_languages.main_lexicon_id`, then
+-- drops it so there is one source of truth. Guarded on the column still
+-- existing, so re-running this script after the drop is a no-op rather than
+-- an error.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'lexicons' AND column_name = 'is_main'
+    ) THEN
+        UPDATE user_languages ul SET main_lexicon_id = l.id
+        FROM lexicons l
+        WHERE l.user_id = ul.user_id AND l.language = ul.language
+          AND l.is_main AND ul.main_lexicon_id IS NULL;
+    END IF;
+END $$;
+
+DROP INDEX IF EXISTS lexicons_one_main_per_language;
+ALTER TABLE lexicons DROP COLUMN IF EXISTS is_main;
+
+-- The learnings CHECK cannot be added by `CREATE TABLE` on an existing
+-- database; add it separately, once, and only when the data already
+-- satisfies it.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'learnings_one_parent'
+    ) THEN
+        ALTER TABLE learnings ADD CONSTRAINT learnings_one_parent
+            CHECK ((course_id IS NULL) <> (language_id IS NULL));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS lexicons_language ON lexicons (language_id);
+CREATE INDEX IF NOT EXISTS learnings_language ON learnings (language_id);
+CREATE INDEX IF NOT EXISTS language_knowledge_records_language
+    ON language_knowledge_records (language_id);

@@ -40,4 +40,11 @@ EXPOSE 8000
 # $PORT is honored so this also runs unmodified on platforms that assign it
 # (Railway, Render, ...); Fly.io instead maps a fixed internal port in
 # fly.toml, so 8000 is the fallback either way.
-CMD ["sh", "-c", "uvicorn emmio.api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+#
+# --proxy-headers trusts X-Forwarded-For/-Proto from a reverse proxy so
+# emmio/api/rate_limit.py sees the real client IP instead of the proxy's;
+# --forwarded-allow-ips='*' trusts it from *any* address reaching this
+# container, which is only safe because docker-compose.yml never publishes
+# this service's port -- Caddy (the only thing that can reach it) is the
+# trusted proxy. Do not reuse this image with its port published directly.
+CMD ["sh", "-c", "uvicorn emmio.api.app:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
