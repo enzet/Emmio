@@ -13,7 +13,7 @@ web client never hardcodes the taxonomy.
 """
 
 import math
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import NamedTuple
 
 
@@ -84,6 +84,17 @@ class KnowledgeKind(NamedTuple):
     field is dropped rather than asking for an arbitrary one.
     """
 
+    implicit_date: bool = False
+    """Whether the date is always "now", so the user is not asked for it.
+
+    A certificate is dated by whoever issued it, and could have been earned
+    years ago, so the date is a real question. A self-assessment is not: you
+    are assessing yourself *today*, which makes asking pure friction — the
+    record is still dated (`requires_date` stays True, and the history is
+    only meaningful with dates), the date is just filled in rather than
+    typed. See `resolve_knowledge_date`.
+    """
+
 
 _CEFR: tuple[KnowledgeValue, ...] = (
     KnowledgeValue("A1", "A1"),
@@ -103,7 +114,14 @@ _CEFR: tuple[KnowledgeValue, ...] = (
 # than forced onto the nearest curated value.
 KNOWLEDGE_KINDS: tuple[KnowledgeKind, ...] = (
     KnowledgeKind("native", "Native speaker", None, requires_date=False),
-    KnowledgeKind("self", "Self-assessed", None, _CEFR, allows_other=True),
+    KnowledgeKind(
+        "self",
+        "Self-assessed",
+        None,
+        _CEFR,
+        allows_other=True,
+        implicit_date=True,
+    ),
     KnowledgeKind(
         "teacher", "Teacher-assessed", None, _CEFR, allows_other=True
     ),
@@ -242,6 +260,26 @@ def is_valid_knowledge_date(kind: KnowledgeKind, date_: date | None) -> bool:
     :param kind: the chosen assessment kind
     :param date_: the submitted date, or `None`
     """
-    if kind.requires_date:
-        return date_ is not None
-    return date_ is None
+    if not kind.requires_date:
+        return date_ is None
+    if kind.implicit_date:
+        # `None` is the expected case (the client is not asked for a date);
+        # an explicit one is still accepted, so a caller that knows when the
+        # assessment happened can say so.
+        return True
+    return date_ is not None
+
+
+def resolve_knowledge_date(
+    kind: KnowledgeKind, date_: date | None
+) -> date | None:
+    """Fill in the date for a kind that does not ask for one.
+
+    :param kind: the chosen assessment kind
+    :param date_: the submitted date, or `None`
+    :return: the date to store — today for an `implicit_date` kind given
+        nothing, otherwise `date_` unchanged
+    """
+    if kind.requires_date and kind.implicit_date and date_ is None:
+        return datetime.now(UTC).date()
+    return date_

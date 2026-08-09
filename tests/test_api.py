@@ -4919,6 +4919,11 @@ def test_language_knowledge_kinds_lists_curated_taxonomy() -> None:
 
     assert native["requires_date"] is False
     assert self_assessed["requires_date"] is True
+    # A self-assessment is dated, but always as of today, so the client is
+    # told not to ask for it.
+    assert self_assessed["implicit_date"] is True
+    assert native["implicit_date"] is False
+    assert kinds["delf_dalf"]["implicit_date"] is False
 
     ielts = kinds["ielts"]
     assert ielts["values"] == []
@@ -4934,6 +4939,42 @@ def test_language_knowledge_kinds_lists_curated_taxonomy() -> None:
     assert standardized["numeric_range"] is None
     assert standardized["allows_other"] is True
     assert standardized["has_caption"] is True
+
+
+def test_self_assessment_is_dated_today_without_being_asked() -> None:
+    """A self-assessment sends no date and is stamped with today's."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={"language": "fr", "kind": "self", "value": "B2"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+
+    today: date = datetime.now(UTC).date()
+    assert response.json()["date"] == today.isoformat()
+    # Stored, not just echoed: the history is only meaningful with dates.
+    stored = postgres.get_language_knowledge_records("alice")
+    assert [row[5] for row in stored] == [today]
+
+
+def test_self_assessment_still_accepts_an_explicit_date() -> None:
+    """Not asking for a date does not mean refusing one."""
+
+    token = _register_and_login("alice", "alice@example.com")
+    response = client.post(
+        "/api/v1/me/language-knowledge",
+        json={
+            "language": "fr",
+            "kind": "self",
+            "value": "B2",
+            "date": "2020-03-04",
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201
+    assert response.json()["date"] == "2020-03-04"
 
 
 def test_create_language_knowledge_record() -> None:

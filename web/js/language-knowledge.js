@@ -73,14 +73,19 @@ export function setupEstimateFields(kinds, language) {
         if (!kind?.has_caption) captionInput.value = "";
     }
 
-    // `native` needs no date — a learner is not native "as of" some date —
-    // so its row is hidden and nothing is sent, mirroring the caption field.
+    // Two reasons the date row can be hidden, and they mean different
+    // things: `native` is undated outright (a learner is not native "as of"
+    // some date), while a self-assessment *is* dated but always as of today,
+    // so asking is pure friction — the server stamps it (`implicit_date`,
+    // see `resolve_knowledge_date`). Either way nothing is sent.
     function updateDateField() {
         const kind = currentKind();
-        const requiresDate = kind ? kind.requires_date : true;
-        dateField.hidden = !requiresDate;
-        dateInput.required = requiresDate;
-        if (!requiresDate) dateInput.value = "";
+        const asksForDate = kind
+            ? kind.requires_date && !kind.implicit_date
+            : true;
+        dateField.hidden = !asksForDate;
+        dateInput.required = asksForDate;
+        if (!asksForDate) dateInput.value = "";
         else if (!dateInput.value) {
             dateInput.value = new Date().toISOString().slice(0, 10);
         }
@@ -195,7 +200,12 @@ export function setupEstimateFields(kinds, language) {
                 kind: kindSelect.value,
                 value: value || null,
                 caption: kind?.has_caption ? captionInput.value || null : null,
-                date: kind?.requires_date ? dateInput.value : null,
+                // Left null for an `implicit_date` kind too, which is what
+                // tells the server to stamp today.
+                date:
+                    kind?.requires_date && !kind.implicit_date
+                        ? dateInput.value
+                        : null,
             };
         },
     };

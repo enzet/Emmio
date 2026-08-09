@@ -57,6 +57,7 @@ from emmio.language_knowledge import (
     is_valid_caption,
     is_valid_knowledge_date,
     is_valid_knowledge_value,
+    resolve_knowledge_date,
 )
 from emmio.learn.config import LearningType
 from emmio.learn.core import Learning, Response
@@ -3568,7 +3569,7 @@ def create_my_language(
     # Everything is validated before anything is written: these are separate
     # transactions, so a late failure would otherwise leave a half-made
     # language behind.
-    _validate_knowledge_estimate(
+    effective_date: date | None = _validate_knowledge_estimate(
         code, request.kind, request.value, request.caption, request.date
     )
 
@@ -3589,7 +3590,7 @@ def create_my_language(
         request.kind,
         request.value,
         request.caption,
-        request.date,
+        effective_date,
     )
     return LanguageSummary(
         language=code,
@@ -3928,6 +3929,11 @@ class KnowledgeKindOption(BaseModel):
     """Whether this kind needs a self-reported date (false only for
     `native`)."""
 
+    implicit_date: bool
+    """Whether the record is dated but the date is not asked for: the client
+    should hide the field and send nothing, and the server stamps today (see
+    `resolve_knowledge_date`)."""
+
 
 def _knowledge_kind_option(kind: KnowledgeKind) -> KnowledgeKindOption:
     return KnowledgeKindOption(
@@ -3950,6 +3956,7 @@ def _knowledge_kind_option(kind: KnowledgeKind) -> KnowledgeKindOption:
         allows_other=kind.allows_other,
         has_caption=kind.has_caption,
         requires_date=kind.requires_date,
+        implicit_date=kind.implicit_date,
     )
 
 
@@ -4002,13 +4009,16 @@ def _validate_knowledge_estimate(
     value: str | None,
     caption: str | None,
     date_: date | None,
-) -> None:
+) -> date | None:
     """Check one proficiency estimate against its kind's rules.
 
     Shared by `create_language_knowledge_record` and by language creation,
     which requires a starting estimate (see `create_my_language`) and must
     reject a bad one *before* anything is written.
 
+    :return: the date to store, which for a kind that does not ask for one
+        (`implicit_date`, i.e. a self-assessment) is today rather than the
+        `None` the client sent
     :raises HTTPException: 400, naming the first rule the estimate breaks
     """
     if not _is_known_language(language):
@@ -4042,6 +4052,7 @@ def _validate_knowledge_estimate(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid date `{date_}` for `{kind.label}`.",
         )
+    return resolve_knowledge_date(kind, date_)
 
 
 class CreateLanguageKnowledgeRequest(BaseModel):
@@ -4064,7 +4075,7 @@ def create_language_knowledge_record(
     Adding never touches earlier estimates for the same language — the
     full self-reported history is kept.
     """
-    _validate_knowledge_estimate(
+    effective_date: date | None = _validate_knowledge_estimate(
         request.language,
         request.kind,
         request.value,
@@ -4077,7 +4088,7 @@ def create_language_knowledge_record(
         request.kind,
         request.value,
         request.caption,
-        request.date,
+        effective_date,
     )
     return LanguageKnowledgeRecord(
         id=record_id,
@@ -4085,7 +4096,7 @@ def create_language_knowledge_record(
         kind=request.kind,
         value=request.value,
         caption=request.caption,
-        date=request.date,
+        date=effective_date,
     )
 
 
