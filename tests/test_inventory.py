@@ -129,8 +129,11 @@ def test_artifacts_are_sorted(tmp_path: Path) -> None:
 
     downloaded_flags = [x.downloaded for x in lists]
     assert downloaded_flags == sorted(downloaded_flags, reverse=True)
+    # Same key `_sort` orders by, so a missing size (`None`, which only a
+    # not-yet-downloaded artifact has) is read as 0 here exactly as it is
+    # there, rather than being compared against an `int` and failing.
     sizes = [x.size for x in lists if x.downloaded]
-    assert sizes == sorted(sizes, reverse=True)
+    assert sizes == sorted(sizes, key=lambda size: size or 0, reverse=True)
     assert [x.language for x in lists if x.downloaded] == ["fr", "uk"]
 
 
