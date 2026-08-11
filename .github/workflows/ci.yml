@@ -73,9 +73,6 @@ jobs:
     - name: Create the test database schema
       run: |
         psql -v ON_ERROR_STOP=1 -q -f scripts/schema.sql emmio_test
-    # `tests/test_api.py` is excluded: it drives the whole FastAPI surface
-    # against a real database and takes too long to run on every push. Run it
-    # locally (`pytest tests/test_api.py`) before touching `emmio/api/`.
     - name: Test with pytest
       run: |
-        pytest -v --ignore=tests/test_api.py
+        pytest -v
