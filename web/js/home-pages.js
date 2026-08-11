@@ -310,7 +310,7 @@ export async function initLanguage() {
 
     const language = new URLSearchParams(location.search).get("language");
     document.getElementById("language-heading").textContent =
-        `Language: ${languageName(language)}`;
+        `${languageName(language)}`;
     document
         .getElementById("add-lexicon-link")
         .addEventListener("click", () => {
@@ -397,6 +397,7 @@ export async function initLanguage() {
         ]) {
             const cell = document.createElement("td");
             cell.textContent = value;
+            cell.style.textAlign = "right";
             row.appendChild(cell);
         }
 

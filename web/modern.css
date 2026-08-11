@@ -27,7 +27,7 @@ html[data-style="modern"] {
     --selected-bg: #EDF4FE;
     --selected-border: #A8C7F0;
     --history-highlight: #2A78D6;
-    --row-highlight: #FFF3B0;
+    --row-highlight: #fffceb;
 }
 html[data-style="modern"][data-theme="dark"] {
     --bg: #0A0A0A;
@@ -70,8 +70,6 @@ html[data-style="modern"] body {
     box-sizing: border-box;
     margin: 0;
     min-height: 100vh;
-    font-size: 15px;
-    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 /* `header` spans the full body width, a sticky translucent bar; `main` and
@@ -103,10 +101,6 @@ html[data-style="modern"] main {
 html[data-style="modern"] footer {
     padding-block-end: 2rem;
 }
-/* The check page's side-by-side halves stack into the single column. */
-html[data-style="modern"] main.check {
-    flex-direction: column;
-}
 html[data-style="modern"] main.check section {
     width: 100%;
 }
@@ -125,16 +119,7 @@ html[data-style="modern"] p {
     margin-block-start: 0.5em;
     margin-block-end: 0.5em;
 }
-/* Dictionary entries drop the serif: one typeface everywhere. */
-html[data-style="modern"] .dictionary-body {
-    font-family: inherit;
-}
 /* Links carry the ink color; the underline alone marks them. */
-html[data-style="modern"] a {
-    color: var(--fg);
-    text-decoration-color: var(--faint);
-    text-underline-offset: 2px;
-}
 html[data-style="modern"] a:hover {
     text-decoration-color: var(--fg);
 }
@@ -145,13 +130,6 @@ html[data-style="modern"] code {
     font-size: 90%;
 }
 
-/* Header navigation: quiet until hovered. */
-html[data-style="modern"] header a,
-html[data-style="modern"] nav span {
-    color: var(--muted);
-    text-decoration: none;
-    transition: color 0.12s ease;
-}
 html[data-style="modern"] header a:hover {
     color: var(--fg);
 }
@@ -166,7 +144,6 @@ html[data-style="modern"] button {
     font-family: inherit;
     font-size: 90%;
     font-weight: 600;
-    color: var(--fg);
     cursor: pointer;
     padding: 0.4rem 0.6rem;
     transition: transform 0.08s ease, background-color 0.12s ease,
@@ -174,6 +151,14 @@ html[data-style="modern"] button {
 }
 html[data-style="modern"] button:hover {
     background-color: var(--input-bg);
+}
+html[data-style="modern"] td button {
+    border: none;
+    padding: 0;
+}
+html[data-style="modern"] td button:hover {
+    background-color: var(--surface);
+    opacity: 0.8;
 }
 
 /* `a.button` (the landing page's calls to action) gets extra flair a plain
@@ -218,12 +203,10 @@ html[data-style="modern"] a.button.primary:hover {
    ChatGPT-composer look; the border only appears as a focus ring. */
 html[data-style="modern"] input.text,
 html[data-style="modern"] select {
-    font-family: inherit;
-    font-size: 95%;
     border: 1px solid transparent;
     border-radius: 5px;
     background: var(--input-bg);
-    padding: 0 0.1rem;
+    padding: 0.2rem 0.1rem;
     width: stretch;
     color: var(--fg);
 }
@@ -240,10 +223,6 @@ html[data-style="modern"] .strategy-picker-overlay {
 html[data-style="modern"] input#answer-input {
     border: 1px solid transparent;
     border-radius: 16px;
-}
-html[data-style="modern"] :is(input, select, button, a):focus-visible {
-    outline: 2px solid var(--fg);
-    outline-offset: 1px;
 }
 html[data-style="modern"] label {
     color: var(--muted);
@@ -265,10 +244,10 @@ html[data-style="modern"] th {
     border-bottom: 1px solid var(--border);
     padding: 0.45rem 0.8rem;
 }
-html[data-style="modern"] table tr :first-child {
+html[data-style="modern"] table tr > :first-child {
     padding-left: 0;
 }
-html[data-style="modern"] table tr :last-child {
+html[data-style="modern"] table tr > :last-child {
     padding-right: 0;
 }
 html[data-style="modern"] th {
@@ -281,20 +260,6 @@ html[data-style="modern"] th {
 /* Definition lists (profile, stats): muted terms, plain values. */
 html[data-style="modern"] dt {
     color: var(--muted);
-}
-
-/* Keyboard hints as tiny key caps instead of translucent text. */
-html[data-style="modern"] kbd {
-    font-family: inherit;
-    font-size: 70%;
-    opacity: 1;
-    color: var(--muted);
-    background: var(--input-bg);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 0 0.3em;
-    margin-left: 0.35em;
-    vertical-align: 1px;
 }
 
 /* Language codes as quiet little chips, not inverted badges. */
@@ -325,7 +290,4 @@ html[data-style="modern"] .connect-cell {
 html[data-style="modern"] p#word {
     font-size: clamp(3.4rem, 15vw, 6rem);
     letter-spacing: -0.03em;
-}
-html[data-style="modern"] p#word.top {
-    color: var(--correct-fg);
 }

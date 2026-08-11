@@ -136,7 +136,7 @@ async function runSession(base, doneText) {
             return Boolean(estimate.achieved);
         }
         rateEstimate.textContent =
-            `r = ${estimate.rate.toFixed(2)} ± ${estimate.sd.toFixed(2)}`;
+            `r = ${estimate.rate.toFixed(2)} ±\u202F${estimate.sd.toFixed(2)}`;
         rateEstimate.title = `${estimate.method[0].toUpperCase()}${estimate.method.slice(1)} estimate`;
         rateEstimate.hidden = false;
         return Boolean(estimate.achieved);

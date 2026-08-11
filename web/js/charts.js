@@ -178,7 +178,7 @@ export function createTrajectoryChart(figure, svg, tooltip) {
         parts.push(
             `<text class="end-label" x="${x(last.q) + 8}" y="${labelY}"` +
                 ` dominant-baseline="middle">r = ${last.rate.toFixed(2)}` +
-                ` ± ${(last.sd || 0).toFixed(2)}</text>`,
+                ` ±\u202F${(last.sd || 0).toFixed(2)}</text>`,
         );
 
         svg.innerHTML = parts.join("");
@@ -211,7 +211,7 @@ export function createTrajectoryChart(figure, svg, tooltip) {
         focusDot.setAttribute("cy", cy);
         focusDot.style.visibility = "visible";
         tooltip.textContent =
-            `r = ${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
+            `r = ${nearest.rate.toFixed(2)} ±\u202F${(nearest.sd || 0).toFixed(2)}` +
             ` · ${nearest.q.toLocaleString("en-US")} answers`;
         tooltip.hidden = false;
         tooltip.style.left = `${Math.max(
@@ -548,7 +548,7 @@ export function createLanguageHistoryChart(figure, svg, tooltip, onHoverLanguage
         focusDot.style.visibility = "visible";
         tooltip.textContent =
             `${languageName(nearestSeries.language)}: r = ` +
-            `${nearest.rate.toFixed(2)} ± ${(nearest.sd || 0).toFixed(2)}` +
+            `${nearest.rate.toFixed(2)} ±\u202F${(nearest.sd || 0).toFixed(2)}` +
             ` · ${dateLabel(nearest.date)}`;
         tooltip.hidden = false;
         tooltip.style.left = `${Math.max(

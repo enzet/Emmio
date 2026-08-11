@@ -11,7 +11,7 @@ const STRATEGY_ICON_CHARS = {
 // uniform random). Pair with the `.strategy-text` CSS class in base.css.
 export function strategyIconPrefix(strategyValue) {
     const char = STRATEGY_ICON_CHARS[strategyValue];
-    return char ? char + " " : "";
+    return char ? char + "\u202F" : "";
 }
 
 // Format an ISO timestamp as a short, human "time ago" (falls back to a date).
@@ -53,7 +53,7 @@ export function languageName(code) {
 export function formatRate(rate, sd, digits) {
     if (rate === null || rate === undefined) return "—";
     let text = rate.toFixed(digits);
-    if (sd !== null && sd !== undefined) text += ` ± ${sd.toFixed(digits)}`;
+    if (sd !== null && sd !== undefined) text += ` ±\u202F${sd.toFixed(digits)}`;
     return text;
 }
 
@@ -62,7 +62,7 @@ export function formatRate(rate, sd, digits) {
 export function emmioLevel(rate, cell) {
     var level = "";
     if (rate === null || rate < 2) {
-        cell.append("< ");
+        cell.append("<\u202F");
         level = "A1";
     } else if (rate < 3) {
         level = "A1";
@@ -77,7 +77,7 @@ export function emmioLevel(rate, cell) {
     } else if (rate < 8) {
         level = "C2";
     } else {
-        cell.append("> ");
+        cell.append(">\u202F");
         level = "C2";
     }
     var span = document.createElement("span");
