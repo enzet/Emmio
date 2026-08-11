@@ -9,6 +9,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Every test needs a database, not just the API ones: the autouse
+    # `clean_database` fixture in tests/conftest.py truncates the test
+    # database before each test. Without a server, each test instead waits
+    # out psycopg_pool's 30-second timeout and errors -- 192 tests, an hour
+    # and a half, all red.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: emmio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # conftest.py hardcodes `postgresql:///emmio_test` so that a test run can
+    # never be pointed at a real database. That DSN names no host, so libpq
+    # fills one in from these -- which reaches the service container above
+    # without the test suite having to trust an environment variable.
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.12
@@ -36,6 +67,12 @@ jobs:
     - name: Check types with ty
       run: |
         ty check emmio/ tests/
+    # Also the fail-fast gate for the database: if the service is not
+    # reachable this fails in seconds, instead of every test discovering it
+    # one 30-second pool timeout at a time.
+    - name: Create the test database schema
+      run: |
+        psql -v ON_ERROR_STOP=1 -q -f scripts/schema.sql emmio_test
     # `tests/test_api.py` is excluded: it drives the whole FastAPI surface
     # against a real database and takes too long to run on every push. Run it
     # locally (`pytest tests/test_api.py`) before touching `emmio/api/`.
